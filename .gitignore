@@ -1,0 +1,41 @@
+# ---------------------------------------------------------------- este repo
+# Solo se publica el visor web (GitHub Pages sirve index.html desde la raíz).
+# El motor Python, el comparador y las notas internas se quedan fuera.
+python/
+compare_engines.py
+CONTEXTO_BARCOMP.md
+PROMPT_WEB_V2.md
+
+# --------------------------------------------------------------- artefactos
+# index.html (raíz) ES la página publicada y sí se versiona.
+# Esta copia la genera el mismo build para abrirla con doble clic en local.
+web/barcomp_viewer.html
+
+# Herramientas que solo tienen sentido junto al motor Python
+web/engine_dump.js
+web/build.py
+
+# Restos del build anterior (three r140 UMD); hoy three viene de npm
+web/vendor/
+
+# ------------------------------------------------------------ dependencias
+node_modules/
+
+# ------------------------------------------------------------------ python
+__pycache__/
+*.pyc
+
+# -------------------------------------------------------------- basura de SO
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ------------------------------------------------------------------ editores
+.vscode/
+.idea/
+*.swp
+
+# ------------------------------------------------------------------- trabajo
+*.log
+tmp/
+scratch/

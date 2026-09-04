@@ -1,0 +1,220 @@
+:root{
+  --bg:#0B0E13; --panel:#12161D; --panel2:#171C25; --panel3:#1D2430;
+  --line:#242C39; --line2:#303A4A;
+  --txt:#D8DFE9; --dim:#7E8A9C; --dim2:#5A6576;
+  --nominal:#3FA9F5; --measured:#F0A02E; --corrected:#3FD68C;
+  --ok:#3FD68C; --warn:#FFC53D; --bad:#FF4D5E;
+  --mono:ui-monospace,"SF Mono","Cascadia Mono","Roboto Mono",Menlo,Consolas,monospace;
+  --sans:"Inter","Segoe UI",system-ui,-apple-system,"Helvetica Neue",Arial,sans-serif;
+  --h:44px; --ribbon:96px; --statusH:26px; --rtW:520px; --lfW:250px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;overflow:hidden}
+body{background:var(--bg);color:var(--txt);font-family:var(--mono);font-size:12px;
+  -webkit-font-smoothing:antialiased}
+button,input,select,textarea{font-family:inherit;font-size:inherit;color:inherit}
+::-webkit-scrollbar{width:9px;height:9px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:var(--line2);border-radius:5px}
+::-webkit-scrollbar-thumb:hover{background:#465268}
+:focus-visible{outline:2px solid var(--nominal);outline-offset:1px}
+
+/* ---------- shell ---------- */
+#app{display:grid;height:100vh;
+  grid-template-columns:var(--lfW) 1fr var(--rtW);
+  grid-template-rows:var(--h) 1fr var(--statusH);
+  grid-template-areas:"hd hd hd" "lf ct rt" "st st st"}
+#hd{grid-area:hd}#lf{grid-area:lf}#ct{grid-area:ct}#rt{grid-area:rt}#st{grid-area:st}
+
+/* ---------- header ---------- */
+#hd{display:flex;align-items:center;gap:14px;padding:0 12px;
+  background:linear-gradient(180deg,#151A23,#10141B);border-bottom:1px solid var(--line)}
+.brand{display:flex;align-items:baseline;gap:8px;font-family:var(--sans)}
+.brand b{font-size:15px;font-weight:700;letter-spacing:.16em}
+.brand .v{font-size:9px;letter-spacing:.18em;color:var(--nominal);
+  border:1px solid var(--nominal);border-radius:2px;padding:1px 4px;opacity:.85}
+.brand .sub{font-size:10px;color:var(--dim2);letter-spacing:.06em;margin-left:4px}
+.hspace{flex:1}
+.hbtns{display:flex;gap:5px}
+.btn{background:var(--panel3);border:1px solid var(--line2);border-radius:3px;
+  padding:5px 10px;cursor:pointer;color:var(--txt);white-space:nowrap;transition:.12s}
+.btn:hover{background:#28313F;border-color:#455065}
+.btn:active{transform:translateY(1px)}
+.btn.pri{background:#12324B;border-color:#1E5C86;color:#9FD4FA}
+.btn.pri:hover{background:#17415F}
+.btn.sm{padding:3px 7px;font-size:11px}
+.seg{display:flex;border:1px solid var(--line2);border-radius:3px;overflow:hidden}
+.seg button{background:var(--panel3);border:0;padding:5px 9px;cursor:pointer;color:var(--dim)}
+.seg button+button{border-left:1px solid var(--line2)}
+.seg button.on{background:#12324B;color:#9FD4FA}
+
+/* ---------- panels ---------- */
+#lf,#rt{background:var(--panel);overflow-y:auto;overflow-x:hidden}
+#lf{border-right:1px solid var(--line)}
+#rt{border-left:1px solid var(--line)}
+.grp{border-bottom:1px solid var(--line)}
+.eyebrow{font-family:var(--sans);font-size:9.5px;font-weight:600;letter-spacing:.15em;
+  text-transform:uppercase;color:var(--dim2);padding:10px 11px 6px;display:flex;
+  align-items:center;justify-content:space-between;gap:6px}
+.eyebrow .n{color:var(--dim2);opacity:.6}
+.grp .body{padding:0 8px 10px}
+
+/* layers */
+.layer{display:flex;align-items:center;gap:7px;padding:4px 3px;border-radius:3px;cursor:default}
+.layer:hover{background:var(--panel2)}
+.layer .nm{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:11.5px}
+.layer input[type=checkbox]{accent-color:var(--nominal);width:13px;height:13px;cursor:pointer}
+.sw{width:15px;height:15px;border-radius:3px;border:1px solid #0006;cursor:pointer;
+  padding:0;flex:none;overflow:hidden}
+.sw::-webkit-color-swatch-wrapper{padding:0}.sw::-webkit-color-swatch{border:0;border-radius:2px}
+.xbtn{background:none;border:0;color:var(--dim2);cursor:pointer;padding:0 3px;line-height:1}
+.xbtn:hover{color:var(--bad)}
+
+/* datasets */
+.ds{border:1px solid var(--line);border-radius:4px;padding:6px 7px;margin-bottom:6px;
+  background:var(--panel2)}
+.ds.act{border-color:var(--nominal);box-shadow:0 0 0 1px #3FA9F540 inset}
+.ds .top{display:flex;align-items:center;gap:6px}
+.ds .nm{flex:1;font-size:11.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer}
+.ds .meta{display:flex;gap:9px;margin-top:4px;font-size:10px;color:var(--dim)}
+.ds .meta b{font-weight:400;color:var(--txt)}
+
+/* ---------- viewport ---------- */
+#ct{position:relative;display:flex;flex-direction:column;background:#080A0E;min-width:0}
+#vpwrap{position:relative;flex:1;min-height:0}
+#vp{position:absolute;inset:0;display:block}
+#labels{position:absolute;inset:0;pointer-events:none;overflow:hidden}
+.lbl{position:absolute;transform:translate(-50%,-50%);font-size:10px;padding:1px 4px;
+  border-radius:2px;background:#0B0E13CC;border:1px solid var(--line2);white-space:nowrap;
+  letter-spacing:.03em}
+#vptool{position:absolute;top:8px;left:8px;display:flex;gap:5px;align-items:center;
+  background:#0B0E13D9;border:1px solid var(--line);border-radius:4px;padding:5px 7px;
+  backdrop-filter:blur(6px);flex-wrap:wrap;max-width:calc(100% - 16px)}
+#vplegend{position:absolute;top:8px;right:8px;background:#0B0E13D9;border:1px solid var(--line);
+  border-radius:4px;padding:7px 9px;backdrop-filter:blur(6px);font-size:10.5px;min-width:132px}
+#vplegend .row{display:flex;align-items:center;gap:6px;padding:1.5px 0}
+#vplegend .dot{width:9px;height:3px;border-radius:2px;flex:none}
+.scalebar{margin-top:6px;padding-top:6px;border-top:1px solid var(--line)}
+.scalebar .grad{height:7px;border-radius:2px;margin:3px 0 2px;
+  background:linear-gradient(90deg,#3FD68C,#FFC53D,#FF4D5E)}
+.scalebar .ends{display:flex;justify-content:space-between;color:var(--dim);font-size:9.5px}
+.tag{font-size:9.5px;color:var(--dim2);letter-spacing:.1em;text-transform:uppercase;
+  font-family:var(--sans);font-weight:600}
+#hint{position:absolute;bottom:8px;left:8px;font-size:10px;color:var(--dim2);
+  background:#0B0E13B0;padding:3px 7px;border-radius:3px}
+/* tirador para ensanchar el panel derecho */
+#rtgrip{position:absolute;top:0;bottom:0;right:-3px;width:7px;z-index:12;
+  cursor:col-resize;background:transparent}
+#rtgrip:hover,#rtgrip.drag{background:#3FA9F544}
+
+/* ---------- ribbon (signature) ---------- */
+#rb{height:var(--ribbon);border-top:1px solid var(--line);background:var(--panel);
+  position:relative;flex:none}
+#rbc{position:absolute;inset:0;width:100%;height:100%;display:block;cursor:pointer}
+#rbtitle{position:absolute;top:6px;left:10px;font-family:var(--sans);font-size:9px;
+  font-weight:600;letter-spacing:.15em;color:var(--dim2);pointer-events:none;text-transform:uppercase}
+
+/* ---------- tabs ---------- */
+#tabs{display:flex;border-bottom:1px solid var(--line);background:var(--panel2);position:sticky;top:0;z-index:5}
+#tabs button{flex:1;background:none;border:0;border-bottom:2px solid transparent;
+  padding:9px 4px;cursor:pointer;color:var(--dim);font-family:var(--sans);font-size:10px;
+  font-weight:600;letter-spacing:.11em;text-transform:uppercase}
+#tabs button.on{color:var(--txt);border-bottom-color:var(--nominal);background:var(--panel3)}
+.pane{display:none}.pane.on{display:block}
+
+/* ---------- forms ---------- */
+/* Sin flechas nativas: robaban ancho y tapaban las cifras.
+   Sustitutos: teclas Flecha arriba/abajo y rueda del ratón sobre el campo
+   enfocado (ver el manejador `wheel` en bind()).                          */
+input[type=number]{-moz-appearance:textfield;appearance:textfield}
+input[type=number]::-webkit-outer-spin-button,
+input[type=number]::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
+
+.fgrid{display:grid;grid-template-columns:1fr 112px;gap:6px 10px;align-items:center;padding:2px 0}
+.fgrid label{font-size:11.5px;color:var(--dim)}
+.fgrid.w3{grid-template-columns:1fr 72px 72px}
+input[type=text],input[type=number],select{background:#0C1017;border:1px solid var(--line2);
+  border-radius:3px;padding:6px 8px;width:100%;font-size:12.5px;line-height:1.2;
+  font-variant-numeric:tabular-nums}
+input[type=number]{text-align:right}
+input:hover,select:hover{border-color:#3C4759}
+input:focus,select:focus{border-color:var(--nominal);outline:0;
+  box-shadow:0 0 0 2px #3FA9F533;background:#0E141D}
+input[type=range]{width:100%;accent-color:var(--nominal);height:16px}
+.rangerow{display:grid;grid-template-columns:1fr 62px;gap:8px;align-items:center}
+.rangerow .val{text-align:right;color:var(--nominal);font-variant-numeric:tabular-nums}
+.hintline{font-size:10px;color:var(--dim2);line-height:1.45;padding:4px 0 2px}
+
+/* ---------- tables ---------- */
+.tw{overflow-x:auto;border:1px solid var(--line);border-radius:4px}
+table{border-collapse:collapse;width:100%;font-variant-numeric:tabular-nums}
+th{background:var(--panel3);font-family:var(--sans);font-size:9px;font-weight:600;
+  letter-spacing:.09em;text-transform:uppercase;color:var(--dim);padding:6px 5px;
+  text-align:right;white-space:nowrap;position:sticky;top:0}
+th:first-child,td:first-child{text-align:left}
+td{padding:2px 4px;text-align:right;border-top:1px solid var(--line);white-space:nowrap;font-size:12px}
+tbody tr:hover{background:var(--panel2)}
+tbody tr.sel{background:#12324B}
+tbody tr.clk{cursor:pointer}
+td input{padding:5px 6px;font-size:12.5px;border-color:transparent;background:transparent;
+  min-width:66px}
+td input:hover{border-color:var(--line2);background:#0C1017}
+td input:focus{border-color:var(--nominal);background:#0C1017;box-shadow:0 0 0 2px #3FA9F533}
+/* la tabla LRA no se comprime: si no cabe, el contenedor .tw desplaza en X
+   y el panel derecho se puede ensanchar arrastrando #rtgrip.              */
+table.lra{min-width:860px}
+.ori{display:inline-block;width:15px;text-align:center;border-radius:2px;font-size:9.5px;
+  padding:0 3px;border:1px solid}
+.ori.W{color:#C9A5F5;border-color:#6B4B9E}
+.ori.T{color:#7FD8C4;border-color:#3B7A6C}
+.v-ok{color:var(--ok)}.v-warn{color:var(--warn)}.v-bad{color:var(--bad)}
+.v-dim{color:var(--dim2)}
+.chip{display:inline-block;padding:0 5px;border-radius:8px;font-size:10px;border:1px solid}
+.chip.ok{color:var(--ok);border-color:#2C6B4C;background:#3FD68C14}
+.chip.bad{color:var(--bad);border-color:#7A2C36;background:#FF4D5E14}
+
+/* stats */
+.stats{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin:8px 0}
+.stat{background:var(--panel2);border:1px solid var(--line);border-radius:4px;padding:7px 9px}
+.stat .k{font-family:var(--sans);font-size:8.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--dim2)}
+.stat .v{font-size:16px;margin-top:2px;font-variant-numeric:tabular-nums}
+.stat .u{font-size:10px;color:var(--dim);margin-left:2px}
+
+/* status */
+#st{display:flex;align-items:center;gap:0;background:var(--panel2);
+  border-top:1px solid var(--line);font-size:10.5px;color:var(--dim);overflow:hidden}
+#st .c{padding:0 11px;border-right:1px solid var(--line);white-space:nowrap;
+  height:100%;display:flex;align-items:center;gap:5px}
+#st b{font-weight:400;color:var(--txt);font-variant-numeric:tabular-nums}
+
+.row{display:flex;gap:5px;align-items:center}
+.row.wrap{flex-wrap:wrap}
+.mt6{margin-top:6px}.mt10{margin-top:10px}.mb6{margin-bottom:6px}
+.grow{flex:1}
+.divider{height:1px;background:var(--line);margin:9px 0}
+.warnbox{border:1px solid #7A5B1E;background:#FFC53D0F;border-radius:4px;padding:6px 8px;
+  font-size:10.5px;color:#E6C77A;line-height:1.45}
+
+@media (max-width:1180px){#app{grid-template-columns:206px 1fr var(--rtW)}}
+
+/* ---------- modelos (variantes) ---------- */
+.refbadge{font-family:var(--sans);font-size:8px;font-weight:700;letter-spacing:.12em;
+  color:var(--nominal);border:1px solid var(--nominal);border-radius:2px;padding:0 3px;
+  flex:none;opacity:.9}
+.linkbtn{background:none;border:0;color:var(--dim2);cursor:pointer;padding:3px 0 0;
+  font-family:var(--sans);font-size:9.5px;letter-spacing:.06em;text-align:left;width:100%}
+.linkbtn:hover{color:var(--nominal);text-decoration:underline}
+.layer input[type=radio]{accent-color:var(--nominal);width:13px;height:13px;cursor:pointer}
+.ds .meta b{font-variant-numeric:tabular-nums}
+
+/* La columna Δ va PEGADA a su parámetro: la corrección se escribe al lado del
+   dato sin perder el valor original. Fondo propio para que se lean como par. */
+td.dcol,th.dcol{background:#0F1620}
+td.dcol input{color:var(--corrected);min-width:56px}
+td.dcol input.z{color:var(--dim2)}
+th.dcol{color:var(--corrected);opacity:.75}
+tbody tr.hasd td:first-child{box-shadow:inset 2px 0 0 var(--corrected)}
+.dv{color:var(--corrected)}
+/* 12 columnas no caben en el panel: se desplaza en X dentro de .tw y el panel
+   se puede ensanchar arrastrando #rtgrip. */
+

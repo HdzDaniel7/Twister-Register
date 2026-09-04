@@ -1,0 +1,4 @@
+# El repo guarda LF; en Windows se sigue trabajando con CRLF.
+* text=auto eol=lf
+*.png binary
+*.jpg binary

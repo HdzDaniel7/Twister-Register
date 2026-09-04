@@ -1,0 +1,347 @@
+#!/usr/bin/env node
+/**
+ * Pruebas de regresión del motor de src/engine.js — sin navegador.
+ *
+ *     node test_motor.js          (o  npm test)
+ *
+ * Importa el motor como módulo ES: es exactamente el código que esbuild
+ * empotra en barcomp_viewer.html, no una copia.
+ * Sale con código 1 si alguna prueba falla.
+ *
+ * Correr esto DESPUÉS de cada cambio en src/ y ANTES de `node build.mjs`.
+ */
+import { Matrix4, Euler, Vector3 } from 'three';
+import * as E from './src/engine.js';
+
+let fails = 0;
+function ok(name, cond, detail = '') {
+  console.log(`${cond ? ' PASA' : 'FALLA'}  ${name}${detail ? '   ' + detail : ''}`);
+  if (!cond) fails++;
+}
+const maxAbs = a => a.reduce((m, x) => Math.max(m, Math.abs(x)), 0);
+
+/* ======================================================================== */
+console.log('\n— cinemática —');
+
+const M = E.demoModel();
+const P = E.fk(M).pis;
+
+ok('fk devuelve n+2 puntos', P.length === M.bends.length + 2, `${P.length} pts`);
+
+const back = E.ik(P, M.bends.map(b => b.radius));
+let e = 0;
+back.bends.forEach((b, i) => {
+  e = Math.max(e,
+    Math.abs(b.feed - M.bends[i].feed),
+    Math.abs(b.angle - M.bends[i].angle),
+    Math.abs(E.wrap180(b.rot - M.bends[i].rot)));
+});
+ok('ida y vuelta FK -> IK exacta', e < 1e-9, `error máx ${e.toExponential(2)}`);
+ok('cola preservada', Math.abs(back.tail - M.tail) < 1e-9);
+
+/* longitud desarrollada = sum(rectas) + sum(arcos) */
+const path_ = E.buildPath(M);
+const rectas = M.bends.reduce((a, b, i) =>
+  a + b.feed - E.trimOf(b) - (i ? E.trimOf(M.bends[i - 1]) : 0), 0);
+const arcos = M.bends.reduce((a, b) => a + (b.radius || 0) * E.bendDecomp(b).theta, 0);
+const colaL = M.tail - E.trimOf(M.bends[M.bends.length - 1]);
+ok('longitud desarrollada coherente',
+   Math.abs(path_.total - (rectas + arcos + colaL)) < 1e-6,
+   `${path_.total.toFixed(1)} mm`);
+
+const fin = path_.samples[path_.samples.length - 1].p;
+ok('trayectoria termina en la punta libre', fin.distanceTo(P[P.length - 1]) < 1e-6);
+
+const mf = E.machineFeeds(M);
+ok('avances de máquina positivos', mf.every(v => v > 0), `mín ${Math.min(...mf).toFixed(1)} mm`);
+
+const ori = E.orientations(M);
+ok('orientaciones solo W o T', ori.every(o => o === 'W' || o === 'T'),
+   `W=${ori.filter(o => o === 'W').length} T=${ori.filter(o => o === 'T').length}`);
+
+/* Twist: reorienta la cadena AGUAS ABAJO (cambia el rodado de la barra, así que
+   el mismo `rot` comandado apunta a otro lado), pero no altera ningún avance. */
+const Mt = E.cloneModel(M);
+const IT = 3;                                   // twist en el doblez 4
+Mt.bends[IT].twist = 12;
+const Pt = E.fk(Mt).pis;
+const dist = pts => pts.slice(1).map((p, i) => p.distanceTo(pts[i]));
+ok('el twist no toca la cadena aguas arriba',
+   Pt.slice(0, IT + 2).every((p, i) => p.distanceTo(P[i]) < 1e-9));
+ok('el twist reorienta la cadena aguas abajo',
+   Pt.slice(IT + 2).some((p, i) => p.distanceTo(P[i + IT + 2]) > 1),
+   `punta se mueve ${Pt[Pt.length - 1].distanceTo(P[P.length - 1]).toFixed(1)} mm`);
+ok('el twist preserva todos los avances',
+   dist(Pt).every((d, i) => Math.abs(d - dist(P)[i]) < 1e-9));
+
+/* ---------------------------------------------------------------------- */
+console.log('\n— doblez biaxial: `rot` dobla de canto, `angle` de plano —');
+
+const EM = E.emptyModel();
+/* rot y angle son dos dobleces PERPENDICULARES, no un rodado y un doblez. */
+const Pl = E.normalizeModel({ ...EM, tail: 200,
+  bends: [E.newBend({ feed: 200, rot: 0, angle: 40, radius: 30 })] });
+const Ca = E.normalizeModel({ ...EM, tail: 200,
+  bends: [E.newBend({ feed: 200, rot: 40, angle: 0, radius: 30 })] });
+const pp = E.fk(Pl).pis, pc = E.fk(Ca).pis;
+const ppE = pp[pp.length - 1], pcE = pc[pc.length - 1];
+
+ok('un doblez de plano solo desvía sobre el espesor (y)',
+   Math.abs(ppE.z) < 1e-9 && Math.abs(ppE.y) > 10,
+   `y=${ppE.y.toFixed(1)}  z=${ppE.z.toExponential(1)}`);
+ok('un doblez de canto solo desvía sobre el ancho (z)',
+   Math.abs(pcE.y) < 1e-9 && Math.abs(pcE.z) > 10,
+   `y=${pcE.y.toExponential(1)}  z=${pcE.z.toFixed(1)}`);
+ok('los dos dobleces son perpendiculares y del mismo tamaño',
+   Math.abs(Math.abs(ppE.y) - Math.abs(pcE.z)) < 1e-9);
+ok('orientations marca la componente dominante',
+   E.orientations(Pl)[0] === 'T' && E.orientations(Ca)[0] === 'W');
+
+const dp = E.bendDecomp(Pl.bends[0]), dc = E.bendDecomp(Ca.bends[0]);
+ok('el eje del arco de plano es el ancho (z)',
+   Math.abs(Math.abs(dp.axis.z) - 1) < 1e-12,
+   `eje ${dp.axis.toArray().map(v => v.toFixed(3)).join(' ')}`);
+ok('el eje del arco de canto es el espesor (y)',
+   Math.abs(Math.abs(dc.axis.y) - 1) < 1e-12,
+   `eje ${dc.axis.toArray().map(v => v.toFixed(3)).join(' ')}`);
+ok('un doblez puro no deja rodado residual',
+   Math.abs(dp.psi) < 1e-12 && Math.abs(dc.psi) < 1e-12);
+ok('el desvío total de un doblez puro es su propio ángulo',
+   Math.abs(dp.theta * E.R2D - 40) < 1e-9 && Math.abs(dc.theta * E.R2D - 40) < 1e-9);
+
+const Cx = E.newBend({ rot: 30, angle: 40, radius: 30 });
+const dx = E.bendDecomp(Cx);
+ok('un doblez compuesto desvía más que cualquiera de sus componentes',
+   dx.theta * E.R2D > 40 + 1e-6, `${(dx.theta * E.R2D).toFixed(2)}°`);
+ok('un doblez compuesto sí deja rodado residual',
+   Math.abs(dx.psi) > 1e-3, `${(dx.psi * E.R2D).toFixed(2)}°`);
+ok('trimOf usa el desvío total, no solo el ángulo de plano',
+   Math.abs(E.trimOf(Cx) - 30 * Math.tan(dx.theta / 2)) < 1e-12);
+
+/* El arco NO se traza como Rx(φ)·Rz(θ): eso da la posición correcta pero gira
+   la sección a lo largo del arco y la endereza de un salto en el vértice. */
+{
+  const last = path_.samples[path_.samples.length - 1];
+  const endB = E.fk(M).end.elements;
+  const cols = [last.x, last.y, last.z];
+  let d = 0;
+  for (let c = 0; c < 3; c++) {
+    d = Math.max(d, Math.abs(cols[c].x - endB[c * 4]),
+                    Math.abs(cols[c].y - endB[c * 4 + 1]),
+                    Math.abs(cols[c].z - endB[c * 4 + 2]));
+  }
+  ok('el marco de buildPath coincide con el de fk', d < 1e-9, `${d.toExponential(2)}`);
+}
+
+/* ---------------------------------------------------------------------- */
+console.log('\n— torsión repartida a lo largo de una sección —');
+
+/* La torsión se reparte sobre `twistLen` mm CENTRADOS en la recta siguiente.
+   Como Rx conmuta con Trans(x), mover la zona no toca ningún PI ni el marco
+   final: solo cambia DÓNDE ocurre físicamente el retorcido.                 */
+{
+  const spans = E.twistSpans(500, 90, 120);
+  const dl = spans.reduce((a, x) => a + x[0], 0);
+  const dt = spans.reduce((a, x) => a + x[1], 0) * E.R2D;
+  ok('twistSpans conserva longitud y torsión totales',
+     Math.abs(dl - 500) < 1e-9 && Math.abs(dt - 90) < 1e-9,
+     `${dl.toFixed(6)} mm / ${dt.toFixed(6)}°`);
+  ok('twistSpans deja recta sin torcer a ambos lados de la zona',
+     Math.abs(spans[0][1]) < 1e-15 && Math.abs(spans[spans.length - 1][1]) < 1e-15 &&
+     Math.abs(spans[0][0] - 190) < 1e-9,
+     `guarda ${spans[0][0].toFixed(1)} mm`);
+}
+
+const Tw = E.normalizeModel({
+  name: 'twist', tail: 500,
+  bends: [E.newBend({ feed: 200, rot: 0, angle: 30, radius: 20, twist: 90, twistLen: 0 })],
+});
+const TwZ = E.cloneModel(Tw);
+TwZ.bends[0].twistLen = 120;
+
+ok('twistSpanOf mide la recta disponible',
+   Math.abs(E.twistSpanOf(Tw, 0) - (Tw.tail - E.trimOf(Tw.bends[0]))) < 1e-9,
+   `${E.twistSpanOf(Tw, 0).toFixed(2)} mm`);
+
+const pA = E.fk(Tw).pis, pB = E.fk(TwZ).pis;
+ok('twistLen no mueve ningún PI', pA.every((p, i) => p.distanceTo(pB[i]) < 1e-12));
+
+const bpA = E.buildPath(Tw), bpB = E.buildPath(TwZ);
+ok('twistLen no cambia la longitud desarrollada',
+   Math.abs(bpA.total - bpB.total) < 1e-9, `${bpB.total.toFixed(3)} mm`);
+ok('la trayectoria con zona acotada termina en la punta libre',
+   bpB.samples[bpB.samples.length - 1].p.distanceTo(pB[pB.length - 1]) < 1e-6);
+
+/* rodado del marco respecto al inicio de la cola, a una distancia dada */
+const tailStart = bpB.total - (Tw.tail - E.trimOf(Tw.bends[0]));
+const at = (bp, d) => {
+  const s = tailStart + d;
+  let best = bp.samples[0], bd = Infinity;
+  for (const q of bp.samples) { const x = Math.abs(q.s - s); if (x < bd) { bd = x; best = q; } }
+  return best;
+};
+const y0 = at(bpB, 0).y.clone();
+const roll = (bp, d) => Math.acos(E.clamp(at(bp, d).y.dot(y0), -1, 1)) * E.R2D;
+
+ok('fuera de la zona (antes) la barra no está torcida',
+   roll(bpB, 100) < 0.5, `${roll(bpB, 100).toFixed(2)}° a 100 mm`);
+ok('dentro de la zona la torsión es gradual, no un salto',
+   roll(bpB, 250) > 30 && roll(bpB, 250) < 60, `${roll(bpB, 250).toFixed(2)}° a 250 mm`);
+ok('fuera de la zona (después) la torsión ya está completa',
+   Math.abs(roll(bpB, 420) - 90) < 0.5, `${roll(bpB, 420).toFixed(2)}° a 420 mm`);
+ok('twistLen=0 reparte la torsión por toda la recta',
+   roll(bpA, 100) > 10 && Math.abs(roll(bpA, 100) - roll(bpB, 100)) > 5,
+   `${roll(bpA, 100).toFixed(2)}° vs ${roll(bpB, 100).toFixed(2)}° a 100 mm`);
+
+/* ---------------------------------------------------------------------- */
+console.log('\n— alineación —');
+
+const Q = E.fk(M).pis;
+const Rt = new Matrix4()
+  .makeRotationFromEuler(new Euler(0.3, -0.2, 0.7)).setPosition(50, -30, 20);
+const Pm = Q.map(p => p.clone().applyMatrix4(Rt));
+const inv = E.kabsch(Pm, Q);
+let ke = 0;
+Pm.forEach((p, i) => { ke = Math.max(ke, p.clone().applyMatrix4(inv).distanceTo(Q[i])); });
+ok('Kabsch recupera una transformación rígida', ke < 1e-8, `residual ${ke.toExponential(2)} mm`);
+
+/* ---------------------------------------------------------------------- */
+console.log('\n— lazo de compensación —');
+
+const proc = { sbW: 1.6, sbT: 1.0, slip: .12, biasRot: .35,
+               noiseA: .04, noiseF: .06, noiseR: .04, seed: 7 };
+const comp = { gainW: .75, gainT: .75, doAngle: true, doRot: true, doFeed: true };
+let cmd = M.bends.map(b => E.newBend(b));
+const hist = [];
+for (let it = 0; it < 4; it++) {
+  proc.seed = 7 + it;
+  const meas = E.simulate(cmd, proc, ori, true);
+  const tip = E.fk({ ...M, bends: meas }).pis.slice(-1)[0].distanceTo(P[P.length - 1]);
+  const maxA = Math.max(...meas.map((b, i) => Math.abs(b.angle - M.bends[i].angle)));
+  hist.push({ it, maxA, tip });
+  console.log(`       iter ${it}   Δang máx ${maxA.toFixed(4)}°   punta ${tip.toFixed(3)} mm`);
+  cmd = E.compensate(cmd, M.bends, meas, comp, ori);
+}
+ok('el lazo reduce el error angular', hist[3].maxA < hist[0].maxA * 0.2);
+ok('el lazo reduce la desviación de punta', hist[3].tip < hist[0].tip * 0.2);
+ok('sin corregir nada, el comando no cambia',
+   E.compensate(cmd, M.bends, M.bends,
+     { gainW: .75, gainT: .75, doAngle: false, doRot: false, doFeed: false }, ori)
+     .every((b, i) => Math.abs(b.angle - cmd[i].angle) < 1e-12));
+
+/* el resorte va por componente: sbT al de plano, sbW al de canto */
+{
+  const one = [E.newBend({ feed: 100, rot: 20, angle: 40, radius: 30 })];
+  const s = E.simulate(one, { ...E.PROC_DEFAULT, biasRot: 0 }, ['T'], false);
+  ok('simulate aplica el resorte por componente',
+     Math.abs(s[0].angle - 40 * (1 - E.PROC_DEFAULT.sbT / 100)) < 1e-12 &&
+     Math.abs(s[0].rot - 20 * (1 - E.PROC_DEFAULT.sbW / 100)) < 1e-12);
+}
+/* deviations: fuera si CUALQUIERA de las dos componentes lo está */
+{
+  const base = E.normalizeModel({ ...EM, tail: 150,
+    bends: [E.newBend({ feed: 100, rot: 0, angle: 30 }),
+            E.newBend({ feed: 100, rot: 30, angle: 0 })] });
+  const bad = E.cloneModel(base);
+  bad.bends[1].rot = 32;                       // solo la componente de canto
+  const D = E.deviations(base, bad, 'start');
+  ok('deviations marca fuera un doblez de canto desviado', D.out === 1, `out=${D.out}`);
+  ok('deviations mide la desviación del desvío TOTAL',
+     Math.abs(D.theta[1] - 2) < 1e-9 && Math.abs(D.angle[1]) < 1e-12,
+     `Δθ=${D.theta[1].toFixed(3)}°`);
+}
+
+/* ---------------------------------------------------------------------- */
+console.log('\n— variantes, anclaje y edición de puntos —');
+
+const V = E.newVariant(M, 'base', '#3FA9F5', 'v1');
+const W = E.cloneVariant(V, 'variante', '#3FD68C', 'v2');
+W.deltas[6].angle = 3.0;
+
+ok('cloneVariant no comparte estado con el original',
+   V.deltas[6].angle === 0 && W.deltas[6].angle === 3);
+
+const Me = E.effectiveModel(W);
+ok('effectiveModel suma el delta al valor base',
+   Math.abs(Me.bends[6].angle - (M.bends[6].angle + 3)) < 1e-12);
+ok('effectiveModel no toca los dobleces sin delta',
+   M.bends.every((b, i) => i === 6 || Math.abs(Me.bends[i].angle - b.angle) < 1e-12));
+
+const Vb = E.bakeDeltas(E.cloneVariant(W, 'baked', null, 'v3'));
+ok('bakeDeltas funde y deja los deltas en cero',
+   Math.abs(Vb.base.bends[6].angle - Me.bends[6].angle) < 1e-12 &&
+   Vb.deltas.every(x => x.angle === 0));
+ok('hasDeltas distingue una variante limpia de una con Δ',
+   E.hasDeltas(W) && !E.hasDeltas(Vb));
+
+/* --- anclaje --------------------------------------------------------- */
+const shStart = E.piShift(Me, M, 'start');
+const shEnd = E.piShift(Me, M, 'end');
+ok('anclaje "start" deja quieto el extremo de amarre',
+   shStart[0] < 1e-9 && shStart[shStart.length - 1] > 1,
+   `punta se mueve ${shStart[shStart.length - 1].toFixed(2)} mm`);
+ok('anclaje "end" deja quieto el extremo libre',
+   shEnd[shEnd.length - 1] < 1e-9 && shEnd[0] > 1,
+   `amarre se mueve ${shEnd[0].toFixed(2)} mm`);
+{
+  const A = E.anchoredPis(Me, M, 'end'), B = E.fk(Me).pis;
+  ok('anclaje "end" conserva la forma (es rígido)',
+     Math.abs(A[1].distanceTo(A[0]) - B[1].distanceTo(B[0])) < 1e-9);
+  const Tend = E.anchorTransform(Me, M, 'end');
+  ok('anchorTransform es una rotación pura + traslación',
+     Math.abs(Tend.determinant() - 1) < 1e-9);
+  const self = E.anchorTransform(M, M, 'end').elements;
+  const idn = new Matrix4().elements;
+  ok('un modelo anclado contra sí mismo no se mueve',
+     maxAbs(self.map((v, i) => v - idn[i])) < 1e-9);
+  const best = E.piShift(Me, M, 'best');
+  ok('anclaje "best" reparte el error entre los dos extremos',
+     Math.max(...best) < Math.max(...shStart),
+     `máx ${Math.max(...best).toFixed(2)} vs ${Math.max(...shStart).toFixed(2)} mm`);
+}
+
+/* --- edición de puntos ------------------------------------------------ */
+const Mi = E.insertPi(M, 3);
+ok('insertPi agrega un doblez', Mi.bends.length === M.bends.length + 1);
+ok('insertPi nace colineal (ángulo 0)', Math.abs(Mi.bends[3].angle) < 1e-9,
+   `${Mi.bends[3].angle.toExponential(2)}°`);
+ok('insertPi no mueve ningún punto existente',
+   E.fk(Mi).pis.slice(-1)[0].distanceTo(E.fk(M).pis.slice(-1)[0]) < 1e-9);
+
+const Md = E.deletePi(Mi, 4);
+ok('deletePi deshace exactamente el insertPi',
+   Md.bends.length === M.bends.length &&
+   E.fk(Md).pis.every((p, i) => p.distanceTo(E.fk(M).pis[i]) < 1e-9));
+
+const target = E.fk(M).pis[5].clone().add(new Vector3(0, 0, 25));
+const Mm = E.movePi(M, 5, [target.x, target.y, target.z]);
+ok('movePi mueve el punto pedido',
+   Math.abs(E.fk(Mm).pis[5].distanceTo(E.fk(M).pis[5]) - 25) < 1e-9);
+ok('movePi deja quietos los demás puntos (edición absoluta en XYZ)',
+   E.fk(Mm).pis.every((p, i) => i === 5 || p.distanceTo(E.fk(M).pis[i]) < 1e-9));
+ok('movePi conserva radio y twist por índice',
+   Mm.bends.every((b, i) => Math.abs(b.radius - M.bends[i].radius) < 1e-12));
+ok('movePi no puede borrar dobleces', Mm.bends.length === M.bends.length);
+ok('deletePi se niega a dejar el modelo sin dobleces',
+   E.deletePi(E.normalizeModel({ ...EM, bends: [E.newBend()] }), 1).bends.length === 1);
+
+/* ---------------------------------------------------------------------- */
+console.log('\n— modelos y E/S —');
+ok('emptyModel es válido', E.fk(EM).pis.length === EM.bends.length + 2);
+ok('un modelo de 1 doblez funciona',
+   E.fk({ ...EM, bends: [E.newBend({ feed: 100, rot: 0, angle: 90, radius: 30 })] }).pis.length === 3);
+{
+  const doc = E.toDoc(M, M.bends, { ...E.COMP_DEFAULT }, { ...E.PROC_DEFAULT }, [],
+                      [V, W], 'v1', 'end');
+  ok('el documento lleva el esquema compartido', doc.schema === 'barcomp/1.0');
+  const rt = E.fromDoc(JSON.parse(JSON.stringify(doc)));
+  ok('el documento va y vuelve sin perder variantes',
+     rt.variants.length === 2 && rt.ref === 'v1' && rt.anchor === 'end' &&
+     Math.abs(rt.variants[1].deltas[6].angle - 3) < 1e-12);
+  ok('un modelo sin twistLen se normaliza sin romperse',
+     E.normalizeModel({ bends: [{ feed: 100, rot: 0, angle: 20, radius: 10 }] })
+      .bends[0].twistLen === 0);
+}
+
+console.log(`\n${fails ? fails + ' PRUEBA(S) FALLARON' : 'todas las pruebas pasaron'}\n`);
+process.exit(fails ? 1 : 0);

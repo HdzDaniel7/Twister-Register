@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>BARCOMP α — Compensación de dobleces</title>
+<style>/*__CSS__*/</style>
+</head>
+<body>
+<div id="app">
+  <header id="hd"></header>
+  <aside id="lf"></aside>
+  <section id="ct">
+    <div id="vpwrap">
+      <canvas id="vp"></canvas>
+      <div id="labels"></div>
+      <div id="vptool"></div>
+      <div id="vplegend"></div>
+      <div id="hint"></div>
+    </div>
+    <div id="rb"><canvas id="rbc"></canvas><div id="rbtitle"></div></div>
+    <div id="rtgrip" title="Ancho del panel derecho"></div>
+  </section>
+  <aside id="rt"><nav id="tabs"></nav><div id="panes"></div></aside>
+  <footer id="st"></footer>
+</div>
+<!-- three.js + todo el código de src/ empotrados por build.mjs en un solo
+     bloque: el archivo abre con doble clic bajo file://, sin servidor. -->
+<script>/*__APP__*/</script>
+</body>
+</html>
