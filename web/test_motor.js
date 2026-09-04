@@ -326,18 +326,94 @@ ok('deletePi se niega a dejar el modelo sin dobleces',
    E.deletePi(E.normalizeModel({ ...EM, bends: [E.newBend()] }), 1).bends.length === 1);
 
 /* ---------------------------------------------------------------------- */
+console.log('\n— colocación en el espacio —');
+
+/* La colocación es SOLO presentación: mueve y gira la escena entera alrededor
+   de un PI, sin tocar un solo parámetro del modelo. */
+{
+  const P = E.fk(M).pis;
+  const pivot = P[3];
+  const I = E.placeTransform(E.PLACE_DEFAULT, pivot);
+  ok('sin colocación la matriz es la identidad',
+     maxAbs(I.elements.map((v, i) => v - new Matrix4().elements[i])) < 1e-12);
+  ok('isPlaced distingue una colocación puesta', !E.isPlaced(E.PLACE_DEFAULT) &&
+     E.isPlaced({ ...E.PLACE_DEFAULT, rz: 30 }));
+
+  const W = E.placeTransform({ ...E.PLACE_DEFAULT, rz: 37, rx: -12, x: 500 }, pivot);
+  const Q = E.applyMat(W, P);
+  ok('el pivote solo se desplaza lo que se le pidió',
+     Math.abs(Q[3].distanceTo(pivot) - 500) < 1e-9,
+     `${Q[3].distanceTo(pivot).toFixed(3)} mm`);
+  ok('la colocación es rígida: no deforma la pieza',
+     P.every((p, i) => i === 0 ||
+       Math.abs(Q[i].distanceTo(Q[i - 1]) - p.distanceTo(P[i - 1])) < 1e-9));
+  ok('la colocación es una rotación pura + traslación',
+     Math.abs(W.determinant() - 1) < 1e-9);
+  ok('girar 0° alrededor de otro PI tampoco mueve nada',
+     E.applyMat(E.placeTransform(E.PLACE_DEFAULT, P[7]), P)
+      .every((q, i) => q.distanceTo(P[i]) < 1e-12));
+}
+
+/* ---------------------------------------------------------------------- */
+console.log('\n— puntos de referencia —');
+{
+  const P = E.fk(M).pis;
+  const q = P[5].clone().add(new Vector3(0, 0, 40));
+  const near = E.nearestPoint(P, q);
+  ok('nearestPoint encuentra el PI correcto y su distancia',
+     near.i === 5 && Math.abs(near.d - 40) < 1e-9, `PI${near.i} a ${near.d.toFixed(2)} mm`);
+  ok('nearestPoint con lista vacía no revienta',
+     E.nearestPoint([], q).i === -1 && !isFinite(E.nearestPoint([], q).d));
+}
+
+/* ---------------------------------------------------------------------- */
+console.log('\n— expresiones en la celda de compensación —');
+{
+  const cases = [
+    ['2', 1.5, 2], ['+2', 1.5, 3.5], ['c+2', 1.5, 3.5], ['c-0.5', 1.5, 1],
+    ['c*1.1', 2, 2.2], ['*2', 1.5, 3], ['/2', 3, 1.5], ['(c+1)/2', 3, 2],
+    ['-3', 1.5, -3], ['1,5', 0, 1.5], ['  c  +  2  ', 1, 3],
+  ];
+  let bad = '';
+  for (const [t, c, exp] of cases) {
+    const g = E.evalCell(t, c);
+    if (g === null || Math.abs(g - exp) > 1e-9) bad += ` ${JSON.stringify(t)}->${g}`;
+  }
+  ok('evalCell resuelve número, atajo y cuenta sobre c', !bad, bad);
+
+  const malos = ['', '   ', 'abc', '2+', '(2', '2)', 'c c', '1/0*0'];
+  ok('evalCell rechaza lo que no es una expresión',
+     malos.every(t => E.evalCell(t, 1) === null),
+     malos.filter(t => E.evalCell(t, 1) !== null).join(' ') || 'todos rechazados');
+  ok('un número suelto ignora el valor calculado',
+     E.evalCell('7', 999) === 7);
+}
+
+/* ---------------------------------------------------------------------- */
 console.log('\n— modelos y E/S —');
 ok('emptyModel es válido', E.fk(EM).pis.length === EM.bends.length + 2);
 ok('un modelo de 1 doblez funciona',
    E.fk({ ...EM, bends: [E.newBend({ feed: 100, rot: 0, angle: 90, radius: 30 })] }).pis.length === 3);
 {
+  const extra = {
+    place: { pivot: 3, x: 100, y: 0, z: 0, rx: 0, ry: 0, rz: 45 },
+    marks: [{ name: 'apoyo A', color: '#57C8D6', visible: true, x: 10, y: 20, z: 30 }],
+    tweak: [{ angle: .25, rot: 0, feed: 0 }],
+  };
   const doc = E.toDoc(M, M.bends, { ...E.COMP_DEFAULT }, { ...E.PROC_DEFAULT }, [],
-                      [V, W], 'v1', 'end');
+                      [V, W], 'v1', 'end', extra);
   ok('el documento lleva el esquema compartido', doc.schema === 'barcomp/1.0');
   const rt = E.fromDoc(JSON.parse(JSON.stringify(doc)));
   ok('el documento va y vuelve sin perder variantes',
      rt.variants.length === 2 && rt.ref === 'v1' && rt.anchor === 'end' &&
      Math.abs(rt.variants[1].deltas[6].angle - 3) < 1e-12);
+  ok('el documento va y vuelve con colocación, cotas y ajuste manual',
+     rt.place.rz === 45 && rt.place.pivot === 3 &&
+     rt.marks.length === 1 && rt.marks[0].name === 'apoyo A' && rt.marks[0].z === 30 &&
+     Math.abs(rt.tweak[0].angle - .25) < 1e-12);
+  const viejo = E.fromDoc({ model: M, bends: [] });
+  ok('un archivo sin colocación ni cotas abre igual que siempre',
+     !E.isPlaced(viejo.place) && viejo.marks.length === 0 && viejo.tweak.length === 0);
   ok('un modelo sin twistLen se normaliza sin romperse',
      E.normalizeModel({ bends: [{ feed: 100, rot: 0, angle: 20, radius: 10 }] })
       .bends[0].twistLen === 0);

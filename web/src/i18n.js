@@ -61,6 +61,16 @@ es: {
  bake: 'Fundir Δ', zeroD: 'Δ a cero',
  bakeAsk: 'Este modelo tiene Δ sin fundir.\n\nEditar puntos trabaja sobre la geometría efectiva, así que los Δ se funden en la base y quedan en cero.\n\n¿Continuar?',
  dTip: 'Δ punta vs ref', dblz: 'dbl',
+
+ place: 'Colocación', pivot: 'Pivote', plX: 'Mover X', plY: 'Mover Y', plZ: 'Mover Z',
+ plRX: 'Giro X', plRY: 'Giro Y', plRZ: 'Giro Z', plReset: 'Restablecer colocación',
+ plNote: 'Solo cambia cómo se ve la pieza en el espacio: gira y mueve toda la escena alrededor del PI que elijas como origen. No toca ningún avance, ángulo ni radio.',
+ lMarks: 'Puntos de referencia', marks: 'Puntos de referencia',
+ addMark: '+ Punto', markCsv: 'Importar CSV', nearPi: 'PI', distPi: 'Dist.',
+ markNote: 'Cotas sueltas en el espacio: el punto se une con el PI más cercano del modelo activo y la cifra dice a cuánto quedó. Sirve para acotar contra el fixture o un datum de taller. «+ Punto» lo crea sobre el doblez seleccionado.',
+ cCalc: 'Δ calc.', cAdj: 'Δ aplicada', zeroTw: 'Δ manual a cero',
+ cellNote: 'La celda Δ aplicada acepta cuentas sobre lo que calculó el lazo, que se escribe c: «+2» o «c+2» le suma 2, «c*1.1» le pone un 10 % más, y un número suelto la reemplaza. El resto de la tabla es de solo lectura.',
+ tweakOn: 'con ajuste manual',
 },
 en: {
  sub: 'Bend compensation · alpha',
@@ -118,6 +128,16 @@ en: {
  bake: 'Bake Δ', zeroD: 'Zero Δ',
  bakeAsk: 'This model has unbaked deltas.\n\nPoint editing works on the effective geometry, so the deltas get baked into the base and reset to zero.\n\nContinue?',
  dTip: 'Δ tip vs ref', dblz: 'bends',
+
+ place: 'Placement', pivot: 'Pivot', plX: 'Move X', plY: 'Move Y', plZ: 'Move Z',
+ plRX: 'Rot X', plRY: 'Rot Y', plRZ: 'Rot Z', plReset: 'Reset placement',
+ plNote: 'Only changes how the part sits in space: it rotates and moves the whole scene about the PI you pick as origin. It touches no feed, angle or radius.',
+ lMarks: 'Reference points', marks: 'Reference points',
+ addMark: '+ Point', markCsv: 'Import CSV', nearPi: 'PI', distPi: 'Dist.',
+ markNote: 'Loose dimensions in space: each point is joined to the nearest PI of the active model and the figure says how far it landed. Use it to dimension against the fixture or a shop datum. "+ Point" creates it on the selected bend.',
+ cCalc: 'Δ calc', cAdj: 'Δ applied', zeroTw: 'Zero manual Δ',
+ cellNote: 'The Δ applied cell takes arithmetic on what the loop computed, written as c: "+2" or "c+2" adds 2, "c*1.1" gives it 10 % more, and a bare number replaces it. The rest of the table is read-only.',
+ tweakOn: 'manually adjusted',
 }};
 
 export const LANG = { cur: 'es' };

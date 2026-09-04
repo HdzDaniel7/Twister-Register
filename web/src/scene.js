@@ -9,14 +9,19 @@ import {
   WebGLRenderer, Scene, Fog, PerspectiveCamera, Group, AmbientLight,
   DirectionalLight, GridHelper, BoxGeometry, SphereGeometry, OctahedronGeometry,
   BufferGeometry, Float32BufferAttribute, EdgesGeometry, LineSegments,
-  LineBasicMaterial, Mesh, MeshStandardMaterial, MeshBasicMaterial, Box3,
+  LineBasicMaterial, LineDashedMaterial, Mesh, MeshStandardMaterial,
+  MeshBasicMaterial, Box3,
   Color, Vector2, Vector3, Matrix4, Raycaster, SRGBColorSpace,
 } from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import * as E from './engine.js';
-import { ST, refModel } from './state.js';
+import { ST, refModel, placeMatrix } from './state.js';
 
 export let renderer, scene, camera, controls;
+/* Todo lo dibujado cuelga de `root`, cuya matriz es la COLOCACIÓN. Así girar o
+   mover la pieza en el espacio no toca ni un dato del modelo: es una sola
+   matriz sobre la escena entera, y la comparación entre modelos no cambia. */
+let root;
 const groups = {};
 let labelHost, dirty = true, extraLabels = [];
 let onPick = () => {};
@@ -90,9 +95,12 @@ export function initScene() {
   scene.add(new AmbientLight(0xffffff, 1.7));
   const d1 = new DirectionalLight(0xffffff, 2.6); d1.position.set(1, -1.4, 2); scene.add(d1);
   const d2 = new DirectionalLight(0x7fb0ff, 1.1); d2.position.set(-1.5, 1, -.6); scene.add(d2);
-  for (const k of ['grid', 'fix', 'nom', 'var', 'meas', 'pred', 'diff', 'dev', 'pts']) {
+  root = new Group();
+  root.matrixAutoUpdate = false;
+  scene.add(root);
+  for (const k of ['grid', 'fix', 'nom', 'var', 'meas', 'pred', 'diff', 'dev', 'marks', 'pts']) {
     groups[k] = new Group();
-    scene.add(groups[k]);
+    root.add(groups[k]);
   }
   labelHost = $('#labels');
   onResize();
@@ -142,6 +150,8 @@ export function rebuildScene() {
   const L = ST.layers;
   for (const k in groups) clearGroup(groups[k]);
   extraLabels = [];
+  root.matrix.copy(placeMatrix());
+  root.updateMatrixWorld(true);
 
   const ref = refModel(), anchor = ST.anchor;
   const hasMeas = ST.datasets.some(d => d.visible);
@@ -282,6 +292,44 @@ export function rebuildScene() {
     dia.dispose();
   }
 
+  /* --- puntos de referencia -------------------------------------------- */
+  /* Cotas sueltas: cada punto se une con el PI más cercano del modelo activo
+     y la cifra dice a cuánto quedó. Sirve para acotar contra el fixture o un
+     datum de taller, no contra otro modelo. */
+  if (L.marks.on && ST.marks.length) {
+    const oct = new OctahedronGeometry(9);
+    const pos = [], col = [];
+    for (const mk of ST.marks) {
+      if (!mk.visible) continue;
+      const q = new Vector3(mk.x, mk.y, mk.z);
+      const m = new Mesh(oct.clone(), new MeshBasicMaterial({ color: mk.color }));
+      m.position.copy(q);
+      groups.marks.add(m);
+      const near = E.nearestPoint(nomPis, q);
+      if (near.i >= 0) {
+        const a = nomPis[near.i], c = devThreeColor(near.d, M.tol.point);
+        pos.push(a.x, a.y, a.z, q.x, q.y, q.z);
+        col.push(c.r, c.g, c.b, c.r, c.g, c.b);
+        extraLabels.push({
+          p: q.clone(), color: mk.color,
+          txt: `${mk.name} · ${near.d.toFixed(1)} mm`,
+        });
+      } else {
+        extraLabels.push({ p: q.clone(), color: mk.color, txt: mk.name });
+      }
+    }
+    if (pos.length) {
+      const g = new BufferGeometry();
+      g.setAttribute('position', new Float32BufferAttribute(pos, 3));
+      g.setAttribute('color', new Float32BufferAttribute(col, 3));
+      const mat = new LineDashedMaterial({ vertexColors: true, dashSize: 12, gapSize: 8 });
+      const ln = new LineSegments(g, mat);
+      ln.computeLineDistances();
+      groups.marks.add(ln);
+    }
+    oct.dispose();
+  }
+
   /* --- puntos PI -------------------------------------------------------- */
   const sph = new SphereGeometry(6, 12, 10);
   if (L.pts.on) {
@@ -344,14 +392,18 @@ export function rebuildScene() {
 function modelBox() {
   const box = new Box3();
   const ref = refModel();
+  const W = placeMatrix();
   let any = false;
   for (const v of ST.variants) {
     if (!v.visible) continue;
     const vm = E.effectiveModel(v);
     E.applyMat(E.anchorTransform(vm, ref, ST.anchor), E.fk(vm).pis)
-      .forEach(p => { box.expandByPoint(p); any = true; });
+      .forEach(p => { box.expandByPoint(p.applyMatrix4(W)); any = true; });
   }
-  if (!any) E.fk(ST.model).pis.forEach(p => box.expandByPoint(p));
+  if (!any) E.fk(ST.model).pis.forEach(p => box.expandByPoint(p.clone().applyMatrix4(W)));
+  for (const mk of ST.marks) {
+    if (mk.visible) box.expandByPoint(new Vector3(mk.x, mk.y, mk.z).applyMatrix4(W));
+  }
   return box;
 }
 export function fitView() {
@@ -390,8 +442,9 @@ export function drawLabels() {
   if (!ST.model || !labelHost) return;
   const out = [];
   const w = labelHost.clientWidth, h = labelHost.clientHeight;
+  const W = placeMatrix();
   const put = (p, html) => {
-    const v = p.clone().project(camera);
+    const v = p.clone().applyMatrix4(W).project(camera);
     if (v.z > 1) return;
     const x = (v.x * .5 + .5) * w, y = (-v.y * .5 + .5) * h;
     if (x < -60 || y < -20 || x > w + 60 || y > h + 20) return;
@@ -406,9 +459,7 @@ export function drawLabels() {
       put(P[i], `<span style="color:${i - 1 === ST.sel ? '#fff' : 'var(--dim)'}">B${i}</span>`);
     }
   }
-  if (ST.layers.diff.on) {
-    for (const l of extraLabels) put(l.p, `<span style="color:${l.color}">${l.txt}</span>`);
-  }
+  for (const l of extraLabels) put(l.p, `<span style="color:${l.color}">${l.txt}</span>`);
   labelHost.innerHTML = out.join('');
 }
 

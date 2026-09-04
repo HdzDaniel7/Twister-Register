@@ -51,7 +51,7 @@ button,input,select,textarea{font-family:inherit;font-size:inherit;color:inherit
 /* ---------- panels ---------- */
 #lf,#rt{background:var(--panel);overflow-y:auto;overflow-x:hidden}
 #lf{border-right:1px solid var(--line)}
-#rt{border-left:1px solid var(--line)}
+#rt{border-left:1px solid var(--line);position:relative;z-index:2;background:var(--panel)}
 .grp{border-bottom:1px solid var(--line)}
 .eyebrow{font-family:var(--sans);font-size:9.5px;font-weight:600;letter-spacing:.15em;
   text-transform:uppercase;color:var(--dim2);padding:10px 11px 6px;display:flex;
@@ -80,7 +80,10 @@ button,input,select,textarea{font-family:inherit;font-size:inherit;color:inherit
 .ds .meta b{font-weight:400;color:var(--txt)}
 
 /* ---------- viewport ---------- */
-#ct{position:relative;display:flex;flex-direction:column;background:#080A0E;min-width:0}
+/* overflow:hidden es lo que impide que el lienzo 3D se monte sobre el panel
+   derecho mientras se arrastra #rtgrip. El otro medio freno es onResize(). */
+#ct{position:relative;display:flex;flex-direction:column;background:#080A0E;
+  min-width:0;overflow:hidden}
 #vpwrap{position:relative;flex:1;min-height:0}
 #vp{position:absolute;inset:0;display:block}
 #labels{position:absolute;inset:0;pointer-events:none;overflow:hidden}
@@ -163,6 +166,12 @@ td input:focus{border-color:var(--nominal);background:#0C1017;box-shadow:0 0 0 2
 /* la tabla LRA no se comprime: si no cabe, el contenedor .tw desplaza en X
    y el panel derecho se puede ensanchar arrastrando #rtgrip.              */
 table.lra{min-width:860px}
+/* el ancho de la tabla de comandos lo pone paneComp() según cuántos
+   parámetros se estén corrigiendo: con uno solo tiene que caber sin desplazar,
+   porque la celda de Δ aplicada es la única editable. */
+table.marks{min-width:540px}
+td.dcol input[type=text]{text-align:right}
+.marks td:first-child{white-space:nowrap;display:flex;gap:5px;align-items:center}
 .ori{display:inline-block;width:15px;text-align:center;border-radius:2px;font-size:9.5px;
   padding:0 3px;border:1px solid}
 .ori.W{color:#C9A5F5;border-color:#6B4B9E}

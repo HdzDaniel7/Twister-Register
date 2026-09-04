@@ -658,9 +658,156 @@ export function insertPi(model, i, t = 0.5) {
   return modelFromPoints(model, P, keep);
 }
 
+/* ==================================================================
+   COLOCACIÓN — dónde y cómo se para la pieza en el espacio
+   ==================================================================
+   Es puramente de presentación: no toca `feed`, `rot`, `angle` ni ningún PI
+   relativo. Sirve para acomodar la barra en el ángulo que uno quiere verla,
+   girándola alrededor del PI que se elija como origen. Como se aplica a TODA
+   la escena por igual, la comparación entre modelos no cambia.               */
+export const PLACE_DEFAULT = Object.freeze({
+  pivot: 0, x: 0, y: 0, z: 0, rx: 0, ry: 0, rz: 0,
+});
+
+/** Transformación de colocación alrededor de `pivotPoint` (Vector3).
+ *
+ *      Trans(d) · Trans(p) · Rz·Ry·Rx · Trans(-p)
+ *
+ *  Con todo en cero devuelve la identidad, así que un archivo sin `place` se ve
+ *  exactamente igual que antes.
+ */
+export function placeTransform(place, pivotPoint) {
+  const q = { ...PLACE_DEFAULT, ...(place || {}) };
+  const p = pivotPoint || new Vector3();
+  const R = rotZ(q.rz * D2R).multiply(rotY(q.ry * D2R)).multiply(rotX(q.rx * D2R));
+  return trans(q.x + p.x, q.y + p.y, q.z + p.z)
+    .multiply(R)
+    .multiply(trans(-p.x, -p.y, -p.z));
+}
+export const isPlaced = place => {
+  const q = { ...PLACE_DEFAULT, ...(place || {}) };
+  return !!(q.x || q.y || q.z || q.rx || q.ry || q.rz);
+};
+
+/* ==================================================================
+   PUNTOS DE REFERENCIA — cotas sueltas en el espacio
+   ==================================================================
+   Puntos que uno pone a mano (o importa) para acotar la pieza contra algo que
+   no es otro modelo: un apoyo del fixture, un datum de taller, el punto al que
+   tiene que llegar la punta. No tienen cinemática: son coordenadas.          */
+export const MARK_DEFAULT = Object.freeze({ x: 0, y: 0, z: 0 });
+
+/** PI más cercano a un punto: {i, d}. Con `pts` vacío devuelve d = Infinity. */
+export function nearestPoint(pts, q) {
+  let i = -1, d = Infinity;
+  for (let k = 0; k < pts.length; k++) {
+    const e = pts[k].distanceTo(q);
+    if (e < d) { d = e; i = k; }
+  }
+  return { i, d };
+}
+
+/* ==================================================================
+   EXPRESIONES EN LAS CELDAS DE COMPENSACIÓN
+   ==================================================================
+   La celda de compensación acepta un número suelto (lo reemplaza) o una cuenta
+   sobre el valor que calculó el lazo, que se escribe `c`:
+
+       2          ->  la compensación pasa a valer 2
+       +2         ->  c + 2      (atajo: si empieza por un operador, va sobre c)
+       c + 2      ->  lo mismo, explícito
+       c*1.1      ->  un 10 % más de lo que sugiere el lazo
+       (c+1)/2
+
+   Se evalúa con un parser propio (patio de maniobras). NO se usa eval(): esto
+   corre bajo file:// y no hay ninguna razón para ejecutar texto arbitrario.  */
+const PREC = { '+': 1, '-': 1, '*': 2, '/': 2 };
+
+function tokenize(src) {
+  const out = [];
+  let i = 0;
+  while (i < src.length) {
+    const ch = src[i];
+    if (ch === ' ' || ch === '\t') { i++; continue; }
+    if ((ch >= '0' && ch <= '9') || ch === '.') {
+      let j = i;
+      while (j < src.length && ((src[j] >= '0' && src[j] <= '9') || src[j] === '.')) j++;
+      const v = parseFloat(src.slice(i, j));
+      if (!isFinite(v)) return null;
+      out.push({ t: 'num', v });
+      i = j;
+      continue;
+    }
+    if (ch === 'c') { out.push({ t: 'var' }); i++; continue; }
+    if (ch === '(' || ch === ')') { out.push({ t: ch }); i++; continue; }
+    if (PREC[ch]) { out.push({ t: 'op', v: ch }); i++; continue; }
+    return null;                      // cualquier otra cosa: expresión inválida
+  }
+  return out;
+}
+
+/** Evalúa la expresión de una celda. `calc` es el valor de `c`.
+ *  Devuelve null si el texto no es una expresión válida — el que llama decide
+ *  qué hacer (normalmente: no tocar nada). */
+export function evalCell(text, calc = 0) {
+  let src = String(text ?? '').trim().replace(/,/g, '.').toLowerCase();
+  if (!src) return null;
+  /* Atajo: `+2`, `*1.1`, `/2` son cuentas sobre el valor calculado. `-3` NO:
+     un signo menos al principio es un número negativo, que es lo que uno
+     espera al teclear una compensación a mano. Para restar sobre el calculado
+     está `c-3`. */
+  if (/^[+*/]/.test(src)) src = 'c' + src;
+  const toks = tokenize(src);
+  if (!toks || !toks.length) return null;
+
+  const vals = [], ops = [];
+  const apply = () => {
+    const op = ops.pop();
+    if (op === 'u-') {
+      const a = vals.pop();
+      if (a === undefined) return false;
+      vals.push(-a);
+      return true;
+    }
+    const b = vals.pop(), a = vals.pop();
+    if (a === undefined || b === undefined) return false;
+    vals.push(op === '+' ? a + b : op === '-' ? a - b : op === '*' ? a * b : a / b);
+    return true;
+  };
+  let prev = null;
+  for (const tk of toks) {
+    if (tk.t === 'num') vals.push(tk.v);
+    else if (tk.t === 'var') vals.push(+calc || 0);
+    else if (tk.t === '(') ops.push('(');
+    else if (tk.t === ')') {
+      while (ops.length && ops[ops.length - 1] !== '(') if (!apply()) return null;
+      if (!ops.length) return null;
+      ops.pop();
+    } else {
+      // unario: al principio, tras otro operador, o tras un paréntesis que abre
+      const unary = tk.v === '-' && (prev === null || prev.t === 'op' || prev.t === '(');
+      if (unary) ops.push('u-');
+      else {
+        while (ops.length && ops[ops.length - 1] !== '(' &&
+               (ops[ops.length - 1] === 'u-' || PREC[ops[ops.length - 1]] >= PREC[tk.v])) {
+          if (!apply()) return null;
+        }
+        ops.push(tk.v);
+      }
+    }
+    prev = tk;
+  }
+  while (ops.length) {
+    if (ops[ops.length - 1] === '(') return null;
+    if (!apply()) return null;
+  }
+  if (vals.length !== 1 || !isFinite(vals[0])) return null;
+  return vals[0];
+}
+
 /* ---------------------------------------------------------------------- E/S */
 export function toDoc(model, command, comp, proc, datasets = [], variants = [],
-                      ref = null, anchor = 'start') {
+                      ref = null, anchor = 'start', extra = {}) {
   return {
     schema: SCHEMA,
     saved: new Date().toISOString(),
@@ -677,6 +824,14 @@ export function toDoc(model, command, comp, proc, datasets = [], variants = [],
     variants: variants.map(v => ({
       id: v.id, name: v.name, color: v.color, visible: !!v.visible,
       base: v.base, deltas: v.deltas || [], tailDelta: +(v.tailDelta || 0),
+    })),
+    place: { ...PLACE_DEFAULT, ...(extra.place || {}) },
+    marks: (extra.marks || []).map(m => ({
+      name: m.name, color: m.color, visible: m.visible !== false,
+      x: +m.x || 0, y: +m.y || 0, z: +m.z || 0,
+    })),
+    tweak: (extra.tweak || []).map(t => ({
+      angle: +t.angle || 0, rot: +t.rot || 0, feed: +t.feed || 0,
     })),
   };
 }
@@ -702,6 +857,18 @@ export function fromDoc(d) {
     anchor: d.anchor || 'start',
     variants,
     ref: d.ref || (variants.length ? variants[0].id : null),
+    // claves opcionales: un archivo sin ellas abre igual que siempre
+    place: { ...PLACE_DEFAULT, ...(d.place || {}) },
+    marks: (d.marks || []).map((m, i) => ({
+      id: `mk${i + 1}`,
+      name: m.name || `P${i + 1}`,
+      color: m.color || '#57C8D6',
+      visible: m.visible !== false,
+      x: +m.x || 0, y: +m.y || 0, z: +m.z || 0,
+    })),
+    tweak: (d.tweak || []).map(t => ({
+      angle: +t.angle || 0, rot: +t.rot || 0, feed: +t.feed || 0,
+    })),
   };
 }
 

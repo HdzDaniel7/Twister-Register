@@ -6,10 +6,11 @@
 
    Los controles se cablean por delegación con atributos data-* (ver bind()
    en app.js). Para agregar un botón basta con darle el atributo correcto.   */
+import { Vector3 } from 'three';
 import * as E from './engine.js';
 import { T, LANG } from './i18n.js';
 import {
-  ST, LAYER_DEF, V, REF, refModel, activeDataset, activeShift,
+  ST, LAYER_DEF, V, REF, refModel, activeDataset, activeShift, syncTweak,
 } from './state.js';
 
 const $ = s => document.querySelector(s);
@@ -68,6 +69,12 @@ export function renderShell() {
 export function renderLeft() {
   const L = ST.layers, ref = refModel();
   const anchors = [['start', 'aStart'], ['end', 'aEnd'], ['best', 'aBest']];
+  /* el pivote de la colocación es un PI del modelo de referencia */
+  const np = E.fk(ref).pis.length;
+  const pivots = [...Array(np)].map((_, i) => {
+    const nm = i === 0 ? 'P0' : (i === np - 1 ? 'PE' : 'PI' + i);
+    return `<option value="${i}" ${ST.place.pivot === i ? 'selected' : ''}>${nm}</option>`;
+  }).join('');
 
   const vcard = v => {
     const act = v.id === ST.active, isref = v.id === ST.ref;
@@ -106,6 +113,21 @@ export function renderLeft() {
      ${anchors.map(([k, lab]) => `<label class="layer">
        <input type="radio" name="anch" data-an="${k}" ${ST.anchor === k ? 'checked' : ''}>
        <span class="nm">${T(lab)}</span></label>`).join('')}
+   </div></div>
+
+   <div class="grp"><div class="eyebrow">${T('place')}</div><div class="body">
+     <div class="fgrid" style="grid-template-columns:1fr 96px">
+       <label>${T('pivot')}</label>
+       <select data-plp>${pivots}</select>
+       ${[['x', 'plX'], ['y', 'plY'], ['z', 'plZ']].map(([k, lab]) =>
+         `<label>${T(lab)} (mm)</label>
+          <input type="number" step="10" data-pl="${k}" value="${fx(ST.place[k], 1)}">`).join('')}
+       ${[['rx', 'plRX'], ['ry', 'plRY'], ['rz', 'plRZ']].map(([k, lab]) =>
+         `<label>${T(lab)} (°)</label>
+          <input type="number" step="5" data-pl="${k}" value="${fx(ST.place[k], 1)}">`).join('')}
+     </div>
+     <div class="row mt6"><button class="btn sm grow" data-a="placereset">${T('plReset')}</button></div>
+     <div class="hintline">${T('plNote')}</div>
    </div></div>
 
    <div class="grp"><div class="eyebrow">${T('layers')}</div><div class="body">
@@ -239,7 +261,39 @@ function panePoints(M) {
       <button class="btn sm" data-a="delp">${T('delPt')}</button>
       <span class="grow"></span><button class="btn sm" data-a="expts">CSV ↓</button></div>
     <div class="hintline">${T('ptNote')}</div>
-  </div></div></div>`;
+  </div></div>
+  ${paneMarks(M)}</div>`;
+}
+
+/* --- puntos de referencia (dentro de la pestaña PUNTOS) ----------------- */
+function paneMarks(M) {
+  const ref = refModel();
+  const P = E.anchoredPis(M, ref, ST.anchor);
+  const rows = ST.marks.map(mk => {
+    const q = new Vector3(mk.x, mk.y, mk.z);
+    const near = E.nearestPoint(P, q);
+    const nm = near.i < 0 ? '—'
+      : (near.i === 0 ? 'P0' : (near.i === P.length - 1 ? 'PE' : 'PI' + near.i));
+    return `<tr>
+      <td><input type="checkbox" data-mv="${mk.id}" ${mk.visible ? 'checked' : ''}>
+        <input type="color" class="sw" data-mc="${mk.id}" value="${mk.color}"></td>
+      <td><input type="text" data-mk="${mk.id}" data-k="name" value="${esc(mk.name)}" style="min-width:70px"></td>
+      ${['x', 'y', 'z'].map(k =>
+        `<td><input type="number" step="1" data-mk="${mk.id}" data-k="${k}" value="${fx(mk[k], 2)}"></td>`).join('')}
+      <td class="v-dim">${nm}</td>
+      <td class="${cls(near.d, M.tol.point)}">${fx(near.d, 2)}</td>
+      <td><button class="xbtn" data-mx="${mk.id}" title="${T('del')}">✕</button></td></tr>`;
+  }).join('');
+  return `<div class="grp">
+    <div class="eyebrow">${T('marks')}<span class="n">${ST.marks.length}</span></div><div class="body">
+    ${ST.marks.length ? `<div class="tw"><table class="marks"><thead><tr>
+      <th></th><th>${T('name')}</th><th>${T('x')}</th><th>${T('y')}</th><th>${T('z')}</th>
+      <th>${T('nearPi')}</th><th>${T('distPi')}</th><th></th></tr></thead>
+      <tbody>${rows}</tbody></table></div>` : ''}
+    <div class="row mt6"><button class="btn sm grow" data-a="addmark">${T('addMark')}</button>
+      <button class="btn sm" data-a="markcsv">${T('markCsv')}</button></div>
+    <div class="hintline">${T('markNote')}</div>
+  </div></div>`;
 }
 
 /* --- pestaña MEDICIÓN --------------------------------------------------- */
@@ -280,23 +334,47 @@ function paneMeas(M) {
 }
 
 /* --- pestaña COMPENSACIÓN ----------------------------------------------- */
+/* Las medidas son fijas: en esta tabla lo ÚNICO editable es la Δ aplicada, y
+   acepta cuentas sobre lo que calculó el lazo (ver evalCell en engine.js).   */
 function paneComp(M) {
   const D = activeDataset(), C = ST.comp, ori = E.orientations(M);
   if (!D) return `<div class="pane on"><div class="grp"><div class="body">
     <div class="warnbox mt10">${T('noMeas')}</div></div></div></div>`;
   const cmd = ST.command;
-  const nw = E.compensate(cmd, M.bends, D.model.bends, C, ori);
+  syncTweak(M.bends.length);
+  /* lo que sugiere el lazo, sin tocar */
+  const calc = E.compensate(cmd, M.bends, D.model.bends, C, ori);
   const pred = ST.pred;
-  const n = Math.min(M.bends.length, nw.length, cmd.length);
+  const n = Math.min(M.bends.length, calc.length, cmd.length);
+
+  /* una tríada de columnas por parámetro, y solo de los que se están
+     corrigiendo: con doAngle solo, la tabla se queda en 6 columnas */
+  const cols = [];
+  if (C.doAngle) cols.push({ k: 'angle', lab: T('ang'), u: '°', d: 3 });
+  if (C.doRot) cols.push({ k: 'rot', lab: T('rot'), u: '°', d: 3 });
+  if (C.doFeed) cols.push({ k: 'feed', lab: T('feed'), u: 'mm', d: 2 });
+
+  const head = cols.map(c => `<th>${c.lab} ${T('cNow')}</th>
+    <th>${T('cCalc')}</th><th class="dcol">${T('cAdj')}</th><th>${T('cNew')} ${c.u}</th>`).join('');
+
   const rows = [];
   for (let i = 0; i < n; i++) {
-    const d = nw[i].angle - cmd[i].angle;
-    rows.push(`<tr class="clk ${i === ST.sel ? 'sel' : ''}" data-r="${i}"><td>B${i + 1}</td>
-      <td><span class="ori ${ori[i]}">${ori[i]}</span></td>
-      <td class="v-dim">${fx(cmd[i].angle, 3)}</td><td>${fx(nw[i].angle, 3)}</td>
-      <td class="${Math.abs(d) > 1e-4 ? 'v-warn' : 'v-dim'}">${sgn(d, 3)}</td>
-      <td class="v-dim">${fx(cmd[i].feed, 2)}</td><td>${fx(nw[i].feed, 2)}</td></tr>`);
+    const cells = cols.map(c => {
+      const now = cmd[i][c.k];
+      const dCalc = calc[i][c.k] - now;
+      const tw = ST.tweak[i][c.k];
+      const dApp = dCalc + tw;
+      return `<td class="v-dim">${fx(now, c.d)}</td>
+        <td class="v-dim">${sgn(dCalc, c.d)}</td>
+        <td class="dcol"><input type="text" data-tw="${i}" data-k="${c.k}"
+          class="${tw ? '' : 'z'}" title="c = ${fx(dCalc, c.d)}" value="${sgn(dApp, c.d)}"></td>
+        <td class="${Math.abs(dApp) > 1e-4 ? 'v-warn' : 'v-dim'}">${fx(now + dApp, c.d)}</td>`;
+    }).join('');
+    const dirty = ST.tweak[i].angle || ST.tweak[i].rot || ST.tweak[i].feed;
+    rows.push(`<tr class="clk ${i === ST.sel ? 'sel' : ''} ${dirty ? 'hasd' : ''}" data-r="${i}">
+      <td>B${i + 1}</td><td><span class="ori ${ori[i]}">${ori[i]}</span></td>${cells}</tr>`);
   }
+
   return `<div class="pane on"><div class="grp"><div class="eyebrow">${T('gains')}</div><div class="body">
     <div class="fgrid"><label>${T('gainW')} <span class="ori W">W</span></label>
       <input type="number" step=".05" min="0" max="1.5" data-c="gainW" value="${C.gainW}">
@@ -311,9 +389,14 @@ function paneComp(M) {
       <button class="btn" data-a="resetcmd">${T('reset')}</button></div>
   </div></div>
   <div class="grp"><div class="eyebrow">${T('cmdTbl')}</div><div class="body">
-    <div class="tw"><table><thead><tr><th>${T('nBend')}</th><th>${T('ori')}</th>
-      <th>${T('cNow')} °</th><th>${T('cNew')} °</th><th>${T('cDelta')} °</th>
-      <th>${T('cNow')} mm</th><th>${T('cNew')} mm</th></tr></thead><tbody>${rows.join('')}</tbody></table></div>
+    ${cols.length ? `<div class="tw"><table class="cmd"
+      style="min-width:${120 + cols.length * 230}px"><thead><tr>
+      <th>${T('nBend')}</th><th>${T('ori')}</th>${head}</tr></thead>
+      <tbody>${rows.join('')}</tbody></table></div>
+    <div class="row mt6"><span class="grow"></span>
+      <button class="btn sm" data-a="zerotw">${T('zeroTw')}</button></div>
+    <div class="hintline">${T('cellNote')}</div>`
+    : `<div class="warnbox mt10">${T('what')}: —</div>`}
     ${pred ? `<div class="eyebrow" style="padding-left:0">${T('predict')}</div>
       <div class="stats"><div class="stat"><div class="k">${T('statMaxA')}</div>
         <div class="v ${cls(pred._maxA, M.tol.angle)}">${fx(pred._maxA, 3)}<span class="u">°</span></div></div>

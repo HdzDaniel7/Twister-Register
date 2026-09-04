@@ -30,9 +30,18 @@ tiene internet.
   aceptación es la posición de la punta maquinada.
 - **Edición de puntos PI** en XYZ, con insertar y eliminar. Es edición absoluta:
   mover un punto deja los demás donde están y la cadena se recalcula por inversa.
+- **Colocación en el espacio**: elige un PI como origen y gira o mueve la pieza a
+  su alrededor para verla en el ángulo que quieras. Es solo presentación — no
+  toca ningún avance, ángulo ni radio, y se aplica a la escena entera, así que
+  la comparación entre modelos no cambia.
+- **Puntos de referencia**: cotas sueltas que pones a mano o importas por CSV.
+  Cada una se une con el PI más cercano del modelo activo y dice a cuánto quedó.
+  Sirve para acotar contra el fixture o un datum de taller.
 - **Lazo de compensación**: `nuevo comando = comando actual + ganancia ×
   (nominal − medido)`, con ganancia separada para el doblez de canto y el de
   plano. No se calcula el arrastre entre dobleces: se regenera la cadena entera.
+  Las medidas son fijas y **la compensación es lo único editable**: la celda
+  `Δ aplicada` acepta cuentas sobre lo que calculó el lazo, escrito `c`.
 - **Cinta inferior** que desenrolla la longitud desarrollada, una columna por
   doblez coloreada por desviación. Con pieza medida muestra la desviación del
   desvío total; sin ella, el Δ contra el modelo de referencia.
@@ -74,7 +83,7 @@ web/
   src/app.css       tokens de diseño y layout
   src/shell.html    esqueleto con los marcadores del build
   build.mjs         esbuild: src/ + three  ->  index.html
-  test_motor.js     64 pruebas del motor, en Node y sin navegador
+  test_motor.js     77 pruebas del motor, en Node y sin navegador
 index.html          SALIDA GENERADA — no se edita a mano
 ```
 
@@ -85,11 +94,11 @@ index.html          SALIDA GENERADA — no se edita a mano
 ```bash
 cd web
 npm install          # una sola vez: three + esbuild
-npm test             # 64 pruebas del motor
+npm test             # 77 pruebas del motor
 npm run build        # regenera index.html (y web/barcomp_viewer.html en local)
 ```
 
-**`index.html` es un artefacto compilado de ~614 KB con three.js empotrado.
+**`index.html` es un artefacto compilado de ~626 KB con three.js empotrado.
 Nunca se edita a mano: el siguiente build borra el cambio.** Se edita `web/src/`.
 
 El empaquetador es **esbuild**: resuelve todos los `import` (three y
@@ -114,6 +123,29 @@ internet es el `npm install`.
 
 ---
 
+## La compensación se puede corregir a mano
+
+La tabla de comandos muestra, por doblez, el valor actual, lo que sugiere el
+lazo (`Δ calc.`) y la **Δ aplicada**, que es la única celda editable. Ahí se
+escribe un número o una cuenta sobre el cálculo:
+
+| escribes | resultado |
+|---|---|
+| `2` | la compensación pasa a valer 2 |
+| `+2` | dos más de lo que calculó el lazo |
+| `c+2` | lo mismo, explícito |
+| `c*1.1` | un 10 % más de lo que calculó |
+| `(c+1)/2` | lo que haga falta |
+
+Se guarda la **diferencia** contra el cálculo, no el valor absoluto: si después
+cambias la ganancia o llega otra pieza medida, «dos décimas más de lo que
+sugiera el lazo» sigue significando eso. Al aplicar la compensación el ajuste
+queda dentro del comando y vuelve a cero.
+
+Se evalúa con un parser propio; no se usa `eval()`.
+
+---
+
 ## Formato de archivo
 
 Esquema `barcomp/1.0`, un JSON con el modelo, los comandos de máquina, las
@@ -134,9 +166,14 @@ viejos siguen abriendo.
   "command": [ /* lo que se manda a la máquina */ ],
   "comp":    { "gainW":0.75, "gainT":0.75, "doAngle":true, "doRot":false, "doFeed":false },
   "proc":    { "sbW":1.6, "sbT":1.0, "slip":0.12, "biasRot":0.35, "seed":7 },
-  "variants": [{ "id":"v1", "name":"", "color":"", "base": { }, "deltas": [] }]
+  "variants": [{ "id":"v1", "name":"", "color":"", "base": { }, "deltas": [] }],
+  "place":  { "pivot":0, "x":0, "y":0, "z":0, "rx":0, "ry":0, "rz":0 },
+  "marks":  [{ "name":"apoyo A", "color":"#57C8D6", "x":0, "y":0, "z":0 }],
+  "tweak":  [{ "angle":0, "rot":0, "feed":0 }]
 }
 ```
+
+`place`, `marks` y `tweak` también son opcionales.
 
 ---
 

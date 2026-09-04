@@ -21,11 +21,13 @@
 import * as E from './engine.js';
 import { T, setLang } from './i18n.js';
 import {
-  ST, V, REF, VAR_COLORS, syncModel, newVid, loadModel,
+  ST, V, REF, VAR_COLORS, syncModel, newVid, loadModel, refModel,
   activeDataset, addDataset, recomputeAll, syncCommand, resetCommand,
+  addMark, setMarks, syncTweak, zeroTweak, compensatedCommand,
 } from './state.js';
 import {
   initScene, rebuildScene, fitView, setView, setOnPick, setOnResize, markDirty,
+  onResize,
 } from './scene.js';
 import { drawRibbon, bindRibbon, setOnRibbonSelect } from './ribbon.js';
 import { renderShell, renderLeft, renderRight, renderStatus, renderPanels } from './panels.js';
@@ -79,6 +81,23 @@ function editPoint(i, key, val) {
   v.base = E.movePi(v.base, i, [P[i].x, P[i].y, P[i].z]);
   E.syncDeltas(v);
   syncModel(); syncCommand(); refresh();
+}
+
+/** Guarda el ajuste manual de una celda de compensación.
+ *  El texto puede ser un número (reemplaza) o una cuenta sobre `c`, el valor
+ *  que calculó el lazo. Si no se entiende, no se toca nada. */
+function editTweak(i, key, text) {
+  const M = ST.model, D = activeDataset();
+  if (!D) return;
+  syncTweak(M.bends.length);
+  if (!(i >= 0 && i < ST.tweak.length)) return;
+  const calc = E.compensate(ST.command, M.bends, D.model.bends, ST.comp,
+                            E.orientations(M));
+  const dCalc = calc[i][key] - ST.command[i][key];
+  const v = E.evalCell(text, dCalc);
+  if (v === null) { renderRight(); return; }     // texto inválido: se descarta
+  ST.tweak[i][key] = v - dCalc;
+  renderRight(); renderStatus();
 }
 
 /* ------------------------------------------------------------ variantes */
@@ -136,7 +155,8 @@ function loadFresh(model) {
 
 function saveJson() {
   const doc = E.toDoc(ST.model, ST.command, ST.comp, ST.proc, ST.datasets,
-                      ST.variants, ST.ref, ST.anchor);
+                      ST.variants, ST.ref, ST.anchor,
+                      { place: ST.place, marks: ST.marks, tweak: ST.tweak });
   download(safeName(ST.model.name) + '.json', JSON.stringify(doc, null, 1));
 }
 function openJson() {
@@ -147,6 +167,10 @@ function openJson() {
       ST.command = d.command;
       Object.assign(ST.comp, d.comp);
       Object.assign(ST.proc, d.proc);
+      ST.place = { ...E.PLACE_DEFAULT, ...(d.place || {}) };
+      setMarks(d.marks);
+      ST.tweak = d.tweak || [];
+      syncTweak(ST.model.bends.length);
       for (const x of d.datasets) {
         const ds = addDataset(
           { ...d.model, bends: (x.bends || []).map(E.bendFrom), tail: x.tail ?? d.model.tail },
@@ -221,15 +245,40 @@ function action(a) {
     case 'apply': {
       const D = activeDataset();
       if (!D) { alert(T('noMeas')); return; }
-      ST.command = E.compensate(ST.command, M.bends, D.model.bends, ST.comp,
-                                E.orientations(M));
+      /* lo que se aplica es lo que muestra la tabla: cálculo del lazo MÁS el
+         ajuste escrito a mano. Una vez aplicado, el ajuste ya está dentro del
+         comando, así que se pone a cero. */
+      ST.command = compensatedCommand(D.model.bends);
+      zeroTweak();
       predict();
       renderPanels(); rebuildScene(); drawRibbon();
       return;
     }
     case 'resetcmd':
-      resetCommand(); ST.pred = null;
+      resetCommand(); zeroTweak(); ST.pred = null;
       renderPanels(); rebuildScene(); return;
+    case 'zerotw':
+      zeroTweak(); renderRight(); return;
+
+    case 'placereset':
+      ST.place = { ...E.PLACE_DEFAULT };
+      renderLeft(); rebuildScene(); fitView(); return;
+
+    case 'addmark': {
+      /* nace sobre el doblez seleccionado: es donde uno quiere acotar */
+      const P = E.anchoredPis(M, refModel(), ST.anchor);
+      const q = P[E.clamp(ST.sel + 1, 0, P.length - 1)];
+      addMark(q ? q.x : 0, q ? q.y : 0, q ? q.z : 0);
+      renderLeft(); renderRight(); rebuildScene(); return;
+    }
+    case 'markcsv':
+      pickFile('.csv,.txt', txt => {
+        const P = E.readPointsCsv(txt);
+        if (!P.length) { alert('CSV: 0 pts'); return; }
+        for (const q of P) addMark(q.x, q.y, q.z);
+        renderLeft(); renderRight(); rebuildScene();
+      });
+      return;
     default: return;
   }
 }
@@ -300,6 +349,46 @@ function bind() {
       renderRight(); return;
     }
     if (d.pr !== undefined) { ST.proc[d.pr] = +t.value; return; }
+
+    /* --- colocación: solo presentación, no toca ningún dato del modelo --- */
+    if (d.pl !== undefined) {
+      ST.place[d.pl] = +t.value || 0;
+      renderStatus(); rebuildScene(); return;
+    }
+    if (d.plp !== undefined) {
+      ST.place.pivot = +t.value | 0;
+      rebuildScene(); return;
+    }
+
+    /* --- puntos de referencia ------------------------------------------ */
+    if (d.mk !== undefined) {
+      const mk = ST.marks.find(x => x.id === d.mk);
+      if (mk) {
+        mk[d.k] = d.k === 'name' ? t.value : (+t.value || 0);
+        renderRight(); rebuildScene();
+      }
+      return;
+    }
+    if (d.mv !== undefined) {
+      const mk = ST.marks.find(x => x.id === d.mv);
+      if (mk) { mk.visible = t.checked; rebuildScene(); }
+      return;
+    }
+    if (d.mc !== undefined) {
+      const mk = ST.marks.find(x => x.id === d.mc);
+      if (mk) { mk.color = t.value; renderRight(); rebuildScene(); }
+      return;
+    }
+
+    /* --- ajuste manual de la compensación ------------------------------- */
+    /* La celda acepta cuentas sobre lo que calculó el lazo (`c`). Se guarda la
+       DIFERENCIA contra ese cálculo, no el valor absoluto: si después cambias
+       la ganancia o llega otra pieza medida, el ajuste sigue significando lo
+       mismo ("dos décimas más de lo que sugiera el lazo"). */
+    if (d.tw !== undefined && d.k) {
+      editTweak(+d.tw, d.k, t.value);
+      return;
+    }
   });
 
   document.body.addEventListener('input', e => {
@@ -346,6 +435,9 @@ function bind() {
       const move = ev => {
         const w = clamp(innerWidth - ev.clientX, 320, Math.min(880, innerWidth - 420));
         document.documentElement.style.setProperty('--rtW', w + 'px');
+        /* sin esto el lienzo WebGL conserva su tamaño en píxeles y se monta
+           encima del panel derecho: la tabla queda detrás de la figura. */
+        onResize();
       };
       const up = () => {
         grip.classList.remove('drag');
@@ -356,6 +448,12 @@ function bind() {
       grip.addEventListener('pointermove', move);
       grip.addEventListener('pointerup', up);
     });
+  }
+
+  /* El lienzo tiene que seguir a su contenedor pase lo que pase: arrastrar el
+     tirador, cambiar el zoom del navegador o abrir las herramientas del IDE. */
+  if (typeof ResizeObserver !== 'undefined') {
+    new ResizeObserver(() => onResize()).observe($('#vpwrap'));
   }
 
   bindRibbon();
