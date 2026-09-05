@@ -5,6 +5,7 @@ python/
 compare_engines.py
 CONTEXTO_BARCOMP.md
 PROMPT_WEB_V2.md
+PROMPT_WEB_V3.md
 
 # --------------------------------------------------------------- artefactos
 # index.html (raíz) ES la página publicada y sí se versiona.
@@ -39,3 +40,6 @@ desktop.ini
 *.log
 tmp/
 scratch/
+
+# Banco de pruebas de interfaz por CDP: solo local, no es parte de la página
+web/tools/
