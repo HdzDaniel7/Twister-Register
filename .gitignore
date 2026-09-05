@@ -16,9 +16,6 @@ web/barcomp_viewer.html
 web/engine_dump.js
 web/build.py
 
-# Restos del build anterior (three r140 UMD); hoy three viene de npm
-web/vendor/
-
 # ------------------------------------------------------------ dependencias
 node_modules/
 

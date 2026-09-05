@@ -46,6 +46,9 @@ export const nfield = (step, attrs, val, extra = '') =>
 export const esc = s => String(s).replace(/[&<>"]/g,
   c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 export const cls = (v, t) => Math.abs(v) <= t ? 'v-ok' : Math.abs(v) <= 2 * t ? 'v-warn' : 'v-bad';
+/** Insignia W/T. La letra sola no dice nada a quien llega nuevo: el tooltip
+ *  lleva la explicación larga, que ya estaba traducida en los tres idiomas. */
+const oriTag = o => `<span class="ori ${o}" title="${T('or' + o)}">${o}</span>`;
 const sgn = (v, n) => (v > 0 ? '+' : '') + fx(v, n);
 
 /* ============================================================== armazón == */
@@ -346,7 +349,7 @@ function paneModel(M) {
     const hasD = E.DELTA_KEYS.some(k => v.deltas[i][k]);
     const bb = base[i];
     return `<tr class="clk ${i === ST.sel ? 'sel' : ''} ${hasD ? 'hasd' : ''}" data-r="${i}">
-      <td>B${i + 1}</td><td><span class="ori ${ori[i]}">${ori[i]}</span></td>
+      <td>B${i + 1}</td><td>${oriTag(ori[i])}</td>
       <td>${nfield('.5', `data-st="${i}" class="${BASE[i].straight < 25 ? 'v-bad' : ''}"`,
                    BASE[i].straight)}</td>
       <td class="dcol">${dnum(i, 'feed', '.1')}</td>
@@ -500,7 +503,7 @@ function paneMeas(M) {
     <div class="tw"><table><thead><tr><th>${T('nBend')}</th><th>${T('ori')}</th><th>${T('dA')}</th>
       <th>${T('dR')}</th><th>${T('dF')}</th><th>${T('dP')}</th></tr></thead><tbody>
       ${M.bends.slice(0, D.dev.angle.length).map((b, i) => `<tr class="clk ${i === ST.sel ? 'sel' : ''}" data-r="${i}"><td>B${i + 1}</td>
-        <td><span class="ori ${ori[i]}">${ori[i]}</span></td>
+        <td>${oriTag(ori[i])}</td>
         <td class="${cls(D.dev.angle[i], M.tol.angle)}">${sgn(D.dev.angle[i], 3)}</td>
         <td class="${cls(D.dev.rot[i], M.tol.rot)}">${sgn(D.dev.rot[i], 3)}</td>
         <td class="${cls(D.dev.feed[i], M.tol.feed)}">${sgn(D.dev.feed[i], 2)}</td>
@@ -547,14 +550,15 @@ function paneComp(M) {
         <td class="${Math.abs(dApp) > 1e-4 ? 'v-warn' : 'v-dim'}">${fx(now + dApp, c.d)}</td>`;
     }).join('');
     const dirty = ST.tweak[i].angle || ST.tweak[i].rot || ST.tweak[i].feed;
-    rows.push(`<tr class="clk ${i === ST.sel ? 'sel' : ''} ${dirty ? 'hasd' : ''}" data-r="${i}">
-      <td>B${i + 1}</td><td><span class="ori ${ori[i]}">${ori[i]}</span></td>${cells}</tr>`);
+    rows.push(`<tr class="clk ${i === ST.sel ? 'sel' : ''} ${dirty ? 'hasd' : ''}"
+      ${dirty ? `title="${T('tweakOn')}"` : ''} data-r="${i}">
+      <td>B${i + 1}</td><td>${oriTag(ori[i])}</td>${cells}</tr>`);
   }
 
   return `<div class="pane on"><div class="grp"><div class="eyebrow">${T('gains')}</div><div class="body">
-    <div class="fgrid"><label>${T('gainW')} <span class="ori W">W</span></label>
+    <div class="fgrid"><label>${T('gainW')} ${oriTag('W')}</label>
       ${nfield('.05', 'min="0" max="1.5" data-c="gainW"', C.gainW)}
-      <label>${T('gainT')} <span class="ori T">T</span></label>
+      <label>${T('gainT')} ${oriTag('T')}</label>
       ${nfield('.05', 'min="0" max="1.5" data-c="gainT"', C.gainT)}</div>
     <div class="eyebrow" style="padding-left:0">${T('what')}</div>
     <div class="row wrap">
