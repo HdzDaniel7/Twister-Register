@@ -11,7 +11,7 @@
 import * as E from './engine.js';
 import { ST, activeDataset, refModel } from './state.js';
 import { T } from './i18n.js';
-import { devCssColor } from './scene.js';
+import { devCssColor, cssVar } from './scene.js';
 
 const $ = s => document.querySelector(s);
 const fx = (v, n = 2) => (v === null || v === undefined || !isFinite(v)) ? '—' : v.toFixed(n);
@@ -34,15 +34,15 @@ export function drawRibbon() {
   const tol = M.tol.angle || 1, maxR = 2.5;
 
   /* eje */
-  g.strokeStyle = '#242C39'; g.lineWidth = 1;
+  g.strokeStyle = cssVar('--line', '#242C39'); g.lineWidth = 1;
   g.beginPath(); g.moveTo(pad, mid + .5); g.lineTo(w - 14, mid + .5); g.stroke();
 
   /* línea de tolerancia */
   const hTol = (bot - top) / maxR;
-  g.setLineDash([3, 3]); g.strokeStyle = '#FFC53D66';
+  g.setLineDash([3, 3]); g.strokeStyle = cssVar('--warn', '#FFC53D') + '66';
   g.beginPath(); g.moveTo(pad, bot - hTol); g.lineTo(w - 14, bot - hTol); g.stroke();
   g.setLineDash([]);
-  g.fillStyle = '#7E8A9C'; g.font = '9px ui-monospace,monospace'; g.textAlign = 'right';
+  g.fillStyle = cssVar('--dim', '#7E8A9C'); g.font = '9px ui-monospace,monospace'; g.textAlign = 'right';
   g.fillText('tol ' + fx(tol, 2) + '°', pad - 4, bot - hTol + 3);
   g.fillText('0', pad - 4, mid + 3);
 
@@ -59,20 +59,20 @@ export function drawRibbon() {
     if (D && i < D.dev.theta.length) d = Math.abs(D.dev.theta[i]);
     else if (refB && i < refB.length) d = Math.abs(E.bendTheta(M.bends[i]) - E.bendTheta(refB[i]));
     if (d === null || !isFinite(d)) {
-      g.fillStyle = '#1D2430'; g.fillRect(x - bw / 2, mid - 8, bw, 8);
+      g.fillStyle = cssVar('--panel3', '#1D2430'); g.fillRect(x - bw / 2, mid - 8, bw, 8);
     } else {
       const hh = Math.min(Math.abs(d) / tol / maxR, 1) * (bot - top);
       g.fillStyle = devCssColor(d, tol);
       g.fillRect(x - bw / 2, mid - hh, bw, Math.max(hh, 1.5));
       if (i === ST.sel) {
-        g.strokeStyle = '#fff'; g.lineWidth = 1;
+        g.strokeStyle = cssVar('--txt', '#fff'); g.lineWidth = 1;
         g.strokeRect(x - bw / 2 - 1.5, mid - hh - 1.5, bw + 3, hh + 3);
       }
     }
-    g.fillStyle = i === ST.sel ? '#D8DFE9' : '#5A6576';
+    g.fillStyle = i === ST.sel ? cssVar('--txt', '#D8DFE9') : cssVar('--dim2', '#5A6576');
     g.textAlign = 'center'; g.font = '9px ui-monospace,monospace';
     g.fillText(String(i + 1), x, h - 6);
-    g.fillStyle = ori[i] === 'W' ? '#6B4B9E' : '#3B7A6C';
+    g.fillStyle = ori[i] === 'W' ? cssVar('--oriWbd', '#6B4B9E') : cssVar('--oriTbd', '#3B7A6C');
     g.fillRect(x - bw / 2, mid + 2, bw, 2);
   }
   cv._pos = pos; cv._X = X;

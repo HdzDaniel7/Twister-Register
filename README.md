@@ -21,6 +21,16 @@ tiene internet.
 
 - **Cinemática directa e inversa** sobre los PI (puntos de intersección) del eje
   neutro, con arcos inscritos y torsión repartida a lo largo de un tramo.
+- **Tabla de dobleces con las longitudes desarrolladas**: junto a los
+  parámetros de máquina van `Recta` (el tramo recto de tangencia a tangencia),
+  `L` (la longitud del arco que genera el doblez) y `Σ L` (el acumulado sobre
+  el eje neutro), más la cola y la longitud total en el pie. `Avance` y `Recta`
+  son **las dos editables** y cada una reescribe la otra: se teclea la magnitud
+  que se tenga a mano.
+- **La tabla se recorre con el teclado como una hoja de cálculo**: Tab / ⇧Tab en
+  horizontal, Enter y ↑ ↓ en vertical, Esc descarta la celda, y el valor sube o
+  baja un paso con la rueda del ratón o con Ctrl+↑ ↓. El foco no se pierde al
+  confirmar.
 - **Varios modelos comparables a la vez**, cada uno con su color, con una columna
   **Δ** al lado de cada parámetro compensable (avance, R de canto, ángulo de
   plano): la corrección se escribe junto al dato sin perder el valor original.
@@ -45,8 +55,11 @@ tiene internet.
 - **Cinta inferior** que desenrolla la longitud desarrollada, una columna por
   doblez coloreada por desviación. Con pieza medida muestra la desviación del
   desvío total; sin ella, el Δ contra el modelo de referencia.
+- **Tema claro y oscuro**, con un tercer estado que sigue la preferencia del
+  sistema. El 3D y la cinta leen sus colores del CSS, así que cambian con el
+  resto: no hay una segunda paleta escondida en el código.
 - Reporte imprimible con las cuatro vistas, importar/exportar CSV de puntos, y
-  todo en español e inglés.
+  todo en **español, inglés y alemán**.
 
 ---
 
@@ -70,20 +83,26 @@ en `Rot(eje, θ) · Rx(ψ)`, donde el eje es perpendicular al eje de la barra �
 único que no rueda la sección— y `ψ` es el rodado residual, cero exacto cuando
 el doblez tiene una sola componente.
 
+El espacio está repartido en tres bandas: arriba los paneles a los lados y el
+3D en medio, con la desviación y las estadísticas en el lateral derecho; debajo
+la cinta como banda fina; y al fondo la tabla a todo el ancho con sus pestañas.
+Dos tiradores: `#rtgrip` mueve el ancho del lateral y `#btgrip` el alto de la
+tabla.
+
 ```
 web/
   src/engine.js     EL MOTOR: cinemática, variantes, anclaje, compensación. Sin DOM.
   src/app.js        orquestador: acciones, eventos por delegación, arranque
   src/state.js      ST: modelos, referencia, anclaje, capas, piezas medidas
   src/scene.js      three.js: barrido de la sección, capas, picking, capturas
-  src/panels.js     paneles y las 4 pestañas (devuelven cadenas HTML)
+  src/panels.js     paneles, las 3 pestañas y el lateral fijo (devuelven cadenas)
   src/ribbon.js     la cinta inferior (canvas 2D)
   src/report.js     reporte imprimible · src/io.js  archivos locales
-  src/i18n.js       I18N.es / I18N.en — todo texto visible pasa por T('clave')
-  src/app.css       tokens de diseño y layout
+  src/i18n.js       I18N.es / .en / .de — todo texto visible pasa por T('clave')
+  src/app.css       tokens de diseño y layout; la paleta de los DOS temas
   src/shell.html    esqueleto con los marcadores del build
   build.mjs         esbuild: src/ + three  ->  index.html
-  test_motor.js     77 pruebas del motor, en Node y sin navegador
+  test_motor.js     104 pruebas del motor y del i18n, en Node y sin navegador
 index.html          SALIDA GENERADA — no se edita a mano
 ```
 
@@ -94,11 +113,11 @@ index.html          SALIDA GENERADA — no se edita a mano
 ```bash
 cd web
 npm install          # una sola vez: three + esbuild
-npm test             # 77 pruebas del motor
+npm test             # 104 pruebas del motor
 npm run build        # regenera index.html (y web/barcomp_viewer.html en local)
 ```
 
-**`index.html` es un artefacto compilado de ~626 KB con three.js empotrado.
+**`index.html` es un artefacto compilado de ~643 KB con three.js empotrado.
 Nunca se edita a mano: el siguiente build borra el cambio.** Se edita `web/src/`.
 
 El empaquetador es **esbuild**: resuelve todos los `import` (three y
@@ -111,11 +130,18 @@ internet es el `npm install`.
 
 - Milímetros y grados en la interfaz y en el JSON; radianes solo dentro de las
   funciones. Sistema derecho.
-- Todo texto visible pasa por `T('clave')`, y la cadena va en `I18N.es` **y** en
-  `I18N.en`.
+- Todo texto visible pasa por `T('clave')`, y la cadena va en `I18N.es`,
+  `I18N.en` **y** `I18N.de`. `npm test` comprueba que los tres tengan
+  exactamente el mismo juego de claves, que ninguna esté vacía y que ninguna
+  arrastre el español sin traducir.
+- Ni `scene.js` ni `ribbon.js` llevan colores propios: los leen de `:root` con
+  `cssVar()`. Un color nuevo se define en `app.css`, en los dos temas.
 - Nada de `localStorage` ni `sessionStorage`, nada de CDNs ni `fetch()`.
 - Los paneles se reconstruyen enteros, así que los inputs de tabla usan el evento
-  `change`, no `input`, o se pierde el foco al escribir.
+  `change`, no `input`, o se pierde el foco al escribir. Al confirmar una celda
+  de la tabla de modelo NO se reconstruye el panel: `updateModelDerived()`
+  reescribe solo las celdas calculadas. Para todo lo demás hay una red de
+  guardado y restauración del foco dentro de `renderRight()`.
 - `ST.model` es solo una caché del modelo efectivo (base + Δ) del modelo activo:
   después de tocar un modelo hay que llamar `syncModel()`.
 - Si agregas objetos a la escena, mételos en un grupo de `groups{}` y haz
@@ -146,12 +172,57 @@ Se evalúa con un parser propio; no se usa `eval()`.
 
 ---
 
+## La tabla de dobleces
+
+Catorce columnas, en orden de proceso:
+
+```
+#  Or.  Avance Δ  R canto Δ  Áng plano Δ  Radio  Twist  Long.tw.  Recta  L  Σ L
+        └───────────── se teclean ──────────────────────────────┘  └─ se leen ─┘
+```
+
+Cada fila son **dos tramos**: la recta que llega al doblez, y el doblez que
+ocurre al final de esa recta.
+
+```
+Recta(i) = feed(i) − trim(i) − trim(i−1)        trim = radius · tan(θ/2)
+L(i)     = radius(i) · θ(i)                     θ de bendDecomp()
+Σ L(i)   = Σ L(i−1) + Recta(i) + L(i)
+```
+
+`Avance` es la distancia de PI a PI y es lo que se guarda. `Recta` es de
+tangencia a tangencia y es lo que consume la máquina. **Las dos se teclean**: al
+escribir una recta se recalcula el avance que la produce, y al cambiar un radio
+o un ángulo se conserva el avance y se mueve la recta. `L` y `Σ L` son de solo
+lectura. En el pie van la cola y la longitud desarrollada total.
+
+La cuenta vive en un solo sitio, `rowLengths()` en `engine.js`; `machineFeeds()`,
+`twistSpanOf()`, `buildPath()` y `bendStations()` la consumen en vez de
+repetirla.
+
+### Teclado
+
+| tecla | qué hace |
+|---|---|
+| `Tab` / `⇧Tab` | celda siguiente / anterior, en horizontal |
+| `Enter`, `↑`, `↓` | celda de arriba o de abajo, en la misma columna |
+| `Esc` | descarta lo escrito en la celda |
+| rueda del ratón | sube o baja el valor un paso |
+| `Ctrl+↑` / `Ctrl+↓` | lo mismo, con el teclado |
+
+Las columnas calculadas se saltan solas al navegar, porque no son campos. Al
+confirmar una celda no se reconstruye el panel, así que el foco nunca salta.
+
 ## Formato de archivo
 
 Esquema `barcomp/1.0`, un JSON con el modelo, los comandos de máquina, las
 ganancias, los parámetros del simulador, las piezas medidas y los modelos
 comparados. Las claves `variants`, `ref` y `anchor` son opcionales: los archivos
 viejos siguen abriendo.
+
+`Recta`, `L` y `Σ L` **no se guardan**: son magnitudes derivadas de `feed`,
+`radius` y los ángulos. El estado sigue siendo `feed`, de PI a PI, que es lo
+que ve el motor de Python.
 
 ```jsonc
 {
@@ -169,11 +240,17 @@ viejos siguen abriendo.
   "variants": [{ "id":"v1", "name":"", "color":"", "base": { }, "deltas": [] }],
   "place":  { "pivot":0, "x":0, "y":0, "z":0, "rx":0, "ry":0, "rz":0 },
   "marks":  [{ "name":"apoyo A", "color":"#57C8D6", "x":0, "y":0, "z":0 }],
-  "tweak":  [{ "angle":0, "rot":0, "feed":0 }]
+  "tweak":  [{ "angle":0, "rot":0, "feed":0 }],
+  "ui":     { "theme":"system", "lang":"es" }
 }
 ```
 
-`place`, `marks` y `tweak` también son opcionales.
+`place`, `marks`, `tweak` y `ui` también son opcionales.
+
+`ui` guarda el tema y el idioma. Es la única forma de que sobrevivan a una
+recarga, porque el proyecto no usa `localStorage`. **Un archivo sin `ui` no pisa
+lo que el usuario tenga puesto**; en frío arranca con el tema del sistema y en
+español.
 
 ---
 

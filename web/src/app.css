@@ -6,7 +6,58 @@
   --ok:#3FD68C; --warn:#FFC53D; --bad:#FF4D5E;
   --mono:ui-monospace,"SF Mono","Cascadia Mono","Roboto Mono",Menlo,Consolas,monospace;
   --sans:"Inter","Segoe UI",system-ui,-apple-system,"Helvetica Neue",Arial,sans-serif;
-  --h:44px; --ribbon:96px; --statusH:26px; --rtW:520px; --lfW:250px;
+  --h:44px; --ribbon:74px; --statusH:26px; --rtW:360px; --lfW:250px; --btH:340px;
+
+  /* Todo lo que antes iba en crudo dentro del CSS, de scene.js y de ribbon.js.
+     El 3D y la cinta LEEN estos tokens en tiempo de ejecución, así que aquí
+     está el color de la aplicación entera, tema por tema. */
+  --vpbg:#080A0E; --grid1:#2A3546; --grid2:#1A212C; --fixture:#3A4658;
+  --inputbg:#0C1017; --inputbg2:#0E141D; --inputHovBd:#3C4759;
+  --sel:#12324B; --selBd:#1E5C86; --selTxt:#9FD4FA; --selHov:#17415F;
+  --btnHov:#28313F; --btnHovBd:#455065; --dcolbg:#0F1620;
+  --oriW:#C9A5F5; --oriWbd:#6B4B9E; --oriT:#7FD8C4; --oriTbd:#3B7A6C;
+  --hd1:#151A23; --hd2:#10141B; --scroll:#465268;
+  --lblbg:#0B0E13CC; --floatbg:#0B0E13D9; --hintbg:#0B0E13B0;
+  --ring:#3FA9F533; --grip:#3FA9F544; --selRing:#3FA9F540;
+}
+
+/* ---------- tema claro ----------
+   Los colores NO cambian de familia: --nominal sigue siendo azul, --measured
+   ámbar, --corrected verde, y la escala de desviación sigue yendo de verde a
+   ámbar a rojo. Lo que cambia es la luminosidad, para que se lean sobre blanco.
+   El bloque va dos veces: bajo [data-theme="light"] (elección explícita) y bajo
+   la preferencia del sistema, esta guardada contra una elección de oscuro. */
+:root[data-theme="light"]{
+  --bg:#F4F6F9; --panel:#FFFFFF; --panel2:#F0F3F7; --panel3:#E7ECF2;
+  --line:#D7DDE6; --line2:#BFC8D4;
+  --txt:#18202C; --dim:#5B6778; --dim2:#8391A3;
+  --nominal:#0D6FC4; --measured:#A96400; --corrected:#0F7A52;
+  --ok:#0F7A52; --warn:#9A6B00; --bad:#C42133;
+  --vpbg:#EDF0F4; --grid1:#C2CBD8; --grid2:#D9DFE7; --fixture:#AEB9C8;
+  --inputbg:#FFFFFF; --inputbg2:#F7F9FC; --inputHovBd:#A6B2C2;
+  --sel:#D5E7F8; --selBd:#8CBCE4; --selTxt:#0A4B87; --selHov:#C2DCF4;
+  --btnHov:#DCE3EC; --btnHovBd:#A6B2C2; --dcolbg:#EDF3F9;
+  --oriW:#6A38A2; --oriWbd:#B49BDE; --oriT:#0C6A58; --oriTbd:#84C9BB;
+  --hd1:#FFFFFF; --hd2:#F1F4F9; --scroll:#B4BDCA;
+  --lblbg:#FFFFFFD9; --floatbg:#FFFFFFE6; --hintbg:#FFFFFFCC;
+  --ring:#0D6FC433; --grip:#0D6FC444; --selRing:#0D6FC440;
+}
+@media (prefers-color-scheme:light){
+  :root:not([data-theme="dark"]){
+    --bg:#F4F6F9; --panel:#FFFFFF; --panel2:#F0F3F7; --panel3:#E7ECF2;
+    --line:#D7DDE6; --line2:#BFC8D4;
+    --txt:#18202C; --dim:#5B6778; --dim2:#8391A3;
+    --nominal:#0D6FC4; --measured:#A96400; --corrected:#0F7A52;
+    --ok:#0F7A52; --warn:#9A6B00; --bad:#C42133;
+    --vpbg:#EDF0F4; --grid1:#C2CBD8; --grid2:#D9DFE7; --fixture:#AEB9C8;
+    --inputbg:#FFFFFF; --inputbg2:#F7F9FC; --inputHovBd:#A6B2C2;
+    --sel:#D5E7F8; --selBd:#8CBCE4; --selTxt:#0A4B87; --selHov:#C2DCF4;
+    --btnHov:#DCE3EC; --btnHovBd:#A6B2C2; --dcolbg:#EDF3F9;
+    --oriW:#6A38A2; --oriWbd:#B49BDE; --oriT:#0C6A58; --oriTbd:#84C9BB;
+    --hd1:#FFFFFF; --hd2:#F1F4F9; --scroll:#B4BDCA;
+    --lblbg:#FFFFFFD9; --floatbg:#FFFFFFE6; --hintbg:#FFFFFFCC;
+    --ring:#0D6FC433; --grip:#0D6FC444; --selRing:#0D6FC440;
+  }
 }
 *{box-sizing:border-box;margin:0;padding:0}
 html,body{height:100%;overflow:hidden}
@@ -16,19 +67,24 @@ button,input,select,textarea{font-family:inherit;font-size:inherit;color:inherit
 ::-webkit-scrollbar{width:9px;height:9px}
 ::-webkit-scrollbar-track{background:transparent}
 ::-webkit-scrollbar-thumb{background:var(--line2);border-radius:5px}
-::-webkit-scrollbar-thumb:hover{background:#465268}
+::-webkit-scrollbar-thumb:hover{background:var(--scroll)}
 :focus-visible{outline:2px solid var(--nominal);outline-offset:1px}
 
 /* ---------- shell ---------- */
+/* Tres bandas apiladas: la de arriba se reparte en tres columnas (paneles,
+   3D, desviación), y abajo van la cinta —horizontal por naturaleza, mide la
+   longitud desarrollada— y la tabla a todo el ancho, que es lo que necesita
+   con sus 14 columnas. El alto de la tabla lo pone #btgrip. */
 #app{display:grid;height:100vh;
   grid-template-columns:var(--lfW) 1fr var(--rtW);
-  grid-template-rows:var(--h) 1fr var(--statusH);
-  grid-template-areas:"hd hd hd" "lf ct rt" "st st st"}
-#hd{grid-area:hd}#lf{grid-area:lf}#ct{grid-area:ct}#rt{grid-area:rt}#st{grid-area:st}
+  grid-template-rows:var(--h) minmax(200px,1fr) var(--ribbon) var(--btH) var(--statusH);
+  grid-template-areas:"hd hd hd" "lf ct rt" "rb rb rb" "bt bt bt" "st st st"}
+#hd{grid-area:hd}#lf{grid-area:lf}#ct{grid-area:ct}#rt{grid-area:rt}
+#rb{grid-area:rb}#bt{grid-area:bt}#st{grid-area:st}
 
 /* ---------- header ---------- */
 #hd{display:flex;align-items:center;gap:14px;padding:0 12px;
-  background:linear-gradient(180deg,#151A23,#10141B);border-bottom:1px solid var(--line)}
+  background:linear-gradient(180deg,var(--hd1),var(--hd2));border-bottom:1px solid var(--line)}
 .brand{display:flex;align-items:baseline;gap:8px;font-family:var(--sans)}
 .brand b{font-size:15px;font-weight:700;letter-spacing:.16em}
 .brand .v{font-size:9px;letter-spacing:.18em;color:var(--nominal);
@@ -38,15 +94,15 @@ button,input,select,textarea{font-family:inherit;font-size:inherit;color:inherit
 .hbtns{display:flex;gap:5px}
 .btn{background:var(--panel3);border:1px solid var(--line2);border-radius:3px;
   padding:5px 10px;cursor:pointer;color:var(--txt);white-space:nowrap;transition:.12s}
-.btn:hover{background:#28313F;border-color:#455065}
+.btn:hover{background:var(--btnHov);border-color:var(--btnHovBd)}
 .btn:active{transform:translateY(1px)}
-.btn.pri{background:#12324B;border-color:#1E5C86;color:#9FD4FA}
-.btn.pri:hover{background:#17415F}
+.btn.pri{background:var(--sel);border-color:var(--selBd);color:var(--selTxt)}
+.btn.pri:hover{background:var(--selHov)}
 .btn.sm{padding:3px 7px;font-size:11px}
 .seg{display:flex;border:1px solid var(--line2);border-radius:3px;overflow:hidden}
 .seg button{background:var(--panel3);border:0;padding:5px 9px;cursor:pointer;color:var(--dim)}
 .seg button+button{border-left:1px solid var(--line2)}
-.seg button.on{background:#12324B;color:#9FD4FA}
+.seg button.on{background:var(--sel);color:var(--selTxt)}
 
 /* ---------- panels ---------- */
 #lf,#rt{background:var(--panel);overflow-y:auto;overflow-x:hidden}
@@ -73,7 +129,7 @@ button,input,select,textarea{font-family:inherit;font-size:inherit;color:inherit
 /* datasets */
 .ds{border:1px solid var(--line);border-radius:4px;padding:6px 7px;margin-bottom:6px;
   background:var(--panel2)}
-.ds.act{border-color:var(--nominal);box-shadow:0 0 0 1px #3FA9F540 inset}
+.ds.act{border-color:var(--nominal);box-shadow:0 0 0 1px var(--selRing) inset}
 .ds .top{display:flex;align-items:center;gap:6px}
 .ds .nm{flex:1;font-size:11.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer}
 .ds .meta{display:flex;gap:9px;margin-top:4px;font-size:10px;color:var(--dim)}
@@ -82,45 +138,61 @@ button,input,select,textarea{font-family:inherit;font-size:inherit;color:inherit
 /* ---------- viewport ---------- */
 /* overflow:hidden es lo que impide que el lienzo 3D se monte sobre el panel
    derecho mientras se arrastra #rtgrip. El otro medio freno es onResize(). */
-#ct{position:relative;display:flex;flex-direction:column;background:#080A0E;
+#ct{position:relative;display:flex;flex-direction:column;background:var(--vpbg);
   min-width:0;overflow:hidden}
 #vpwrap{position:relative;flex:1;min-height:0}
 #vp{position:absolute;inset:0;display:block}
 #labels{position:absolute;inset:0;pointer-events:none;overflow:hidden}
 .lbl{position:absolute;transform:translate(-50%,-50%);font-size:10px;padding:1px 4px;
-  border-radius:2px;background:#0B0E13CC;border:1px solid var(--line2);white-space:nowrap;
+  border-radius:2px;background:var(--lblbg);border:1px solid var(--line2);white-space:nowrap;
   letter-spacing:.03em}
 #vptool{position:absolute;top:8px;left:8px;display:flex;gap:5px;align-items:center;
-  background:#0B0E13D9;border:1px solid var(--line);border-radius:4px;padding:5px 7px;
-  backdrop-filter:blur(6px);flex-wrap:wrap;max-width:calc(100% - 16px)}
-#vplegend{position:absolute;top:8px;right:8px;background:#0B0E13D9;border:1px solid var(--line);
-  border-radius:4px;padding:7px 9px;backdrop-filter:blur(6px);font-size:10.5px;min-width:132px}
+  background:var(--floatbg);border:1px solid var(--line);border-radius:4px;padding:5px 7px;
+  backdrop-filter:blur(6px);flex-wrap:wrap;
+  /* deja sitio a la leyenda, que está fija arriba a la derecha: con las
+     palabras alemanas la barra llegaba a meterse debajo. El reserva casa
+     con el max-width de #vplegend más los dos márgenes de 8 px. */
+  max-width:calc(100% - 234px)}
+#vplegend{position:absolute;top:8px;right:8px;background:var(--floatbg);border:1px solid var(--line);
+  border-radius:4px;padding:7px 9px;backdrop-filter:blur(6px);font-size:10.5px;
+  min-width:132px;max-width:210px}
 #vplegend .row{display:flex;align-items:center;gap:6px;padding:1.5px 0}
 #vplegend .dot{width:9px;height:3px;border-radius:2px;flex:none}
 .scalebar{margin-top:6px;padding-top:6px;border-top:1px solid var(--line)}
 .scalebar .grad{height:7px;border-radius:2px;margin:3px 0 2px;
-  background:linear-gradient(90deg,#3FD68C,#FFC53D,#FF4D5E)}
+  background:linear-gradient(90deg,var(--ok),var(--warn),var(--bad))}
 .scalebar .ends{display:flex;justify-content:space-between;color:var(--dim);font-size:9.5px}
 .tag{font-size:9.5px;color:var(--dim2);letter-spacing:.1em;text-transform:uppercase;
   font-family:var(--sans);font-weight:600}
 #hint{position:absolute;bottom:8px;left:8px;font-size:10px;color:var(--dim2);
-  background:#0B0E13B0;padding:3px 7px;border-radius:3px}
+  background:var(--hintbg);padding:3px 7px;border-radius:3px}
 /* tirador para ensanchar el panel derecho */
 #rtgrip{position:absolute;top:0;bottom:0;right:-3px;width:7px;z-index:12;
   cursor:col-resize;background:transparent}
-#rtgrip:hover,#rtgrip.drag{background:#3FA9F544}
+#rtgrip:hover,#rtgrip.drag{background:var(--grip)}
 
 /* ---------- ribbon (signature) ---------- */
-#rb{height:var(--ribbon);border-top:1px solid var(--line);background:var(--panel);
-  position:relative;flex:none}
+#rb{border-top:1px solid var(--line);border-bottom:1px solid var(--line);
+  background:var(--panel);position:relative;min-height:0;overflow:hidden}
 #rbc{position:absolute;inset:0;width:100%;height:100%;display:block;cursor:pointer}
 #rbtitle{position:absolute;top:6px;left:10px;font-family:var(--sans);font-size:9px;
   font-weight:600;letter-spacing:.15em;color:var(--dim2);pointer-events:none;text-transform:uppercase}
 
+/* tirador para subir y bajar la tabla de abajo. Va en el borde superior de la
+   cinta: se arrastra el bloque entero (cinta + tabla). */
+#btgrip{position:absolute;top:-3px;left:0;right:0;height:7px;z-index:12;
+  cursor:row-resize;background:transparent}
+#btgrip:hover,#btgrip.drag{background:var(--grip)}
+
+/* ---------- bloque de abajo: pestañas + tabla a todo el ancho ---------- */
+#bt{display:flex;flex-direction:column;background:var(--panel);min-height:0;
+  overflow:hidden;border-top:1px solid var(--line)}
+#panes{flex:1;min-height:0;overflow:auto}
+
 /* ---------- tabs ---------- */
 #tabs{display:flex;border-bottom:1px solid var(--line);background:var(--panel2);position:sticky;top:0;z-index:5}
-#tabs button{flex:1;background:none;border:0;border-bottom:2px solid transparent;
-  padding:9px 4px;cursor:pointer;color:var(--dim);font-family:var(--sans);font-size:10px;
+#tabs button{background:none;border:0;border-bottom:2px solid transparent;
+  padding:9px 18px;cursor:pointer;color:var(--dim);font-family:var(--sans);font-size:10px;
   font-weight:600;letter-spacing:.11em;text-transform:uppercase}
 #tabs button.on{color:var(--txt);border-bottom-color:var(--nominal);background:var(--panel3)}
 .pane{display:none}.pane.on{display:block}
@@ -136,13 +208,20 @@ input[type=number]::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
 .fgrid{display:grid;grid-template-columns:1fr 112px;gap:6px 10px;align-items:center;padding:2px 0}
 .fgrid label{font-size:11.5px;color:var(--dim)}
 .fgrid.w3{grid-template-columns:1fr 72px 72px}
-input[type=text],input[type=number],select{background:#0C1017;border:1px solid var(--line2);
+/* dos pares etiqueta/campo por renglón: la cabecera del modelo tiene que caber
+   en una banda baja, o empuja la tabla fuera de la pantalla */
+.fgrid.pair{grid-template-columns:auto 82px auto 82px;gap:5px 10px}
+.mhead{display:flex;gap:24px;align-items:flex-start;flex-wrap:wrap;padding-top:8px}
+.mhead .eyebrow{padding:0 0 5px}
+.mcol{min-width:210px}
+.mcol.nm{flex:1;min-width:220px;max-width:420px}
+input[type=text],input[type=number],select{background:var(--inputbg);border:1px solid var(--line2);
   border-radius:3px;padding:6px 8px;width:100%;font-size:12.5px;line-height:1.2;
   font-variant-numeric:tabular-nums}
 input[type=number]{text-align:right}
-input:hover,select:hover{border-color:#3C4759}
+input:hover,select:hover{border-color:var(--inputHovBd)}
 input:focus,select:focus{border-color:var(--nominal);outline:0;
-  box-shadow:0 0 0 2px #3FA9F533;background:#0E141D}
+  box-shadow:0 0 0 2px var(--ring);background:var(--inputbg2)}
 input[type=range]{width:100%;accent-color:var(--nominal);height:16px}
 .rangerow{display:grid;grid-template-columns:1fr 62px;gap:8px;align-items:center}
 .rangerow .val{text-align:right;color:var(--nominal);font-variant-numeric:tabular-nums}
@@ -157,15 +236,23 @@ th{background:var(--panel3);font-family:var(--sans);font-size:9px;font-weight:60
 th:first-child,td:first-child{text-align:left}
 td{padding:2px 4px;text-align:right;border-top:1px solid var(--line);white-space:nowrap;font-size:12px}
 tbody tr:hover{background:var(--panel2)}
-tbody tr.sel{background:#12324B}
+tbody tr.sel{background:var(--sel)}
 tbody tr.clk{cursor:pointer}
 td input{padding:5px 6px;font-size:12.5px;border-color:transparent;background:transparent;
   min-width:66px}
-td input:hover{border-color:var(--line2);background:#0C1017}
-td input:focus{border-color:var(--nominal);background:#0C1017;box-shadow:0 0 0 2px #3FA9F533}
+td input:hover{border-color:var(--line2);background:var(--inputbg)}
+td input:focus{border-color:var(--nominal);background:var(--inputbg);box-shadow:0 0 0 2px var(--ring)}
 /* la tabla LRA no se comprime: si no cabe, el contenedor .tw desplaza en X
    y el panel derecho se puede ensanchar arrastrando #rtgrip.              */
-table.lra{min-width:860px}
+table.lra{min-width:1040px}
+/* las tres columnas de longitud son de leer, no de teclear: sitio propio para
+   que Σ L no quede pegada al borde ni bajo la barra de desplazamiento */
+table.lra th:nth-child(n+13),table.lra td:nth-child(n+13){min-width:84px}
+table.lra th:last-child,table.lra td:last-child{padding-right:12px}
+tfoot tr.foot td{border-top:1px solid var(--line2);color:var(--dim);
+  background:var(--panel3)}
+tfoot tr.foot td:first-child{font-family:var(--sans);font-size:9px;letter-spacing:.09em;
+  text-transform:uppercase}
 /* el ancho de la tabla de comandos lo pone paneComp() según cuántos
    parámetros se estén corrigiendo: con uno solo tiene que caber sin desplazar,
    porque la celda de Δ aplicada es la única editable. */
@@ -174,8 +261,8 @@ td.dcol input[type=text]{text-align:right}
 .marks td:first-child{white-space:nowrap;display:flex;gap:5px;align-items:center}
 .ori{display:inline-block;width:15px;text-align:center;border-radius:2px;font-size:9.5px;
   padding:0 3px;border:1px solid}
-.ori.W{color:#C9A5F5;border-color:#6B4B9E}
-.ori.T{color:#7FD8C4;border-color:#3B7A6C}
+.ori.W{color:var(--oriW);border-color:var(--oriWbd)}
+.ori.T{color:var(--oriT);border-color:var(--oriTbd)}
 .v-ok{color:var(--ok)}.v-warn{color:var(--warn)}.v-bad{color:var(--bad)}
 .v-dim{color:var(--dim2)}
 .chip{display:inline-block;padding:0 5px;border-radius:8px;font-size:10px;border:1px solid}
@@ -204,7 +291,7 @@ td.dcol input[type=text]{text-align:right}
 .warnbox{border:1px solid #7A5B1E;background:#FFC53D0F;border-radius:4px;padding:6px 8px;
   font-size:10.5px;color:#E6C77A;line-height:1.45}
 
-@media (max-width:1180px){#app{grid-template-columns:206px 1fr var(--rtW)}}
+@media (max-width:1180px){#app{grid-template-columns:206px 1fr 300px}}
 
 /* ---------- modelos (variantes) ---------- */
 .refbadge{font-family:var(--sans);font-size:8px;font-weight:700;letter-spacing:.12em;
@@ -218,7 +305,7 @@ td.dcol input[type=text]{text-align:right}
 
 /* La columna Δ va PEGADA a su parámetro: la corrección se escribe al lado del
    dato sin perder el valor original. Fondo propio para que se lean como par. */
-td.dcol,th.dcol{background:#0F1620}
+td.dcol,th.dcol{background:var(--dcolbg)}
 td.dcol input{color:var(--corrected);min-width:56px}
 td.dcol input.z{color:var(--dim2)}
 th.dcol{color:var(--corrected);opacity:.75}

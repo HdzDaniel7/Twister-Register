@@ -242,17 +242,61 @@ export const bendTheta = b => bendDecomp(b).theta * R2D;
 
 export const trimOf = b => (b.radius || 0) * Math.tan(bendDecomp(b).theta / 2);
 
-/** Avance tangente-a-tangente. Negativo o < 25 mm = los herramentales chocan. */
-export const machineFeeds = model =>
-  model.bends.map((b, i) => b.feed - trimOf(b) - (i ? trimOf(model.bends[i - 1]) : 0));
+/* ------------------------------------------------- longitudes por doblez ---
+   UN SOLO SITIO PARA LA CUENTA DE LA RECTA. Antes vivía copiada en cuatro
+   funciones (machineFeeds, twistSpanOf, buildPath, bendStations) y era
+   cuestión de tiempo que divergieran.
 
-/** Recta disponible (tangencia a tangencia) para repartir la torsión de i. */
+     recta(i) = feed(i) − trim(i) − trim(i−1)      con trim(−1) = 0
+     arco(i)  = radius(i) · θ(i)                   θ de bendDecomp
+     cum(i)   = cum(i−1) + recta(i) + arco(i)
+
+   `feed` es PI a PI y es el estado que se guarda en el JSON; la recta es
+   tangencia a tangencia y es lo que consume la máquina. Se teclean las dos:
+   la vuelta la da feedForStraight(). */
+
+/** trim(i), con 0 fuera de rango — así trim(−1) no necesita un caso aparte. */
+const trimAt = (B, i) => (i >= 0 && i < B.length) ? trimOf(B[i]) : 0;
+
+/** Recta tangencia a tangencia que PRECEDE al doblez i. */
+export const straightOf = (model, i) =>
+  model.bends[i].feed - trimAt(model.bends, i) - trimAt(model.bends, i - 1);
+
+/** `feed` (PI a PI) que produce una recta dada en el doblez i. Inversa exacta
+ *  de straightOf(): es lo que se escribe al teclear la columna «Recta». */
+export const feedForStraight = (model, i, straight) =>
+  straight + trimAt(model.bends, i) + trimAt(model.bends, i - 1);
+
+/** Recta de salida: la cola, descontado el trim del último doblez. */
+export const tailStraight = model =>
+  model.tail - trimAt(model.bends, model.bends.length - 1);
+
+/** Por doblez: la recta que lo precede, el arco que genera y el acumulado. */
+export function rowLengths(model) {
+  let cum = 0;
+  return model.bends.map((b, i) => {
+    const straight = straightOf(model, i);
+    const arc = (b.radius || 0) * bendDecomp(b).theta;
+    cum += straight + arc;
+    return { straight, arc, cum };
+  });
+}
+
+/** Longitud desarrollada total: cum del último doblez más la cola. */
+export function developedLength(model) {
+  const rows = rowLengths(model);
+  return (rows.length ? rows[rows.length - 1].cum : 0) + tailStraight(model);
+}
+
+/** Avance tangente-a-tangente. Negativo o < 25 mm = los herramentales chocan. */
+export const machineFeeds = model => model.bends.map((_, i) => straightOf(model, i));
+
+/** Recta disponible (tangencia a tangencia) para repartir la torsión de i.
+ *  Es la recta que SALE del doblez i, o sea la que precede al i+1. */
 export function twistSpanOf(model, i) {
   const B = model.bends;
   if (i < 0 || i >= B.length) return 0;
-  return i < B.length - 1
-    ? B[i + 1].feed - trimOf(B[i + 1]) - trimOf(B[i])
-    : model.tail - trimOf(B[i]);
+  return i < B.length - 1 ? straightOf(model, i + 1) : tailStraight(model);
 }
 export function twistZone(len, twLen) {
   if (!(len > 0)) return 0;
@@ -287,7 +331,7 @@ export function buildPath(model, arcSeg = 12) {
     S.push({ p: posOf(M), x, y, z, s: sv });
   };
   push(F, 0);
-  const B = model.bends;
+  const B = model.bends, LEN = rowLengths(model);
 
   const runStraight = (len, twDeg, twLen, s0) => {
     let acc = 0, twAcc = 0;
@@ -302,7 +346,7 @@ export function buildPath(model, arcSeg = 12) {
     const b = B[i];
     const { axis, theta: th, psi } = bendDecomp(b);
     const R = b.radius || 0;
-    const straight = b.feed - trimOf(b) - (i ? trimOf(B[i - 1]) : 0);
+    const straight = LEN[i].straight;
     runStraight(straight, i ? (B[i - 1].twist || 0) : 0,
                 i ? (B[i - 1].twistLen || 0) : 0, s);
     s += straight;
@@ -326,7 +370,7 @@ export function buildPath(model, arcSeg = 12) {
     if (psi) F = F.multiply(rotX(psi));   // rodado residual del doblez compuesto
   }
 
-  const tailLen = model.tail - (B.length ? trimOf(B[B.length - 1]) : 0);
+  const tailLen = tailStraight(model);
   const last = B.length ? B[B.length - 1] : null;
   runStraight(tailLen, last ? (last.twist || 0) : 0,
               last ? (last.twistLen || 0) : 0, s);
@@ -337,16 +381,9 @@ export function buildPath(model, arcSeg = 12) {
 /** Longitud desarrollada (mm) del centro del arco de cada doblez. Es la abscisa
  *  que usa la cinta inferior para colocar cada columna. */
 export function bendStations(model) {
-  let s = 0;
-  const out = [], B = model.bends;
-  for (let i = 0; i < B.length; i++) {
-    const b = B[i];
-    s += b.feed - trimOf(b) - (i ? trimOf(B[i - 1]) : 0);
-    const R = b.radius || 0, th = bendDecomp(b).theta;
-    out.push(s + R * th / 2);
-    s += R * th;
-  }
-  return out;
+  /* cum(i) ya trae la recta y el arco enteros: el centro del arco es medio
+     arco antes del final de la fila. */
+  return rowLengths(model).map(r => r.cum - r.arc / 2);
 }
 
 /* --------------------------------------------------------------- alineación */
@@ -833,6 +870,13 @@ export function toDoc(model, command, comp, proc, datasets = [], variants = [],
     tweak: (extra.tweak || []).map(t => ({
       angle: +t.angle || 0, rot: +t.rot || 0, feed: +t.feed || 0,
     })),
+    /* Preferencias de la interfaz. No hay localStorage en este proyecto, así
+       que tema e idioma viajan con el documento. Clave opcional: un archivo
+       sin `ui` no pisa lo que el usuario tenga puesto. */
+    ui: {
+      theme: (extra.ui && extra.ui.theme) || 'system',
+      lang: (extra.ui && extra.ui.lang) || 'es',
+    },
   };
 }
 
@@ -869,6 +913,8 @@ export function fromDoc(d) {
     tweak: (d.tweak || []).map(t => ({
       angle: +t.angle || 0, rot: +t.rot || 0, feed: +t.feed || 0,
     })),
+    /* null = el archivo no dijo nada: no se pisa la preferencia actual */
+    ui: d.ui ? { theme: d.ui.theme || null, lang: d.ui.lang || null } : null,
   };
 }
 

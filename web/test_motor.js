@@ -12,6 +12,7 @@
  */
 import { Matrix4, Euler, Vector3 } from 'three';
 import * as E from './src/engine.js';
+import { I18N, LANGS, LANG, setLang, T } from './src/i18n.js';
 
 let fails = 0;
 function ok(name, cond, detail = '') {
@@ -58,6 +59,78 @@ ok('avances de máquina positivos', mf.every(v => v > 0), `mín ${Math.min(...mf
 const ori = E.orientations(M);
 ok('orientaciones solo W o T', ori.every(o => o === 'W' || o === 'T'),
    `W=${ori.filter(o => o === 'W').length} T=${ori.filter(o => o === 'T').length}`);
+
+/* ======================================================================== */
+console.log('\n— longitudes por doblez —');
+{
+  const L = E.rowLengths(M);
+  ok('rowLengths da una fila por doblez', L.length === M.bends.length);
+
+  /* la recta de rowLengths ES el avance de máquina: si un día dejan de
+     coincidir, algo se rompió */
+  ok('recta(i) coincide con machineFeeds()[i]',
+     maxAbs(L.map((r, i) => r.straight - mf[i])) < 1e-12);
+
+  ok('arco(i) coincide con radius·θ',
+     maxAbs(L.map((r, i) =>
+       r.arc - (M.bends[i].radius || 0) * E.bendDecomp(M.bends[i]).theta)) < 1e-12);
+
+  ok('cum(i) = cum(i−1) + recta(i) + arco(i)',
+     maxAbs(L.map((r, i) =>
+       r.cum - ((i ? L[i - 1].cum : 0) + r.straight + r.arc))) < 1e-12);
+
+  ok('developedLength = cum del último + la cola',
+     Math.abs(E.developedLength(M) - E.buildPath(M).total) < 1e-9,
+     `${E.developedLength(M).toFixed(3)} mm`);
+
+  ok('la cola descuenta el trim del último doblez',
+     Math.abs(E.tailStraight(M) - (M.tail - E.trimOf(M.bends[M.bends.length - 1]))) < 1e-12);
+
+  /* la estación de la cinta cae a medio arco */
+  const st = E.bendStations(M);
+  ok('bendStations[i] cae en cum(i−1) + recta(i) + arco(i)/2',
+     maxAbs(st.map((v, i) =>
+       v - ((i ? L[i - 1].cum : 0) + L[i].straight + L[i].arc / 2))) < 1e-12);
+
+  /* un doblez recto no genera arco */
+  {
+    const M0 = E.normalizeModel({
+      ...M, bends: M.bends.map((b, i) => i === 2 ? { ...b, rot: 0, angle: 0 } : b),
+    });
+    const L0 = E.rowLengths(M0);
+    ok('con desvío 0 el arco vale 0', Math.abs(L0[2].arc) < 1e-12);
+    ok('con desvío 0 cum solo suma la recta',
+       Math.abs(L0[2].cum - (L0[1].cum + L0[2].straight)) < 1e-12);
+    ok('con desvío 0 la recta es feed − trim(1) (trim propio nulo)',
+       Math.abs(L0[2].straight - (M0.bends[2].feed - E.trimOf(M0.bends[1]))) < 1e-12);
+  }
+
+  /* escritura inversa de la columna «Recta» */
+  {
+    const i = 5, objetivo = 87.5;
+    const M2 = E.normalizeModel({
+      ...M, bends: M.bends.map((b, k) =>
+        k === i ? { ...b, feed: E.feedForStraight(M, i, objetivo) } : b),
+    });
+    ok('feedForStraight deja la recta pedida',
+       Math.abs(E.straightOf(M2, i) - objetivo) < 1e-9,
+       `${E.straightOf(M2, i).toFixed(4)} mm`);
+    ok('feedForStraight es la inversa exacta de straightOf',
+       maxAbs(M.bends.map((_, k) =>
+         E.feedForStraight(M, k, E.straightOf(M, k)) - M.bends[k].feed)) < 1e-12);
+    ok('tocar un feed no mueve las rectas de los demás dobleces',
+       maxAbs(M.bends.map((_, k) =>
+         k === i ? 0 : E.straightOf(M2, k) - E.straightOf(M, k))) < 1e-12);
+  }
+
+  /* un modelo sin dobleces: solo cola */
+  {
+    const solo = E.normalizeModel({ ...M, bends: [], tail: 250 });
+    ok('sin dobleces la longitud desarrollada es la cola',
+       E.rowLengths(solo).length === 0 &&
+       Math.abs(E.developedLength(solo) - 250) < 1e-12);
+  }
+}
 
 /* Twist: reorienta la cadena AGUAS ABAJO (cambia el rodado de la barra, así que
    el mismo `rot` comandado apunta a otro lado), pero no altera ningún avance. */
@@ -399,6 +472,7 @@ ok('un modelo de 1 doblez funciona',
     place: { pivot: 3, x: 100, y: 0, z: 0, rx: 0, ry: 0, rz: 45 },
     marks: [{ name: 'apoyo A', color: '#57C8D6', visible: true, x: 10, y: 20, z: 30 }],
     tweak: [{ angle: .25, rot: 0, feed: 0 }],
+    ui: { theme: 'light', lang: 'en' },
   };
   const doc = E.toDoc(M, M.bends, { ...E.COMP_DEFAULT }, { ...E.PROC_DEFAULT }, [],
                       [V, W], 'v1', 'end', extra);
@@ -411,12 +485,60 @@ ok('un modelo de 1 doblez funciona',
      rt.place.rz === 45 && rt.place.pivot === 3 &&
      rt.marks.length === 1 && rt.marks[0].name === 'apoyo A' && rt.marks[0].z === 30 &&
      Math.abs(rt.tweak[0].angle - .25) < 1e-12);
+  ok('el documento lleva tema e idioma',
+     doc.ui.theme === 'light' && doc.ui.lang === 'en');
+  ok('tema e idioma van y vuelven', rt.ui.theme === 'light' && rt.ui.lang === 'en');
   const viejo = E.fromDoc({ model: M, bends: [] });
   ok('un archivo sin colocación ni cotas abre igual que siempre',
      !E.isPlaced(viejo.place) && viejo.marks.length === 0 && viejo.tweak.length === 0);
+  ok('un archivo sin `ui` no dice nada del tema ni del idioma', viejo.ui === null);
   ok('un modelo sin twistLen se normaliza sin romperse',
      E.normalizeModel({ bends: [{ feed: 100, rot: 0, angle: 20, radius: 10 }] })
       .bends[0].twistLen === 0);
+}
+
+/* ======================================================================== */
+console.log('\n— idiomas —');
+{
+  /* Comprobar esto a mano es justo el error que se cuela: se agrega una cadena
+     en dos idiomas y en el tercero sale la clave cruda en pantalla. */
+  const keys = Object.fromEntries(LANGS.map(l => [l, Object.keys(I18N[l]).sort()]));
+  ok('hay tres idiomas', LANGS.length === 3 && LANGS.every(l => I18N[l]));
+  const base = keys.es;
+  for (const l of LANGS) {
+    if (l === 'es') continue;
+    const falta = base.filter(k => !(k in I18N[l]));
+    const sobra = keys[l].filter(k => !(k in I18N.es));
+    ok(`I18N.${l} tiene exactamente las claves de I18N.es`,
+       !falta.length && !sobra.length,
+       falta.length || sobra.length ? `faltan [${falta}] sobran [${sobra}]` : `${base.length} claves`);
+  }
+  for (const l of LANGS) {
+    const vacias = keys[l].filter(k => typeof I18N[l][k] !== 'string' || !I18N[l][k].trim());
+    ok(`ninguna cadena vacía en I18N.${l}`, !vacias.length, `${vacias}`);
+  }
+  /* Símbolos, ejes y siglas coinciden en los tres idiomas a propósito. La
+     exención es POR IDIOMA: en inglés «Datum» y «Twist» son la palabra buena,
+     en alemán no —Datum significa fecha, y el bezug de medición es Bezug—, así
+     que ahí siguen sin exención y la prueba los vigila. */
+  const COMUNES = ['nBend', 'dcol', 'ori', 'x', 'y', 'z', 'arcL', 'cumL',
+                   'isRef', 'vIso', 'cDelta', 'rad', 'name'];
+  const IGUALES = {
+    en: new Set([...COMUNES, 'cmode', 'distPi', 'nearPi', 'stDatum', 'twist']),
+    de: new Set(COMUNES),
+  };
+  for (const l of ['en', 'de']) {
+    const sin = base.filter(k => !IGUALES[l].has(k) && I18N[l][k] === I18N.es[k]);
+    ok(`I18N.${l} no arrastra cadenas del español`, !sin.length, `${sin}`);
+  }
+
+  const antes = LANG.cur;
+  setLang('de');
+  ok('setLang acepta el alemán',
+     LANG.cur === 'de' && T('orW') === 'Hochkantbiegung (gegen die Breite)');
+  setLang('zz');
+  ok('un idioma desconocido cae en español', LANG.cur === 'es');
+  setLang(antes);
 }
 
 console.log(`\n${fails ? fails + ' PRUEBA(S) FALLARON' : 'todas las pruebas pasaron'}\n`);

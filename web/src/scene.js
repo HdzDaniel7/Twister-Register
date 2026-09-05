@@ -30,6 +30,12 @@ export const markDirty = () => { dirty = true; };
 
 const $ = s => document.querySelector(s);
 const V3 = (x, y, z) => new Vector3(x, y, z);
+/** Lee un token de color de :root. Ni el 3D ni la cinta llevan colores
+ *  propios: los toman del CSS en tiempo de ejecución, así que el tema claro se
+ *  define UNA vez, en app.css, y aquí no hay una segunda paleta que mantener. */
+export const cssVar = (n, fb = '#000') =>
+  (getComputedStyle(document.documentElement).getPropertyValue(n) || '').trim() || fb;
+
 /* devColor() habla en sRGB; three trabaja en linear-sRGB desde r152, así que
    hay que declarar el espacio o la escala verde->ámbar->rojo sale apagada. */
 export const devThreeColor = (d, tol) =>
@@ -76,15 +82,26 @@ export function barGeometry(path, sec, devFn) {
   return g;
 }
 
+/** Vuelve a leer del CSS lo que no cuelga de un material: fondo y niebla. La
+ *  rejilla y los pedestales se recogen solos en el siguiente rebuildScene(),
+ *  que es lo que hace el cambio de tema. */
+export function applyTheme() {
+  if (!renderer) return;
+  const bg = cssVar('--vpbg', '#080A0E');
+  renderer.setClearColor(bg, 1);
+  if (scene && scene.fog) scene.fog.color.set(bg);
+  markDirty();
+}
+
 /* ------------------------------------------------------------- arranque -- */
 export function initScene() {
   const cv = $('#vp');
   /* preserveDrawingBuffer hace falta para que el reporte capture toDataURL(). */
   renderer = new WebGLRenderer({ canvas: cv, antialias: true, preserveDrawingBuffer: true });
   renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
-  renderer.setClearColor(0x080A0E, 1);
+  renderer.setClearColor(cssVar('--vpbg', '#080A0E'), 1);
   scene = new Scene();
-  scene.fog = new Fog(0x080A0E, 3000, 9000);
+  scene.fog = new Fog(cssVar('--vpbg', '#080A0E'), 3000, 9000);
   camera = new PerspectiveCamera(38, 1, 5, 20000);
   camera.up.set(0, 0, 1);
   camera.position.set(1400, -1500, 900);
@@ -172,12 +189,12 @@ export function rebuildScene() {
 
   /* --- rejilla y pedestales -------------------------------------------- */
   if (L.grid.on) {
-    const g = new GridHelper(4000, 40, 0x2A3546, 0x1A212C);
+    const g = new GridHelper(4000, 40, cssVar('--grid1', '#2A3546'), cssVar('--grid2', '#1A212C'));
     g.rotation.x = Math.PI / 2; g.position.z = -260;
     groups.grid.add(g);
   }
   if (L.fix.on) {
-    const mat = new MeshStandardMaterial({ color: 0x3A4658, roughness: .9, metalness: .1 });
+    const mat = new MeshStandardMaterial({ color: cssVar('--fixture', '#3A4658'), roughness: .9, metalness: .1 });
     for (let i = 0; i < nomPis.length; i += 3) {
       const p = nomPis[i], hgt = p.z + 260;
       if (hgt <= 1) continue;

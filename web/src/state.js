@@ -31,6 +31,8 @@ export const ST = {
     [k, { on: !OFF_BY_DEFAULT.includes(k), color: c }])),
   view: { exag: 25, cmode: 'dev' },
   datum: 'start', tab: 'model', pred: null,
+  /* 'system' | 'light' | 'dark'. Sin localStorage: viaja en el JSON. */
+  theme: 'system',
   /* colocación: dónde y en qué ángulo se para la pieza. Solo presentación. */
   place: { ...E.PLACE_DEFAULT },
   /* puntos de referencia sueltos: cotas contra el fixture o un datum */

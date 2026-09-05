@@ -19,7 +19,7 @@
    Llama lo más barato que sirva.
    ========================================================================= */
 import * as E from './engine.js';
-import { T, setLang } from './i18n.js';
+import { T, I18N, LANG, setLang } from './i18n.js';
 import {
   ST, V, REF, VAR_COLORS, syncModel, newVid, loadModel, refModel,
   activeDataset, addDataset, recomputeAll, syncCommand, resetCommand,
@@ -27,10 +27,13 @@ import {
 } from './state.js';
 import {
   initScene, rebuildScene, fitView, setView, setOnPick, setOnResize, markDirty,
-  onResize,
+  onResize, applyTheme,
 } from './scene.js';
 import { drawRibbon, bindRibbon, setOnRibbonSelect } from './ribbon.js';
-import { renderShell, renderLeft, renderRight, renderStatus, renderPanels } from './panels.js';
+import {
+  renderShell, renderLeft, renderSide, renderRight, renderStatus, renderPanels,
+  cellKey, updateModelDerived,
+} from './panels.js';
 import { makeReport } from './report.js';
 import { download, pickFile, safeName } from './io.js';
 
@@ -41,6 +44,34 @@ const clamp = E.clamp;
 function renderAll() { renderShell(); renderPanels(); rebuildScene(); drawRibbon(); }
 function refresh() { recomputeAll(); renderPanels(); rebuildScene(); drawRibbon(); }
 function selectBend(i) { ST.sel = i; renderPanels(); rebuildScene(); drawRibbon(); }
+
+/** Confirmación de una celda de la tabla de modelo. Recalcula todo pero NO
+ *  reconstruye el panel derecho: reescribe solo las celdas derivadas, así el
+ *  <input> que tiene el foco sobrevive y recorrer la tabla con el teclado no
+ *  va a tirones. Si la tabla no está montada, cae al render de siempre. */
+function refreshTable() {
+  recomputeAll();
+  if (!updateModelDerived()) renderRight();
+  renderLeft(); renderSide(); renderStatus(); rebuildScene(); drawRibbon();
+}
+
+/* ------------------------------------------------------------------ tema */
+/* Sin localStorage (regla dura): la elección vive en ST y viaja en el JSON.
+   'system' = sin atributo, y manda @media (prefers-color-scheme). */
+function useTheme(t) {
+  ST.theme = ['system', 'light', 'dark'].includes(t) ? t : 'system';
+  const root = document.documentElement;
+  if (ST.theme === 'system') root.removeAttribute('data-theme');
+  else root.setAttribute('data-theme', ST.theme);
+  /* el 3D no lee CSS solo: hay que recolocarle fondo y niebla */
+  applyTheme();
+}
+function setTheme(t) {
+  useTheme(t);
+  /* la rejilla y los pedestales llevan el color dentro del material, así que
+     hay que reconstruirlos; la cinta se repinta entera. */
+  renderShell(); rebuildScene(); drawRibbon();
+}
 
 /* ------------------------------------------------------ edición de datos */
 /** Editar puntos trabaja sobre la geometría EFECTIVA, así que primero hay que
@@ -60,14 +91,26 @@ function editBend(i, key, val) {
   E.syncDeltas(v);
   if (!(i >= 0 && i < v.base.bends.length)) return;
   v.base.bends[i][key] = val;
-  syncModel(); syncCommand(); refresh();
+  syncModel(); syncCommand(); refreshTable();
+}
+/** Columna «Recta»: se teclea la recta tangencia a tangencia y se reescribe el
+ *  `feed` (PI a PI), que es el estado que se guarda y lo que ve la máquina.
+ *  La columna muestra la recta EFECTIVA (base + Δ) y el Δ no se toca, así que
+ *  la corrección cae entera sobre la base. */
+function editStraight(i, val) {
+  const v = V();
+  E.syncDeltas(v);
+  if (!(i >= 0 && i < v.base.bends.length)) return;
+  if (!isFinite(val)) return;
+  v.base.bends[i].feed = E.feedForStraight(ST.model, i, val) - (v.deltas[i].feed || 0);
+  syncModel(); syncCommand(); refreshTable();
 }
 function editDelta(i, key, val) {
   const v = V();
   E.syncDeltas(v);
   if (!(i >= 0 && i < v.deltas.length)) return;
   v.deltas[i][key] = val;
-  syncModel(); syncCommand(); refresh();
+  syncModel(); syncCommand(); refreshTable();
 }
 /** Edición ABSOLUTA en el espacio de los PI: mover un punto deja los demás
  *  donde están y la cadena se recalcula por inversa. Es lo contrario de editar
@@ -97,7 +140,7 @@ function editTweak(i, key, text) {
   const v = E.evalCell(text, dCalc);
   if (v === null) { renderRight(); return; }     // texto inválido: se descarta
   ST.tweak[i][key] = v - dCalc;
-  renderRight(); renderStatus();
+  renderRight(); renderSide(); renderStatus();
 }
 
 /* ------------------------------------------------------------ variantes */
@@ -156,7 +199,8 @@ function loadFresh(model) {
 function saveJson() {
   const doc = E.toDoc(ST.model, ST.command, ST.comp, ST.proc, ST.datasets,
                       ST.variants, ST.ref, ST.anchor,
-                      { place: ST.place, marks: ST.marks, tweak: ST.tweak });
+                      { place: ST.place, marks: ST.marks, tweak: ST.tweak,
+                        ui: { theme: ST.theme, lang: LANG.cur } });
   download(safeName(ST.model.name) + '.json', JSON.stringify(doc, null, 1));
 }
 function openJson() {
@@ -171,6 +215,11 @@ function openJson() {
       setMarks(d.marks);
       ST.tweak = d.tweak || [];
       syncTweak(ST.model.bends.length);
+      /* un archivo sin `ui` no pisa el tema ni el idioma que ya haya puestos */
+      if (d.ui) {
+        if (d.ui.lang) setLang(d.ui.lang);
+        if (d.ui.theme) useTheme(d.ui.theme);
+      }
       for (const x of d.datasets) {
         const ds = addDataset(
           { ...d.model, bends: (x.bends || []).map(E.bendFrom), tail: x.tail ?? d.model.tail },
@@ -284,6 +333,48 @@ function action(a) {
 }
 
 /* ================================================================ eventos */
+/* ------------------------------------------------ ayudas de la tabla ------ */
+
+/** Sube o baja un campo numérico un paso. Mismo cuerpo para la rueda y para
+ *  Ctrl+↑ / Ctrl+↓, o los dos se separan en cuanto alguien toque uno. */
+function stepField(t, dir) {
+  const st = parseFloat(t.step) || 1;
+  const dec = (String(t.step).split('.')[1] || '').length;
+  let v = (parseFloat(t.value) || 0) + dir * st;
+  if (t.min !== '' && isFinite(+t.min)) v = Math.max(+t.min, v);
+  if (t.max !== '' && isFinite(+t.max)) v = Math.min(+t.max, v);
+  t.value = v.toFixed(dec);
+  t.dispatchEvent(new Event('change', { bubbles: true }));
+}
+
+/** Campo editable de la MISMA columna, en la fila de arriba o de abajo. Salta
+ *  las filas cuya celda de esa columna sea calculada. */
+function cellBelow(t, dRow) {
+  const td = t.closest('td'), tr = td && td.parentElement;
+  const body = tr && tr.parentElement;
+  if (!body || body.tagName !== 'TBODY') return null;
+  const rows = [...body.rows], c = td.cellIndex;
+  for (let r = rows.indexOf(tr) + dRow; r >= 0 && r < rows.length; r += dRow) {
+    const cel = rows[r].cells[c];
+    const el = cel && cel.querySelector(
+      'input:not([type=checkbox]):not([type=color]),select');
+    if (el) return el;
+  }
+  return null;
+}
+
+/** Mueve el foco confirmando antes el valor. El destino se vuelve a buscar por
+ *  selector DESPUÉS del `change`: si algo forzó un renderRight(), el nodo de
+ *  antes ya no está en el documento. */
+function moveCell(from, to) {
+  const key = cellKey(to);
+  from.blur();                        // dispara `change`: confirma el valor
+  const live = (key && ($('#panes ' + key) || $(key))) || to;
+  if (!live.isConnected) return;
+  live.focus();
+  if (live.select) live.select();
+}
+
 function bind() {
   $('#tabs').addEventListener('click', e => {
     const t = e.target.closest('[data-t]');
@@ -299,11 +390,12 @@ function bind() {
       if (!['checkbox', 'color', 'radio'].includes(e.target.type)) return;
     }
     const t = e.target.closest(
-      '[data-a],[data-v],[data-dm],[data-l],[data-dx],[data-dsel],[data-cm],' +
+      '[data-a],[data-v],[data-dm],[data-l],[data-th],[data-dx],[data-dsel],[data-cm],' +
       '[data-vsel],[data-vx],[data-vd],[data-vr],[data-r]');
     if (!t) return;
     const d = t.dataset;
     if (d.l !== undefined) { setLang(d.l); renderAll(); return; }
+    if (d.th !== undefined) { setTheme(d.th); return; }
     if (d.v !== undefined) { d.v === 'fit' ? fitView() : setView(d.v); return; }
     if (d.cm !== undefined) { ST.view.cmode = d.cm; renderShell(); rebuildScene(); return; }
     if (d.dm !== undefined) { ST.datum = d.dm; refresh(); return; }
@@ -342,6 +434,7 @@ function bind() {
     if (d.s !== undefined) { v.base.section[d.s] = +t.value; syncModel(); refresh(); return; }
     if (d.t !== undefined && t.type === 'number') { v.base.tol[d.t] = +t.value; syncModel(); refresh(); return; }
     if (d.b !== undefined) { editBend(+d.b, d.k, +t.value); return; }
+    if (d.st !== undefined) { editStraight(+d.st, +t.value); return; }
     if (d.bd !== undefined) { editDelta(+d.bd, d.k, +t.value); return; }
     if (d.p !== undefined && d.k) { editPoint(+d.p, d.k, +t.value); return; }
     if (d.c !== undefined) {
@@ -410,20 +503,50 @@ function bind() {
   });
 
   /* rueda del ratón sobre un campo numérico ENFOCADO = sube/baja un paso.
-     Sustituye a las flechas nativas, que se ocultaron para no tapar cifras. */
+     Sustituye a las flechas nativas, que se ocultaron para no tapar cifras.
+     Dentro de una tabla las flechas navegan (ver el manejador de teclado), así
+     que ahí el incremento por teclado es Ctrl+↑ / Ctrl+↓. */
   document.body.addEventListener('wheel', e => {
     const t = e.target;
     if (!t || t.tagName !== 'INPUT' || t.type !== 'number') return;
     if (document.activeElement !== t) return;
     e.preventDefault();
-    const st = parseFloat(t.step) || 1;
-    const dec = (String(t.step).split('.')[1] || '').length;
-    let v = (parseFloat(t.value) || 0) + (e.deltaY < 0 ? st : -st);
-    if (t.min !== '' && isFinite(+t.min)) v = Math.max(+t.min, v);
-    if (t.max !== '' && isFinite(+t.max)) v = Math.min(+t.max, v);
-    t.value = v.toFixed(dec);
-    t.dispatchEvent(new Event('change', { bubbles: true }));
+    stepField(t, e.deltaY < 0 ? 1 : -1);
   }, { passive: false });
+
+  /* al entrar en un campo se guarda el valor de partida: Escape lo devuelve */
+  document.body.addEventListener('focusin', e => {
+    const t = e.target;
+    if (t && t.tagName === 'INPUT') t.dataset.orig = t.value;
+  });
+
+  /* ------------------------------------------- teclado tipo hoja de cálculo
+     Tab / ⇧Tab los resuelve el navegador: las celdas calculadas no son campos,
+     así que ya se saltan solas. Aquí van los movimientos verticales, el
+     descarte y el incremento por teclado que las flechas cedieron al navegar. */
+  document.body.addEventListener('keydown', e => {
+    const t = e.target;
+    if (!t || t.tagName !== 'INPUT' || !t.closest('table')) return;
+    if (t.type === 'checkbox' || t.type === 'color') return;
+
+    if (e.key === 'Escape') {
+      e.preventDefault();
+      if (t.dataset.orig !== undefined) t.value = t.dataset.orig;
+      if (t.select) t.select();
+      return;
+    }
+    const up = e.key === 'ArrowUp';
+    const down = e.key === 'ArrowDown' || e.key === 'Enter';
+    if (!up && !down) return;
+    e.preventDefault();
+
+    /* Ctrl (o ⌘) devuelve a las flechas su oficio anterior */
+    if ((e.ctrlKey || e.metaKey) && t.type === 'number' && e.key !== 'Enter') {
+      stepField(t, up ? 1 : -1);
+      return;
+    }
+    moveCell(t, cellBelow(t, up ? -1 : 1) || t);
+  });
 
   /* ancho del panel derecho: arrastrar el tirador */
   const grip = $('#rtgrip');
@@ -433,7 +556,7 @@ function bind() {
       grip.classList.add('drag');
       grip.setPointerCapture(e.pointerId);
       const move = ev => {
-        const w = clamp(innerWidth - ev.clientX, 320, Math.min(880, innerWidth - 420));
+        const w = clamp(innerWidth - ev.clientX, 260, Math.min(880, innerWidth - 420));
         document.documentElement.style.setProperty('--rtW', w + 'px');
         /* sin esto el lienzo WebGL conserva su tamaño en píxeles y se monta
            encima del panel derecho: la tabla queda detrás de la figura. */
@@ -450,10 +573,55 @@ function bind() {
     });
   }
 
-  /* El lienzo tiene que seguir a su contenedor pase lo que pase: arrastrar el
-     tirador, cambiar el zoom del navegador o abrir las herramientas del IDE. */
+  /* alto de la tabla de abajo: arrastrar el tirador del borde de la cinta.
+     Sube y baja el bloque entero (cinta + tabla), y el 3D nunca baja de 200 px
+     porque esa fila del grid es minmax(200px,1fr). */
+  const bgrip = $('#btgrip');
+  if (bgrip) {
+    bgrip.addEventListener('pointerdown', e => {
+      e.preventDefault();
+      bgrip.classList.add('drag');
+      bgrip.setPointerCapture(e.pointerId);
+      const cs = getComputedStyle(document.documentElement);
+      const rib = parseFloat(cs.getPropertyValue('--ribbon')) || 74;
+      const sth = parseFloat(cs.getPropertyValue('--statusH')) || 26;
+      const hd = parseFloat(cs.getPropertyValue('--h')) || 44;
+      const move = ev => {
+        /* debajo del tirador van la cinta, la tabla y la barra de estado */
+        const h = clamp(innerHeight - ev.clientY - rib - sth,
+                        120, Math.max(120, innerHeight - hd - rib - sth - 200));
+        document.documentElement.style.setProperty('--btH', h + 'px');
+        /* sin esto el lienzo WebGL conserva su tamaño en píxeles y se monta
+           encima de la cinta y de la tabla. */
+        onResize();
+      };
+      const up = () => {
+        bgrip.classList.remove('drag');
+        bgrip.releasePointerCapture(e.pointerId);
+        bgrip.removeEventListener('pointermove', move);
+        bgrip.removeEventListener('pointerup', up);
+      };
+      bgrip.addEventListener('pointermove', move);
+      bgrip.addEventListener('pointerup', up);
+    });
+  }
+
+  /* El lienzo tiene que seguir a su contenedor pase lo que pase: arrastrar
+     cualquiera de los dos tiradores, cambiar el zoom del navegador o abrir las
+     herramientas del IDE. */
   if (typeof ResizeObserver !== 'undefined') {
     new ResizeObserver(() => onResize()).observe($('#vpwrap'));
+  }
+
+  /* con el tema en 'system', el CSS sigue solo a la preferencia del sistema,
+     pero el lienzo WebGL y la cinta no: hay que avisarles. */
+  if (window.matchMedia) {
+    const mq = matchMedia('(prefers-color-scheme: light)');
+    const onScheme = () => {
+      if (ST.theme === 'system') { applyTheme(); rebuildScene(); drawRibbon(); }
+    };
+    if (mq.addEventListener) mq.addEventListener('change', onScheme);
+    else if (mq.addListener) mq.addListener(onScheme);
   }
 
   bindRibbon();
@@ -466,6 +634,7 @@ function bind() {
 function boot() {
   loadModel(E.demoModel());
   initScene();
+  useTheme(ST.theme);
   bind();
   renderAll();
   fitView();
@@ -474,4 +643,4 @@ function boot() {
 document.addEventListener('DOMContentLoaded', boot);
 
 /* expuesto para depurar desde la consola del navegador */
-if (typeof window !== 'undefined') window.BARCOMP = { ST, E, renderAll, refresh, REF };
+if (typeof window !== 'undefined') window.BARCOMP = { ST, E, I18N, LANG, renderAll, refresh, REF };
