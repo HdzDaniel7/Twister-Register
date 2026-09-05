@@ -21,6 +21,28 @@ const $ = s => document.querySelector(s);
 export const TABS = ['model', 'points', 'comp'];
 export const fx = (v, n = 2) =>
   (v === null || v === undefined || !isFinite(v)) ? '—' : v.toFixed(n);
+/** Valor para un campo EDITABLE. Al menos `min` decimales y hasta `max`, sin
+ *  ceros de relleno de más: 30 se ve «30.00», 17.905 se ve entero. Es lo que
+ *  impide que repintar la tabla se coma el tercer decimal que alguien tecleó.
+ *
+ *  fx() se queda para las celdas de LECTURA, donde el ancho fijo alinea mejor. */
+export const nx = (v, min = 2, max = 3) => {
+  if (v === null || v === undefined || !isFinite(v)) return '';
+  const r = +(+v).toFixed(max);
+  const dec = (String(r).split('.')[1] || '').length;
+  return r.toFixed(Math.max(min, dec));
+};
+
+/** Campo numérico de tabla o de formulario.
+ *
+ *  `step="any"` a propósito: con un paso declarado el navegador marca inválido
+ *  todo lo que no cae en la rejilla —con step=".1" un 17.905 es un error— y
+ *  redondea al usar las flechas. El paso vive en `data-step`, que es lo que
+ *  leen la rueda del ratón y Ctrl+flecha (ver stepField() en app.js). */
+export const nfield = (step, attrs, val, extra = '') =>
+  `<input type="number" step="any" data-step="${step}" ${attrs}
+    value="${nx(val)}" ${extra}>`;
+
 export const esc = s => String(s).replace(/[&<>"]/g,
   c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 export const cls = (v, t) => Math.abs(v) <= t ? 'v-ok' : Math.abs(v) <= 2 * t ? 'v-warn' : 'v-bad';
@@ -135,10 +157,10 @@ export function renderLeft() {
        <select data-plp>${pivots}</select>
        ${[['x', 'plX'], ['y', 'plY'], ['z', 'plZ']].map(([k, lab]) =>
          `<label>${T(lab)} (mm)</label>
-          <input type="number" step="10" data-pl="${k}" value="${fx(ST.place[k], 1)}">`).join('')}
+          ${nfield('10', `data-pl="${k}"`, ST.place[k])}`).join('')}
        ${[['rx', 'plRX'], ['ry', 'plRY'], ['rz', 'plRZ']].map(([k, lab]) =>
          `<label>${T(lab)} (°)</label>
-          <input type="number" step="5" data-pl="${k}" value="${fx(ST.place[k], 1)}">`).join('')}
+          ${nfield('5', `data-pl="${k}"`, ST.place[k])}`).join('')}
      </div>
      <div class="row mt6"><button class="btn sm grow" data-a="placereset">${T('plReset')}</button></div>
      <div class="hintline">${T('plNote')}</div>
@@ -246,11 +268,11 @@ export function updateModelDerived() {
        cambio vino de otro sitio (fundir Δ, abrir un archivo, deshacer). */
     const st = row.querySelector('input[data-st]');
     if (st) {
-      if (st !== act) st.value = fx(BASE[i].straight, 2);
+      if (st !== act) st.value = nx(BASE[i].straight);
       st.classList.toggle('v-bad', BASE[i].straight < 25);
     }
 
-    put(row, 'feed', fx(b.feed, 2));
+    put(row, 'arc', fx(LEN[i].arc, 2));
     put(row, 'cum', fx(LEN[i].cum, 2));
 
     const tl = row.querySelector('input[data-k="twistLen"]');
@@ -266,7 +288,7 @@ export function updateModelDerived() {
       const el = row.querySelector(`input[data-bd][data-k="${k}"]`);
       if (!el) return;
       el.classList.toggle('z', !v.deltas[i][k]);
-      if (el !== act) el.value = fx(v.deltas[i][k], 2);
+      if (el !== act) el.value = nx(v.deltas[i][k]);
     });
     row.classList.toggle('hasd', E.DELTA_KEYS.some(k => v.deltas[i][k]));
   });
@@ -308,13 +330,14 @@ function paneModel(M) {
      consecuencia de la recta más lo que el doblez le come por los dos lados. */
   const base = v.base.bends, ori = E.orientations(M);
   const LEN = E.rowLengths(M), BASE = E.rowLengths(v.base);
+  /* la cabecera del pie ocupa las 10 columnas de parámetros; la recta de salida
+     va bajo L y la longitud desarrollada bajo Σ L */
   const num = (attr, i, k, val, step) =>
-    `<input type="number" step="${step}" data-${attr}="${i}" data-k="${k}" value="${val}">`;
+    nfield(step, `data-${attr}="${i}" data-k="${k}"`, val);
   /* un Δ en cero se apaga: la columna solo debe cantar cuando hay corrección */
   const dnum = (i, k, step) => {
     const d = v.deltas[i][k];
-    return `<input type="number" step="${step}" class="${d ? '' : 'z'}" data-bd="${i}"
-      data-k="${k}" value="${fx(d, 2)}">`;
+    return nfield(step, `class="${d ? '' : 'z'}" data-bd="${i}" data-k="${k}"`, d);
   };
 
   const rows = M.bends.map((b, i) => {
@@ -324,20 +347,18 @@ function paneModel(M) {
     const bb = base[i];
     return `<tr class="clk ${i === ST.sel ? 'sel' : ''} ${hasD ? 'hasd' : ''}" data-r="${i}">
       <td>B${i + 1}</td><td><span class="ori ${ori[i]}">${ori[i]}</span></td>
-      <td><input type="number" step=".5" data-st="${i}"
-        class="${BASE[i].straight < 25 ? 'v-bad' : ''}"
-        value="${fx(BASE[i].straight, 2)}"></td>
+      <td>${nfield('.5', `data-st="${i}" class="${BASE[i].straight < 25 ? 'v-bad' : ''}"`,
+                   BASE[i].straight)}</td>
       <td class="dcol">${dnum(i, 'feed', '.1')}</td>
-      <td>${num('b', i, 'rot', fx(bb.rot, 2), '.1')}</td>
+      <td>${num('b', i, 'rot', bb.rot, '.1')}</td>
       <td class="dcol">${dnum(i, 'rot', '.1')}</td>
-      <td>${num('b', i, 'angle', fx(bb.angle, 2), '.1')}</td>
+      <td>${num('b', i, 'angle', bb.angle, '.1')}</td>
       <td class="dcol">${dnum(i, 'angle', '.1')}</td>
-      <td>${num('b', i, 'radius', fx(bb.radius, 2), '.5')}</td>
-      <td>${num('b', i, 'twist', fx(bb.twist, 2), '.1')}</td>
-      <td><input type="number" step="5" min="0" class="${over ? 'v-warn' : ''}"
-        data-b="${i}" data-k="twistLen" title="0 = ${fx(span, 1)} mm"
-        value="${fx(bb.twistLen, 1)}"></td>
-      <td class="v-dim" data-cell="feed">${fx(M.bends[i].feed, 2)}</td>
+      <td>${num('b', i, 'radius', bb.radius, '.5')}</td>
+      <td>${num('b', i, 'twist', bb.twist, '.1')}</td>
+      <td>${nfield('5', `min="0" class="${over ? 'v-warn' : ''}" data-b="${i}"
+        data-k="twistLen" title="0 = ${fx(span, 1)} mm"`, bb.twistLen)}</td>
+      <td class="v-dim" data-cell="arc">${fx(LEN[i].arc, 2)}</td>
       <td data-cell="cum">${fx(LEN[i].cum, 2)}</td>
       </tr>`;
   }).join('');
@@ -349,16 +370,16 @@ function paneModel(M) {
     <div class="mcol nm"><div class="eyebrow">${T('model')}</div>
       <input type="text" data-m="name" value="${esc(M.name)}"></div>
     <div class="mcol"><div class="eyebrow">${T('section')}</div>
-      <div class="fgrid pair"><label>${T('width')} (mm)</label><input type="number" step=".1" data-s="width" value="${M.section.width}">
-      <label>${T('thick')} (mm)</label><input type="number" step=".1" data-s="thickness" value="${M.section.thickness}">
-      <label>${T('chamfer')} (mm)</label><input type="number" step=".1" data-s="chamfer" value="${M.section.chamfer}">
-      <label>${T('endlen')} (mm)</label><input type="number" step=".5" data-s="endLen" value="${M.section.endLen}">
-      <label>${T('tail')} (mm)</label><input type="number" step=".5" data-m="tail" value="${v.base.tail}"></div></div>
+      <div class="fgrid pair"><label>${T('width')} (mm)</label>${nfield('.1', 'data-s="width"', M.section.width)}
+      <label>${T('thick')} (mm)</label>${nfield('.1', 'data-s="thickness"', M.section.thickness)}
+      <label>${T('chamfer')} (mm)</label>${nfield('.1', 'data-s="chamfer"', M.section.chamfer)}
+      <label>${T('endlen')} (mm)</label>${nfield('.5', 'data-s="endLen"', M.section.endLen)}
+      <label>${T('tail')} (mm)</label>${nfield('.5', 'data-m="tail"', v.base.tail)}</div></div>
     <div class="mcol"><div class="eyebrow">${T('tol')}</div>
-      <div class="fgrid pair"><label>${T('tolA')} (°)</label><input type="number" step=".05" data-t="angle" value="${M.tol.angle}">
-      <label>${T('tolR')} (°)</label><input type="number" step=".05" data-t="rot" value="${M.tol.rot}">
-      <label>${T('tolF')} (mm)</label><input type="number" step=".05" data-t="feed" value="${M.tol.feed}">
-      <label>${T('tolP')} (mm)</label><input type="number" step=".05" data-t="point" value="${M.tol.point}"></div></div>
+      <div class="fgrid pair"><label>${T('tolA')} (°)</label>${nfield('.05', 'data-t="angle"', M.tol.angle)}
+      <label>${T('tolR')} (°)</label>${nfield('.05', 'data-t="rot"', M.tol.rot)}
+      <label>${T('tolF')} (mm)</label>${nfield('.05', 'data-t="feed"', M.tol.feed)}
+      <label>${T('tolP')} (mm)</label>${nfield('.05', 'data-t="point"', M.tol.point)}</div></div>
   </div></div>
   <div class="grp"><div class="eyebrow">${T('bends')}<span class="n">${M.bends.length}</span></div><div class="body">
     <div class="tw"><table class="lra"><thead><tr>
@@ -367,7 +388,7 @@ function paneModel(M) {
       <th>${T('rot')}</th><th class="dcol">${d}</th>
       <th>${T('ang')}</th><th class="dcol">${d}</th>
       <th>${T('rad')}</th><th>${T('twist')}</th><th>${T('twlen')}</th>
-      <th>${T('feed')}</th><th>${T('cumL')}</th>
+      <th>${T('arcL')}</th><th>${T('cumL')}</th>
       </tr></thead><tbody>${rows}</tbody>
       <tfoot><tr class="foot"><td>${T('tailRow')}</td><td colspan="10"></td>
         <td class="v-dim" data-cell="tstr">${fx(E.tailStraight(M), 2)}</td>
@@ -402,7 +423,7 @@ function panePoints(M) {
     return `<tr class="clk ${i - 1 === ST.sel ? 'sel' : ''}" data-r="${i - 1}">
       <td class="${i === 0 || i === n - 1 ? 'v-dim' : ''}">${nm}</td>
       ${['x', 'y', 'z'].map(k =>
-        `<td><input type="number" step=".1" data-p="${i}" data-k="${k}" value="${fx(p[k], 3)}"></td>`).join('')}
+        `<td>${nfield('.1', `data-p="${i}" data-k="${k}"`, p[k])}</td>`).join('')}
       <td class="${dv > .01 ? 'dv' : 'v-dim'}">${fx(dv, 2)}</td></tr>`;
   }).join('');
   return `<div class="pane on"><div class="grp">
@@ -431,7 +452,7 @@ function paneMarks(M) {
         <input type="color" class="sw" data-mc="${mk.id}" value="${mk.color}"></td>
       <td><input type="text" data-mk="${mk.id}" data-k="name" value="${esc(mk.name)}" style="min-width:70px"></td>
       ${['x', 'y', 'z'].map(k =>
-        `<td><input type="number" step="1" data-mk="${mk.id}" data-k="${k}" value="${fx(mk[k], 2)}"></td>`).join('')}
+        `<td>${nfield('1', `data-mk="${mk.id}" data-k="${k}"`, mk[k])}</td>`).join('')}
       <td class="v-dim">${nm}</td>
       <td class="${cls(near.d, M.tol.point)}">${fx(near.d, 2)}</td>
       <td><button class="xbtn" data-mx="${mk.id}" title="${T('del')}">✕</button></td></tr>`;
@@ -532,9 +553,9 @@ function paneComp(M) {
 
   return `<div class="pane on"><div class="grp"><div class="eyebrow">${T('gains')}</div><div class="body">
     <div class="fgrid"><label>${T('gainW')} <span class="ori W">W</span></label>
-      <input type="number" step=".05" min="0" max="1.5" data-c="gainW" value="${C.gainW}">
+      ${nfield('.05', 'min="0" max="1.5" data-c="gainW"', C.gainW)}
       <label>${T('gainT')} <span class="ori T">T</span></label>
-      <input type="number" step=".05" min="0" max="1.5" data-c="gainT" value="${C.gainT}"></div>
+      ${nfield('.05', 'min="0" max="1.5" data-c="gainT"', C.gainT)}</div>
     <div class="eyebrow" style="padding-left:0">${T('what')}</div>
     <div class="row wrap">
       ${[['doAngle', 'cAng'], ['doRot', 'cRot'], ['doFeed', 'cFeed']].map(([k, l]) =>

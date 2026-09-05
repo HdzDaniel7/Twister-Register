@@ -21,12 +21,14 @@ tiene internet.
 
 - **Cinemática directa e inversa** sobre los PI (puntos de intersección) del eje
   neutro, con arcos inscritos y torsión repartida a lo largo de un tramo.
-- **La tabla se teclea en rectas, no en avances.** La primera columna es
-  `Recta`, el tramo recto de tangencia a tangencia, que es lo que se mide en la
-  barra. El `Avance` de PI a PI queda al final, calculado y de solo lectura, y
-  `Σ L` acumula la longitud desarrollada sobre el eje neutro; en el pie van la
-  cola y la longitud total. Cambiar un radio o un ángulo **deja las rectas
-  quietas y mueve los avances**, que es como se piensa en el taller.
+- **La tabla se teclea en rectas.** La primera columna es `Recta`, el tramo
+  recto de tangencia a tangencia, que es lo que se mide en la barra. Al final
+  van `L` (la longitud del arco que genera el doblez) y `Σ L` (la longitud
+  desarrollada acumulada), las dos de solo lectura, y en el pie la cola y el
+  total. El `Avance` de PI a PI sigue siendo lo que se guarda y lo que se manda
+  a la máquina, pero se calcula por debajo: cambiar un radio o un ángulo **deja
+  las rectas quietas y recoloca los avances**, que es como se piensa en el
+  taller.
 - **La tabla se recorre con el teclado como una hoja de cálculo**: Tab / ⇧Tab en
   horizontal, Enter y ↑ ↓ en vertical, Esc descarta la celda, y el valor sube o
   baja un paso con la rueda del ratón o con Ctrl+↑ ↓. El foco no se pierde al
@@ -177,30 +179,35 @@ Se evalúa con un parser propio; no se usa `eval()`.
 Trece columnas, en orden de proceso:
 
 ```
-#  Or.  Recta Δ  R canto Δ  Áng plano Δ  Radio  Twist  Long.tw.  Avance   Σ L
+#  Or.  Recta Δ  R canto Δ  Áng plano Δ  Radio  Twist  Long.tw.    L     Σ L
         └───────────── se teclean ─────────────────────────────┘  └── se leen ──┘
 ```
 
 Cada fila son **dos tramos**: la recta que llega al doblez, y el doblez que
-ocurre al final de esa recta.
+ocurre al final de esa recta. Uno sale recto y el otro sale curvo.
 
 ```
 trim(i)  = radius(i) · tan(θ(i)/2)              θ de bendDecomp()
-Avance   = Recta(i) + trim(i) + trim(i−1)       ← calculado
-Σ L(i)   = Σ L(i−1) + Recta(i) + radius(i)·θ(i)
+Recta(i) = el tramo recto, tangencia a tangencia   ← se teclea
+L(i)     = radius(i) · θ(i)                        ← el arco
+Σ L(i)   = Σ L(i−1) + Recta(i) + L(i)
+feed(i)  = Recta(i) + trim(i) + trim(i−1)          ← por debajo, no en la tabla
 ```
 
-`Recta` es de tangencia a tangencia: el material que de verdad sale recto, y lo
-único que se teclea. `Avance` es la distancia de PI a PI —la geometría del CAD,
-donde se cruzarían las rectas si el doblez fuera una esquina viva— y sale solo.
-El doblez le come a la recta un `trim` **por cada lado**, y de ahí la diferencia.
+`Recta` es el material que de verdad sale recto y es lo único que se teclea de
+las longitudes. `L` es el material que sale curvo. `Σ L` los va sumando —recta,
+arco, recta, arco— y al final, con la cola, da la longitud desarrollada: el
+trozo de barra que hay que cortar.
+
+El **avance** de PI a PI ya no está en la tabla. Es la geometría del CAD —donde
+se cruzarían las rectas si el doblez fuera una esquina viva— y el doblez le come
+un `trim` por cada lado; de ahí que no coincida con la recta.
 
 **La regla de edición:** las rectas mandan. Cambiar un radio, un R de canto o un
-ángulo de plano deja **todas las rectas donde estaban** y recoloca los avances.
-Como el `trim` de un doblez muerde por los dos lados, tocar el radio del doblez
-`i` mueve **dos** avances, el `i` y el `i+1`; con el del último se ajusta la
-cola. La longitud del arco (`radius · θ`) ya no es una columna: sigue contando
-por dentro, dentro de `Σ L`.
+ángulo de plano deja **todas las rectas donde estaban** y recoloca los avances
+por debajo. Como el `trim` de un doblez muerde por los dos lados, tocar el radio
+del doblez `i` mueve **dos** avances, el `i` y el `i+1`; con el del último se
+ajusta la cola.
 
 Nada de esto cambia el archivo. **El JSON sigue guardando `feed`**, de PI a PI,
 que es lo que ve `command[]` y lo que ve el motor de Python; la recta es la
@@ -224,6 +231,19 @@ repetirla.
 Las columnas calculadas se saltan solas al navegar, porque no son campos. Al
 confirmar una celda no se reconstruye el panel, así que el foco nunca salta.
 
+### Los campos
+
+- **Entrar en una celda selecciona su valor**, con el ratón o con el teclado:
+  teclear reemplaza y no hay que borrar cifra por cifra.
+- **Se admiten hasta tres decimales.** Los campos declaran `step="any"` y
+  llevan su paso de incremento en `data-step`. Con un paso declarado en `step`
+  el navegador marca inválido todo lo que no cae en su rejilla —con `step=".1"`
+  un `17.905` es un error— y redondea al usar las flechas.
+- **Vaciar una celda y salirse no escribe un `0`**: se devuelve el valor que
+  había al entrar. Para poner un cero hay que teclearlo.
+- Los valores se rellenan a dos decimales y muestran el tercero solo cuando lo
+  hay, así que la columna sigue alineada.
+
 ## Formato de archivo
 
 Esquema `barcomp/1.0`, un JSON con el modelo, los comandos de máquina, las
@@ -231,10 +251,10 @@ ganancias, los parámetros del simulador, las piezas medidas y los modelos
 comparados. Las claves `variants`, `ref` y `anchor` son opcionales: los archivos
 viejos siguen abriendo.
 
-`Recta` y `Σ L` **no se guardan**: son magnitudes derivadas de `feed`, `radius`
-y los ángulos. El estado sigue siendo `feed`, de PI a PI, que es lo que ve el
-motor de Python — aunque en la tabla sea la columna calculada y la recta la que
-se teclea.
+`Recta`, `L` y `Σ L` **no se guardan**: son magnitudes derivadas de `feed`,
+`radius` y los ángulos. El estado sigue siendo `feed`, de PI a PI, que es lo que
+ve el motor de Python — aunque no aparezca en la tabla y sea la recta la que se
+teclea.
 
 ```jsonc
 {

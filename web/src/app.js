@@ -32,7 +32,7 @@ import {
 import { drawRibbon, bindRibbon, setOnRibbonSelect } from './ribbon.js';
 import {
   renderShell, renderLeft, renderSide, renderRight, renderStatus, renderPanels,
-  cellKey, updateModelDerived,
+  cellKey, updateModelDerived, nx,
 } from './panels.js';
 import { makeReport } from './report.js';
 import { download, pickFile, safeName } from './io.js';
@@ -364,14 +364,18 @@ function action(a) {
 /* ------------------------------------------------ ayudas de la tabla ------ */
 
 /** Sube o baja un campo numérico un paso. Mismo cuerpo para la rueda y para
- *  Ctrl+↑ / Ctrl+↓, o los dos se separan en cuanto alguien toque uno. */
+ *  Ctrl+↑ / Ctrl+↓, o los dos se separan en cuanto alguien toque uno.
+ *
+ *  El paso viene de `data-step`: el atributo `step` vale "any" a propósito, o
+ *  el navegador marcaría inválido todo lo que no cae en su rejilla. No se
+ *  redondea al paso, solo se limpia el ruido de coma flotante — así sumar un
+ *  paso sobre 17.905 da 18.005 y no 18. */
 function stepField(t, dir) {
-  const st = parseFloat(t.step) || 1;
-  const dec = (String(t.step).split('.')[1] || '').length;
+  const st = parseFloat(t.dataset.step) || parseFloat(t.step) || 1;
   let v = (parseFloat(t.value) || 0) + dir * st;
   if (t.min !== '' && isFinite(+t.min)) v = Math.max(+t.min, v);
   if (t.max !== '' && isFinite(+t.max)) v = Math.min(+t.max, v);
-  t.value = v.toFixed(dec);
+  t.value = nx(v);
   t.dispatchEvent(new Event('change', { bubbles: true }));
 }
 
@@ -447,6 +451,13 @@ function bind() {
 
   document.body.addEventListener('change', e => {
     const t = e.target, d = t.dataset, v = V();
+    /* Vaciar una celda y salirse NO debe escribir un 0 que nadie pidió: se
+       devuelve lo que había al entrar. Con la selección automática al enfocar,
+       teclear ya reemplaza el valor entero y borrar a mano deja de hacer falta. */
+    if (t.tagName === 'INPUT' && t.type === 'number' && !String(t.value).trim()) {
+      if (t.dataset.orig !== undefined) t.value = t.dataset.orig;
+      return;
+    }
     if (d.ly !== undefined) { ST.layers[d.ly].on = t.checked; rebuildScene(); return; }
     if (d.lc !== undefined) { ST.layers[d.lc].color = t.value; renderShell(); rebuildScene(); return; }
     if (d.an !== undefined) { ST.anchor = d.an; renderLeft(); renderRight(); renderStatus(); rebuildScene(); return; }
@@ -542,10 +553,20 @@ function bind() {
     stepField(t, e.deltaY < 0 ? 1 : -1);
   }, { passive: false });
 
-  /* al entrar en un campo se guarda el valor de partida: Escape lo devuelve */
+  /* Al entrar en un campo se guarda el valor de partida (Escape lo devuelve) y
+     se selecciona entero: teclear reemplaza, que es lo que se espera de una
+     tabla, y no hay que borrar a mano cifra por cifra. */
   document.body.addEventListener('focusin', e => {
     const t = e.target;
-    if (t && t.tagName === 'INPUT') t.dataset.orig = t.value;
+    if (!t || t.tagName !== 'INPUT') return;
+    t.dataset.orig = t.value;
+    if (t.type !== 'number' && t.type !== 'text') return;
+    try { t.select(); } catch (_) { return; }
+    /* el `mouseup` que cierra un clic deshace la selección: se le quita el
+       efecto una sola vez, o hacer clic en la celda la dejaría sin seleccionar */
+    const keep = ev => ev.preventDefault();
+    t.addEventListener('mouseup', keep, { once: true });
+    setTimeout(() => t.removeEventListener('mouseup', keep), 300);
   });
 
   /* ------------------------------------------- teclado tipo hoja de cálculo
