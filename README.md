@@ -21,12 +21,12 @@ tiene internet.
 
 - **Cinemática directa e inversa** sobre los PI (puntos de intersección) del eje
   neutro, con arcos inscritos y torsión repartida a lo largo de un tramo.
-- **Tabla de dobleces con las longitudes desarrolladas**: junto a los
-  parámetros de máquina van `Recta` (el tramo recto de tangencia a tangencia),
-  `L` (la longitud del arco que genera el doblez) y `Σ L` (el acumulado sobre
-  el eje neutro), más la cola y la longitud total en el pie. `Avance` y `Recta`
-  son **las dos editables** y cada una reescribe la otra: se teclea la magnitud
-  que se tenga a mano.
+- **La tabla se teclea en rectas, no en avances.** La primera columna es
+  `Recta`, el tramo recto de tangencia a tangencia, que es lo que se mide en la
+  barra. El `Avance` de PI a PI queda al final, calculado y de solo lectura, y
+  `Σ L` acumula la longitud desarrollada sobre el eje neutro; en el pie van la
+  cola y la longitud total. Cambiar un radio o un ángulo **deja las rectas
+  quietas y mueve los avances**, que es como se piensa en el taller.
 - **La tabla se recorre con el teclado como una hoja de cálculo**: Tab / ⇧Tab en
   horizontal, Enter y ↑ ↓ en vertical, Esc descarta la celda, y el valor sube o
   baja un paso con la rueda del ratón o con Ctrl+↑ ↓. El foco no se pierde al
@@ -174,27 +174,38 @@ Se evalúa con un parser propio; no se usa `eval()`.
 
 ## La tabla de dobleces
 
-Catorce columnas, en orden de proceso:
+Trece columnas, en orden de proceso:
 
 ```
-#  Or.  Avance Δ  R canto Δ  Áng plano Δ  Radio  Twist  Long.tw.  Recta  L  Σ L
-        └───────────── se teclean ──────────────────────────────┘  └─ se leen ─┘
+#  Or.  Recta Δ  R canto Δ  Áng plano Δ  Radio  Twist  Long.tw.  Avance   Σ L
+        └───────────── se teclean ─────────────────────────────┘  └── se leen ──┘
 ```
 
 Cada fila son **dos tramos**: la recta que llega al doblez, y el doblez que
 ocurre al final de esa recta.
 
 ```
-Recta(i) = feed(i) − trim(i) − trim(i−1)        trim = radius · tan(θ/2)
-L(i)     = radius(i) · θ(i)                     θ de bendDecomp()
-Σ L(i)   = Σ L(i−1) + Recta(i) + L(i)
+trim(i)  = radius(i) · tan(θ(i)/2)              θ de bendDecomp()
+Avance   = Recta(i) + trim(i) + trim(i−1)       ← calculado
+Σ L(i)   = Σ L(i−1) + Recta(i) + radius(i)·θ(i)
 ```
 
-`Avance` es la distancia de PI a PI y es lo que se guarda. `Recta` es de
-tangencia a tangencia y es lo que consume la máquina. **Las dos se teclean**: al
-escribir una recta se recalcula el avance que la produce, y al cambiar un radio
-o un ángulo se conserva el avance y se mueve la recta. `L` y `Σ L` son de solo
-lectura. En el pie van la cola y la longitud desarrollada total.
+`Recta` es de tangencia a tangencia: el material que de verdad sale recto, y lo
+único que se teclea. `Avance` es la distancia de PI a PI —la geometría del CAD,
+donde se cruzarían las rectas si el doblez fuera una esquina viva— y sale solo.
+El doblez le come a la recta un `trim` **por cada lado**, y de ahí la diferencia.
+
+**La regla de edición:** las rectas mandan. Cambiar un radio, un R de canto o un
+ángulo de plano deja **todas las rectas donde estaban** y recoloca los avances.
+Como el `trim` de un doblez muerde por los dos lados, tocar el radio del doblez
+`i` mueve **dos** avances, el `i` y el `i+1`; con el del último se ajusta la
+cola. La longitud del arco (`radius · θ`) ya no es una columna: sigue contando
+por dentro, dentro de `Σ L`.
+
+Nada de esto cambia el archivo. **El JSON sigue guardando `feed`**, de PI a PI,
+que es lo que ve `command[]` y lo que ve el motor de Python; la recta es la
+lectura de ese mismo estado y `feedForStraight()` da la vuelta. Por eso
+`compare_engines.py` sigue en verde y los archivos anteriores abren igual.
 
 La cuenta vive en un solo sitio, `rowLengths()` en `engine.js`; `machineFeeds()`,
 `twistSpanOf()`, `buildPath()` y `bendStations()` la consumen en vez de
@@ -220,9 +231,10 @@ ganancias, los parámetros del simulador, las piezas medidas y los modelos
 comparados. Las claves `variants`, `ref` y `anchor` son opcionales: los archivos
 viejos siguen abriendo.
 
-`Recta`, `L` y `Σ L` **no se guardan**: son magnitudes derivadas de `feed`,
-`radius` y los ángulos. El estado sigue siendo `feed`, de PI a PI, que es lo
-que ve el motor de Python.
+`Recta` y `Σ L` **no se guardan**: son magnitudes derivadas de `feed`, `radius`
+y los ángulos. El estado sigue siendo `feed`, de PI a PI, que es lo que ve el
+motor de Python — aunque en la tabla sea la columna calculada y la recta la que
+se teclea.
 
 ```jsonc
 {

@@ -226,7 +226,8 @@ export function updateModelDerived() {
 
   const v = V();
   E.syncDeltas(v);
-  const LEN = E.rowLengths(M), ori = E.orientations(M);
+  const LEN = E.rowLengths(M), BASE = E.rowLengths(v.base);
+  const ori = E.orientations(M);
   const act = document.activeElement;
   const put = (row, cell, txt) => {
     const el = row.querySelector(`[data-cell="${cell}"]`);
@@ -240,17 +241,16 @@ export function updateModelDerived() {
     const o = row.querySelector('.ori');
     if (o) { o.textContent = ori[i]; o.className = 'ori ' + ori[i]; }
 
-    /* la recta es celda derivada Y campo editable a la vez */
+    /* la recta se teclea, pero cambiar un radio o un ángulo la deja QUIETA a
+       propósito: se recolocan los avances. Se reescribe igualmente por si el
+       cambio vino de otro sitio (fundir Δ, abrir un archivo, deshacer). */
     const st = row.querySelector('input[data-st]');
     if (st) {
-      if (st !== act) st.value = fx(LEN[i].straight, 2);
-      st.classList.toggle('v-bad', LEN[i].straight < 25);
+      if (st !== act) st.value = fx(BASE[i].straight, 2);
+      st.classList.toggle('v-bad', BASE[i].straight < 25);
     }
-    /* el avance PI a PI se mueve cuando se teclea la recta */
-    const fd = row.querySelector('input[data-b][data-k="feed"]');
-    if (fd && fd !== act) fd.value = fx(v.base.bends[i].feed, 2);
 
-    put(row, 'arc', fx(LEN[i].arc, 2));
+    put(row, 'feed', fx(b.feed, 2));
     put(row, 'cum', fx(LEN[i].cum, 2));
 
     const tl = row.querySelector('input[data-k="twistLen"]');
@@ -303,7 +303,11 @@ export function renderRight() {
 function paneModel(M) {
   const v = V();
   E.syncDeltas(v);
-  const base = v.base.bends, ori = E.orientations(M), LEN = E.rowLengths(M);
+  /* La RECTA es lo que se teclea y va sobre la base, como el resto de columnas
+     editables. El AVANCE es de solo lectura y se lee del modelo efectivo: es la
+     consecuencia de la recta más lo que el doblez le come por los dos lados. */
+  const base = v.base.bends, ori = E.orientations(M);
+  const LEN = E.rowLengths(M), BASE = E.rowLengths(v.base);
   const num = (attr, i, k, val, step) =>
     `<input type="number" step="${step}" data-${attr}="${i}" data-k="${k}" value="${val}">`;
   /* un Δ en cero se apaga: la columna solo debe cantar cuando hay corrección */
@@ -320,7 +324,9 @@ function paneModel(M) {
     const bb = base[i];
     return `<tr class="clk ${i === ST.sel ? 'sel' : ''} ${hasD ? 'hasd' : ''}" data-r="${i}">
       <td>B${i + 1}</td><td><span class="ori ${ori[i]}">${ori[i]}</span></td>
-      <td>${num('b', i, 'feed', fx(bb.feed, 2), '.5')}</td>
+      <td><input type="number" step=".5" data-st="${i}"
+        class="${BASE[i].straight < 25 ? 'v-bad' : ''}"
+        value="${fx(BASE[i].straight, 2)}"></td>
       <td class="dcol">${dnum(i, 'feed', '.1')}</td>
       <td>${num('b', i, 'rot', fx(bb.rot, 2), '.1')}</td>
       <td class="dcol">${dnum(i, 'rot', '.1')}</td>
@@ -331,10 +337,7 @@ function paneModel(M) {
       <td><input type="number" step="5" min="0" class="${over ? 'v-warn' : ''}"
         data-b="${i}" data-k="twistLen" title="0 = ${fx(span, 1)} mm"
         value="${fx(bb.twistLen, 1)}"></td>
-      <td><input type="number" step=".5" data-st="${i}" data-cell="str"
-        class="${LEN[i].straight < 25 ? 'v-bad' : ''}" title="${T('straight')}"
-        value="${fx(LEN[i].straight, 2)}"></td>
-      <td class="v-dim" data-cell="arc">${fx(LEN[i].arc, 2)}</td>
+      <td class="v-dim" data-cell="feed">${fx(M.bends[i].feed, 2)}</td>
       <td data-cell="cum">${fx(LEN[i].cum, 2)}</td>
       </tr>`;
   }).join('');
@@ -360,15 +363,14 @@ function paneModel(M) {
   <div class="grp"><div class="eyebrow">${T('bends')}<span class="n">${M.bends.length}</span></div><div class="body">
     <div class="tw"><table class="lra"><thead><tr>
       <th>${T('nBend')}</th><th>${T('ori')}</th>
-      <th>${T('feed')}</th><th class="dcol">${d}</th>
+      <th>${T('straight')}</th><th class="dcol">${d}</th>
       <th>${T('rot')}</th><th class="dcol">${d}</th>
       <th>${T('ang')}</th><th class="dcol">${d}</th>
       <th>${T('rad')}</th><th>${T('twist')}</th><th>${T('twlen')}</th>
-      <th>${T('straight')}</th><th>${T('arcL')}</th><th>${T('cumL')}</th>
+      <th>${T('feed')}</th><th>${T('cumL')}</th>
       </tr></thead><tbody>${rows}</tbody>
       <tfoot><tr class="foot"><td>${T('tailRow')}</td><td colspan="10"></td>
         <td class="v-dim" data-cell="tstr">${fx(E.tailStraight(M), 2)}</td>
-        <td class="v-dim">—</td>
         <td data-cell="dev">${fx(E.developedLength(M), 2)}</td></tr></tfoot>
       </table></div>
     <div class="row mt6"><button class="btn sm" data-a="addb">+ ${T('addBend')}</button>

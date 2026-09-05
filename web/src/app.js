@@ -86,23 +86,51 @@ function bakeGuard() {
   return true;
 }
 
+/* Radio, R de canto y ángulo de plano mueven `trim = radio · tan(θ/2)`, que es
+   lo que el doblez le come a la recta POR LOS DOS LADOS. Como ahora la recta es
+   lo que se teclea, es ella la que no se mueve: se recolocan los avances. */
+const TRIM_KEYS = ['radius', 'rot', 'angle'];
+
 function editBend(i, key, val) {
   const v = V();
   E.syncDeltas(v);
-  if (!(i >= 0 && i < v.base.bends.length)) return;
-  v.base.bends[i][key] = val;
+  const B = v.base.bends;
+  if (!(i >= 0 && i < B.length)) return;
+  if (!TRIM_KEYS.includes(key)) {
+    B[i][key] = val;
+    syncModel(); syncCommand(); refreshTable();
+    return;
+  }
+  /* Solo cambian las rectas que tocan al doblez i: la suya y la del siguiente
+     —o la cola, si es el último—. Se recolocan solo esas dos para no arrastrar
+     el error de ida y vuelta en las quince filas a cada edición. */
+  const rectaI = E.straightOf(v.base, i);
+  const sig = i + 1 < B.length ? i + 1 : -1;
+  const rectaSig = sig >= 0 ? E.straightOf(v.base, sig) : 0;
+  const cola = i === B.length - 1 ? E.tailStraight(v.base) : null;
+
+  B[i][key] = val;
+
+  /* feedForStraight solo lee los trims, nunca los avances: una pasada basta */
+  B[i].feed = E.feedForStraight(v.base, i, rectaI);
+  if (sig >= 0) B[sig].feed = E.feedForStraight(v.base, sig, rectaSig);
+  if (cola !== null) v.base.tail = cola + E.trimOf(B[B.length - 1]);
+
   syncModel(); syncCommand(); refreshTable();
 }
-/** Columna «Recta»: se teclea la recta tangencia a tangencia y se reescribe el
- *  `feed` (PI a PI), que es el estado que se guarda y lo que ve la máquina.
- *  La columna muestra la recta EFECTIVA (base + Δ) y el Δ no se toca, así que
- *  la corrección cae entera sobre la base. */
+/** Columna «Recta»: es LA columna que se teclea. Guarda el `feed` (PI a PI),
+ *  que sigue siendo el estado del JSON y lo que ve el motor de Python; el
+ *  avance de la tabla es solo la lectura de ese estado.
+ *
+ *  Trabaja sobre la BASE, igual que el resto de columnas editables: su Δ va al
+ *  lado, y sumar un Δ a `feed` suma exactamente lo mismo a la recta, porque los
+ *  trims no dependen del avance. */
 function editStraight(i, val) {
   const v = V();
   E.syncDeltas(v);
   if (!(i >= 0 && i < v.base.bends.length)) return;
   if (!isFinite(val)) return;
-  v.base.bends[i].feed = E.feedForStraight(ST.model, i, val) - (v.deltas[i].feed || 0);
+  v.base.bends[i].feed = E.feedForStraight(v.base, i, val);
   syncModel(); syncCommand(); refreshTable();
 }
 function editDelta(i, key, val) {
