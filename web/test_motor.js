@@ -176,13 +176,35 @@ ok('orientations lee el rodado, no el ángulo',
    E.orientations(uno(-90, 40))[0] === 'W' && E.orientations(uno(180, 40))[0] === 'T');
 
 const dp = E.bendDecomp(Pl.bends[0]), dc = E.bendDecomp(Ca.bends[0]);
-ok('el eje del arco es el ancho del marco ya rodado (z)',
-   Math.abs(Math.abs(dp.axis.z) - 1) < 1e-12 && Math.abs(Math.abs(dc.axis.z) - 1) < 1e-12,
+ok('con R=0 el eje del arco es el ancho (z)',
+   Math.abs(Math.abs(dp.axis.z) - 1) < 1e-12,
    `eje ${dp.axis.toArray().map(v => v.toFixed(3)).join(' ')}`);
-ok('el rodado sale aparte del arco',
-   Math.abs(dp.roll) < 1e-12 && Math.abs(dc.roll * E.R2D - 90) < 1e-12);
+ok('con R=90 el eje del arco pasa a ser el espesor (y)',
+   Math.abs(Math.abs(dc.axis.y) - 1) < 1e-12,
+   `eje ${dc.axis.toArray().map(v => v.toFixed(3)).join(' ')}`);
+ok('el rodado inclina el EJE, no rueda la barra',
+   Math.abs(dc.axis.z) < 1e-12);
 ok('con un solo arco nunca queda rodado residual',
    Math.abs(dp.psi) < 1e-12 && Math.abs(dc.psi) < 1e-12);
+
+/* LA prueba de este cambio: doblar de canto NO puede dejar la sección rodada,
+   o el rodado estaría haciendo de twist. */
+{
+  const eyF = m => { const e = E.fk(m).end.elements; return [e[4], e[5], e[6]]; };
+  const yc = eyF(Ca);
+  ok('doblar de canto deja la sección sin rodar',
+     Math.abs(yc[0]) < 1e-9 && Math.abs(yc[1] - 1) < 1e-9 && Math.abs(yc[2]) < 1e-9,
+     `y del marco = (${yc.map(v => v.toFixed(3)).join(', ')})`);
+  const dosCantos = E.normalizeModel({ ...EM, tail: 200, bends: [
+    E.newBend({ feed: 200, rot: 90, angle: 30, radius: 30 }),
+    E.newBend({ feed: 200, rot: 90, angle: 30, radius: 30 })] });
+  ok('dos dobleces de canto seguidos siguen siendo de canto',
+     E.orientations(dosCantos).join('') === 'WW');
+  ok('el rodado NO se acumula entre dobleces',
+     E.orientations(E.normalizeModel({ ...EM, tail: 200, bends: [
+       E.newBend({ feed: 200, rot: 90, angle: 30 }),
+       E.newBend({ feed: 200, rot: 0, angle: 30 })] })).join('') === 'WT');
+}
 ok('el desvío total es el ángulo, ruede lo que ruede',
    Math.abs(dp.theta * E.R2D - 40) < 1e-9 && Math.abs(dc.theta * E.R2D - 40) < 1e-9);
 ok('el desvío nunca es negativo',
@@ -194,25 +216,19 @@ ok('trimOf usa el ángulo del doblez y no depende del rodado',
    Math.abs(E.trimOf(Cx) - 30 * Math.tan(40 * E.D2R / 2)) < 1e-12 &&
    Math.abs(E.trimOf(Cx) - E.trimOf(E.newBend({ rot: 0, angle: 40, radius: 30 }))) < 1e-12);
 
-/* el rodado es INCREMENTAL, como el eje C: la cara contra la que se dobla
-   depende de todo lo que se haya rodado antes */
+/* la torsión sigue siendo lo ÚNICO que rueda la barra */
 {
-  const cad = E.normalizeModel({ ...EM, tail: 150,
-    bends: [E.newBend({ feed: 100, rot: 0, angle: 30 }),
-            E.newBend({ feed: 100, rot: 90, angle: 30 }),
-            E.newBend({ feed: 100, rot: 90, angle: 30 })] });
-  /* rollAt envuelve a ±180, así que 180 puede llegar como -180: es el mismo
-     rodado y lo que importa es el valor absoluto */
-  ok('rollAt acumula el rodado',
-     E.rollAt(cad).map(v => Math.round(Math.abs(v))).join() === '0,90,180',
-     E.rollAt(cad).join(' '));
-  ok('orientations usa el acumulado, no el de la fila',
-     E.orientations(cad).join('') === 'TWT');
   const tw = E.normalizeModel({ ...EM, tail: 150,
     bends: [E.newBend({ feed: 100, rot: 0, angle: 30, twist: 90 }),
             E.newBend({ feed: 100, rot: 0, angle: 30 })] });
-  ok('la torsión también rueda lo que viene después',
-     E.orientations(tw).join('') === 'TW');
+  const sin = E.normalizeModel({ ...EM, tail: 150,
+    bends: [E.newBend({ feed: 100, rot: 0, angle: 30 }),
+            E.newBend({ feed: 100, rot: 0, angle: 30 })] });
+  const pt = m => { const P = E.fk(m).pis; return P[P.length - 1]; };
+  ok('la torsión sí cambia la cadena aguas abajo',
+     pt(tw).distanceTo(pt(sin)) > 10, `${pt(tw).distanceTo(pt(sin)).toFixed(1)} mm`);
+  ok('la torsión rueda la sección y el eje juntos: la cara no cambia',
+     E.orientations(tw).join('') === 'TT');
 }
 
 /* migración desde barcomp/1.0: cambia la convención, no la pieza */
@@ -221,8 +237,8 @@ ok('trimOf usa el ángulo del doblez y no depende del rodado',
     bends: [E.newBend({ feed: 140, rot: 0, angle: 30, radius: 30 }),
             E.newBend({ feed: 100, rot: -40, angle: 0, radius: 45 }),
             E.newBend({ feed: 120, rot: 0, angle: -25, radius: 30 })] });
-  const antes = E.fkLegacy(viejo).pis;
-  const nuevo = E.migrateModel(viejo);
+  const antes = E.fkLegacy(viejo, 'barcomp/1.0').pis;
+  const nuevo = E.migrateModel(viejo, 'barcomp/1.0');
   const desp = E.fk(nuevo).pis;
   ok('migrateModel conserva la forma exacta',
      maxAbs(antes.map((q, i) => q.distanceTo(desp[i]))) < 1e-9,
@@ -234,8 +250,20 @@ ok('trimOf usa el ángulo del doblez y no depende del rodado',
      nuevo.bends.every(b => b.angle >= -1e-12));
   ok('migrateModel conserva la orientación de cada doblez',
      E.orientations(nuevo).join('') === 'TWT');
-  ok('isLegacyDoc distingue los dos esquemas',
-     E.isLegacyDoc({ schema: 'barcomp/1.0' }) && !E.isLegacyDoc({ schema: E.SCHEMA }));
+  ok('isLegacyDoc distingue los esquemas anteriores',
+     E.isLegacyDoc({ schema: 'barcomp/1.0' }) && E.isLegacyDoc({ schema: 'barcomp/2.0' }) &&
+     !E.isLegacyDoc({ schema: E.SCHEMA }));
+
+  /* también se convierte desde 2.0, donde `rot` sí rodaba la barra */
+  const v20 = E.normalizeModel({ ...EM, tail: 160,
+    bends: [E.newBend({ feed: 140, rot: 0, angle: 30, radius: 30 }),
+            E.newBend({ feed: 100, rot: -40, angle: 20, radius: 45 }),
+            E.newBend({ feed: 120, rot: 70, angle: -25, radius: 30 })] });
+  const a20 = E.fkLegacy(v20, 'barcomp/2.0').pis;
+  const d20 = E.fk(E.migrateModel(v20, 'barcomp/2.0')).pis;
+  ok('migrateModel también convierte desde barcomp/2.0',
+     maxAbs(a20.map((q, i) => q.distanceTo(d20[i]))) < 1e-9,
+     `${maxAbs(a20.map((q, i) => q.distanceTo(d20[i]))).toExponential(2)} mm`);
 }
 
 /* El arco NO se traza como Rx(φ)·Rz(θ): eso da la posición correcta pero gira
@@ -532,7 +560,7 @@ ok('un modelo de 1 doblez funciona',
   };
   const doc = E.toDoc(M, M.bends, { ...E.COMP_DEFAULT }, { ...E.PROC_DEFAULT }, [],
                       [V, W], 'v1', 'end', extra);
-  ok('el documento lleva el esquema compartido', doc.schema === 'barcomp/2.0');
+  ok('el documento lleva el esquema compartido', doc.schema === 'barcomp/2.1');
   const rt = E.fromDoc(JSON.parse(JSON.stringify(doc)));
   ok('el documento va y vuelve sin perder variantes',
      rt.variants.length === 2 && rt.ref === 'v1' && rt.anchor === 'end' &&

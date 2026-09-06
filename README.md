@@ -71,23 +71,28 @@ Un doblez es `{feed, rot, angle, radius, twist, twistLen}`, en mm y grados. La
 cadena cinemática es
 
 ```
-T  ←  T · Trans(feed,0,0) · Rx(rot) · Rz(−angle) · Rx(twist)
+T  ←  T · Trans(feed,0,0) · Rot(n(rot), angle) · Rx(twist)
+
+n(rot) = Rx(rot) · (0,0,−1)     el EJE del arco, inclinado por `rot`
 ```
 
-con el marco local `x` = eje de la barra · `y` = espesor · `z` = ancho.
-Convención **LRA**, la de las dobladoras: `rot` **rueda la pieza** alrededor del
-eje de la barra para elegir el plano, y no dobla nada por sí mismo; `angle` es
-el doblez entero, en el plano que eligió `rot`.
+equivalente a `Rx(rot) · Rz(−angle) · Rx(−rot)`: se inclina el plano, se dobla,
+y se devuelve la sección a su sitio. Con el marco local `x` = eje de la barra ·
+`y` = espesor · `z` = ancho.
+
+Convención **LRA**, la de las dobladoras. `rot` **inclina el eje de doblado**;
+no rueda la barra, así que la sección sale del doblez con la misma cara arriba
+con la que entró. `angle` es el doblez entero, en el plano que eligió `rot`.
 
 ```
 rot = 0    →  dobla contra la cara plana (el espesor, y)
 rot = ±90  →  dobla contra el canto      (el ancho,   z)
 ```
 
-`rot` es **incremental**, como el eje C de la máquina: la cara contra la que se
-dobla depende del rodado acumulado, no del de la fila (`rollAt()` lo devuelve, y
-la torsión también cuenta). `ik()` deja la forma canónica con `angle ≥ 0` y usa
-`rot` para elegir la dirección.
+Como el rodado no queda en el marco, **`rot` no se acumula** entre dobleces: el
+de cada fila se lee siempre desde la sección tal como llega. `twist` sigue
+siendo lo único que rueda la barra. `ik()` deja la forma canónica con
+`angle ≥ 0` y usa `rot` para elegir la dirección.
 
 Un PI es un vértice y por lo tanto **un solo arco**: `bendDecomp()` parte el par
 en `Rot(eje, θ) · Rx(ψ)`, donde el eje es perpendicular al eje de la barra —lo
@@ -113,7 +118,7 @@ web/
   src/app.css       tokens de diseño y layout; la paleta de los DOS temas
   src/shell.html    esqueleto con los marcadores del build
   build.mjs         esbuild: src/ + three  ->  index.html
-  test_motor.js     116 pruebas del motor y del i18n, en Node y sin navegador
+  test_motor.js     120 pruebas del motor y del i18n, en Node y sin navegador
 index.html          SALIDA GENERADA — no se edita a mano
 ```
 
@@ -124,7 +129,7 @@ index.html          SALIDA GENERADA — no se edita a mano
 ```bash
 cd web
 npm install          # una sola vez: three + esbuild
-npm test             # 116 pruebas del motor
+npm test             # 120 pruebas del motor
 npm run build        # regenera index.html (y web/barcomp_viewer.html en local)
 ```
 
@@ -258,19 +263,27 @@ confirmar una celda no se reconstruye el panel, así que el foco nunca salta.
 
 ## Formato de archivo
 
-Esquema `barcomp/2.0`, un JSON con el modelo, los comandos de máquina, las
+Esquema `barcomp/2.1`, un JSON con el modelo, los comandos de máquina, las
 ganancias, los parámetros del simulador, las piezas medidas y los modelos
 comparados. Las claves `variants`, `ref` y `anchor` son opcionales: los archivos
 viejos siguen abriendo.
 
-### Archivos de la versión anterior
+### Archivos de versiones anteriores
 
-`barcomp/1.0` usaba otra convención —`rot` era un doblez de canto y el signo de
-`angle` era el contrario—, así que los mismos números describen otra pieza. Al
-abrir uno se convierte solo, y la conversión no aproxima nada: del modelo viejo
-se sacan sus PI en el espacio (la forma real) y de ahí se replantea la cadena
-con `ik()`. Lo único que no viaja son los **Δ pendientes**, que son incrementos
-sobre parámetros que cambiaron de significado: llegan en cero.
+Han existido tres cinemáticas, y los mismos números describen otra pieza en cada
+una:
+
+| esquema | qué era `rot` |
+|---|---|
+| `barcomp/1.0` | un doblez de canto, y `angle` tenía el signo contrario |
+| `barcomp/2.0` | un rodado de verdad: la sección salía girada del doblez |
+| `barcomp/2.1` | inclina el eje del arco; la sección no se rueda |
+
+Al abrir un archivo anterior se convierte solo, y la conversión no aproxima
+nada: del modelo viejo se sacan sus PI en el espacio (la forma real) y de ahí se
+replantea la cadena con `ik()`. Lo único que no viaja son los **Δ pendientes**,
+que son incrementos sobre parámetros que cambiaron de significado: llegan en
+cero.
 
 `Recta`, `L` y `Σ L` **no se guardan**: son magnitudes derivadas de `feed`,
 `radius` y los ángulos. El estado sigue siendo `feed`, de PI a PI, que es lo que
@@ -279,7 +292,7 @@ teclea.
 
 ```jsonc
 {
-  "schema": "barcomp/2.0",
+  "schema": "barcomp/2.1",
   "model": {
     "name": "...",
     "section": { "width": 40, "thickness": 12, "chamfer": 1.2, "endLen": 20 },
