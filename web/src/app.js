@@ -27,7 +27,7 @@ import {
 } from './state.js';
 import {
   initScene, rebuildScene, fitView, setView, setOnPick, setOnResize, markDirty,
-  onResize, applyTheme,
+  onResize, applyTheme, drawGizmo,
 } from './scene.js';
 import { drawRibbon, bindRibbon, setOnRibbonSelect } from './ribbon.js';
 import {
@@ -463,6 +463,19 @@ function bind() {
     if (d.an !== undefined) { ST.anchor = d.an; renderLeft(); renderRight(); renderStatus(); rebuildScene(); return; }
     if (d.vv !== undefined) { const x = variantById(d.vv); if (x) { x.visible = t.checked; rebuildScene(); } return; }
     if (d.vc !== undefined) { const x = variantById(d.vc); if (x) { x.color = t.value; renderShell(); renderLeft(); rebuildScene(); } return; }
+    /* el nombre se edita en los dos sitios: aquí, en la tarjeta del modelo, y
+       en la pestaña MODELO. No se repinta el panel izquierdo, que es donde
+       está el campo que se acaba de escribir. */
+    if (d.vn !== undefined) {
+      const x = variantById(d.vn);
+      if (x) {
+        x.name = t.value;
+        x.base.name = t.value;
+        if (x.id === ST.active) syncModel();
+        renderShell(); renderRight(); renderStatus();
+      }
+      return;
+    }
     if (d.dv !== undefined) { const x = ST.datasets.find(z => z.id === d.dv); if (x) { x.visible = t.checked; rebuildScene(); } return; }
     if (d.dc !== undefined) { const x = ST.datasets.find(z => z.id === d.dc); if (x) { x.color = t.value; rebuildScene(); } return; }
     if (d.m !== undefined) {
@@ -692,4 +705,4 @@ function boot() {
 document.addEventListener('DOMContentLoaded', boot);
 
 /* expuesto para depurar desde la consola del navegador */
-if (typeof window !== 'undefined') window.BARCOMP = { ST, E, I18N, LANG, renderAll, refresh, REF };
+if (typeof window !== 'undefined') window.BARCOMP = { ST, E, I18N, LANG, renderAll, refresh, REF, drawGizmo };

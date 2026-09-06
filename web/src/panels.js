@@ -124,11 +124,14 @@ export function renderLeft() {
       const sh = E.piShift(vm, ref, ST.anchor);
       shift = ST.anchor === 'end' ? sh[0] : sh[sh.length - 1];
     }
-    return `<div class="ds ${act ? 'act' : ''}">
+    /* La tarjeta entera activa el modelo: el guardia del `click` global ignora
+       los campos, así que escribir el nombre no cambia de modelo por debajo. */
+    return `<div class="ds ${act ? 'act' : ''}" data-vsel="${v.id}">
       <div class="top">
         <input type="checkbox" data-vv="${v.id}" ${v.visible ? 'checked' : ''}>
         <input type="color" class="sw" data-vc="${v.id}" value="${v.color}">
-        <span class="nm" data-vsel="${v.id}" title="${esc(v.name)}">${esc(v.name)}</span>
+        <input type="text" class="nm" data-vn="${v.id}" value="${esc(v.name)}"
+          title="${esc(v.name)}">
         ${isref ? `<span class="refbadge">${T('isRef')}</span>` : ''}
         <button class="xbtn" data-vd="${v.id}" title="${T('dupVar')}">⧉</button>
         <button class="xbtn" data-vx="${v.id}" title="${T('del')}">✕</button></div>

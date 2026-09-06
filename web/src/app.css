@@ -131,7 +131,12 @@ button,input,select,textarea{font-family:inherit;font-size:inherit;color:inherit
   background:var(--panel2)}
 .ds.act{border-color:var(--nominal);box-shadow:0 0 0 1px var(--selRing) inset}
 .ds .top{display:flex;align-items:center;gap:6px}
-.ds .nm{flex:1;font-size:11.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer}
+/* el nombre del modelo se edita aquí mismo: campo sin marco hasta que se toca,
+   para que la tarjeta siga leyéndose como una ficha y no como un formulario */
+.ds input.nm{flex:1;min-width:0;font-size:11.5px;padding:2px 4px;width:auto;
+  background:transparent;border-color:transparent;border-radius:3px}
+.ds input.nm:hover{border-color:var(--line2);background:var(--inputbg)}
+.ds input.nm:focus{border-color:var(--nominal);background:var(--inputbg)}
 .ds .meta{display:flex;gap:9px;margin-top:4px;font-size:10px;color:var(--dim)}
 .ds .meta b{font-weight:400;color:var(--txt)}
 
@@ -166,6 +171,10 @@ button,input,select,textarea{font-family:inherit;font-size:inherit;color:inherit
   font-family:var(--sans);font-weight:600}
 #hint{position:absolute;bottom:8px;left:8px;font-size:10px;color:var(--dim2);
   background:var(--hintbg);padding:3px 7px;border-radius:3px}
+/* indicador de ejes: esquina inferior derecha, libre (#hint va abajo a la
+   izquierda y #vplegend arriba a la derecha) */
+#gizmo{position:absolute;bottom:8px;right:8px;width:68px;height:68px;
+  pointer-events:none;opacity:.92}
 /* tirador para ensanchar el panel derecho */
 #rtgrip{position:absolute;top:0;bottom:0;right:-3px;width:7px;z-index:12;
   cursor:col-resize;background:transparent}
