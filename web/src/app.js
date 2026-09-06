@@ -27,7 +27,7 @@ import {
 } from './state.js';
 import {
   initScene, rebuildScene, fitView, setView, setOnPick, setOnResize, markDirty,
-  onResize, applyTheme, drawGizmo,
+  onResize, applyTheme, drawGizmo, drawLabels, groupHost,
 } from './scene.js';
 import { drawRibbon, bindRibbon, setOnRibbonSelect } from './ribbon.js';
 import {
@@ -686,4 +686,4 @@ function boot() {
 document.addEventListener('DOMContentLoaded', boot);
 
 /* expuesto para depurar desde la consola del navegador */
-if (typeof window !== 'undefined') window.BARCOMP = { ST, E, I18N, LANG, renderAll, refresh, REF, drawGizmo };
+if (typeof window !== 'undefined') window.BARCOMP = { ST, E, I18N, LANG, renderAll, refresh, REF, drawGizmo, drawLabels, groupHost };

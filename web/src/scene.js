@@ -19,10 +19,21 @@ import { ST, refModel, placeMatrix } from './state.js';
 import { T } from './i18n.js';
 
 export let renderer, scene, camera, controls;
+/* Hay DOS grupos en la escena y la diferencia importa:
+
+     world   el taller. La cuadrícula del suelo y los pedestales. Matriz
+             identidad: no se mueve nunca.
+     root    la PIEZA y todo lo que se mide contra ella. Su matriz es la
+             COLOCACIÓN, así que girar o mover la colocación gira y mueve la
+             pieza sobre un suelo quieto, con la cámara donde estaba.
+
+   Los pedestales se construyen desde los PI ya colocados, para que sigan
+   apoyando en el suelo esté donde esté la pieza. */
+
 /* Todo lo dibujado cuelga de `root`, cuya matriz es la COLOCACIÓN. Así girar o
    mover la pieza en el espacio no toca ni un dato del modelo: es una sola
    matriz sobre la escena entera, y la comparación entre modelos no cambia. */
-let root;
+let root, world;
 const groups = {};
 let labelHost, gizmoHost, dirty = true, extraLabels = [];
 let onPick = () => {};
@@ -83,6 +94,12 @@ export function barGeometry(path, sec, devFn) {
   return g;
 }
 
+/** ¿De cuál de los dos grupos cuelga una capa? El taller (`world`) no lo mueve
+ *  la colocación; la pieza (`root`) sí. Existe para que el banco de pruebas
+ *  pueda vigilar que la cuadrícula no se vaya a `root` en un descuido. */
+export const groupHost = k =>
+  (groups[k] && groups[k].parent === world) ? 'world' : 'root';
+
 /** Vuelve a leer del CSS lo que no cuelga de un material: fondo y niebla. La
  *  rejilla y los pedestales se recogen solos en el siguiente rebuildScene(),
  *  que es lo que hace el cambio de tema. */
@@ -113,12 +130,20 @@ export function initScene() {
   scene.add(new AmbientLight(0xffffff, 1.7));
   const d1 = new DirectionalLight(0xffffff, 2.6); d1.position.set(1, -1.4, 2); scene.add(d1);
   const d2 = new DirectionalLight(0x7fb0ff, 1.1); d2.position.set(-1.5, 1, -.6); scene.add(d2);
+  /* el taller: no lo toca la colocación */
+  world = new Group();
+  scene.add(world);
+  /* la pieza: su matriz es la colocación */
   root = new Group();
   root.matrixAutoUpdate = false;
   scene.add(root);
-  for (const k of ['grid', 'fix', 'nom', 'var', 'meas', 'pred', 'diff', 'dev', 'marks', 'pts']) {
+  for (const k of ['nom', 'var', 'meas', 'pred', 'diff', 'dev', 'marks', 'pts']) {
     groups[k] = new Group();
     root.add(groups[k]);
+  }
+  for (const k of ['grid', 'fix']) {
+    groups[k] = new Group();
+    world.add(groups[k]);
   }
   labelHost = $('#labels');
   gizmoHost = $('#gizmo');
@@ -189,7 +214,9 @@ export function rebuildScene() {
   const Axf = act ? act.A : new Matrix4();
   const nomPis = act ? act.pis : E.applyMat(Axf, E.fk(M).pis);
 
-  /* --- rejilla y pedestales -------------------------------------------- */
+  /* --- rejilla y pedestales: van en `world`, que la colocación no toca ---
+     Los pedestales sí tienen que seguir a la pieza, pero apoyando en el suelo:
+     por eso se levantan desde los PI YA COLOCADOS, no desde los del modelo. */
   if (L.grid.on) {
     const g = new GridHelper(4000, 40, cssVar('--grid1', '#2A3546'), cssVar('--grid2', '#1A212C'));
     g.rotation.x = Math.PI / 2; g.position.z = -260;
@@ -197,8 +224,9 @@ export function rebuildScene() {
   }
   if (L.fix.on) {
     const mat = new MeshStandardMaterial({ color: cssVar('--fixture', '#3A4658'), roughness: .9, metalness: .1 });
-    for (let i = 0; i < nomPis.length; i += 3) {
-      const p = nomPis[i], hgt = p.z + 260;
+    const placed = E.applyMat(placeMatrix(), nomPis);
+    for (let i = 0; i < placed.length; i += 3) {
+      const p = placed[i], hgt = p.z + 260;
       if (hgt <= 1) continue;
       const m = new Mesh(new BoxGeometry(28, 28, hgt), mat.clone());
       m.position.set(p.x, p.y, -260 + hgt / 2);

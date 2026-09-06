@@ -147,6 +147,9 @@ internet es el `npm install`.
   arrastre el español sin traducir.
 - Ni `scene.js` ni `ribbon.js` llevan colores propios: los leen de `:root` con
   `cssVar()`. Un color nuevo se define en `app.css`, en los dos temas.
+- La escena tiene dos grupos: `world` (la cuadrícula del suelo y los pedestales,
+  matriz identidad) y `root` (la pieza, con la colocación por matriz). Mover la
+  colocación mueve **la pieza sobre un suelo quieto**, no la cámara.
 - Nada de `localStorage` ni `sessionStorage`, nada de CDNs ni `fetch()`.
 - Los paneles se reconstruyen enteros, así que los inputs de tabla usan el evento
   `change`, no `input`, o se pierde el foco al escribir. Al confirmar una celda

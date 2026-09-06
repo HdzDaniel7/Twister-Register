@@ -76,7 +76,7 @@ es: {
 
  place: 'Colocación', pivot: 'Pivote', plX: 'Mover X', plY: 'Mover Y', plZ: 'Mover Z',
  plRX: 'Giro X', plRY: 'Giro Y', plRZ: 'Giro Z', plReset: 'Restablecer colocación',
- plNote: 'Solo cambia cómo se ve la pieza en el espacio: gira y mueve toda la escena alrededor del PI que elijas como origen. No toca ningún avance, ángulo ni radio.',
+ plNote: 'Mueve y gira la PIEZA sobre un suelo quieto, alrededor del PI que elijas como origen: la cuadrícula y la cámara no se mueven. Los pedestales la siguen, apoyando siempre en el suelo. No toca ningún avance, ángulo ni radio.',
  lMarks: 'Puntos de referencia', marks: 'Puntos de referencia',
  addMark: '+ Punto', nearPi: 'PI', distPi: 'Dist.',
  markNote: 'Cotas sueltas en el espacio: el punto se une con el PI más cercano del modelo activo y la cifra dice a cuánto quedó. Sirve para acotar contra el fixture o un datum de taller. «+ Punto» lo crea sobre el doblez seleccionado.',
@@ -149,7 +149,7 @@ en: {
 
  place: 'Placement', pivot: 'Pivot', plX: 'Move X', plY: 'Move Y', plZ: 'Move Z',
  plRX: 'Rot X', plRY: 'Rot Y', plRZ: 'Rot Z', plReset: 'Reset placement',
- plNote: 'Only changes how the part sits in space: it rotates and moves the whole scene about the PI you pick as origin. It touches no feed, angle or radius.',
+ plNote: 'Moves and rotates the PART over a still floor, about the PI you pick as origin: the grid and the camera stay put. The pedestals follow it, always resting on the floor. It touches no feed, angle or radius.',
  lMarks: 'Reference points', marks: 'Reference points',
  addMark: '+ Point', nearPi: 'PI', distPi: 'Dist.',
  markNote: 'Loose dimensions in space: each point is joined to the nearest PI of the active model and the figure says how far it landed. Use it to dimension against the fixture or a shop datum. "+ Point" creates it on the selected bend.',
@@ -229,7 +229,7 @@ de: {
  plZ: 'Verschieben Z',
  plRX: 'Drehung X', plRY: 'Drehung Y', plRZ: 'Drehung Z',
  plReset: 'Platzierung zurücksetzen',
- plNote: 'Ändert nur, wie das Teil im Raum steht: die ganze Szene wird um den als Ursprung gewählten Schnittpunkt gedreht und verschoben. Kein Vorschub, Winkel oder Radius wird angetastet.',
+ plNote: 'Bewegt und dreht das TEIL über einem ruhenden Boden, um den als Ursprung gewählten Schnittpunkt: Raster und Kamera bleiben stehen. Die Auflageböcke folgen ihm und stehen immer auf dem Boden. Kein Vorschub, Winkel oder Radius wird angetastet.',
  lMarks: 'Referenzpunkte', marks: 'Referenzpunkte',
  addMark: '+ Punkt', nearPi: 'SP', distPi: 'Abst.',
  markNote: 'Freie Maße im Raum: jeder Punkt wird mit dem nächstgelegenen Schnittpunkt des aktiven Modells verbunden und die Zahl sagt, wie weit er entfernt liegt. Damit lässt sich gegen die Vorrichtung oder einen Werkstattbezug bemaßen. »+ Punkt« legt ihn auf der ausgewählten Biegung an.',
