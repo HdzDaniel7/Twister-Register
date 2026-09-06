@@ -18,23 +18,34 @@
 
    DOS DOBLECES POR ESTACIÓN, NO UN GIRO Y UN DOBLEZ
    -------------------------------------------------
-   `rot` (R) NO rueda la barra: es el doblez de CANTO. Gira alrededor de `y`
-   (el espesor) y desvía la barra a lo largo de `z` (el ancho).
-   `angle` es el doblez de PLANO: gira alrededor de `z` (el ancho) y desvía la
-   barra a lo largo de `y` (el espesor).
-   `twist` sigue siendo la única torsión sobre el eje de la barra.
+   Convención LRA, la de las dobladoras (esquema barcomp/2.0):
 
-   Esto se aparta de la convención LRA/YBC de la industria (donde el segundo
-   parámetro es el rodado de la pieza entre dobleces) y fue decisión explícita
-   del usuario.
+       T  <-  T · Trans(feed,0,0) · Rx(rot) · Rz(-angle) · Rx(twist)
+
+   `rot` (R) RUEDA la pieza alrededor del eje de la barra: elige el PLANO en el
+   que va a ocurrir el doblez, y no dobla nada por sí mismo.
+   `angle` es el doblez entero, siempre en el plano que eligió `rot`.
+   `twist` sigue siendo la torsión repartida a lo largo de la recta siguiente.
+
+       rot = 0    ->  dobla contra la cara plana (el espesor, `y`)
+       rot = ±90  ->  dobla contra el canto      (el ancho,   `z`)
+
+   El signo de `angle` va al revés que en barcomp/1.0: un `angle` positivo
+   desvía hacia `-y`. La forma canónica de ik() deja `angle >= 0` y usa `rot`
+   para elegir la dirección, que es como se programa una dobladora.
 
    Un PI es UN vértice y por lo tanto UN arco: `radius` es el radio de esa
-   herramienta circular. Cuando el doblez lleva las dos componentes, el arco se
-   inscribe en el plano compuesto — ver bendDecomp().
+   herramienta circular, y el arco es siempre uno solo — ver bendDecomp().
+
+   Los archivos barcomp/1.0 usaban la convención anterior (`rot` era un doblez
+   de canto). Se convierten al abrirlos: ver migrateModel().
    ========================================================================= */
 import { Matrix4, Vector3, Quaternion } from 'three';
 
-export const SCHEMA = 'barcomp/1.0';
+export const SCHEMA = 'barcomp/2.0';
+/** Esquema anterior: `rot` era un doblez de canto y `angle` tenía el signo
+ *  contrario. Los archivos que lo llevan se convierten al abrirlos. */
+export const SCHEMA_LEGACY = 'barcomp/1.0';
 export const D2R = Math.PI / 180;
 export const R2D = 180 / Math.PI;
 
@@ -117,17 +128,24 @@ export function emptyModel() {
 /** Réplica bit a bit de demo_model() de core.py (mismo PRNG, misma semilla). */
 export function demoModel() {
   const r = mulberry32(20240822);
-  // 1 de cada 3 estaciones va de canto (R) y el resto de plano (angle);
-  // ninguna lleva las dos, que es como trabaja una dobladora real.
+  /* 1 de cada 3 estaciones va de canto y el resto de plano. Con la convención
+     LRA eso lo dice el RODADO: 0 y 180 doblan contra la cara plana, ±90 contra
+     el canto. `angle` es el doblez entero y nunca es negativo. */
   const sign = [1, -1, -1, 1, 1, -1, 1, 1, -1, -1, 1, -1, 1, 1, -1];
   const bends = [];
+  let roll = 0;                        // rodado acumulado del eje C
   for (let i = 0; i < 15; i++) {
     const canto = (i % 3 === 1);
-    const ang = Math.round((16 + r() * 54) * 10) / 10 * sign[i];
+    const ang = Math.round((16 + r() * 54) * 10) / 10;
+    /* la estación se declara por su rodado ABSOLUTO y se guarda el incremento,
+       que es lo que come la máquina */
+    const meta = canto ? 90 * sign[i] : (sign[i] > 0 ? 0 : 180);
+    const rot = wrap180(meta - roll);
+    roll = meta;
     bends.push(newBend({
       feed: i === 0 ? 140 : Math.round(80 + r() * 70),
-      rot: canto ? ang : 0,
-      angle: canto ? 0 : ang,
+      rot,
+      angle: ang,
       // doblar de canto pide herramental más grande
       radius: canto ? 45 : 30,
       twist: 0,
@@ -149,7 +167,7 @@ export function fk(model) {
   for (const b of model.bends) {
     T = T.multiply(trans(b.feed));
     pis.push(posOf(T));
-    T = T.multiply(rotY(b.rot * D2R)).multiply(rotZ(b.angle * D2R));
+    T = T.multiply(rotX(b.rot * D2R)).multiply(rotZ(-b.angle * D2R));
     if (b.twist) T = T.multiply(rotX(b.twist * D2R));
     frames.push(T.clone());
   }
@@ -178,15 +196,19 @@ export function ik(points, radii) {
     if (nw) w.divideScalar(nw);
     const R = new Matrix4().extractRotation(F);      // marco de entrada
     const d = w.clone().applyMatrix4(new Matrix4().copy(R).transpose());
-    const ang = Math.asin(clamp(d.y, -1, 1)) * R2D;
-    const rot = Math.abs(Math.cos(ang * D2R)) < 1e-9   // singularidad: angle = ±90°
+    /* d = Rx(rot)·Rz(-angle)·x̂ = (cos a, -sin a·cos rot, -sin a·sin rot).
+       Forma canónica: el desvío nunca es negativo y el rodado elige hacia
+       dónde, que es como se programa una dobladora. */
+    const lat = Math.hypot(d.y, d.z);
+    const ang = Math.atan2(lat, clamp(d.x, -1, 1)) * R2D;
+    const rot = lat < 1e-12          // sin desvío: el rodado no se puede leer
       ? prevRot
-      : Math.atan2(-d.z, d.x) * R2D;
+      : Math.atan2(-d.z, -d.y) * R2D;
     bends.push(newBend({
       feed: fe, rot, angle: ang,
       radius: (radii && radii[i - 1] !== undefined) ? +radii[i - 1] : 30,
     }));
-    F = F.multiply(rotY(rot * D2R)).multiply(rotZ(ang * D2R));
+    F = F.multiply(rotX(rot * D2R)).multiply(rotZ(-ang * D2R));
     prevRot = rot;
   }
   return { bends, tail: P[n + 1].distanceTo(P[n]) };
@@ -199,41 +221,62 @@ export function ik(points, radii) {
  *  etiquetar la tabla y elegir la ganancia del avance. El resorte y las
  *  ganancias de ángulo se aplican por componente, no por doblez.
  */
-export const orientations = model =>
-  model.bends.map(b => (Math.abs(b.rot) > Math.abs(b.angle) ? 'W' : 'T'));
+/** W = de canto (contra el ancho) · T = de plano (contra el espesor).
+ *
+ *  Lo decide el rodado, pero el ACUMULADO, no el de la fila: `rot` es
+ *  incremental, como el eje C de una dobladora, así que la cara contra la que
+ *  se dobla depende de todo lo que se haya rodado antes. La torsión también
+ *  rueda la sección, y por eso entra en la cuenta.
+ *
+ *  El corte va en 45°, donde deja de haber una cara dominante. */
+export function orientations(model) {
+  let roll = 0;
+  return model.bends.map(b => {
+    roll += (b.rot || 0);                    // el rodado precede al doblez
+    const o = Math.abs(Math.sin(roll * D2R)) > Math.SQRT1_2 ? 'W' : 'T';
+    roll += (b.twist || 0);                  // la torsión rueda lo que sigue
+    return o;
+  });
+}
 
-/** Parte el doblez compuesto en {axis, theta, psi}.
+/** Rodado acumulado ANTES de cada doblez, en grados. Es la posición del eje C:
+ *  0 dobla contra la cara plana, ±90 contra el canto. */
+export function rollAt(model) {
+  let roll = 0;
+  return model.bends.map(b => {
+    roll += (b.rot || 0);
+    const at = wrap180(roll);
+    roll += (b.twist || 0);
+    return at;
+  });
+}
+
+/** Parte el doblez en {roll, axis, theta}.
  *
- *  Un PI es un vértice y una estación es una herramienta: por eso el par
- *  Ry(rot)·Rz(angle) se traza como UN arco, no como dos. El arco gira alrededor
- *  de su propio eje `n` (perpendicular al eje de la barra), que es lo único que
- *  NO rueda la sección:
+ *  Con la convención LRA el doblez es SIEMPRE un solo arco: `rot` rueda la
+ *  pieza para elegir el plano y `angle` es todo el desvío.
  *
- *      Ry(rot)·Rz(angle)  ==  Rot(n, theta) · Rx(psi)
+ *      Rx(rot) · Rz(-angle)  ==  Rx(roll) · Rot(axis, theta)
  *
- *  · axis   vector unitario del arco, en el marco local de entrada
- *  · theta  ángulo total de desvío, siempre >= 0; es el que se inscribe con
- *           `radius`, o sea el que ve la herramienta
- *  · psi    rodado residual, que solo aparece cuando el doblez lleva las dos
- *           componentes a la vez. Con una sola componente vale 0 exacto — que
- *           es el caso normal, y por eso la sección no se voltea en pantalla.
+ *  · roll   el rodado que precede al arco, en radianes. Ocurre en el PI, antes
+ *           de que la herramienta muerda.
+ *  · axis   eje del arco en el marco YA rodado. Es (0,0,∓1): girar alrededor
+ *           de él desvía la barra sin rodar la sección.
+ *  · theta  desvío total, siempre >= 0; es el que se inscribe con `radius`, o
+ *           sea el que ve la herramienta.
+ *  · psi    0 siempre. Se conserva en la firma porque varias funciones lo
+ *           desestructuran; con un solo arco no queda rodado residual.
  */
 export function bendDecomp(b) {
-  const Rb = rotY(b.rot * D2R).multiply(rotZ(b.angle * D2R));
-  const e = Rb.elements;                               // column-major
-  const d = new Vector3(e[0], e[1], e[2]);             // primera columna = eje x
-  const lat = Math.hypot(d.y, d.z);
-  if (lat < 1e-12) {                    // sin desvío: solo puede quedar rodado
-    // Rb[2][1] = e[6], Rb[1][1] = e[5]
-    return { axis: new Vector3(0, 0, 1), theta: 0, psi: Math.atan2(e[6], e[5]) };
-  }
-  const theta = Math.atan2(lat, clamp(d.x, -1, 1));
-  const axis = new Vector3(0, -d.z, d.y).divideScalar(lat);
-  const B = rotAxis(axis, theta);
-  const Mres = new Matrix4().extractRotation(B).transpose()
-    .multiply(new Matrix4().extractRotation(Rb));
-  const m = Mres.elements;
-  return { axis, theta, psi: Math.atan2(m[6], m[5]) };
+  const a = (b.angle || 0) * D2R;
+  /* Rz(-angle): un `angle` positivo desvía hacia -y, así que el eje del arco
+     apunta a -z. Con el ángulo negativo se invierte y theta vuelve a ser >= 0. */
+  return {
+    roll: (b.rot || 0) * D2R,
+    axis: new Vector3(0, 0, a < 0 ? 1 : -1),
+    theta: Math.abs(a),
+    psi: 0,
+  };
 }
 
 /** Ángulo total de desvío del doblez, en grados. Es lo que ve la herramienta:
@@ -344,12 +387,15 @@ export function buildPath(model, arcSeg = 12) {
 
   for (let i = 0; i < B.length; i++) {
     const b = B[i];
-    const { axis, theta: th, psi } = bendDecomp(b);
+    const { roll, axis, theta: th } = bendDecomp(b);
     const R = b.radius || 0;
     const straight = LEN[i].straight;
     runStraight(straight, i ? (B[i - 1].twist || 0) : 0,
                 i ? (B[i - 1].twistLen || 0) : 0, s);
     s += straight;
+    /* el rodado elige el plano y ocurre EN el PI, antes de que la herramienta
+       muerda: la recta que acaba de pasar no lleva nada de él */
+    if (roll) F = F.multiply(rotX(roll));
     /* dirección de deflexión: hacia donde barre el eje de la barra. El centro
        del arco está a `radius` por ahí, y girar alrededor de `axis` no rueda la
        sección — que es justo lo que se busca. */
@@ -367,7 +413,6 @@ export function buildPath(model, arcSeg = 12) {
     F = F.multiply(rotAxis(axis, th));
     const rf = new Matrix4().extractRotation(F);
     F.setPosition(ctr.clone().sub(chat.clone().applyMatrix4(rf).multiplyScalar(R)));
-    if (psi) F = F.multiply(rotX(psi));   // rodado residual del doblez compuesto
   }
 
   const tailLen = tailStraight(model);
@@ -448,12 +493,17 @@ export function simulate(cmd, proc, ori, noise = true) {
   const rnd = mulberry32(proc.seed | 0);
   return cmd.map(b => {
     const n = noise ? 1 : 0;
-    /* el resorte va POR COMPONENTE: doblar de canto y de plano tienen
-       constantes elásticas distintas y ahora ambas viven en el mismo doblez */
+    /* La recuperación elástica actúa sobre el DOBLEZ, y cuánto depende del
+       plano en que se dio: de canto la sección es más rígida que de plano. Con
+       la convención LRA eso lo dice el rodado, así que `ori` elige la
+       constante y las dos se aplican al mismo `angle`.
+       El rodado no dobla nada: no tiene resorte, solo el sesgo del eje C. */
+    const i = cmd.indexOf(b);
+    const sb = (i < ori.length && ori[i] === 'W') ? proc.sbW : proc.sbT;
     return newBend({
       feed: b.feed * (1 - proc.slip / 100) + n * gauss(rnd) * proc.noiseF,
-      rot: b.rot * (1 - proc.sbW / 100) + proc.biasRot + n * gauss(rnd) * proc.noiseR,
-      angle: b.angle * (1 - proc.sbT / 100) + n * gauss(rnd) * proc.noiseA,
+      rot: b.rot + proc.biasRot + n * gauss(rnd) * proc.noiseR,
+      angle: b.angle * (1 - sb / 100) + n * gauss(rnd) * proc.noiseA,
       radius: b.radius,
       twist: b.twist || 0,
       twistLen: b.twistLen || 0,
@@ -475,14 +525,14 @@ export function compensate(cmd, nom, meas, comp, ori) {
   return cmd.map((b, i) => {
     const o = bendFrom(b);
     if (i >= nom.length || i >= meas.length) return o;   // sin medición: no se toca
-    /* ganancia por COMPONENTE: gainT corrige el doblez de plano (`angle`) y
-       gainW el de canto (`rot`), sin importar cuál domine. */
-    if (comp.doAngle) o.angle = b.angle + comp.gainT * (nom[i].angle - meas[i].angle);
-    if (comp.doRot) o.rot = b.rot + comp.gainW * (nom[i].rot - meas[i].rot);
-    if (comp.doFeed) {
-      const g = (i < ori.length && ori[i] === 'W') ? comp.gainW : comp.gainT;
-      o.feed = b.feed + g * (nom[i].feed - meas[i].feed);
-    }
+    /* El doblez y el rodado son cosas distintas y se corrigen distinto.
+       `angle` es el doblez: la ganancia depende del plano en que se dio, que
+       es lo que dice `ori`. `rot` es el rodado, un giro del eje C que no tiene
+       resorte; se corrige uno a uno y hay que envolverlo a ±180. */
+    const g = (i < ori.length && ori[i] === 'W') ? comp.gainW : comp.gainT;
+    if (comp.doAngle) o.angle = b.angle + g * (nom[i].angle - meas[i].angle);
+    if (comp.doRot) o.rot = wrap180(b.rot + wrap180(nom[i].rot - meas[i].rot));
+    if (comp.doFeed) o.feed = b.feed + g * (nom[i].feed - meas[i].feed);
     return o;
   });
 }
@@ -880,24 +930,80 @@ export function toDoc(model, command, comp, proc, datasets = [], variants = [],
   };
 }
 
+/* ------------------------------------------------- migración 1.0 -> 2.0 ----
+   En barcomp/1.0 `rot` era un doblez de CANTO (giro alrededor de `y`) y el
+   signo de `angle` era el contrario:
+
+       1.0:  T <- T · Trans(feed) · Ry(rot) · Rz( angle) · Rx(twist)
+       2.0:  T <- T · Trans(feed) · Rx(rot) · Rz(-angle) · Rx(twist)
+
+   La conversión no aproxima nada: del modelo viejo se saca la FORMA real —sus
+   PI en el espacio— y de ahí se replantea la cadena con ik(), que ya habla la
+   convención nueva. Es la ida y vuelta que test_motor.js verifica a 1e-9. */
+
+/** fk() de barcomp/1.0. Solo existe para poder convertir archivos viejos. */
+export function fkLegacy(model) {
+  let T = eye();
+  const pis = [posOf(T)];
+  for (const b of model.bends) {
+    T = T.multiply(trans(b.feed));
+    pis.push(posOf(T));
+    T = T.multiply(rotY(b.rot * D2R)).multiply(rotZ(b.angle * D2R));
+    if (b.twist) T = T.multiply(rotX(b.twist * D2R));
+  }
+  T = T.multiply(trans(model.tail));
+  pis.push(posOf(T));
+  return { pis };
+}
+
+/** Pasa un modelo de barcomp/1.0 a la convención de hoy, conservando la forma. */
+export function migrateModel(model) {
+  const m = normalizeModel(model);
+  if (!m.bends.length) return m;
+  const P = fkLegacy(m).pis;
+  const out = ik(P, m.bends.map(b => b.radius));
+  /* la torsión no depende de la convención: viaja tal cual */
+  out.bends.forEach((b, i) => {
+    b.twist = m.bends[i].twist || 0;
+    b.twistLen = m.bends[i].twistLen || 0;
+  });
+  return normalizeModel({ ...m, bends: out.bends, tail: out.tail });
+}
+
+/** ¿El documento viene con la convención anterior? */
+export const isLegacyDoc = d => !!d && d.schema !== SCHEMA;
+
 /** Normaliza un documento leído de JSON. Gemelo de load_json() de core.py. */
 export function fromDoc(d) {
-  const model = normalizeModel(d.model);
+  /* Un archivo anterior a barcomp/2.0 describe la misma pieza con otra
+     convención: se convierte antes de tocar nada, o se abriría con la forma
+     equivocada y en silencio. Quien llama se entera por `legacy`. */
+  const legacy = isLegacyDoc(d);
+  const conv = m => (legacy ? migrateModel(m) : normalizeModel(m));
+  const model = conv(d.model);
   const variants = (d.variants || []).map((v, i) => syncDeltas({
     id: v.id || `v${i + 1}`,
     name: v.name ?? 'MODELO',
     color: v.color || '#3FA9F5',
     visible: v.visible !== false,
-    base: normalizeModel(v.base),
-    deltas: v.deltas || [],
-    tailDelta: +(v.tailDelta || 0),
+    base: conv(v.base),
+    /* los Δ son incrementos sobre parámetros que cambiaron de significado: no
+       hay conversión honesta, así que un archivo viejo llega con ellos en cero */
+    deltas: legacy ? [] : (v.deltas || []),
+    tailDelta: legacy ? 0 : +(v.tailDelta || 0),
   }));
   return {
     model,
-    command: (d.command || model.bends).map(bendFrom),
+    /* el comando de máquina también estaba en la convención vieja */
+    command: legacy
+      ? migrateModel({ ...d.model, bends: d.command || d.model.bends }).bends
+      : (d.command || model.bends).map(bendFrom),
+    legacy,
     comp: { ...COMP_DEFAULT, ...(d.comp || {}) },
     proc: { ...PROC_DEFAULT, ...(d.proc || {}) },
-    datasets: d.datasets || [],
+    datasets: (d.datasets || []).map(x => (legacy
+      ? { ...x, bends: migrateModel({ ...d.model, bends: x.bends || [], tail: x.tail ?? d.model.tail }).bends }
+      : x)),
     anchor: d.anchor || 'start',
     variants,
     ref: d.ref || (variants.length ? variants[0].id : null),
@@ -918,15 +1024,6 @@ export function fromDoc(d) {
   };
 }
 
-/** Toma las 3 últimas columnas numéricas de cada línea. */
-export function readPointsCsv(txt) {
-  const P = [];
-  for (const line of String(txt).split(/\r?\n/)) {
-    const nums = line.trim().split(/[,;\t ]+/).map(Number).filter(n => isFinite(n));
-    if (nums.length >= 3) P.push(new Vector3(...nums.slice(-3)));
-  }
-  return P;
-}
 export const writePointsCsv = pts =>
   'idx,x,y,z\n' + pts.map((p, i) =>
     `${i},${p.x.toFixed(4)},${p.y.toFixed(4)},${p.z.toFixed(4)}`).join('\n');

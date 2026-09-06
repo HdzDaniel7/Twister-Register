@@ -34,8 +34,8 @@ tiene internet.
   baja un paso con la rueda del ratón o con Ctrl+↑ ↓. El foco no se pierde al
   confirmar.
 - **Varios modelos comparables a la vez**, cada uno con su color, con una columna
-  **Δ** al lado de cada parámetro compensable (avance, R de canto, ángulo de
-  plano): la corrección se escribe junto al dato sin perder el valor original.
+  **Δ** al lado de cada parámetro compensable (recta, rodado, ángulo): la
+  corrección se escribe junto al dato sin perder el valor original.
 - **Extremo fijo común** entre modelos: amarre (P0), extremo libre, o mejor
   ajuste global (Kabsch). Con el extremo libre anclado, la divergencia se ve
   acumularse hacia el amarre — que es la lectura útil si el criterio de
@@ -71,14 +71,23 @@ Un doblez es `{feed, rot, angle, radius, twist, twistLen}`, en mm y grados. La
 cadena cinemática es
 
 ```
-T  ←  T · Trans(feed,0,0) · Ry(rot) · Rz(angle) · Rx(twist)
+T  ←  T · Trans(feed,0,0) · Rx(rot) · Rz(−angle) · Rx(twist)
 ```
 
-con el marco local `x` = eje de la barra · `y` = espesor · `z` = ancho. **Cada
-estación lleva dos dobleces perpendiculares, no un giro y un doblez**: `angle`
-dobla de plano (contra el espesor) y `rot` dobla de canto (contra el ancho).
-Esto se aparta de la convención LRA/YBC de la industria, donde el segundo
-parámetro rueda la pieza entre dobleces; fue una decisión de diseño explícita.
+con el marco local `x` = eje de la barra · `y` = espesor · `z` = ancho.
+Convención **LRA**, la de las dobladoras: `rot` **rueda la pieza** alrededor del
+eje de la barra para elegir el plano, y no dobla nada por sí mismo; `angle` es
+el doblez entero, en el plano que eligió `rot`.
+
+```
+rot = 0    →  dobla contra la cara plana (el espesor, y)
+rot = ±90  →  dobla contra el canto      (el ancho,   z)
+```
+
+`rot` es **incremental**, como el eje C de la máquina: la cara contra la que se
+dobla depende del rodado acumulado, no del de la fila (`rollAt()` lo devuelve, y
+la torsión también cuenta). `ik()` deja la forma canónica con `angle ≥ 0` y usa
+`rot` para elegir la dirección.
 
 Un PI es un vértice y por lo tanto **un solo arco**: `bendDecomp()` parte el par
 en `Rot(eje, θ) · Rx(ψ)`, donde el eje es perpendicular al eje de la barra —lo
@@ -104,7 +113,7 @@ web/
   src/app.css       tokens de diseño y layout; la paleta de los DOS temas
   src/shell.html    esqueleto con los marcadores del build
   build.mjs         esbuild: src/ + three  ->  index.html
-  test_motor.js     104 pruebas del motor y del i18n, en Node y sin navegador
+  test_motor.js     116 pruebas del motor y del i18n, en Node y sin navegador
 index.html          SALIDA GENERADA — no se edita a mano
 ```
 
@@ -115,7 +124,7 @@ index.html          SALIDA GENERADA — no se edita a mano
 ```bash
 cd web
 npm install          # una sola vez: three + esbuild
-npm test             # 104 pruebas del motor
+npm test             # 116 pruebas del motor
 npm run build        # regenera index.html (y web/barcomp_viewer.html en local)
 ```
 
@@ -179,7 +188,7 @@ Se evalúa con un parser propio; no se usa `eval()`.
 Trece columnas, en orden de proceso:
 
 ```
-#  Or.  Recta Δ  R canto Δ  Áng plano Δ  Radio  Twist  Long.tw.    L     Σ L
+#  Or.  Recta Δ  Rodado Δ  Ángulo Δ  Radio  Twist  Long.tw.    L     Σ L
         └───────────── se teclean ─────────────────────────────┘  └── se leen ──┘
 ```
 
@@ -203,8 +212,8 @@ El **avance** de PI a PI ya no está en la tabla. Es la geometría del CAD —do
 se cruzarían las rectas si el doblez fuera una esquina viva— y el doblez le come
 un `trim` por cada lado; de ahí que no coincida con la recta.
 
-**La regla de edición:** las rectas mandan. Cambiar un radio, un R de canto o un
-ángulo de plano deja **todas las rectas donde estaban** y recoloca los avances
+**La regla de edición:** las rectas mandan. Cambiar un radio, un rodado o un
+ángulo deja **todas las rectas donde estaban** y recoloca los avances
 por debajo. Como el `trim` de un doblez muerde por los dos lados, tocar el radio
 del doblez `i` mueve **dos** avances, el `i` y el `i+1`; con el del último se
 ajusta la cola.
@@ -246,10 +255,19 @@ confirmar una celda no se reconstruye el panel, así que el foco nunca salta.
 
 ## Formato de archivo
 
-Esquema `barcomp/1.0`, un JSON con el modelo, los comandos de máquina, las
+Esquema `barcomp/2.0`, un JSON con el modelo, los comandos de máquina, las
 ganancias, los parámetros del simulador, las piezas medidas y los modelos
 comparados. Las claves `variants`, `ref` y `anchor` son opcionales: los archivos
 viejos siguen abriendo.
+
+### Archivos de la versión anterior
+
+`barcomp/1.0` usaba otra convención —`rot` era un doblez de canto y el signo de
+`angle` era el contrario—, así que los mismos números describen otra pieza. Al
+abrir uno se convierte solo, y la conversión no aproxima nada: del modelo viejo
+se sacan sus PI en el espacio (la forma real) y de ahí se replantea la cadena
+con `ik()`. Lo único que no viaja son los **Δ pendientes**, que son incrementos
+sobre parámetros que cambiaron de significado: llegan en cero.
 
 `Recta`, `L` y `Σ L` **no se guardan**: son magnitudes derivadas de `feed`,
 `radius` y los ángulos. El estado sigue siendo `feed`, de PI a PI, que es lo que
@@ -258,7 +276,7 @@ teclea.
 
 ```jsonc
 {
-  "schema": "barcomp/1.0",
+  "schema": "barcomp/2.0",
   "model": {
     "name": "...",
     "section": { "width": 40, "thickness": 12, "chamfer": 1.2, "endLen": 20 },

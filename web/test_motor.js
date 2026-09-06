@@ -151,45 +151,92 @@ ok('el twist preserva todos los avances',
 console.log('\n— doblez biaxial: `rot` dobla de canto, `angle` de plano —');
 
 const EM = E.emptyModel();
-/* rot y angle son dos dobleces PERPENDICULARES, no un rodado y un doblez. */
-const Pl = E.normalizeModel({ ...EM, tail: 200,
-  bends: [E.newBend({ feed: 200, rot: 0, angle: 40, radius: 30 })] });
-const Ca = E.normalizeModel({ ...EM, tail: 200,
-  bends: [E.newBend({ feed: 200, rot: 40, angle: 0, radius: 30 })] });
-const pp = E.fk(Pl).pis, pc = E.fk(Ca).pis;
-const ppE = pp[pp.length - 1], pcE = pc[pc.length - 1];
+/* Convención LRA: `rot` RUEDA la pieza y elige el plano, `angle` es el doblez
+   entero. El mismo ángulo con distinto rodado dobla contra otra cara. */
+const uno = (rot, angle) => E.normalizeModel({ ...EM, tail: 200,
+  bends: [E.newBend({ feed: 200, rot, angle, radius: 30 })] });
+const punta = m => { const P = E.fk(m).pis; return P[P.length - 1]; };
+const Pl = uno(0, 40), Ca = uno(90, 40);
+const ppE = punta(Pl), pcE = punta(Ca);
 
-ok('un doblez de plano solo desvía sobre el espesor (y)',
+ok('con R=0 el doblez cae contra la cara plana (espesor, y)',
    Math.abs(ppE.z) < 1e-9 && Math.abs(ppE.y) > 10,
    `y=${ppE.y.toFixed(1)}  z=${ppE.z.toExponential(1)}`);
-ok('un doblez de canto solo desvía sobre el ancho (z)',
+ok('con R=90 el mismo ángulo cae contra el canto (ancho, z)',
    Math.abs(pcE.y) < 1e-9 && Math.abs(pcE.z) > 10,
    `y=${pcE.y.toExponential(1)}  z=${pcE.z.toFixed(1)}`);
-ok('los dos dobleces son perpendiculares y del mismo tamaño',
+ok('rodar no cambia el tamaño del doblez, solo el plano',
    Math.abs(Math.abs(ppE.y) - Math.abs(pcE.z)) < 1e-9);
-ok('orientations marca la componente dominante',
-   E.orientations(Pl)[0] === 'T' && E.orientations(Ca)[0] === 'W');
+ok('un ángulo positivo desvía hacia -y (signo invertido respecto a 1.0)',
+   ppE.y < -10, `y=${ppE.y.toFixed(1)}`);
+ok('R=180 dobla lo mismo hacia el otro lado',
+   Math.abs(punta(uno(180, 40)).y + ppE.y) < 1e-9);
+ok('orientations lee el rodado, no el ángulo',
+   E.orientations(Pl)[0] === 'T' && E.orientations(Ca)[0] === 'W' &&
+   E.orientations(uno(-90, 40))[0] === 'W' && E.orientations(uno(180, 40))[0] === 'T');
 
 const dp = E.bendDecomp(Pl.bends[0]), dc = E.bendDecomp(Ca.bends[0]);
-ok('el eje del arco de plano es el ancho (z)',
-   Math.abs(Math.abs(dp.axis.z) - 1) < 1e-12,
+ok('el eje del arco es el ancho del marco ya rodado (z)',
+   Math.abs(Math.abs(dp.axis.z) - 1) < 1e-12 && Math.abs(Math.abs(dc.axis.z) - 1) < 1e-12,
    `eje ${dp.axis.toArray().map(v => v.toFixed(3)).join(' ')}`);
-ok('el eje del arco de canto es el espesor (y)',
-   Math.abs(Math.abs(dc.axis.y) - 1) < 1e-12,
-   `eje ${dc.axis.toArray().map(v => v.toFixed(3)).join(' ')}`);
-ok('un doblez puro no deja rodado residual',
+ok('el rodado sale aparte del arco',
+   Math.abs(dp.roll) < 1e-12 && Math.abs(dc.roll * E.R2D - 90) < 1e-12);
+ok('con un solo arco nunca queda rodado residual',
    Math.abs(dp.psi) < 1e-12 && Math.abs(dc.psi) < 1e-12);
-ok('el desvío total de un doblez puro es su propio ángulo',
+ok('el desvío total es el ángulo, ruede lo que ruede',
    Math.abs(dp.theta * E.R2D - 40) < 1e-9 && Math.abs(dc.theta * E.R2D - 40) < 1e-9);
+ok('el desvío nunca es negativo',
+   E.bendDecomp(E.newBend({ rot: 0, angle: -40 })).theta * E.R2D - 40 < 1e-9 &&
+   E.bendDecomp(E.newBend({ rot: 0, angle: -40 })).theta > 0);
 
 const Cx = E.newBend({ rot: 30, angle: 40, radius: 30 });
-const dx = E.bendDecomp(Cx);
-ok('un doblez compuesto desvía más que cualquiera de sus componentes',
-   dx.theta * E.R2D > 40 + 1e-6, `${(dx.theta * E.R2D).toFixed(2)}°`);
-ok('un doblez compuesto sí deja rodado residual',
-   Math.abs(dx.psi) > 1e-3, `${(dx.psi * E.R2D).toFixed(2)}°`);
-ok('trimOf usa el desvío total, no solo el ángulo de plano',
-   Math.abs(E.trimOf(Cx) - 30 * Math.tan(dx.theta / 2)) < 1e-12);
+ok('trimOf usa el ángulo del doblez y no depende del rodado',
+   Math.abs(E.trimOf(Cx) - 30 * Math.tan(40 * E.D2R / 2)) < 1e-12 &&
+   Math.abs(E.trimOf(Cx) - E.trimOf(E.newBend({ rot: 0, angle: 40, radius: 30 }))) < 1e-12);
+
+/* el rodado es INCREMENTAL, como el eje C: la cara contra la que se dobla
+   depende de todo lo que se haya rodado antes */
+{
+  const cad = E.normalizeModel({ ...EM, tail: 150,
+    bends: [E.newBend({ feed: 100, rot: 0, angle: 30 }),
+            E.newBend({ feed: 100, rot: 90, angle: 30 }),
+            E.newBend({ feed: 100, rot: 90, angle: 30 })] });
+  /* rollAt envuelve a ±180, así que 180 puede llegar como -180: es el mismo
+     rodado y lo que importa es el valor absoluto */
+  ok('rollAt acumula el rodado',
+     E.rollAt(cad).map(v => Math.round(Math.abs(v))).join() === '0,90,180',
+     E.rollAt(cad).join(' '));
+  ok('orientations usa el acumulado, no el de la fila',
+     E.orientations(cad).join('') === 'TWT');
+  const tw = E.normalizeModel({ ...EM, tail: 150,
+    bends: [E.newBend({ feed: 100, rot: 0, angle: 30, twist: 90 }),
+            E.newBend({ feed: 100, rot: 0, angle: 30 })] });
+  ok('la torsión también rueda lo que viene después',
+     E.orientations(tw).join('') === 'TW');
+}
+
+/* migración desde barcomp/1.0: cambia la convención, no la pieza */
+{
+  const viejo = E.normalizeModel({ ...EM, tail: 160,
+    bends: [E.newBend({ feed: 140, rot: 0, angle: 30, radius: 30 }),
+            E.newBend({ feed: 100, rot: -40, angle: 0, radius: 45 }),
+            E.newBend({ feed: 120, rot: 0, angle: -25, radius: 30 })] });
+  const antes = E.fkLegacy(viejo).pis;
+  const nuevo = E.migrateModel(viejo);
+  const desp = E.fk(nuevo).pis;
+  ok('migrateModel conserva la forma exacta',
+     maxAbs(antes.map((q, i) => q.distanceTo(desp[i]))) < 1e-9,
+     `${maxAbs(antes.map((q, i) => q.distanceTo(desp[i]))).toExponential(2)} mm`);
+  ok('migrateModel conserva la cola y los radios',
+     Math.abs(nuevo.tail - viejo.tail) < 1e-9 &&
+     nuevo.bends.every((b, i) => b.radius === viejo.bends[i].radius));
+  ok('migrateModel deja los ángulos en forma canónica',
+     nuevo.bends.every(b => b.angle >= -1e-12));
+  ok('migrateModel conserva la orientación de cada doblez',
+     E.orientations(nuevo).join('') === 'TWT');
+  ok('isLegacyDoc distingue los dos esquemas',
+     E.isLegacyDoc({ schema: 'barcomp/1.0' }) && !E.isLegacyDoc({ schema: E.SCHEMA }));
+}
 
 /* El arco NO se traza como Rx(φ)·Rz(θ): eso da la posición correcta pero gira
    la sección a lo largo del arco y la endereza de un salto en el vértice. */
@@ -302,26 +349,35 @@ ok('sin corregir nada, el comando no cambia',
      { gainW: .75, gainT: .75, doAngle: false, doRot: false, doFeed: false }, ori)
      .every((b, i) => Math.abs(b.angle - cmd[i].angle) < 1e-12));
 
-/* el resorte va por componente: sbT al de plano, sbW al de canto */
+/* el resorte actúa sobre el DOBLEZ; cuánto, según el plano en que se dio */
 {
   const one = [E.newBend({ feed: 100, rot: 20, angle: 40, radius: 30 })];
-  const s = E.simulate(one, { ...E.PROC_DEFAULT, biasRot: 0 }, ['T'], false);
-  ok('simulate aplica el resorte por componente',
-     Math.abs(s[0].angle - 40 * (1 - E.PROC_DEFAULT.sbT / 100)) < 1e-12 &&
-     Math.abs(s[0].rot - 20 * (1 - E.PROC_DEFAULT.sbW / 100)) < 1e-12);
+  const sT = E.simulate(one, { ...E.PROC_DEFAULT, biasRot: 0 }, ['T'], false);
+  const sW = E.simulate(one, { ...E.PROC_DEFAULT, biasRot: 0 }, ['W'], false);
+  ok('simulate aplica el resorte de plano a un doblez de plano',
+     Math.abs(sT[0].angle - 40 * (1 - E.PROC_DEFAULT.sbT / 100)) < 1e-12);
+  ok('simulate aplica el de canto a uno de canto',
+     Math.abs(sW[0].angle - 40 * (1 - E.PROC_DEFAULT.sbW / 100)) < 1e-12);
+  ok('el rodado no tiene resorte: solo el sesgo del eje C',
+     Math.abs(sT[0].rot - (20 + E.PROC_DEFAULT.biasRot * 0)) < 1e-12);
 }
-/* deviations: fuera si CUALQUIERA de las dos componentes lo está */
+/* deviations: fuera si el doblez o el rodado se salen */
 {
   const base = E.normalizeModel({ ...EM, tail: 150,
     bends: [E.newBend({ feed: 100, rot: 0, angle: 30 }),
-            E.newBend({ feed: 100, rot: 30, angle: 0 })] });
+            E.newBend({ feed: 100, rot: 90, angle: 30 })] });
   const bad = E.cloneModel(base);
-  bad.bends[1].rot = 32;                       // solo la componente de canto
+  bad.bends[1].rot = 92;                       // el rodado, no el doblez
   const D = E.deviations(base, bad, 'start');
-  ok('deviations marca fuera un doblez de canto desviado', D.out === 1, `out=${D.out}`);
+  ok('deviations marca fuera un rodado desviado', D.out === 1, `out=${D.out}`);
+  ok('un rodado desviado no cambia el tamaño del doblez',
+     Math.abs(D.angle[1]) < 1e-12 && Math.abs(D.rot[1] - 2) < 1e-9,
+     `Δrot=${D.rot[1].toFixed(3)}°`);
+  const bad2 = E.cloneModel(base);
+  bad2.bends[1].angle = 32;                    // el doblez, no el rodado
+  const D2 = E.deviations(base, bad2, 'start');
   ok('deviations mide la desviación del desvío TOTAL',
-     Math.abs(D.theta[1] - 2) < 1e-9 && Math.abs(D.angle[1]) < 1e-12,
-     `Δθ=${D.theta[1].toFixed(3)}°`);
+     Math.abs(D2.theta[1] - 2) < 1e-9, `Δθ=${D2.theta[1].toFixed(3)}°`);
 }
 
 /* ---------------------------------------------------------------------- */
@@ -476,7 +532,7 @@ ok('un modelo de 1 doblez funciona',
   };
   const doc = E.toDoc(M, M.bends, { ...E.COMP_DEFAULT }, { ...E.PROC_DEFAULT }, [],
                       [V, W], 'v1', 'end', extra);
-  ok('el documento lleva el esquema compartido', doc.schema === 'barcomp/1.0');
+  ok('el documento lleva el esquema compartido', doc.schema === 'barcomp/2.0');
   const rt = E.fromDoc(JSON.parse(JSON.stringify(doc)));
   ok('el documento va y vuelve sin perder variantes',
      rt.variants.length === 2 && rt.ref === 'v1' && rt.anchor === 'end' &&

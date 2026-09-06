@@ -194,7 +194,7 @@ export function renderLeft() {
       </div>`).join('') : `<div class="hintline">${T('dNone')}</div>`}
     <div class="row mt6">
       <button class="btn sm grow" data-a="sim">+ ${T('addSim')}</button>
-      <button class="btn sm" data-a="csv">${T('addCsv')}</button></div>
+</div>
    </div></div>`;
 }
 
@@ -470,7 +470,7 @@ function paneMarks(M) {
       <th>${T('nearPi')}</th><th>${T('distPi')}</th><th></th></tr></thead>
       <tbody>${rows}</tbody></table></div>` : ''}
     <div class="row mt6"><button class="btn sm grow" data-a="addmark">${T('addMark')}</button>
-      <button class="btn sm" data-a="markcsv">${T('markCsv')}</button></div>
+</div>
     <div class="hintline">${T('markNote')}</div>
   </div></div>`;
 }

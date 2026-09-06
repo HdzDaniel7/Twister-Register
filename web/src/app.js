@@ -258,16 +258,6 @@ function openJson() {
     } catch (err) { alert('JSON: ' + err.message); }
   });
 }
-function importCsv() {
-  pickFile('.csv,.txt', txt => {
-    const P = E.readPointsCsv(txt);
-    if (P.length < 3) { alert('CSV: ' + P.length + ' pts'); return; }
-    const M = ST.model;
-    const r = E.ik(P, M.bends.map(b => b.radius));
-    addDataset({ ...M, bends: r.bends, tail: r.tail }, `CSV ${ST.datasets.length + 1}`, 'csv');
-    renderPanels(); rebuildScene(); drawRibbon();
-  });
-}
 function exportPoints() {
   download('puntos_' + safeName(ST.model.name) + '.csv',
            E.writePointsCsv(E.fk(ST.model).pis), 'text/csv');
@@ -281,7 +271,6 @@ function action(a) {
     case 'open': return openJson();
     case 'save': return saveJson();
     case 'report': return makeReport();
-    case 'csv': return importCsv();
     case 'expts': return exportPoints();
     case 'sim': return simPart(false);
     case 'verify': return simPart(true);
@@ -348,14 +337,6 @@ function action(a) {
       addMark(q ? q.x : 0, q ? q.y : 0, q ? q.z : 0);
       renderLeft(); renderRight(); rebuildScene(); return;
     }
-    case 'markcsv':
-      pickFile('.csv,.txt', txt => {
-        const P = E.readPointsCsv(txt);
-        if (!P.length) { alert('CSV: 0 pts'); return; }
-        for (const q of P) addMark(q.x, q.y, q.z);
-        renderLeft(); renderRight(); rebuildScene();
-      });
-      return;
     default: return;
   }
 }
