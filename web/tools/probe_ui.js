@@ -1,0 +1,709 @@
+/* Guion de interfaz que se evalúa DENTRO de la página. Devuelve el registro
+   como una cadena; cada paso queda aislado en su try/catch. */
+const log = [];
+window.onerror = (m) => { log.push('ERROR ' + m); };
+window.confirm = () => true;
+window.alert = m => log.push('ALERT ' + m);
+window.open = () => ({ document: { write() {}, close() {} } });
+/* una descarga real cuelga el headless: se anula el click del <a download> */
+const _click = HTMLAnchorElement.prototype.click;
+HTMLAnchorElement.prototype.click = function () {
+  if (this.hasAttribute('download')) return;
+  return _click.call(this);
+};
+
+const S = () => window.BARCOMP.ST;
+function step(name, fn) {
+  try { fn(); log.push('ok   ' + name); }
+  catch (err) { log.push('FALLA ' + name + ' :: ' + (err && err.message || err)); }
+}
+const q = sel => {
+  const el = document.querySelector(sel);
+  if (!el) throw new Error('no existe ' + sel);
+  return el;
+};
+const click = sel => q(sel).click();
+const setval = (sel, v) => {
+  const el = q(sel);
+  el.value = v;
+  el.dispatchEvent(new Event('change', { bubbles: true }));
+};
+const check = (sel, on) => {
+  const el = q(sel);
+  el.checked = on;
+  el.dispatchEvent(new Event('change', { bubbles: true }));
+};
+
+step('idiomas ES / EN / DE', () => { click('[data-l="en"]'); click('[data-l="de"]'); click('[data-l="es"]'); });
+step('hay tres botones de idioma', () => {
+  const n = document.querySelectorAll('#hd [data-l]').length;
+  if (n !== 3) throw new Error(n + ' idiomas');
+});
+step('en alemán no queda ninguna clave cruda en pantalla', () => {
+  click('[data-l="de"]');
+  /* una clave cruda es un nodo de texto que coincide EXACTAMENTE con una clave
+     de I18N: es lo que pinta T() cuando la cadena falta en ese idioma */
+  const claves = new Set(Object.keys(window.BARCOMP.I18N.de));
+  if (!claves.size) throw new Error('no se pudo leer I18N');
+  const malas = [];
+  const walk = n => {
+    if (n.nodeType === 3) {
+      const t = n.textContent.trim();
+      if (claves.has(t) && t.length > 2) malas.push(t);
+    } else if (n.nodeType === 1 && !/^(SCRIPT|STYLE|CANVAS)$/.test(n.tagName)) {
+      for (const c of n.childNodes) walk(c);
+    }
+  };
+  walk(document.getElementById('app'));
+  if (malas.length) throw new Error('claves crudas: ' + [...new Set(malas)].join(','));
+});
+step('el alemán llega a la tabla y al lateral', () => {
+  const th = [...document.querySelectorAll('table.lra thead th')].map(x => x.textContent.trim());
+  if (!th.includes('Gerade')) throw new Error('encabezados: ' + th.join('|'));
+  if (!th.includes('Torsionslänge')) throw new Error('sin Torsionslänge: ' + th.join('|'));
+  if (!q('#hd').textContent.includes('Biegekompensation')) throw new Error('cabecera sin traducir');
+  const ori = q('table.lra tbody .ori');
+  if (!ori) throw new Error('sin columna de orientación');
+});
+step('la barra de vista no se mete bajo la leyenda', () => {
+  const tb = q('#vptool').getBoundingClientRect();
+  const lg = q('#vplegend').getBoundingClientRect();
+  if (tb.right > lg.left + 1) {
+    throw new Error(`barra hasta ${tb.right.toFixed(0)}, leyenda desde ${lg.left.toFixed(0)}`);
+  }
+});
+step('los tooltips de los tiradores se traducen', () => {
+  if (!q('#rtgrip').title.includes('Breite')) throw new Error(q('#rtgrip').title);
+  if (!q('#btgrip').title.includes('Höhe')) throw new Error(q('#btgrip').title);
+  click('[data-l="es"]');
+});
+step('vistas', () => { for (const v of ['top', 'front', 'side', 'iso', 'fit']) click(`[data-v="${v}"]`); });
+step('editar un ángulo base', () => setval('input[data-b="2"][data-k="angle"]', '44.5'));
+step('editar una columna Δ', () => setval('input[data-bd="3"][data-k="angle"]', '2.5'));
+/* ---------------------------------------- tabla: longitudes y teclado --- */
+const Eg = () => window.BARCOMP.E;
+const near = (a, b, tol, what) => {
+  if (!(Math.abs(a - b) <= tol)) throw new Error(what + ': ' + a + ' vs ' + b);
+};
+const key = (el, k, opt) => el.dispatchEvent(new KeyboardEvent('keydown',
+  Object.assign({ key: k, bubbles: true, cancelable: true }, opt || {})));
+
+/* Escritura de verdad: asignar .value por script no marca el campo sucio y
+   entonces el navegador no dispara `change` al desenfocar, que es justo el
+   camino que hay que probar. NO llama select(): la selección al enfocar es
+   parte de lo que se está probando. */
+const typeIn = (el, txt) => {
+  el.focus();
+  if (!document.execCommand('insertText', false, txt)) {
+    throw new Error('execCommand insertText no disponible');
+  }
+};
+
+/* La recta es la columna que se teclea; L es la lectura. */
+const recta = i => Eg().straightOf(S().variants[0].base, i);
+const celda = (i, k) =>
+  +q(`table.lra tbody tr:nth-child(${i + 1}) [data-cell="${k}"]`).textContent;
+
+step('la tabla de modelo tiene las 13 columnas', () => {
+  const n = document.querySelectorAll('table.lra thead th').length;
+  if (n !== 13) throw new Error(n + ' columnas');
+});
+
+/* -------------------------------------- convencion LRA y CSV fuera ----- */
+const uno = (rot, angle) => Eg().normalizeModel({ ...Eg().emptyModel(), tail: 200,
+  bends: [Eg().newBend({ feed: 200, rot, angle, radius: 30 })] });
+const punta = m => { const P = Eg().fk(m).pis; return P[P.length - 1]; };
+
+step('R inclina el eje: R=0 dobla de plano, R=90 de canto', () => {
+  const a = punta(uno(0, 40)), b = punta(uno(90, 40));
+  if (!(Math.abs(a.z) < 1e-9 && Math.abs(a.y) > 10)) throw new Error('R=0 no dobla de plano');
+  if (!(Math.abs(b.y) < 1e-9 && Math.abs(b.z) > 10)) throw new Error('R=90 no dobla de canto');
+  if (!(a.y < 0)) throw new Error('el signo no esta invertido: y=' + a.y.toFixed(2));
+});
+step('el rodado NO rueda la seccion: no hace de twist', () => {
+  const e = Eg().fk(uno(90, 40)).end.elements;      // columna y del marco final
+  const y = [e[4], e[5], e[6]];
+  if (!(Math.abs(y[0]) < 1e-9 && Math.abs(y[1] - 1) < 1e-9 && Math.abs(y[2]) < 1e-9)) {
+    throw new Error('la seccion quedo rodada: y = ' + y.map(v => v.toFixed(3)).join(', '));
+  }
+});
+step('el rodado no se acumula entre dobleces', () => {
+  const m = Eg().normalizeModel({ ...Eg().emptyModel(), tail: 200, bends: [
+    Eg().newBend({ feed: 200, rot: 90, angle: 30, radius: 30 }),
+    Eg().newBend({ feed: 200, rot: 0, angle: 30, radius: 30 })] });
+  const o = Eg().orientations(m).join('');
+  if (o !== 'WT') throw new Error('orientaciones ' + o);
+});
+step('la tabla dice Rodado y Angulo, no canto ni plano', () => {
+  const th = [...document.querySelectorAll('table.lra thead th')].map(x => x.textContent.trim());
+  if (th[4] !== 'Rodado') throw new Error('columna 5 = ' + th[4]);
+  if (th[6] !== 'Ángulo') throw new Error('columna 7 = ' + th[6]);
+});
+step('el esquema guardado es barcomp/2.1', () => {
+  const doc = Eg().toDoc(S().model, S().command, S().comp, S().proc, [], S().variants,
+                         S().ref, S().anchor, {});
+  if (doc.schema !== 'barcomp/2.1') throw new Error(doc.schema);
+});
+step('no queda ningun boton de importar CSV', () => {
+  const malos = [...document.querySelectorAll('#app [data-a]')]
+    .filter(x => /csv/i.test(x.dataset.a) && x.dataset.a !== 'expts')
+    .map(x => x.dataset.a);
+  if (malos.length) throw new Error('siguen: ' + malos.join(','));
+});
+
+step('la Recta va al principio y L al final, sin columna Avance', () => {
+  const th = [...document.querySelectorAll('table.lra thead th')].map(x => x.textContent.trim());
+  if (th[2] !== 'Recta') throw new Error('columna 3 = ' + th[2]);
+  if (th[3] !== 'Δ') throw new Error('el Δ no está junto a la Recta: ' + th[3]);
+  if (th[11] !== 'L') throw new Error('columna 12 = ' + th[11]);
+  if (th[12] !== 'Σ L') throw new Error('columna 13 = ' + th[12]);
+  if (th.filter(x => x === 'Avance').length) throw new Error('la columna Avance sigue ahí');
+});
+
+step('Recta, L y Sigma L coinciden con el motor', () => {
+  const M = S().model, L = Eg().rowLengths(M);
+  const rows = document.querySelectorAll('table.lra tbody tr');
+  if (rows.length !== M.bends.length) throw new Error('filas ' + rows.length);
+  for (let i = 0; i < rows.length; i++) {
+    near(+rows[i].querySelector('input[data-st]').value, recta(i), 0.006, 'recta ' + i);
+    near(celda(i, 'arc'), L[i].arc, 0.006, 'arco ' + i);
+    near(celda(i, 'cum'), L[i].cum, 0.006, 'cum ' + i);
+  }
+});
+
+step('L y Sigma L son de solo lectura', () => {
+  const n = document.querySelectorAll('[data-cell="arc"] input,[data-cell="cum"] input').length;
+  if (n) throw new Error(n + ' campos en columnas calculadas');
+});
+
+/* ------------------------------------------------------- los campos ---- */
+step('ningun campo declara un paso que invalide decimales', () => {
+  const malos = [...document.querySelectorAll('#app input[type=number]')]
+    .filter(x => x.step !== 'any').map(x => x.step);
+  if (malos.length) throw new Error('step= ' + [...new Set(malos)].join(','));
+});
+
+step('los campos llevan su paso en data-step', () => {
+  const sin = [...document.querySelectorAll('table.lra input[type=number]')]
+    .filter(x => !x.dataset.step).length;
+  if (sin) throw new Error(sin + ' campos sin data-step');
+});
+
+step('el tercer decimal se teclea y sobrevive al repintado', () => {
+  const el = q('input[data-b="1"][data-k="angle"]');
+  typeIn(el, '17.905');
+  el.blur();
+  near(S().model.bends[1].angle, 17.905, 1e-9, 'guardado');
+  window.BARCOMP.renderAll();
+  near(+q('input[data-b="1"][data-k="angle"]').value, 17.905, 1e-9, 'repintado');
+  if (q('input[data-b="1"][data-k="angle"]').value !== '17.905') {
+    throw new Error('se ve ' + q('input[data-b="1"][data-k="angle"]').value);
+  }
+});
+
+step('un entero se rellena a dos decimales al repintar', () => {
+  /* mientras la celda esta viva se ve lo tecleado; el relleno lo pone el
+     siguiente repintado, que es quien alinea la columna */
+  typeIn(q('input[data-b="1"][data-k="radius"]'), '30');
+  q('input[data-b="1"][data-k="radius"]').blur();
+  window.BARCOMP.renderAll();
+  const v = q('input[data-b="1"][data-k="radius"]').value;
+  if (v !== '30.00') throw new Error('se ve ' + v);
+});
+
+step('vaciar una celda y salirse NO escribe un cero', () => {
+  const el = q('input[data-st="7"]');
+  const antes = recta(7);
+  el.focus();
+  el.value = '';
+  el.dispatchEvent(new Event('change', { bubbles: true }));
+  near(recta(7), antes, 1e-9, 'la recta cambio al vaciar');
+  near(+q('input[data-st="7"]').value, antes, 0.006, 'el campo no se restauro');
+});
+
+step('entrar en una celda deja su valor seleccionado', () => {
+  /* <input type=number> no expone selectionStart, así que se prueba por
+     conducta: al enfocar y teclear, lo escrito REEMPLAZA en vez de añadirse. */
+  const el = q('input[data-b="4"][data-k="angle"]');
+  setval('input[data-b="4"][data-k="angle"]', '31.8');
+  typeIn(el, '7');
+  if (el.value !== '7') throw new Error('quedo «' + el.value + '», no se reemplazo');
+  el.blur();
+});
+
+step('Ctrl+flecha respeta el tercer decimal', () => {
+  const el = q('input[data-b="1"][data-k="angle"]');   // vale 17.905
+  el.focus();
+  key(el, 'ArrowUp', { ctrlKey: true });
+  near(S().model.bends[1].angle, 18.005, 1e-9, 'paso sobre tres decimales');
+});
+
+step('el pie da la cola y la longitud desarrollada', () => {
+  const M = S().model;
+  near(+q('[data-cell="tstr"]').textContent, Eg().tailStraight(M), 0.006, 'cola');
+  near(+q('[data-cell="dev"]').textContent, Eg().developedLength(M), 0.006, 'desarrollada');
+});
+
+step('teclear Recta deja la recta pedida y mueve Sigma L', () => {
+  const i = 4, antes = celda(i, 'cum');
+  setval(`input[data-st="${i}"]`, '92.5');
+  near(recta(i), 92.5, 1e-6, 'recta pedida');
+  if (Math.abs(celda(i, 'cum') - antes) < 1e-9) throw new Error('Sigma L no se movio');
+});
+
+step('cambiar un RADIO deja la recta quieta y mueve dos avances', () => {
+  const i = 2, B = () => S().variants[0].base.bends;
+  const r0 = [recta(i), recta(i + 1)];
+  const f0 = [B()[i].feed, B()[i + 1].feed];
+  setval(`input[data-b="${i}"][data-k="radius"]`, '52');
+  near(recta(i), r0[0], 1e-6, 'la recta propia se movio');
+  near(recta(i + 1), r0[1], 1e-6, 'la recta siguiente se movio');
+  if (Math.abs(B()[i].feed - f0[0]) < 0.01) throw new Error('el avance propio no se movio');
+  if (Math.abs(B()[i + 1].feed - f0[1]) < 0.01) throw new Error('el avance siguiente no se movio');
+});
+
+step('cambiar un ANGULO tambien deja las rectas quietas', () => {
+  const i = 6;
+  const r0 = [recta(i), recta(i + 1)];
+  setval(`input[data-b="${i}"][data-k="angle"]`, '48');
+  near(recta(i), r0[0], 1e-6, 'la recta propia se movio');
+  near(recta(i + 1), r0[1], 1e-6, 'la recta siguiente se movio');
+});
+
+step('el radio del ULTIMO doblez ajusta la cola', () => {
+  const last = S().model.bends.length - 1;
+  const v = S().variants[0];
+  const r0 = recta(last), cola0 = Eg().tailStraight(v.base);
+  setval(`input[data-b="${last}"][data-k="radius"]`, '55');
+  near(recta(last), r0, 1e-6, 'la recta del ultimo se movio');
+  near(Eg().tailStraight(v.base), cola0, 1e-6, 'la cola se movio');
+});
+
+step('las rectas ajenas no se mueven al tocar un radio', () => {
+  const antes = S().model.bends.map((_, k) => recta(k));
+  setval('input[data-b="8"][data-k="radius"]', '33');
+  antes.forEach((r, k) => {
+    if (k === 8 || k === 9) return;
+    near(recta(k), r, 1e-9, 'recta ajena ' + k);
+  });
+});
+
+step('editar una celda NO destruye el input (render dirigido)', () => {
+  const el = q('input[data-b="3"][data-k="angle"]');
+  el.focus();
+  el.value = '32.5';
+  el.dispatchEvent(new Event('change', { bubbles: true }));
+  if (!el.isConnected) throw new Error('el input fue reconstruido');
+  if (document.activeElement !== el) throw new Error('se perdio el foco');
+});
+
+step('editar una Recta actualiza Sigma L en el sitio', () => {
+  const L0 = q('table.lra tbody tr:nth-child(6) [data-cell="cum"]').textContent;
+  setval('input[data-st="2"]', '118');
+  const L1 = q('table.lra tbody tr:nth-child(6) [data-cell="cum"]').textContent;
+  if (L0 === L1) throw new Error('Sigma L no se movio: ' + L0);
+  near(+L1, Eg().rowLengths(S().model)[5].cum, 0.006, 'cum tras editar');
+});
+
+step('flecha abajo baja de fila en la misma columna', () => {
+  const a = q('input[data-b="2"][data-k="angle"]');
+  a.focus();
+  key(a, 'ArrowDown');
+  const act = document.activeElement;
+  if (act.dataset.b !== '3' || act.dataset.k !== 'angle') {
+    throw new Error('quedo en ' + act.dataset.b + '/' + act.dataset.k);
+  }
+});
+
+step('flecha arriba sube de fila', () => {
+  key(document.activeElement, 'ArrowUp');
+  const act = document.activeElement;
+  if (act.dataset.b !== '2' || act.dataset.k !== 'angle') {
+    throw new Error('quedo en ' + act.dataset.b + '/' + act.dataset.k);
+  }
+});
+
+step('Enter baja de fila y confirma el valor tecleado', () => {
+  const a = q('input[data-bd="1"][data-k="feed"]');
+  typeIn(a, '1.5');
+  key(a, 'Enter');
+  const act = document.activeElement;
+  if (act.dataset.bd !== '2') throw new Error('quedo en ' + act.dataset.bd);
+  near(window.BARCOMP.ST.variants[0].deltas[1].feed, 1.5, 1e-9, 'delta confirmado');
+});
+
+step('Tab confirma sin reconstruir el panel', () => {
+  const a = q('input[data-st="6"]');
+  const marca = q('table.lra tbody tr:nth-child(7)');
+  typeIn(a, '112.5');
+  a.blur();                              // lo que hace Tab: desenfocar
+  near(recta(6), 112.5, 1e-9, 'recta confirmada');
+  if (!a.isConnected) throw new Error('el input fue reconstruido');
+  if (!marca.isConnected) throw new Error('la fila fue reconstruida');
+});
+
+step('la navegacion no se sale de la tabla', () => {
+  const last = S().model.bends.length - 1;
+  const a = q(`input[data-b="${last}"][data-k="angle"]`);
+  a.focus();
+  key(a, 'ArrowDown');
+  if (document.activeElement.dataset.b !== String(last)) throw new Error('se salio');
+});
+
+step('Ctrl+flecha sube el valor un paso', () => {
+  const a = q('input[data-b="1"][data-k="angle"]');
+  a.focus();
+  const antes = S().model.bends[1].angle;
+  key(a, 'ArrowUp', { ctrlKey: true });
+  near(S().model.bends[1].angle, antes + 0.1, 1e-6, 'paso de angulo');
+});
+
+step('Escape devuelve el valor de partida', () => {
+  const a = q('input[data-b="1"][data-k="radius"]');
+  a.focus();
+  const orig = a.value;
+  a.value = '999';
+  key(a, 'Escape');
+  if (a.value !== orig) throw new Error(a.value + ' != ' + orig);
+});
+
+step('la rueda sigue subiendo el valor', () => {
+  const a = q('input[data-b="1"][data-k="angle"]');
+  a.focus();
+  const antes = S().model.bends[1].angle;
+  a.dispatchEvent(new WheelEvent('wheel', { deltaY: -1, bubbles: true, cancelable: true }));
+  near(S().model.bends[1].angle, antes + 0.1, 1e-6, 'paso con rueda');
+});
+
+step('el Delta de la Recta sigue funcionando', () => {
+  const antes = celda(3, 'cum');
+  setval('input[data-bd="3"][data-k="feed"]', '0.8');
+  near(S().variants[0].deltas[3].feed, 0.8, 1e-9, 'delta guardado');
+  near(celda(3, 'cum'), antes + 0.8, 0.01, 'Sigma L recoge el delta');
+  setval('input[data-bd="3"][data-k="feed"]', '0');
+});
+
+/* ------------------------------------------------------------- tema ---- */
+const tok = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+
+step('tema claro: pone el atributo y cambia los tokens', () => {
+  const antes = tok('--bg');
+  click('[data-th="light"]');
+  if (document.documentElement.getAttribute('data-theme') !== 'light') {
+    throw new Error('sin data-theme');
+  }
+  if (tok('--bg') === antes) throw new Error('--bg no cambió: ' + tok('--bg'));
+  if (S().theme !== 'light') throw new Error('ST.theme = ' + S().theme);
+});
+
+step('en claro el fondo del 3D es claro y el texto oscuro', () => {
+  const bg = tok('--vpbg'), txt = tok('--txt');
+  const lum = h => {
+    const n = parseInt(h.slice(1, 7), 16);
+    return (((n >> 16) & 255) * .299 + ((n >> 8) & 255) * .587 + (n & 255) * .114) / 255;
+  };
+  if (lum(bg) < .6) throw new Error('fondo del 3D oscuro en tema claro: ' + bg);
+  if (lum(txt) > .4) throw new Error('texto claro sobre fondo claro: ' + txt);
+});
+
+step('la escala de desviación sigue siendo verde / ámbar / rojo', () => {
+  const c = ['--ok', '--warn', '--bad'].map(tok);
+  if (new Set(c).size !== 3) throw new Error('colores repetidos: ' + c.join(' '));
+  const rgb = h => [1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16));
+  const [g, a, r] = c.map(rgb);
+  if (!(g[1] > g[0])) throw new Error('--ok no es verde: ' + c[0]);
+  if (!(a[0] > a[2] && a[1] > a[2])) throw new Error('--warn no es ámbar: ' + c[1]);
+  if (!(r[0] > r[1] && r[0] > r[2])) throw new Error('--bad no es rojo: ' + c[2]);
+});
+
+step('la cinta se repinta en claro sin reventar', () => {
+  const cv = q('#rbc');
+  if (!(cv.width > 0 && cv.height > 0)) throw new Error('lienzo de la cinta vacío');
+});
+
+step('tema oscuro explícito', () => {
+  click('[data-th="dark"]');
+  if (document.documentElement.getAttribute('data-theme') !== 'dark') {
+    throw new Error('sin data-theme');
+  }
+});
+
+step('tema del sistema quita el atributo', () => {
+  click('[data-th="system"]');
+  if (document.documentElement.hasAttribute('data-theme')) throw new Error('quedó el atributo');
+  if (S().theme !== 'system') throw new Error('ST.theme = ' + S().theme);
+});
+
+/* ------------------------------------ nombre del modelo y eje de ejes --- */
+step('el nombre se edita desde la tarjeta del panel izquierdo', () => {
+  setval('#lf input[data-vn="v1"]', 'PIEZA-A');
+  if (S().variants[0].name !== 'PIEZA-A') throw new Error(S().variants[0].name);
+  if (S().model.name !== 'PIEZA-A') throw new Error('el modelo activo no se entero');
+});
+step('y el campo de la pestaña MODELO se entera', () => {
+  click('#tabs [data-t="model"]');
+  if (q('input[data-m="name"]').value !== 'PIEZA-A') {
+    throw new Error(q('input[data-m="name"]').value);
+  }
+});
+step('editar desde la pestaña MODELO tambien actualiza la tarjeta', () => {
+  setval('input[data-m="name"]', 'PIEZA-B');
+  if (q('#lf input[data-vn="v1"]').value !== 'PIEZA-B') {
+    throw new Error(q('#lf input[data-vn="v1"]').value);
+  }
+});
+step('escribir el nombre NO cambia de modelo activo', () => {
+  const antes = S().active;
+  const el = q('#lf input[data-vn="v1"]');
+  el.click();
+  if (S().active !== antes) throw new Error('cambio a ' + S().active);
+});
+step('la tarjeta entera sigue activando el modelo', () => {
+  if (!q('#lf .ds[data-vsel="v1"]')) throw new Error('la tarjeta no activa');
+});
+
+step('la cuadricula y los pedestales NO cuelgan de la colocacion', () => {
+  const G = window.BARCOMP.groupHost;
+  for (const k of ['grid', 'fix']) {
+    if (G(k) !== 'world') throw new Error(k + ' cuelga de ' + G(k));
+  }
+  for (const k of ['nom', 'var', 'meas', 'pred', 'diff', 'dev', 'marks', 'pts']) {
+    if (G(k) !== 'root') throw new Error(k + ' cuelga de ' + G(k));
+  }
+});
+step('mover la colocacion mueve la pieza, no la cuadricula', () => {
+  /* las etiquetas se proyectan a traves de la colocacion: si la pieza se movio,
+     se movieron. La cuadricula no tiene etiquetas y vive en `world`. */
+  const pos = () => {
+    window.BARCOMP.drawLabels();      // se pinta en el bucle: hay que forzarlo
+    return [...document.querySelectorAll('#labels .lbl')]
+      .map(e => e.style.left + ',' + e.style.top).join('|');
+  };
+  const antes = pos();
+  setval('input[data-pl="rz"]', '40');
+  setval('input[data-pl="z"]', '120');
+  if (pos() === antes) throw new Error('la pieza no se movio');
+  click('[data-a="placereset"]');
+});
+
+step('el indicador de ejes pinta los tres', () => {
+  const g = q('#gizmo svg');
+  if (!g) throw new Error('sin svg');
+  const txt = [...g.querySelectorAll('text')].map(x => x.textContent).sort().join('');
+  if (txt !== 'XYZ') throw new Error('etiquetas: ' + txt);
+  if (g.querySelectorAll('line').length !== 3) throw new Error('no son 3 ejes');
+});
+step('el indicador de ejes gira con la vista', () => {
+  /* se pinta en el bucle de animacion, que no ha corrido todavia: se fuerza */
+  const pos = () => {
+    window.BARCOMP.drawGizmo();
+    return [...q('#gizmo svg').querySelectorAll('circle')]
+      .map(c => c.getAttribute('cx') + ',' + c.getAttribute('cy')).join('|');
+  };
+  click('[data-v="top"]');
+  const a = pos();
+  click('[data-v="side"]');
+  if (pos() === a) throw new Error('no se movio: ' + a);
+});
+step('el indicador de ejes gira con la colocacion', () => {
+  const pos = () => {
+    window.BARCOMP.drawGizmo();
+    return [...q('#gizmo svg').querySelectorAll('circle')]
+      .map(c => c.getAttribute('cx') + ',' + c.getAttribute('cy')).join('|');
+  };
+  const a = pos();
+  setval('input[data-pl="rz"]', '55');
+  if (pos() === a) throw new Error('la colocacion no lo movio');
+  setval('input[data-pl="rz"]', '0');
+});
+
+step('duplicar modelo', () => click('[data-a="vardup"]'));
+step('hay dos modelos', () => { if (S().variants.length !== 2) throw new Error(S().variants.length); });
+step('Δ en la copia', () => setval('input[data-bd="5"][data-k="rot"]', '3'));
+step('anclaje end/best/start', () => {
+  check('input[data-an="end"]', true);
+  check('input[data-an="best"]', true);
+  check('input[data-an="start"]', true);
+});
+step('marcar y devolver la referencia', () => {
+  click(`[data-vr="${S().variants[1].id}"]`);
+  click('[data-vr="v1"]');
+  click('[data-vsel="v1"]');
+});
+step('capas diff / pred', () => {
+  check('input[data-ly="diff"]', false);
+  check('input[data-ly="diff"]', true);
+  check('input[data-ly="pred"]', true);
+});
+step('fundir Δ', () => click('[data-a="bake"]'));
+
+/* ---------------------------------------------------------- colocación -- */
+step('colocación: girar Z', () => setval('input[data-pl="rz"]', '35'));
+step('colocación: girar X', () => setval('input[data-pl="rx"]', '-15'));
+step('colocación: mover X', () => setval('input[data-pl="x"]', '250'));
+step('colocación: cambiar el pivote', () => setval('select[data-plp]', '6'));
+step('la colocación NO toca el modelo', () => {
+  const f = S().model.bends[0].feed;
+  if (Math.abs(f - 140) > 1e-9) throw new Error('el avance cambió a ' + f);
+});
+step('la colocación mueve lo que se dibuja', () => {
+  const M = window.BARCOMP.E.placeTransform(S().place,
+    window.BARCOMP.E.fk(S().model).pis[S().place.pivot]);
+  if (Math.abs(M.determinant() - 1) > 1e-9) throw new Error('no es rígida');
+});
+step('colocación: restablecer', () => click('[data-a="placereset"]'));
+
+/* ------------------------------------------------- puntos de referencia -- */
+step('pestaña Puntos', () => click('#tabs [data-t="points"]'));
+step('mover un PI', () => setval('input[data-p="4"][data-k="z"]', '60'));
+step('insertar y borrar un punto', () => {
+  click('tr[data-r="3"]'); click('[data-a="insp"]');
+  click('tr[data-r="3"]'); click('[data-a="delp"]');
+});
+step('agregar punto de referencia', () => { click('tr[data-r="4"]'); click('[data-a="addmark"]'); });
+step('el punto quedó en ST', () => { if (!S().marks.length) throw new Error('sin marks'); });
+step('mover el punto de referencia', () => setval('input[data-mk="mk1"][data-k="z"]', '120'));
+step('renombrar el punto', () => setval('input[data-mk="mk1"][data-k="name"]', 'apoyo A'));
+step('el nombre se guardó', () => { if (S().marks[0].name !== 'apoyo A') throw new Error(S().marks[0].name); });
+step('la tabla muestra la distancia al PI', () => {
+  const t = document.querySelector('table.marks');
+  if (!t || !/\d/.test(t.textContent)) throw new Error('sin distancia');
+});
+step('ocultar y mostrar el punto', () => {
+  check('input[data-mv="mk1"]', false);
+  check('input[data-mv="mk1"]', true);
+});
+
+/* ------------------------------------------------------- compensación --- */
+step('simular desde el lateral de desviación', () => click('[data-a="sim"]'));
+step('la medición ya no es pestaña', () => {
+  if (document.querySelector('#tabs [data-t="meas"]')) throw new Error('sigue habiendo pestaña');
+  if (document.querySelectorAll('#tabs button').length !== 3) throw new Error('no son 3 pestañas');
+});
+step('el lateral derecho trae las estadísticas y la desviación por doblez', () => {
+  const side = q('#side');
+  if (side.querySelectorAll('.stat').length !== 4) throw new Error('faltan estadísticas');
+  const filas = side.querySelectorAll('table tbody tr').length;
+  if (filas !== S().model.bends.length) throw new Error('tabla de desviación con ' + filas);
+  if (!side.querySelector('input[data-pr="seed"]')) throw new Error('falta el proceso simulado');
+});
+step('pestaña Compensación', () => click('#tabs [data-t="comp"]'));
+step('ajuste manual: «+2» suma al cálculo', () => {
+  const antes = parseFloat(q('input[data-tw="0"][data-k="angle"]').value);
+  setval('input[data-tw="0"][data-k="angle"]', '+2');
+  const ahora = parseFloat(q('input[data-tw="0"][data-k="angle"]').value);
+  if (Math.abs(ahora - (antes + 2)) > 1e-6) throw new Error(antes + ' -> ' + ahora);
+});
+step('ajuste manual: número suelto reemplaza', () => {
+  setval('input[data-tw="1"][data-k="angle"]', '0.5');
+  const v = parseFloat(q('input[data-tw="1"][data-k="angle"]').value);
+  if (Math.abs(v - 0.5) > 1e-6) throw new Error('quedó en ' + v);
+});
+step('ajuste manual: cuenta sobre c', () => setval('input[data-tw="2"][data-k="angle"]', 'c*1.5'));
+step('ajuste manual: texto inválido se descarta', () => {
+  const prev = JSON.stringify(S().tweak[3]);
+  setval('input[data-tw="3"][data-k="angle"]', 'hola');
+  if (JSON.stringify(S().tweak[3]) !== prev) throw new Error('cambió con texto inválido');
+});
+step('el comando final incluye el ajuste', () => {
+  const fila = document.querySelectorAll('table.cmd tbody tr')[0];
+  const c = fila.querySelectorAll('td');
+  const now = parseFloat(c[2].textContent);
+  const dApp = parseFloat(c[4].querySelector('input').value);
+  const fin = parseFloat(c[5].textContent);
+  if (Math.abs(now + dApp - fin) > 2e-3) throw new Error(`${now} + ${dApp} != ${fin}`);
+});
+step('activar canto y avance añade columnas', () => {
+  check('input[data-c="doRot"]', true);
+  check('input[data-c="doFeed"]', true);
+  const th = document.querySelectorAll('table.cmd thead th').length;
+  if (th !== 14) throw new Error('columnas: ' + th);
+});
+step('aplicar compensación', () => click('[data-a="apply"]'));
+step('el ajuste se consume al aplicar', () => {
+  if (S().tweak.some(t => t.angle || t.rot || t.feed)) throw new Error('el ajuste sigue puesto');
+});
+step('verificar 2.ª pieza', () => click('[data-a="verify"]'));
+step('reporte', () => click('[data-a="report"]'));
+step('reset de comandos', () => click('[data-a="resetcmd"]'));
+
+/* ---------------------------------------------------- panel redimensionado */
+step('la tabla va abajo, a todo el ancho, y la cinta encima', () => {
+  const bt = q('#bt').getBoundingClientRect();
+  const rb = q('#rb').getBoundingClientRect();
+  const app = q('#app').getBoundingClientRect();
+  if (bt.width < app.width - 1) throw new Error('la tabla no ocupa el ancho: ' + bt.width);
+  if (rb.width < app.width - 1) throw new Error('la cinta no ocupa el ancho: ' + rb.width);
+  if (!(rb.bottom <= bt.top + 1)) throw new Error('la cinta no está encima de la tabla');
+  if (!(rb.height < 110)) throw new Error('la cinta no es una banda fina: ' + rb.height);
+});
+step('la tabla de 13 columnas cabe sin desplazar en X', () => {
+  click('#tabs [data-t="model"]');
+  const t = q('table.lra');
+  if (t.scrollWidth > t.parentElement.clientWidth + 1) {
+    throw new Error(t.scrollWidth + ' px en ' + t.parentElement.clientWidth);
+  }
+});
+step('el tirador horizontal sube y baja la tabla', () => {
+  const antes = q('#bt').getBoundingClientRect().height;
+  document.documentElement.style.setProperty('--btH', '420px');
+  window.dispatchEvent(new Event('resize'));
+  const ahora = q('#bt').getBoundingClientRect().height;
+  if (!(ahora > antes + 50)) throw new Error(antes + ' -> ' + ahora);
+});
+step('el 3D nunca baja de 200 px de alto', () => {
+  document.documentElement.style.setProperty('--btH', '5000px');
+  window.dispatchEvent(new Event('resize'));
+  const h = q('#vpwrap').getBoundingClientRect().height;
+  if (h < 199) throw new Error('el 3D se quedó en ' + h);
+  document.documentElement.style.setProperty('--btH', '300px');
+  window.dispatchEvent(new Event('resize'));
+});
+step('el lienzo no invade la cinta ni la tabla', () => {
+  const cv = q('#vp').getBoundingClientRect();
+  const rb = q('#rb').getBoundingClientRect();
+  if (cv.bottom > rb.top + 1) {
+    throw new Error(`lienzo hasta ${cv.bottom.toFixed(0)} px, cinta empieza en ${rb.top.toFixed(0)} px`);
+  }
+});
+
+step('el lienzo no invade el panel derecho', () => {
+  document.documentElement.style.setProperty('--rtW', '780px');
+  window.dispatchEvent(new Event('resize'));
+  const cv = document.querySelector('#vp').getBoundingClientRect();
+  const rt = document.querySelector('#rt').getBoundingClientRect();
+  if (cv.right > rt.left + 1) {
+    throw new Error(`lienzo hasta ${cv.right.toFixed(0)} px, panel empieza en ${rt.left.toFixed(0)} px`);
+  }
+});
+step('y tampoco al volver a estrecharlo', () => {
+  document.documentElement.style.setProperty('--rtW', '420px');
+  window.dispatchEvent(new Event('resize'));
+  const cv = document.querySelector('#vp').getBoundingClientRect();
+  const rt = document.querySelector('#rt').getBoundingClientRect();
+  if (cv.right > rt.left + 1) throw new Error('invade al estrechar');
+  if (cv.width < 100) throw new Error('el lienzo se quedó en ' + cv.width);
+});
+
+/* ---------------------------------------------------------------- E/S --- */
+step('el JSON guardado lleva tema e idioma', () => {
+  click('[data-th="light"]');
+  const doc = window.BARCOMP.E.toDoc(S().model, S().command, S().comp, S().proc, [],
+    S().variants, S().ref, S().anchor,
+    { place: S().place, marks: S().marks, tweak: S().tweak,
+      ui: { theme: S().theme, lang: 'es' } });
+  if (doc.ui.theme !== 'light') throw new Error('tema no guardado: ' + doc.ui.theme);
+  click('[data-th="system"]');
+});
+step('guardar JSON conserva colocación y cotas', () => {
+  const doc = window.BARCOMP.E.toDoc(S().model, S().command, S().comp, S().proc,
+    S().datasets, S().variants, S().ref, S().anchor,
+    { place: S().place, marks: S().marks, tweak: S().tweak });
+  if (!doc.marks.length) throw new Error('el documento no lleva las cotas');
+  const rt = window.BARCOMP.E.fromDoc(JSON.parse(JSON.stringify(doc)));
+  if (rt.marks[0].name !== 'apoyo A') throw new Error('la cota no volvió');
+});
+step('modelo nuevo y demo', () => { click('[data-a="new"]'); click('[data-a="demo"]'); });
+step('demo limpia las cotas', () => { if (S().marks.length) throw new Error('quedaron cotas'); });
+
+return log.join('\n');
