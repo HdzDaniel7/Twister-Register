@@ -10,6 +10,7 @@ import {
   ST, V, VAR_COLORS, syncModel, newVid, loadModel, refModel,
   activeDataset, addDataset, syncCommand, resetCommand,
   addMark, setMarks, syncTweak, zeroTweak, compensatedCommand, loopMeasured,
+  measuredSpringback,
 } from '../state.ts';
 import { rebuildScene, fitView } from '../scene.ts';
 import { drawRibbon } from '../ribbon.ts';
@@ -210,7 +211,7 @@ function openJson(): void {
       for (const x of d.datasets) {
         const ds = addDataset(
           { ...d.model, bends: (x.bends || []).map(E.bendFrom), tail: x.tail ?? d.model.tail },
-          x.name || '?', x.src || '');
+          x.name || '?', x.src || '', x.cmd);
         ds.color = x.color || ds.color;
       }
       renderAll(); fitView();
@@ -317,6 +318,16 @@ export function action(a: string): void {
     case 'resetcmd':
       resetCommand(); zeroTweak(); ST.pred = null;
       renderPanels(); rebuildScene(); return;
+    case 'usesb': {
+      /* adoptar el resorte medido NO es automático, a propósito: el número
+         viene con dispersión y con un aviso si depende del ángulo, y decidir
+         si vale es del ingeniero, no del programa */
+      const sb = measuredSpringback();
+      if (!sb) { alert(T('noMeas')); return; }
+      if (sb.W.stat.n) ST.proc.sbW = +sb.W.stat.med.toFixed(3);
+      if (sb.T.stat.n) ST.proc.sbT = +sb.T.stat.med.toFixed(3);
+      renderSide(); renderRight(); return;
+    }
     case 'zerotw':
       zeroTweak(); renderRight(); return;
 

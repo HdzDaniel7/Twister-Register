@@ -215,7 +215,23 @@ export type Dataset = {
   /** opcional a propósito: addDataset() crea la pieza sin `dev` y computeDev()
    *  la rellena en la línea siguiente. Todo lo que la lee después usa `dev!`. */
   dev?: Deviations | null;
+  /** EL COMANDO CON EL QUE SE FABRICÓ esta pieza, copiado al darla de alta.
+   *
+   *  Sin esto no se puede estimar el resorte: `sb = 1 − medido/comandado`, y el
+   *  comando de ahora ya no es el de entonces en cuanto se aplica una
+   *  compensación. Opcional: los archivos anteriores no lo traen y ahí solo
+   *  queda suponer el comando actual. */
+  cmd?: Bend[];
 };
+
+/** El resorte estimado de una orientación: la muestra resumida, más la recta
+ *  que dice si depende del ángulo comandado. `slope` en %/° y `r` la
+ *  correlación: con |r| alto, una constante única no describe el proceso. */
+export type SbFit = { stat: Stat; slope: number; r: number };
+
+/** El resorte medido, separado por orientación: de canto (W) y de plano (T)
+ *  tienen constantes elásticas distintas y no se pueden mezclar. */
+export type Springback = { W: SbFit; T: SbFit };
 
 /** Resumen robusto de una muestra: mediana, MAD y el MAD escalado a sigma.
  *  Mediana y MAD porque un PI mal extraído produce un doblez absurdo y una
@@ -258,7 +274,8 @@ export type Doc = {
   comp: Comp;
   proc: Proc;
   /** piezas medidas: solo lo que hace falta para reconstruirlas, sin `dev` */
-  datasets: { name: string; color: string; src: string; bends: Bend[]; tail: number }[];
+  datasets: { name: string; color: string; src: string; bends: Bend[]; tail: number;
+              cmd?: Bend[] }[];
   ref?: string | null;
   anchor?: AnchorMode;
   variants?: Variant[];
@@ -281,7 +298,8 @@ export type LoadedDoc = {
   legacy: boolean;
   comp: Comp;
   proc: Proc;
-  datasets: { name: string; color: string; src: string; bends: Bend[]; tail: number }[];
+  datasets: { name: string; color: string; src: string; bends: Bend[]; tail: number;
+              cmd?: Bend[] }[];
   anchor: AnchorMode;
   variants: Variant[];
   ref: string | null;

@@ -4,6 +4,7 @@
    ========================================================================= */
 import type {
   Bend, Proc, Orientation, Comp, Model, DatumMode, Deviations, Stat, BendStat,
+  SbFit, Springback,
 } from '../types.ts';
 import { clamp, mulberry32, gauss, wrap180, applyMat } from './math.ts';
 import { bendFrom, newBend } from './bend.ts';
@@ -107,6 +108,61 @@ export function medianPart(pieces: Bend[][]): Bend[] {
     }));
   }
   return out;
+}
+
+/* ------------------------------------------------------- resorte medido --
+   `sbW` y `sbT` eran dos deslizadores que solo alimentaban la pieza virtual.
+   Con piezas medidas de verdad, el resorte se ESTIMA:
+
+     sb = 100 · (1 − ángulo medido / ángulo comandado)
+
+   separado por orientación, porque doblar contra el ancho y contra el espesor
+   no tiene la misma constante elástica.                                     */
+
+/** Estima el resorte a partir de pares (comando, medida).
+ *
+ *  Devuelve mediana y dispersión por orientación, y además la recta `sb` vs
+ *  `ángulo comandado`: si el resorte depende del ángulo, una constante única
+ *  miente, y eso hay que decirlo en vez de ajustar en silencio.
+ *
+ *  Se descartan los dobleces casi rectos (|ángulo| < 1°): ahí la división
+ *  amplifica el ruido de medición hasta convertirlo en un resorte inventado.
+ */
+export function springback(
+  samples: { cmd: Bend[]; meas: Bend[] }[], ori: Orientation[],
+): Springback {
+  const bag: Record<Orientation, { sb: number[]; ang: number[] }> = {
+    W: { sb: [], ang: [] }, T: { sb: [], ang: [] },
+  };
+  for (const s of samples) {
+    const n = Math.min(s.cmd.length, s.meas.length, ori.length);
+    for (let i = 0; i < n; i++) {
+      const a = s.cmd[i].angle;
+      if (Math.abs(a) < 1) continue;
+      const sb = 100 * (1 - s.meas[i].angle / a);
+      if (!isFinite(sb)) continue;
+      const b = bag[ori[i] === 'W' ? 'W' : 'T'];
+      b.sb.push(sb); b.ang.push(Math.abs(a));
+    }
+  }
+  const fit = (b: { sb: number[]; ang: number[] }): SbFit => {
+    const stat = statOf(b.sb);
+    /* mínimos cuadrados sobre (ángulo, sb): la pendiente dice cuánto cambia el
+       resorte por grado, y r si esa dependencia es real o es dispersión */
+    const n = b.sb.length;
+    if (n < 3) return { stat, slope: 0, r: 0 };
+    const mx = b.ang.reduce((p, q) => p + q, 0) / n;
+    const my = b.sb.reduce((p, q) => p + q, 0) / n;
+    let sxy = 0, sxx = 0, syy = 0;
+    for (let i = 0; i < n; i++) {
+      const dx = b.ang[i] - mx, dy = b.sb[i] - my;
+      sxy += dx * dy; sxx += dx * dx; syy += dy * dy;
+    }
+    const slope = sxx > 1e-12 ? sxy / sxx : 0;
+    const r = sxx > 1e-12 && syy > 1e-12 ? sxy / Math.sqrt(sxx * syy) : 0;
+    return { stat, slope, r };
+  };
+  return { W: fit(bag.W), T: fit(bag.T) };
 }
 
 /* ------------------------------------------------------------- compensación */

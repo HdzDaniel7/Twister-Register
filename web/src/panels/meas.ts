@@ -5,7 +5,7 @@
 import * as E from '../engine.ts';
 import { T } from '../i18n.ts';
 import type { Model, Proc } from '../types.ts';
-import { ST, activeDataset } from '../state.ts';
+import { ST, activeDataset, measuredSpringback, simCount } from '../state.ts';
 import { fx, esc, cls, oriTag, sgn, srcTag } from './fmt.ts';
 
 /* --- pestaña MEDICIÓN --------------------------------------------------- */
@@ -20,6 +20,32 @@ export function paneMeas(M: Model): string {
   const rr = (k: keyof Proc, lab: string, min: number, max: number, st: number, suf: string): string => `<label>${lab}</label><div class="rangerow">
     <input type="range" data-pr="${k}" min="${min}" max="${max}" step="${st}" value="${p[k]}">
     <span class="val">${p[k]}${suf || ''}</span></div>`;
+  /* EL RESORTE MEDIDO. Hasta ahora sbW/sbT eran dos deslizadores que solo
+     alimentaban la pieza virtual; con piezas medidas se pueden estimar. Se
+     enseña con dispersión y con n, porque un número solo no dice si vale. */
+  const sb = measuredSpringback();
+  const sbSim = simCount();
+  const sbLine = (k: 'W' | 'T', lab: string): string => {
+    const f = sb ? sb[k] : null;
+    if (!f || !f.stat.n) return `<div class="sbrow"><span class="k">${lab}</span><span class="v-dim">—</span></div>`;
+    /* |r| alto = el resorte cambia con el ángulo comandado, y entonces una
+       constante única no describe el proceso por bien medida que esté */
+    const dep = Math.abs(f.r) > .6;
+    return `<div class="sbrow"><span class="k">${lab}</span>
+      <span class="v">${fx(f.stat.med, 2)}<span class="u">%</span></span>
+      <span class="pm" title="${T('sbSpreadTip')}">±${fx(f.stat.sigma, 2)}</span>
+      <span class="n">n=${f.stat.n}</span>
+      ${dep ? `<span class="warn" title="${T('sbTrendTip')}">${T('sbTrend')
+        .replace('%s', fx(f.slope, 3)).replace('%r', fx(f.r, 2))}</span>` : ''}</div>`;
+  };
+  const sbBlock = `<div class="grp"><div class="eyebrow">${T('sbMeas')}</div><div class="body">
+    ${sbLine('W', T('sbW'))}${sbLine('T', T('sbT'))}
+    <div class="row mt6"><button class="btn sm grow" data-a="usesb"
+      ${sb && (sb.W.stat.n || sb.T.stat.n) ? '' : 'disabled'}>${T('sbUse')}</button></div>
+    <div class="hintline">${sbSim
+      ? T('sbCircular').replace('%n', String(sbSim))
+      : T('sbNote')}</div>
+  </div></div>`;
   const proc = `<div class="grp"><div class="eyebrow">${T('proc')}</div><div class="body">
     <div class="fgrid" style="grid-template-columns:1fr 1fr;gap:4px 8px">
       ${rr('sbW', T('sbW'), 0, 4, .05, '%')}${rr('sbT', T('sbT'), 0, 4, .05, '%')}
@@ -53,5 +79,5 @@ export function paneMeas(M: Model): string {
         <td class="${cls(D.dev!.feed[i], M.tol.feed)}">${sgn(D.dev!.feed[i], 2)}</td>
         <td class="${cls(D.dev!.point[i + 1], M.tol.point)}">${fx(D.dev!.point[i + 1], 2)}</td></tr>`).join('')}
     </tbody></table></div>
-  </div></div>`}${proc}</div>`;
+  </div></div>`}${sbBlock}${proc}</div>`;
 }

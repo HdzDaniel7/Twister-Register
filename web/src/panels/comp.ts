@@ -22,6 +22,9 @@ export function paneComp(M: Model): string {
   /* lo que sugiere el lazo, sin tocar */
   /* lo que consume el lazo: la pieza activa, o la mediana de las visibles */
   const piezas = loopPieces();
+  /* la casilla cuenta las que ENTRARÍAN si se marca —las visibles—, no las que
+     entran ahora: con la casilla apagada siempre sería «1» y no diría nada */
+  const vis = ST.datasets.filter(d => d.visible);
   const meas = loopMeasured() || D.model.bends;
   const calc = E.compensate(cmd, M.bends, meas, C, ori);
   const pred = ST.pred;
@@ -67,7 +70,7 @@ export function paneComp(M: Model): string {
       `<label class="row" style="gap:4px"><input type="checkbox" data-c="${k}" ${C[k as 'doAngle' | 'doRot' | 'doFeed'] ? 'checked' : ''}>${T(l as I18nKey)}</label>`).join('')}</div>
     <label class="row" style="gap:4px;margin-top:4px" title="${T('batchTip')}">
       <input type="checkbox" data-c="batch" ${C.batch ? 'checked' : ''}>
-      ${T('batchUse')} <b>${piezas.length}</b></label>
+      ${T('batchUse')} <b>${vis.length}</b></label>
     <div class="hintline">${T('formula')}</div>
     ${C.batch && piezas.length > 1
       ? `<div class="hintline">${T('batchOn').replace('%n', String(piezas.length))}</div>`

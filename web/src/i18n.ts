@@ -28,6 +28,8 @@ type I18nKey =
   | 'seed' | 'simulate' | 'dNone' | 'deltas' | 'dA' | 'dR' | 'dF' | 'dP'
   | 'srcSim' | 'srcVerify' | 'srcMeas' | 'srcUnk' | 'impCsv' | 'impTip' | 'csvBad'
   | 'batchUse' | 'batchTip' | 'batchOn' | 'batchHint' | 'spread' | 'spreadTip'
+  | 'sbMeas' | 'sbUse' | 'sbNote' | 'sbCircular' | 'sbSpreadTip'
+  | 'sbTrend' | 'sbTrendTip'
   | 'srcSimTip' | 'srcVerifyTip' | 'srcMeasTip' | 'srcUnkTip'
   | 'statMaxA' | 'statRms' | 'statTip' | 'statOut' | 'gains' | 'gainW' | 'gainT' | 'what'
   | 'cAng' | 'cRot' | 'cFeed' | 'apply' | 'reset' | 'cmdTbl' | 'cNow' | 'cNew'
@@ -116,6 +118,22 @@ es: {
  spread: '±σ',
  spreadTip: 'Dispersión del ángulo entre las piezas visibles (MAD escalado). '
    + 'Grande junto a una desviación grande = mala puntería, no un doblez mal ajustado.',
+ /* El resorte deja de teclearse a ojo: se estima de las piezas medidas y se
+    enseña con su dispersión, que es lo que dice si el número vale. */
+ sbMeas: 'Resorte medido',
+ sbUse: 'Usar en el simulador',
+ sbNote: 'sb = 1 − ángulo medido / ángulo comandado, por orientación. '
+   + 'Mediana ± σ robusta sobre los dobleces de las piezas visibles; '
+   + 'los casi rectos (<1°) no entran.',
+ sbCircular: 'Aviso: %n de las piezas visibles son simuladas. Estimar el resorte '
+   + 'de una pieza inventada devuelve lo que ya está escrito abajo — es un '
+   + 'ciclo cerrado, no una medición.',
+ sbSpreadTip: 'Dispersión entre dobleces y entre piezas. Si es del tamaño del propio '
+   + 'valor, ese resorte no está medido: está adivinado.',
+ sbTrend: 'depende del ángulo (%s %/°, r=%r)',
+ sbTrendTip: 'El resorte cambia con el ángulo comandado, así que una constante única '
+   + 'no describe el proceso. Con esta señal, ajuste por rango de ángulo en vez '
+   + 'de adoptar un solo número.',
  srcSimTip: 'Pieza inventada por el simulador. No se ha medido nada.',
  srcVerifyTip: 'Verificación simulada tras aplicar la compensación. Tampoco es una medida.',
  srcMeasTip: 'Pieza medida importada.',
@@ -207,6 +225,20 @@ en: {
  spread: '±σ',
  spreadTip: 'Angle scatter across the visible parts (scaled MAD). Large next to a large '
    + 'deviation means poor repeatability, not a mis-set bend.',
+ sbMeas: 'Measured springback',
+ sbUse: 'Use in the simulator',
+ sbNote: 'sb = 1 − measured angle / commanded angle, per orientation. '
+   + 'Median ± robust σ over the bends of the visible parts; '
+   + 'near-straight ones (<1°) are left out.',
+ sbCircular: 'Warning: %n of the visible parts are simulated. Estimating springback '
+   + 'from an invented part returns what is already written below — that is a '
+   + 'closed loop, not a measurement.',
+ sbSpreadTip: 'Scatter across bends and parts. If it is as large as the value itself, '
+   + 'that springback is not measured: it is guessed.',
+ sbTrend: 'depends on the angle (%s %/°, r=%r)',
+ sbTrendTip: 'Springback changes with the commanded angle, so a single constant does not '
+   + 'describe the process. With this flag, fit per angle range instead of '
+   + 'adopting one number.',
  srcSimTip: 'Part invented by the simulator. Nothing was measured.',
  srcVerifyTip: 'Simulated check after applying compensation. Not a measurement either.',
  srcMeasTip: 'Imported measured part.',
@@ -303,6 +335,20 @@ de: {
  spreadTip: 'Streuung des Winkels über die sichtbaren Teile (skalierter MAD). Groß neben '
    + 'einer großen Abweichung heißt schlechte Wiederholbarkeit, kein falsch '
    + 'eingestellter Bogen.',
+ sbMeas: 'Gemessene Rückfederung',
+ sbUse: 'Im Simulator verwenden',
+ sbNote: 'sb = 1 − gemessener Winkel / befohlener Winkel, je Orientierung. '
+   + 'Median ± robustes σ über die Bögen der sichtbaren Teile; '
+   + 'nahezu gerade (<1°) bleiben draußen.',
+ sbCircular: 'Achtung: %n der sichtbaren Teile sind simuliert. Die Rückfederung aus '
+   + 'einem erfundenen Teil zu schätzen liefert das, was unten schon steht — '
+   + 'ein geschlossener Kreis, keine Messung.',
+ sbSpreadTip: 'Streuung über Bögen und Teile. Ist sie so groß wie der Wert selbst, ist '
+   + 'diese Rückfederung nicht gemessen, sondern geraten.',
+ sbTrend: 'hängt vom Winkel ab (%s %/°, r=%r)',
+ sbTrendTip: 'Die Rückfederung ändert sich mit dem befohlenen Winkel, eine einzige '
+   + 'Konstante beschreibt den Prozess also nicht. Bei diesem Hinweis je '
+   + 'Winkelbereich anpassen, statt eine Zahl zu übernehmen.',
  srcSimTip: 'Vom Simulator erzeugtes Teil. Es wurde nichts gemessen.',
  srcVerifyTip: 'Simulierte Prüfung nach der Kompensation. Ebenfalls keine Messung.',
  srcMeasTip: 'Importiertes gemessenes Teil.',

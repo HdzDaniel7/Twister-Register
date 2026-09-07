@@ -609,6 +609,64 @@ console.log('\n— varias piezas medidas —');
 }
 
 /* ---------------------------------------------------------------------- */
+console.log('\n— resorte medido —');
+
+{
+  const ori = E.orientations(M);
+  const cmd = M.bends;
+
+  /* Sin ruido, la estimación tiene que devolver EXACTAMENTE las constantes con
+     las que el simulador fabricó la pieza: es la prueba de que la cuenta y su
+     inversa son la misma. */
+  const proc = { ...E.PROC_DEFAULT, sbW: 1.6, sbT: 1.0 };
+  const limpia = E.simulate(cmd, proc, ori, false);
+  const sb = E.springback([{ cmd, meas: limpia }], ori);
+  ok('sin ruido el resorte estimado es el que usó el simulador',
+     Math.abs(sb.W.stat.med - 1.6) < 1e-9 && Math.abs(sb.T.stat.med - 1.0) < 1e-9,
+     `W ${sb.W.stat.med.toFixed(4)} % · T ${sb.T.stat.med.toFixed(4)} %`);
+  ok('sin ruido la dispersión es cero',
+     sb.W.stat.sigma < 1e-9 && sb.T.stat.sigma < 1e-9);
+  ok('las dos orientaciones se estiman por separado',
+     sb.W.stat.n > 0 && sb.T.stat.n > 0 && sb.W.stat.n + sb.T.stat.n <= cmd.length);
+
+  /* Con ruido y varias piezas, la mediana sigue cayendo cerca. */
+  const piezas = [3, 11, 29, 47].map(seed =>
+    ({ cmd, meas: E.simulate(cmd, { ...proc, seed }, ori, true) }));
+  const sbn = E.springback(piezas, ori);
+  ok('con ruido la mediana sigue cerca del valor real',
+     Math.abs(sbn.W.stat.med - 1.6) < .3 && Math.abs(sbn.T.stat.med - 1.0) < .3,
+     `W ${sbn.W.stat.med.toFixed(3)} ± ${sbn.W.stat.sigma.toFixed(3)}`);
+  ok('con ruido la dispersión deja de ser cero', sbn.W.stat.sigma > 0);
+  ok('cuatro piezas dan cuatro veces la muestra de una',
+     sbn.W.stat.n === 4 * sb.W.stat.n);
+
+  /* Un doblez casi recto no entra: ahí la división amplifica el ruido hasta
+     inventar un resorte. */
+  const conRecto = E.normalizeModel({
+    ...M, bends: [E.newBend({ feed: 100, rot: 0, angle: 0.3, radius: 30 }), ...M.bends],
+  });
+  const oriR = E.orientations(conRecto);
+  const sbR = E.springback(
+    [{ cmd: conRecto.bends, meas: E.simulate(conRecto.bends, proc, oriR, false) }], oriR);
+  ok('un doblez de 0.3° no entra en la estimación',
+     sbR.W.stat.n + sbR.T.stat.n === sb.W.stat.n + sb.T.stat.n,
+     `${sbR.W.stat.n + sbR.T.stat.n} muestras`);
+
+  /* Y la señal que evita el error de fondo: si el resorte depende del ángulo,
+     una constante única miente y hay que decirlo. */
+  const dep = cmd.map(b => E.newBend({
+    ...b, angle: b.angle * (1 - (0.5 + 0.02 * Math.abs(b.angle)) / 100),
+  }));
+  const sbD = E.springback([{ cmd, meas: dep }], ori);
+  ok('se detecta que el resorte depende del ángulo comandado',
+     Math.abs(sbD.W.r) > .9 && sbD.W.slope > 0,
+     `r ${sbD.W.r.toFixed(3)}, pendiente ${sbD.W.slope.toFixed(4)} %/°`);
+  ok('con resorte constante no se señala dependencia', Math.abs(sb.W.r) < 1e-9);
+  ok('sin piezas no revienta y devuelve n=0',
+     E.springback([], ori).W.stat.n === 0);
+}
+
+/* ---------------------------------------------------------------------- */
 console.log('\n— colocación en el espacio —');
 
 /* La colocación es SOLO presentación: mueve y gira la escena entera alrededor

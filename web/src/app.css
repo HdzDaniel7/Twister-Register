@@ -317,6 +317,18 @@ td.dcol input[type=text]{text-align:right}
 .srcbadge.sim{color:var(--synthetic)}
 .srcbadge.meas{color:var(--measured)}
 .srcbadge.unk{color:var(--dim2)}
+
+/* ---------- resorte medido ----------
+   Una cifra sola no dice si vale: al lado van la dispersión y el n, y en
+   ámbar el aviso de que el resorte depende del ángulo comandado. */
+.sbrow{display:flex;align-items:baseline;gap:6px;padding:2px 0;
+  font-family:var(--mono);font-size:11px;font-variant-numeric:tabular-nums}
+.sbrow .k{flex:1;color:var(--dim);font-family:var(--sans);font-size:10px;letter-spacing:.06em}
+.sbrow .v{color:var(--txt);font-size:13px}
+.sbrow .v .u{color:var(--dim);font-size:9px;margin-left:1px}
+.sbrow .pm{color:var(--dim2);cursor:help}
+.sbrow .n{color:var(--dim2);font-size:10px}
+.sbrow .warn{flex-basis:100%;color:var(--warn);font-family:var(--sans);font-size:9.5px;cursor:help}
 .linkbtn{background:none;border:0;color:var(--dim2);cursor:pointer;padding:3px 0 0;
   font-family:var(--sans);font-size:9.5px;letter-spacing:.06em;text-align:left;width:100%}
 .linkbtn:hover{color:var(--nominal);text-decoration:underline}

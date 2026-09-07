@@ -9,6 +9,7 @@
 import * as E from './engine.ts';
 import type {
   AnchorMode, Bend, Comp, Dataset, DatumMode, Mark, Model, Place, Proc, State, Tweak, Variant,
+ Springback,
 } from './types.ts';
 import type { Matrix4, Vector3 } from 'three';
 
@@ -152,6 +153,27 @@ export function loopMeasured(): Bend[] | null {
   return ps.length === 1 ? ps[0].model.bends : E.medianPart(ps.map(d => d.model.bends));
 }
 
+/** El resorte MEDIDO de las piezas visibles.
+ *
+ *  Cada pieza se compara con el comando que la fabricó, no con el de ahora:
+ *  aplicar una compensación cambia ST.command y la cuenta dejaría de tener
+ *  sentido. Una pieza de un archivo anterior no trae ese comando; ahí se
+ *  supone el actual, que es lo único que hay. */
+export function measuredSpringback(): Springback | null {
+  const vis = ST.datasets.filter(d => d.visible);
+  if (!vis.length) return null;
+  const M = ST.model!;
+  return E.springback(
+    vis.map(d => ({ cmd: d.cmd && d.cmd.length ? d.cmd : ST.command, meas: d.model.bends })),
+    E.orientations(M));
+}
+
+/** Cuántas de las piezas visibles son inventadas. Estimar el resorte con
+ *  piezas simuladas devuelve lo que ya está escrito en el simulador: es un
+ *  ciclo cerrado, no una medida, y hay que decirlo. */
+export const simCount = (): number =>
+  ST.datasets.filter(d => d.visible && (d.src === 'sim' || d.src === 'verify')).length;
+
 /** Comando compensado: lo que calcula el lazo MÁS el ajuste escrito a mano.
  *  Es lo único que se aplica y lo que muestra la tabla. */
 export function compensatedCommand(meas: Bend[]): Bend[] {
@@ -179,7 +201,7 @@ export function computeDev(ds: Dataset): Dataset {
 }
 export const recomputeAll = (): void => { ST.datasets.forEach(computeDev); };
 
-export function addDataset(model: Model, name: string, src: string): Dataset {
+export function addDataset(model: Model, name: string, src: string, cmd?: Bend[]): Dataset {
   dsSeq += 1;
   /* `dev` lo rellena computeDev() en la línea de abajo, y por eso el tipo lo
      declara opcional: aquí no hay ningún null que el runtime llegue a ver. */
@@ -187,6 +209,9 @@ export function addDataset(model: Model, name: string, src: string): Dataset {
     id: `ds${dsSeq}`, name, src,
     color: DS_COLORS[ST.datasets.length % DS_COLORS.length],
     visible: true, model, pis: [],
+    /* con qué comando se fabricó: hay que copiarlo AHORA, porque en cuanto se
+       aplique una compensación ST.command deja de ser el de esta pieza */
+    cmd: (cmd || ST.command || model.bends).map(b => E.bendFrom(b)),
   };
   ST.datasets.push(ds);
   ST.dsActive = ds.id;

@@ -648,6 +648,37 @@ step('con dos piezas visibles aparece la columna de dispersión', () => {
   if (!th.includes('±σ')) throw new Error('sin columna de dispersión: ' + th.join('|'));
 });
 
+/* El resorte deja de teclearse a ojo. Con piezas medidas se estima, y la
+   pieza recuerda con que comando se fabrico: sin eso, aplicar una
+   compensacion cambiaria ST.command y la cuenta dejaria de valer. */
+step('el resorte medido sale del lateral con su dispersión', () => {
+  const side = q('#side');
+  const filas = side.querySelectorAll('.sbrow');
+  if (filas.length !== 2) throw new Error('no hay dos orientaciones: ' + filas.length);
+  const txt = side.textContent;
+  if (!/n=\d+/.test(txt)) throw new Error('no dice cuántas muestras tiene');
+  if (!side.querySelector('[data-a="usesb"]')) throw new Error('no se puede adoptar');
+  if (!/simulad/i.test(txt)) throw new Error('no avisa de que las piezas son simuladas');
+});
+step('cada pieza recuerda el comando con el que se fabricó', () => {
+  const ds = S().datasets;
+  if (!ds.every(d => d.cmd && d.cmd.length)) throw new Error('alguna pieza sin comando');
+  const doc = Eg().toDoc(S().model, S().command, S().comp, S().proc, ds, S().variants,
+                         S().ref, S().anchor, {});
+  if (!doc.datasets[0].cmd) throw new Error('el comando no viaja en el JSON');
+});
+step('adoptar el resorte medido escribe el simulador', () => {
+  const antes = S().proc.sbW;
+  click('[data-a="usesb"]');
+  const sb = window.BARCOMP.E.springback(
+    S().datasets.filter(d => d.visible).map(d => ({ cmd: d.cmd, meas: d.model.bends })),
+    window.BARCOMP.E.orientations(S().model));
+  if (Math.abs(S().proc.sbW - +sb.W.stat.med.toFixed(3)) > 1e-9) {
+    throw new Error('sbW no quedó en la mediana medida: ' + S().proc.sbW);
+  }
+  S().proc.sbW = antes;
+});
+
 step('pestaña Compensación', () => click('#tabs [data-t="comp"]'));
 step('el lazo puede leer la mediana del lote en vez de la última pieza', () => {
   const antes = [...document.querySelectorAll('#panes table.cmd tbody tr')]

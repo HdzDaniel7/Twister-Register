@@ -31,7 +31,11 @@ export const SCHEMA_LEGACY: string[] = ['barcomp/1.0', 'barcomp/2.0'];
 /* ---------------------------------------------------------------------- E/S */
 /** Una pieza medida, tal como la ve `toDoc()`: solo lo que hace falta para
  *  reconstruirla — `pis`/`dev` no se guardan, se recalculan al abrir. */
-type ToDocDataset = { name: string; color: string; src?: string; model: Model };
+type ToDocDataset = {
+  name: string; color: string; src?: string; model: Model;
+  /** el comando con el que se fabricó, si la pieza lo trae */
+  cmd?: Bend[];
+};
 /** Lo demás que lleva el documento: presentación y preferencias, nada de
  *  cinemática. Todo opcional porque toDoc() rellena cualquier falta. */
 type ToDocExtra = {
@@ -62,6 +66,9 @@ export function toDoc(
     datasets: datasets.map(d => ({
       name: d.name, color: d.color, src: d.src || '',
       bends: d.model.bends, tail: d.model.tail,
+      /* el comando con el que se fabricó: clave opcional, y sin ella no se
+         puede estimar el resorte de una pieza abierta de un archivo */
+      ...(d.cmd && d.cmd.length ? { cmd: d.cmd } : {}),
     })),
     // claves opcionales: los archivos viejos siguen abriendo sin ellas
     ref, anchor,
@@ -168,8 +175,10 @@ export function fromDoc(d: Doc): LoadedDoc {
     legacy,
     comp: { ...COMP_DEFAULT, ...(d.comp || {}) },
     proc: { ...PROC_DEFAULT, ...(d.proc || {}) },
+    /* En un archivo anterior el `cmd` no existía, y si existiera estaría en la
+       cinemática vieja: se descarta en vez de migrarlo a medias. */
     datasets: (d.datasets || []).map(x => (legacy
-      ? { ...x, bends: migrateModel({ ...d.model, bends: x.bends || [], tail: x.tail ?? d.model.tail }, from).bends }
+      ? { ...x, cmd: undefined, bends: migrateModel({ ...d.model, bends: x.bends || [], tail: x.tail ?? d.model.tail }, from).bends }
       : x)),
     anchor: d.anchor || 'start',
     variants,
