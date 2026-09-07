@@ -1,4 +1,3 @@
-// @ts-nocheck  — puerto en curso: este archivo aún no está anotado. Se quita al anotarlo.
 /* ---------------------------------------------------------------- paneles --
    No hay framework ni estado en el DOM: cada panel se reconstruye entero a
    partir de ST. Consecuencia: un renderRight() mientras alguien escribe le
@@ -10,24 +9,32 @@
 import { Vector3 } from 'three';
 import * as E from './engine.ts';
 import { T, LANG, LANGS } from './i18n.ts';
+import type { DeltaKey, Model, Orientation, Place, Proc, Variant } from './types.ts';
 import {
   ST, LAYER_DEF, V, REF, refModel, activeDataset, activeShift, syncTweak,
 } from './state.ts';
 
-const $ = s => document.querySelector(s);
+/** i18n.ts no exporta `I18nKey`: se deriva aquí del propio parámetro de T()
+ *  para no duplicar la lista de 169 claves y para que tsc siga comprobando
+ *  contra la misma unión si esa lista cambia. */
+type I18nKey = Parameters<typeof T>[0];
+
+/** Selector con el tipo del elemento esperado; por defecto HTMLElement, que
+ *  es lo que necesitan .innerHTML/.textContent/.scrollTop/.title/.focus. */
+const $ = <T extends Element = HTMLElement>(s: string): T | null => document.querySelector<T>(s);
 
 /* Las pestañas de abajo. La MEDICIÓN ya no es una pestaña: sus estadísticas y
    su tabla de desviación viven fijas en el lateral derecho, porque son lo que
    se mira MIENTRAS se toca la tabla. */
 export const TABS = ['model', 'points', 'comp'];
-export const fx = (v, n = 2) =>
+export const fx = (v: number | null | undefined, n: number = 2): string =>
   (v === null || v === undefined || !isFinite(v)) ? '—' : v.toFixed(n);
 /** Valor para un campo EDITABLE. Al menos `min` decimales y hasta `max`, sin
  *  ceros de relleno de más: 30 se ve «30.00», 17.905 se ve entero. Es lo que
  *  impide que repintar la tabla se coma el tercer decimal que alguien tecleó.
  *
  *  fx() se queda para las celdas de LECTURA, donde el ancho fijo alinea mejor. */
-export const nx = (v, min = 2, max = 3) => {
+export const nx = (v: number | null | undefined, min: number = 2, max: number = 3): string => {
   if (v === null || v === undefined || !isFinite(v)) return '';
   const r = +(+v).toFixed(max);
   const dec = (String(r).split('.')[1] || '').length;
@@ -40,21 +47,23 @@ export const nx = (v, min = 2, max = 3) => {
  *  todo lo que no cae en la rejilla —con step=".1" un 17.905 es un error— y
  *  redondea al usar las flechas. El paso vive en `data-step`, que es lo que
  *  leen la rueda del ratón y Ctrl+flecha (ver stepField() en app.js). */
-export const nfield = (step, attrs, val, extra = '') =>
+export const nfield = (
+  step: string, attrs: string, val: number | null | undefined, extra: string = '',
+): string =>
   `<input type="number" step="any" data-step="${step}" ${attrs}
     value="${nx(val)}" ${extra}>`;
 
-export const esc = s => String(s).replace(/[&<>"]/g,
-  c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
-export const cls = (v, t) => Math.abs(v) <= t ? 'v-ok' : Math.abs(v) <= 2 * t ? 'v-warn' : 'v-bad';
+export const esc = (s: string): string => String(s).replace(/[&<>"]/g,
+  c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' } as Record<string, string>)[c]);
+export const cls = (v: number, t: number): string => Math.abs(v) <= t ? 'v-ok' : Math.abs(v) <= 2 * t ? 'v-warn' : 'v-bad';
 /** Insignia W/T. La letra sola no dice nada a quien llega nuevo: el tooltip
  *  lleva la explicación larga, que ya estaba traducida en los tres idiomas. */
-const oriTag = o => `<span class="ori ${o}" title="${T('or' + o)}">${o}</span>`;
-const sgn = (v, n) => (v > 0 ? '+' : '') + fx(v, n);
+const oriTag = (o: Orientation): string => `<span class="ori ${o}" title="${T(('or' + o) as I18nKey)}">${o}</span>`;
+const sgn = (v: number, n: number): string => (v > 0 ? '+' : '') + fx(v, n);
 
 /* ============================================================== armazón == */
-export function renderShell() {
-  $('#hd').innerHTML = `
+export function renderShell(): void {
+  $('#hd')!.innerHTML = `
    <div class="brand"><b>BARCOMP</b><span class="v">α</span><span class="sub">${T('sub')}</span></div>
    <div class="hspace"></div>
    <div class="hbtns">
@@ -66,21 +75,21 @@ export function renderShell() {
    </div>
    <div class="seg" style="margin-left:8px">
      ${[['system', '◐', 'thSys'], ['light', '☀', 'thLight'], ['dark', '☾', 'thDark']].map(
-       ([k, glifo, lab]) => `<button data-th="${k}" title="${T(lab)}" aria-label="${T(lab)}"
+       ([k, glifo, lab]) => `<button data-th="${k}" title="${T(lab as I18nKey)}" aria-label="${T(lab as I18nKey)}"
          class="${ST.theme === k ? 'on' : ''}">${glifo}</button>`).join('')}</div>
    <div class="seg" style="margin-left:6px">
      ${LANGS.map(l => `<button data-l="${l}" class="${LANG.cur === l ? 'on' : ''}">${l.toUpperCase()}</button>`).join('')}</div>`;
 
   /* los dos tiradores viven en el HTML estático: sus tooltips se ponen aquí,
      que es lo único que se vuelve a correr al cambiar de idioma */
-  const grip = (id, k) => { const el = $(id); if (el) el.title = T(k); };
+  const grip = (id: string, k: I18nKey): void => { const el = $(id); if (el) el.title = T(k); };
   grip('#rtgrip', 'gripW');
   grip('#btgrip', 'gripH');
 
-  $('#vptool').innerHTML = `
+  $('#vptool')!.innerHTML = `
     <span class="tag">${T('view')}</span>
     ${['iso', 'top', 'front', 'side'].map(v =>
-      `<button class="btn sm" data-v="${v}">${T('v' + v[0].toUpperCase() + v.slice(1))}</button>`).join('')}
+      `<button class="btn sm" data-v="${v}">${T(('v' + v[0].toUpperCase() + v.slice(1)) as I18nKey)}</button>`).join('')}
     <button class="btn sm" data-v="fit">${T('vFit')}</button>
     <span class="tag" style="margin-left:6px">${T('exag')}</span>
     <input type="range" id="exag" min="0" max="120" step="1" value="${ST.view.exag}" style="width:80px">
@@ -91,7 +100,7 @@ export function renderShell() {
 
   const tol = ST.model ? ST.model.tol.point : 1;
   const act = V(), ref = REF();
-  $('#vplegend').innerHTML = `
+  $('#vplegend')!.innerHTML = `
     <div class="tag" style="margin-bottom:4px">${T('legend')}</div>
     <div class="row"><span class="dot" style="background:${act ? act.color : '#3FA9F5'}"></span>${esc(act ? act.name : '')}</div>
     ${ref && ref.id !== act.id ? `<div class="row"><span class="dot" style="background:${ref.color}"></span>${esc(ref.name)} · ${T('isRef')}</div>` : ''}
@@ -100,13 +109,13 @@ export function renderShell() {
     <div class="scalebar"><div class="tag">${T('devscale')}</div><div class="grad"></div>
       <div class="ends"><span>0</span><span>${fx(tol, 2)}</span><span>${fx(tol * 2, 2)} mm</span></div></div>`;
 
-  $('#hint').textContent = T('hint');
-  $('#tabs').innerHTML = TABS.map(t =>
-    `<button data-t="${t}" class="${ST.tab === t ? 'on' : ''}">${T(t)}</button>`).join('');
+  $('#hint')!.textContent = T('hint');
+  $('#tabs')!.innerHTML = TABS.map(t =>
+    `<button data-t="${t}" class="${ST.tab === t ? 'on' : ''}">${T(t as I18nKey)}</button>`).join('');
 }
 
 /* ========================================================= panel izquierdo */
-export function renderLeft() {
+export function renderLeft(): void {
   const L = ST.layers, ref = refModel();
   const anchors = [['start', 'aStart'], ['end', 'aEnd'], ['best', 'aBest']];
   /* el pivote de la colocación es un PI del modelo de referencia */
@@ -116,7 +125,7 @@ export function renderLeft() {
     return `<option value="${i}" ${ST.place.pivot === i ? 'selected' : ''}>${nm}</option>`;
   }).join('');
 
-  const vcard = v => {
+  const vcard = (v: Variant): string => {
     const act = v.id === ST.active, isref = v.id === ST.ref;
     const vm = E.effectiveModel(v);
     const nd = v.deltas.reduce((a, d) => a + E.DELTA_KEYS.filter(k => d[k]).length, 0);
@@ -143,7 +152,7 @@ export function renderLeft() {
     </div>`;
   };
 
-  $('#lf').innerHTML = `
+  $('#lf')!.innerHTML = `
    <div class="grp"><div class="eyebrow">${T('variants')}<span class="n">${ST.variants.length}</span></div>
    <div class="body">
      ${ST.variants.map(vcard).join('')}
@@ -155,7 +164,7 @@ export function renderLeft() {
    <div class="grp"><div class="eyebrow">${T('anchor')}</div><div class="body">
      ${anchors.map(([k, lab]) => `<label class="layer">
        <input type="radio" name="anch" data-an="${k}" ${ST.anchor === k ? 'checked' : ''}>
-       <span class="nm">${T(lab)}</span></label>`).join('')}
+       <span class="nm">${T(lab as I18nKey)}</span></label>`).join('')}
    </div></div>
 
    <div class="grp"><div class="eyebrow">${T('place')}</div><div class="body">
@@ -163,11 +172,11 @@ export function renderLeft() {
        <label>${T('pivot')}</label>
        <select data-plp>${pivots}</select>
        ${[['x', 'plX'], ['y', 'plY'], ['z', 'plZ']].map(([k, lab]) =>
-         `<label>${T(lab)} (mm)</label>
-          ${nfield('10', `data-pl="${k}"`, ST.place[k])}`).join('')}
+         `<label>${T(lab as I18nKey)} (mm)</label>
+          ${nfield('10', `data-pl="${k}"`, ST.place[k as keyof Place])}`).join('')}
        ${[['rx', 'plRX'], ['ry', 'plRY'], ['rz', 'plRZ']].map(([k, lab]) =>
-         `<label>${T(lab)} (°)</label>
-          ${nfield('5', `data-pl="${k}"`, ST.place[k])}`).join('')}
+         `<label>${T(lab as I18nKey)} (°)</label>
+          ${nfield('5', `data-pl="${k}"`, ST.place[k as keyof Place])}`).join('')}
      </div>
      <div class="row mt6"><button class="btn sm grow" data-a="placereset">${T('plReset')}</button></div>
      <div class="hintline">${T('plNote')}</div>
@@ -177,7 +186,7 @@ export function renderLeft() {
     ${LAYER_DEF.map(([k, lab]) => `<div class="layer">
       <input type="checkbox" data-ly="${k}" ${L[k].on ? 'checked' : ''}>
       <input type="color" class="sw" data-lc="${k}" value="${L[k].color}">
-      <span class="nm">${T(lab)}</span></div>`).join('')}
+      <span class="nm">${T(lab as I18nKey)}</span></div>`).join('')}
    </div></div>
 
    <div class="grp"><div class="eyebrow">${T('datasets')}<span class="n">${ST.datasets.length}</span></div>
@@ -189,9 +198,9 @@ export function renderLeft() {
           <input type="color" class="sw" data-dc="${d.id}" value="${d.color}">
           <span class="nm" data-dsel="${d.id}">${esc(d.name)}</span>
           <button class="xbtn" data-dx="${d.id}" title="${T('del')}">✕</button></div>
-        <div class="meta"><span>Δmax <b class="${cls(d.dev.maxA, ST.model.tol.angle)}">${fx(d.dev.maxA, 3)}°</b></span>
-        <span>RMS <b>${fx(d.dev.rms, 3)}°</b></span>
-        <span>${T('statTip').split(' ')[0]} <b class="${cls(d.dev.tip, ST.model.tol.point)}">${fx(d.dev.tip, 2)}</b></span></div>
+        <div class="meta"><span>Δmax <b class="${cls(d.dev!.maxA, ST.model!.tol.angle)}">${fx(d.dev!.maxA, 3)}°</b></span>
+        <span>RMS <b>${fx(d.dev!.rms, 3)}°</b></span>
+        <span>${T('statTip').split(' ')[0]} <b class="${cls(d.dev!.tip, ST.model!.tol.point)}">${fx(d.dev!.tip, 2)}</b></span></div>
       </div>`).join('') : `<div class="hintline">${T('dNone')}</div>`}
     <div class="row mt6">
       <button class="btn sm grow" data-a="sim">+ ${T('addSim')}</button>
@@ -213,9 +222,10 @@ export function renderLeft() {
 const CELL_ATTRS = ['b', 'bd', 'st', 'p', 'mk', 'tw', 'm', 's', 't', 'c', 'pr', 'pl', 'plp'];
 
 /** Selector estable de una celda editable, o null si el nodo no lo es. */
-export function cellKey(el) {
+export function cellKey(el: Element | null): string | null {
   if (!el || (el.tagName !== 'INPUT' && el.tagName !== 'SELECT')) return null;
-  const d = el.dataset;
+  /* ya se comprobó tagName INPUT/SELECT: ambos son HTMLElement con dataset */
+  const d = (el as HTMLElement).dataset;
   for (const a of CELL_ATTRS) {
     if (d[a] !== undefined) {
       return `[data-${a}="${d[a]}"]` + (d.k ? `[data-k="${d.k}"]` : '');
@@ -224,33 +234,38 @@ export function cellKey(el) {
   return null;
 }
 
-function saveFocus() {
+function saveFocus(): { key: string; sel: (number | null)[] | null } | null {
   const el = document.activeElement;
   const key = cellKey(el);
   if (!key) return null;
-  let sel = null;
-  /* selectionStart lanza en <input type=number>: no todos los tipos lo tienen */
-  try { sel = [el.selectionStart, el.selectionEnd]; } catch (_) { sel = null; }
+  let sel: (number | null)[] | null = null;
+  /* selectionStart lanza en <input type=number>: no todos los tipos lo tienen.
+     El elemento activo, si dio una key, es el mismo <input>/<select> que
+     comprobó cellKey(); si no soporta selectionStart cae al catch igual que
+     antes. */
+  try { sel = [(el as HTMLInputElement).selectionStart, (el as HTMLInputElement).selectionEnd]; } catch (_) { sel = null; }
   return { key, sel };
 }
 
-function restoreFocus(f) {
+function restoreFocus(f: ReturnType<typeof saveFocus>): void {
   if (!f) return;
   const el = $('#panes ' + f.key) || $(f.key);
   if (!el) return;
   el.focus();
   if (f.sel && f.sel[0] !== null && f.sel[0] !== undefined) {
-    try { el.setSelectionRange(f.sel[0], f.sel[1]); } catch (_) { /* nada */ }
+    /* el nodo que devolvió cellKey() es un <input>/<select>: setSelectionRange
+       solo existe en el primero, y el try/catch ya cubría eso antes */
+    try { (el as HTMLInputElement).setSelectionRange(f.sel[0]!, f.sel[1]!); } catch (_) { /* nada */ }
   }
 }
 
 /** Reescribe SOLO las celdas derivadas de la tabla de modelo, sin tocar el
  *  innerHTML del panel ni el campo que tenga el foco. Devuelve false si la
  *  tabla no está montada y hace falta un renderRight() de verdad. */
-export function updateModelDerived() {
+export function updateModelDerived(): boolean {
   const M = ST.model;
   if (!M || ST.tab !== 'model') return false;
-  const body = $('#panes table.lra tbody');
+  const body = $<HTMLTableSectionElement>('#panes table.lra tbody');
   if (!body || body.rows.length !== M.bends.length) return false;
 
   const v = V();
@@ -258,7 +273,7 @@ export function updateModelDerived() {
   const LEN = E.rowLengths(M), BASE = E.rowLengths(v.base);
   const ori = E.orientations(M);
   const act = document.activeElement;
-  const put = (row, cell, txt) => {
+  const put = (row: Element, cell: string, txt: string): void => {
     const el = row.querySelector(`[data-cell="${cell}"]`);
     if (el) el.textContent = txt;
   };
@@ -273,7 +288,7 @@ export function updateModelDerived() {
     /* la recta se teclea, pero cambiar un radio o un ángulo la deja QUIETA a
        propósito: se recolocan los avances. Se reescribe igualmente por si el
        cambio vino de otro sitio (fundir Δ, abrir un archivo, deshacer). */
-    const st = row.querySelector('input[data-st]');
+    const st = row.querySelector<HTMLInputElement>('input[data-st]');
     if (st) {
       if (st !== act) st.value = nx(BASE[i].straight);
       st.classList.toggle('v-bad', BASE[i].straight < 25);
@@ -282,7 +297,7 @@ export function updateModelDerived() {
     put(row, 'arc', fx(LEN[i].arc, 2));
     put(row, 'cum', fx(LEN[i].cum, 2));
 
-    const tl = row.querySelector('input[data-k="twistLen"]');
+    const tl = row.querySelector<HTMLInputElement>('input[data-k="twistLen"]');
     if (tl) {
       const span = E.twistSpanOf(M, i);
       tl.title = '0 = ' + fx(span, 1) + ' mm';
@@ -292,7 +307,7 @@ export function updateModelDerived() {
     /* un Δ en cero se apaga; la clase se puede tocar aunque el campo tenga el
        foco, cambiar className no interrumpe lo que se está escribiendo */
     E.DELTA_KEYS.forEach(k => {
-      const el = row.querySelector(`input[data-bd][data-k="${k}"]`);
+      const el = row.querySelector<HTMLInputElement>(`input[data-bd][data-k="${k}"]`);
       if (!el) return;
       el.classList.toggle('z', !v.deltas[i][k]);
       if (el !== act) el.value = nx(v.deltas[i][k]);
@@ -311,25 +326,25 @@ export function updateModelDerived() {
 /* ====================================== lateral derecho: la desviación ==== */
 /* No es una pestaña: es lo que hay que tener delante mientras se edita la
    tabla de abajo. Estadísticas, proceso simulado y desviación por doblez. */
-export function renderSide() {
+export function renderSide(): void {
   const host = $('#rt'), keep = host ? host.scrollTop : 0;
-  $('#side').innerHTML = paneMeas(ST.model);
+  $('#side')!.innerHTML = paneMeas(ST.model!);
   if (host) host.scrollTop = keep;
 }
 
 /* ================================= bloque de abajo: la tabla a todo ancho = */
-export function renderRight() {
+export function renderRight(): void {
   const M = ST.model, host = $('#panes'), keep = host ? host.scrollTop : 0;
   const f = saveFocus();
   if (!TABS.includes(ST.tab)) ST.tab = 'model';   // archivos guardados en 'meas'
-  const pane = { model: paneModel, points: panePoints, comp: paneComp }[ST.tab];
-  $('#panes').innerHTML = pane(M);
+  const pane = { model: paneModel, points: panePoints, comp: paneComp }[ST.tab as 'model' | 'points' | 'comp'];
+  $('#panes')!.innerHTML = pane(M!);
   if (host) host.scrollTop = keep;
   restoreFocus(f);
 }
 
 /* --- pestaña MODELO ----------------------------------------------------- */
-function paneModel(M) {
+function paneModel(M: Model): string {
   const v = V();
   E.syncDeltas(v);
   /* La RECTA es lo que se teclea y va sobre la base, como el resto de columnas
@@ -339,10 +354,10 @@ function paneModel(M) {
   const LEN = E.rowLengths(M), BASE = E.rowLengths(v.base);
   /* la cabecera del pie ocupa las 10 columnas de parámetros; la recta de salida
      va bajo L y la longitud desarrollada bajo Σ L */
-  const num = (attr, i, k, val, step) =>
+  const num = (attr: string, i: number, k: DeltaKey, val: number, step: string): string =>
     nfield(step, `data-${attr}="${i}" data-k="${k}"`, val);
   /* un Δ en cero se apaga: la columna solo debe cantar cuando hay corrección */
-  const dnum = (i, k, step) => {
+  const dnum = (i: number, k: DeltaKey, step: string): string => {
     const d = v.deltas[i][k];
     return nfield(step, `class="${d ? '' : 'z'}" data-bd="${i}" data-k="${k}"`, d);
   };
@@ -414,10 +429,10 @@ function paneModel(M) {
 }
 
 /* --- pestaña PUNTOS ----------------------------------------------------- */
-function panePoints(M) {
+function panePoints(M: Model): string {
   const ref = refModel();
   const P = E.fk(M).pis;
-  let sh = [];
+  let sh: number[] = [];
   try { sh = E.piShift(M, ref, ST.anchor); } catch { sh = []; }
   const n = P.length;
   /* con anclaje `end` piShift() alinea las listas POR EL FINAL, así que el
@@ -430,7 +445,7 @@ function panePoints(M) {
     return `<tr class="clk ${i - 1 === ST.sel ? 'sel' : ''}" data-r="${i - 1}">
       <td class="${i === 0 || i === n - 1 ? 'v-dim' : ''}">${nm}</td>
       ${['x', 'y', 'z'].map(k =>
-        `<td>${nfield('.1', `data-p="${i}" data-k="${k}"`, p[k])}</td>`).join('')}
+        `<td>${nfield('.1', `data-p="${i}" data-k="${k}"`, p[k as 'x' | 'y' | 'z'])}</td>`).join('')}
       <td class="${dv > .01 ? 'dv' : 'v-dim'}">${fx(dv, 2)}</td></tr>`;
   }).join('');
   return `<div class="pane on"><div class="grp">
@@ -446,7 +461,7 @@ function panePoints(M) {
 }
 
 /* --- puntos de referencia (dentro de la pestaña PUNTOS) ----------------- */
-function paneMarks(M) {
+function paneMarks(M: Model): string {
   const ref = refModel();
   const P = E.anchoredPis(M, ref, ST.anchor);
   const rows = ST.marks.map(mk => {
@@ -459,7 +474,7 @@ function paneMarks(M) {
         <input type="color" class="sw" data-mc="${mk.id}" value="${mk.color}"></td>
       <td><input type="text" data-mk="${mk.id}" data-k="name" value="${esc(mk.name)}" style="min-width:70px"></td>
       ${['x', 'y', 'z'].map(k =>
-        `<td>${nfield('1', `data-mk="${mk.id}" data-k="${k}"`, mk[k])}</td>`).join('')}
+        `<td>${nfield('1', `data-mk="${mk.id}" data-k="${k}"`, mk[k as 'x' | 'y' | 'z'])}</td>`).join('')}
       <td class="v-dim">${nm}</td>
       <td class="${cls(near.d, M.tol.point)}">${fx(near.d, 2)}</td>
       <td><button class="xbtn" data-mx="${mk.id}" title="${T('del')}">✕</button></td></tr>`;
@@ -477,9 +492,9 @@ function paneMarks(M) {
 }
 
 /* --- pestaña MEDICIÓN --------------------------------------------------- */
-function paneMeas(M) {
+function paneMeas(M: Model): string {
   const p = ST.proc, D = activeDataset(), ori = E.orientations(M);
-  const rr = (k, lab, min, max, st, suf) => `<label>${lab}</label><div class="rangerow">
+  const rr = (k: keyof Proc, lab: string, min: number, max: number, st: number, suf: string): string => `<label>${lab}</label><div class="rangerow">
     <input type="range" data-pr="${k}" min="${min}" max="${max}" step="${st}" value="${p[k]}">
     <span class="val">${p[k]}${suf || ''}</span></div>`;
   const proc = `<div class="grp"><div class="eyebrow">${T('proc')}</div><div class="body">
@@ -496,22 +511,22 @@ function paneMeas(M) {
   ${!D ? `<div class="grp"><div class="body"><div class="hintline">${T('dNone')}</div></div></div>` : `
   <div class="grp"><div class="eyebrow">${esc(D.name)}</div><div class="body">
     <div class="stats">
-      <div class="stat"><div class="k">${T('statMaxA')}</div><div class="v ${cls(D.dev.maxA, M.tol.angle)}">${fx(D.dev.maxA, 3)}<span class="u">°</span></div></div>
-      <div class="stat"><div class="k">${T('statRms')}</div><div class="v">${fx(D.dev.rms, 3)}<span class="u">°</span></div></div>
-      <div class="stat"><div class="k">${T('statTip')}</div><div class="v ${cls(D.dev.tip, M.tol.point)}">${fx(D.dev.tip, 2)}<span class="u">mm</span></div></div>
-      <div class="stat"><div class="k">${T('statOut')}</div><div class="v ${D.dev.out ? 'v-bad' : 'v-ok'}">${D.dev.out}<span class="u">/${M.bends.length}</span></div></div></div>
+      <div class="stat"><div class="k">${T('statMaxA')}</div><div class="v ${cls(D.dev!.maxA, M.tol.angle)}">${fx(D.dev!.maxA, 3)}<span class="u">°</span></div></div>
+      <div class="stat"><div class="k">${T('statRms')}</div><div class="v">${fx(D.dev!.rms, 3)}<span class="u">°</span></div></div>
+      <div class="stat"><div class="k">${T('statTip')}</div><div class="v ${cls(D.dev!.tip, M.tol.point)}">${fx(D.dev!.tip, 2)}<span class="u">mm</span></div></div>
+      <div class="stat"><div class="k">${T('statOut')}</div><div class="v ${D.dev!.out ? 'v-bad' : 'v-ok'}">${D.dev!.out}<span class="u">/${M.bends.length}</span></div></div></div>
     <div class="row mt6"><span class="tag">${T('stDatum')}</span>
       <div class="seg"><button data-dm="start" class="${ST.datum === 'start' ? 'on' : ''}">${T('dStart')}</button>
       <button data-dm="best" class="${ST.datum === 'best' ? 'on' : ''}">${T('dBest')}</button></div></div>
     <div class="eyebrow" style="padding-left:0">${T('deltas')}</div>
     <div class="tw"><table><thead><tr><th>${T('nBend')}</th><th>${T('ori')}</th><th>${T('dA')}</th>
       <th>${T('dR')}</th><th>${T('dF')}</th><th>${T('dP')}</th></tr></thead><tbody>
-      ${M.bends.slice(0, D.dev.angle.length).map((b, i) => `<tr class="clk ${i === ST.sel ? 'sel' : ''}" data-r="${i}"><td>B${i + 1}</td>
+      ${M.bends.slice(0, D.dev!.angle.length).map((b, i) => `<tr class="clk ${i === ST.sel ? 'sel' : ''}" data-r="${i}"><td>B${i + 1}</td>
         <td>${oriTag(ori[i])}</td>
-        <td class="${cls(D.dev.angle[i], M.tol.angle)}">${sgn(D.dev.angle[i], 3)}</td>
-        <td class="${cls(D.dev.rot[i], M.tol.rot)}">${sgn(D.dev.rot[i], 3)}</td>
-        <td class="${cls(D.dev.feed[i], M.tol.feed)}">${sgn(D.dev.feed[i], 2)}</td>
-        <td class="${cls(D.dev.point[i + 1], M.tol.point)}">${fx(D.dev.point[i + 1], 2)}</td></tr>`).join('')}
+        <td class="${cls(D.dev!.angle[i], M.tol.angle)}">${sgn(D.dev!.angle[i], 3)}</td>
+        <td class="${cls(D.dev!.rot[i], M.tol.rot)}">${sgn(D.dev!.rot[i], 3)}</td>
+        <td class="${cls(D.dev!.feed[i], M.tol.feed)}">${sgn(D.dev!.feed[i], 2)}</td>
+        <td class="${cls(D.dev!.point[i + 1], M.tol.point)}">${fx(D.dev!.point[i + 1], 2)}</td></tr>`).join('')}
     </tbody></table></div>
   </div></div>`}${proc}</div>`;
 }
@@ -519,7 +534,7 @@ function paneMeas(M) {
 /* --- pestaña COMPENSACIÓN ----------------------------------------------- */
 /* Las medidas son fijas: en esta tabla lo ÚNICO editable es la Δ aplicada, y
    acepta cuentas sobre lo que calculó el lazo (ver evalCell en engine.js).   */
-function paneComp(M) {
+function paneComp(M: Model): string {
   const D = activeDataset(), C = ST.comp, ori = E.orientations(M);
   if (!D) return `<div class="pane on"><div class="grp"><div class="body">
     <div class="warnbox mt10">${T('noMeas')}</div></div></div></div>`;
@@ -532,7 +547,7 @@ function paneComp(M) {
 
   /* una tríada de columnas por parámetro, y solo de los que se están
      corrigiendo: con doAngle solo, la tabla se queda en 6 columnas */
-  const cols = [];
+  const cols: { k: 'angle' | 'rot' | 'feed'; lab: string; u: string; d: number }[] = [];
   if (C.doAngle) cols.push({ k: 'angle', lab: T('ang'), u: '°', d: 3 });
   if (C.doRot) cols.push({ k: 'rot', lab: T('rot'), u: '°', d: 3 });
   if (C.doFeed) cols.push({ k: 'feed', lab: T('feed'), u: 'mm', d: 2 });
@@ -540,7 +555,7 @@ function paneComp(M) {
   const head = cols.map(c => `<th>${c.lab} ${T('cNow')}</th>
     <th>${T('cCalc')}</th><th class="dcol">${T('cAdj')}</th><th>${T('cNew')} ${c.u}</th>`).join('');
 
-  const rows = [];
+  const rows: string[] = [];
   for (let i = 0; i < n; i++) {
     const cells = cols.map(c => {
       const now = cmd[i][c.k];
@@ -567,7 +582,7 @@ function paneComp(M) {
     <div class="eyebrow" style="padding-left:0">${T('what')}</div>
     <div class="row wrap">
       ${[['doAngle', 'cAng'], ['doRot', 'cRot'], ['doFeed', 'cFeed']].map(([k, l]) =>
-      `<label class="row" style="gap:4px"><input type="checkbox" data-c="${k}" ${C[k] ? 'checked' : ''}>${T(l)}</label>`).join('')}</div>
+      `<label class="row" style="gap:4px"><input type="checkbox" data-c="${k}" ${C[k as 'doAngle' | 'doRot' | 'doFeed'] ? 'checked' : ''}>${T(l as I18nKey)}</label>`).join('')}</div>
     <div class="hintline">${T('formula')}</div>
     <div class="row mt6"><button class="btn pri grow" data-a="apply">${T('apply')}</button>
       <button class="btn" data-a="resetcmd">${T('reset')}</button></div>
@@ -583,28 +598,28 @@ function paneComp(M) {
     : `<div class="warnbox mt10">${T('what')}: —</div>`}
     ${pred ? `<div class="eyebrow" style="padding-left:0">${T('predict')}</div>
       <div class="stats"><div class="stat"><div class="k">${T('statMaxA')}</div>
-        <div class="v ${cls(pred._maxA, M.tol.angle)}">${fx(pred._maxA, 3)}<span class="u">°</span></div></div>
+        <div class="v ${cls(pred._maxA as number, M.tol.angle)}">${fx(pred._maxA as number, 3)}<span class="u">°</span></div></div>
       <div class="stat"><div class="k">${T('statTip')}</div>
-        <div class="v ${cls(pred._tip, M.tol.point)}">${fx(pred._tip, 2)}<span class="u">mm</span></div></div></div>` : ''}
+        <div class="v ${cls(pred._tip as number, M.tol.point)}">${fx(pred._tip as number, 2)}<span class="u">mm</span></div></div></div>` : ''}
     <button class="btn mt6" style="width:100%" data-a="verify">${T('verify')}</button>
   </div></div></div>`;
 }
 
 /* ============================================================ barra de estado */
-export function renderStatus() {
-  const M = ST.model, D = activeDataset();
+export function renderStatus(): void {
+  const M = ST.model!, D = activeDataset();
   const path = E.buildPath(M);
   const anchorLab = { start: T('aStart'), end: T('aEnd'), best: T('aBest') }[ST.anchor];
   const shift = activeShift();
-  $('#st').innerHTML = `
+  $('#st')!.innerHTML = `
    <div class="c">${T('stLen')} <b>${fx(path.total, 1)} mm</b></div>
    <div class="c">${T('stBends')} <b>${M.bends.length}</b></div>
    <div class="c">${T('anchor')} <b>${anchorLab}</b></div>
    <div class="c">${T('dTip')} <b class="${shift > .01 ? '' : 'v-dim'}">${fx(shift, 2)} mm</b></div>
    <div class="c">${T('stDatum')} <b>${ST.datum === 'start' ? T('dStart') : T('dBest')}</b></div>
-   <div class="c">${T('stMax')} <b class="${D ? cls(D.dev.maxA, M.tol.angle) : ''}">${D ? fx(D.dev.maxA, 3) + ' °' : '—'}</b></div>
+   <div class="c">${T('stMax')} <b class="${D ? cls(D.dev!.maxA, M.tol.angle) : ''}">${D ? fx(D.dev!.maxA, 3) + ' °' : '—'}</b></div>
    <div class="c">${T('stUnits')} <b>mm / °</b></div>
-   <div class="c">${D ? `<span class="chip ${D.dev.out ? 'bad' : 'ok'}">${D.dev.out ? T('bad') : T('ok')}</span>` : ''}</div>`;
+   <div class="c">${D ? `<span class="chip ${D.dev!.out ? 'bad' : 'ok'}">${D.dev!.out ? T('bad') : T('ok')}</span>` : ''}</div>`;
 }
 
-export const renderPanels = () => { renderLeft(); renderSide(); renderRight(); renderStatus(); };
+export const renderPanels = (): void => { renderLeft(); renderSide(); renderRight(); renderStatus(); };
