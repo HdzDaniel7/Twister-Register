@@ -253,7 +253,16 @@ export type Tweak = {
 export type UiPrefs = {
   theme: 'system' | 'light' | 'dark';
   lang: 'es' | 'en' | 'de';
+  /** modo de trabajo; opcional, un archivo sin él abre en Modelar */
+  mode?: Mode;
 };
+
+/** Los tres trabajos del programa. No son pestañas de una tabla: cada uno se
+ *  queda la pantalla entera y deja de solo lectura lo que no le toca.
+ *
+ *  `comp` es además el modo taller: al no haber en pantalla nada que no sea
+ *  compensación, no hace falta un interruptor de bloqueo aparte. */
+export type Mode = 'model' | 'meas' | 'comp';
 
 /**
  * Documento del esquema `barcomp/2.1`, tal como lo escribe `toDoc()`. Las
@@ -307,7 +316,7 @@ export type LoadedDoc = {
   marks: Mark[];
   tweak: Tweak[];
   /** null = el archivo no dijo nada: no se pisa la preferencia actual */
-  ui: { theme: string | null; lang: string | null } | null;
+  ui: { theme: string | null; lang: string | null; mode: string | null } | null;
 };
 
 /* ------------------------------------------------------------ estado global */
@@ -356,6 +365,9 @@ export type State = {
   /** alineación de la pieza MEDIDA contra su nominal */
   datum: DatumMode;
   /** pestaña activa del panel derecho ('model' | 'points' | 'comp', ver TABS) */
+  /** el trabajo que se está haciendo: manda sobre TODA la distribución */
+  mode: Mode;
+  /** sub-pestaña dentro de Modelar: 'model' (la tabla LRA) o 'points' */
   tab: string;
   /** predicción de la 2.ª pieza tras aplicar la compensación; null si no se corrió */
   pred: Model | null;

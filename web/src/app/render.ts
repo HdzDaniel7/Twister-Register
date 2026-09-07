@@ -3,7 +3,8 @@
    llaman a uno de estos y no a los render* sueltos, para que el camino de una
    edicion este escrito en un solo sitio.                                   */
 import { ST, recomputeAll } from '../state.ts';
-import { rebuildScene } from '../scene.ts';
+import type { Mode } from '../types.ts';
+import { rebuildScene, onResize, fitView } from '../scene.ts';
 import { drawRibbon } from '../ribbon.ts';
 import {
   renderShell, renderLeft, renderSide, renderRight, renderStatus, renderPanels,
@@ -22,4 +23,19 @@ export function refreshTable(): void {
   recomputeAll();
   if (!updateModelDerived()) renderRight();
   renderLeft(); renderSide(); renderStatus(); rebuildScene(); drawRibbon();
+}
+
+/** Cambia de modo de trabajo.
+ *
+ *  El modo reparte la pantalla entera, así que el lienzo WebGL cambia de
+ *  tamaño: sin onResize() se queda con los píxeles del modo anterior y se monta
+ *  encima del panel de al lado. Y se reencuadra, porque el 3D pasa de una
+ *  columna estrecha a media pantalla o a una banda baja: lo que se veía
+ *  centrado dejaría de verse. */
+export function setMode(m: Mode): void {
+  if (ST.mode === m) return;
+  ST.mode = m;
+  renderAll();
+  onResize();
+  fitView();
 }

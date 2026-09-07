@@ -444,6 +444,7 @@ step('el nombre se edita desde la tarjeta del panel izquierdo', () => {
   if (S().model.name !== 'PIEZA-A') throw new Error('el modelo activo no se entero');
 });
 step('y el campo de la pestaña MODELO se entera', () => {
+  click('[data-md="model"]');
   click('#tabs [data-t="model"]');
   if (q('input[data-m="name"]').value !== 'PIEZA-A') {
     throw new Error(q('input[data-m="name"]').value);
@@ -557,7 +558,10 @@ step('la colocación mueve lo que se dibuja', () => {
 step('colocación: restablecer', () => click('[data-a="placereset"]'));
 
 /* ------------------------------------------------- puntos de referencia -- */
-step('pestaña Puntos', () => click('#tabs [data-t="points"]'));
+step('pestaña Puntos', () => {
+  click('[data-md="model"]');
+  click('#tabs [data-t="points"]');
+});
 step('mover un PI', () => setval('input[data-p="4"][data-k="z"]', '60'));
 step('insertar y borrar un punto', () => {
   click('tr[data-r="3"]'); click('[data-a="insp"]');
@@ -583,6 +587,7 @@ step('simular desde el lateral de desviación', () => click('[data-a="sim"]'));
    distintivo es lo único que lo dice, y por eso se comprueba en los dos
    sitios donde sale (la tarjeta del lateral izquierdo y el lateral derecho). */
 step('la pieza simulada se marca como SIM en los dos lados', () => {
+  click('[data-md="meas"]');
   const ds = S().datasets[S().datasets.length - 1];
   if (ds.src !== 'sim') throw new Error('la pieza no quedó marcada como sim: ' + ds.src);
   const card = q(`#lf [data-dv="${ds.id}"]`).closest('.ds').querySelector('.srcbadge');
@@ -628,11 +633,25 @@ step('el botón de importar está en el panel de piezas', () => {
   if (!b.title) throw new Error('el botón no explica qué formato espera');
 });
 
-step('la medición ya no es pestaña', () => {
+/* El selector de arriba dejó de ser «pestaña de la tabla» y pasó a ser MODO
+   DE TRABAJO: cada modo se queda la pantalla entera. Las sub-pestañas solo
+   existen donde hay más de una tabla que enseñar, o sea en Modelar. */
+step('los tres modos están arriba y la medición no es pestaña', () => {
+  const modos = [...document.querySelectorAll('[data-md]')].map(b => b.dataset.md);
+  if (modos.join(',') !== 'model,meas,comp') throw new Error('modos: ' + modos.join(','));
   if (document.querySelector('#tabs [data-t="meas"]')) throw new Error('sigue habiendo pestaña');
-  if (document.querySelectorAll('#tabs button').length !== 3) throw new Error('no son 3 pestañas');
+});
+step('en Medir no hay bloque de abajo y el lateral manda', () => {
+  click('[data-md="meas"]');
+  if (S().mode !== 'meas') throw new Error('no cambió de modo');
+  if (getComputedStyle(q('#bt')).display !== 'none') throw new Error('el bloque de abajo sigue ahí');
+  if (!q('#side .stat')) throw new Error('el lateral no trae las estadísticas');
+  if (getComputedStyle(q('#app')).gridTemplateAreas.indexOf('rb rb rb') < 0) {
+    throw new Error('la cinta no va a todo el ancho en Medir');
+  }
 });
 step('el lateral derecho trae las estadísticas y la desviación por doblez', () => {
+  click('[data-md="meas"]');
   const side = q('#side');
   if (side.querySelectorAll('.stat').length !== 4) throw new Error('faltan estadísticas');
   const filas = side.querySelectorAll('table tbody tr').length;
@@ -642,6 +661,7 @@ step('el lateral derecho trae las estadísticas y la desviación por doblez', ()
 /* Con dos piezas o mas, la dispersion por doblez es lo que dice si un doblez
    esta sistematicamente fuera o solo tuvo mala punteria. */
 step('con dos piezas visibles aparece la columna de dispersión', () => {
+  click('[data-md="meas"]');
   const vis = S().datasets.filter(d => d.visible).length;
   if (vis < 2) throw new Error('solo hay ' + vis + ' pieza(s) visible(s)');
   const th = [...q('#side table').querySelectorAll('thead th')].map(x => x.textContent.trim());
@@ -652,6 +672,7 @@ step('con dos piezas visibles aparece la columna de dispersión', () => {
    pieza recuerda con que comando se fabrico: sin eso, aplicar una
    compensacion cambiaria ST.command y la cuenta dejaria de valer. */
 step('el resorte medido sale del lateral con su dispersión', () => {
+  click('[data-md="meas"]');
   const side = q('#side');
   const filas = side.querySelectorAll('.sbrow');
   if (filas.length !== 2) throw new Error('no hay dos orientaciones: ' + filas.length);
@@ -679,7 +700,22 @@ step('adoptar el resorte medido escribe el simulador', () => {
   S().proc.sbW = antes;
 });
 
-step('pestaña Compensación', () => click('#tabs [data-t="comp"]'));
+step('modo Compensar', () => {
+  click('[data-md="comp"]');
+  if (S().mode !== 'comp') throw new Error('no cambió de modo');
+});
+/* Compensar ES el modo taller: si en pantalla no hay nada que no sea
+   compensación, no hace falta un interruptor de bloqueo aparte. */
+step('en Compensar no queda nada editable fuera de la compensación', () => {
+  if (getComputedStyle(q('#lf')).display !== 'none') throw new Error('el panel de modelos sigue visible');
+  if (getComputedStyle(q('#rt')).display !== 'none') throw new Error('el lateral sigue visible');
+  const editables = [...document.querySelectorAll('#app input:not([type=checkbox]):not([type=color]):not([type=range]),#app select')]
+    .filter(el => el.offsetParent !== null)
+    .filter(el => !(el.dataset.tw || el.dataset.c));
+  if (editables.length) {
+    throw new Error('quedan campos ajenos: ' + editables.map(e => e.dataset.k || e.name || e.type).join(','));
+  }
+});
 step('el lazo puede leer la mediana del lote en vez de la última pieza', () => {
   const antes = [...document.querySelectorAll('#panes table.cmd tbody tr')]
     .map(tr => tr.cells[3].textContent.trim());
@@ -733,28 +769,76 @@ step('reporte', () => click('[data-a="report"]'));
 step('reset de comandos', () => click('[data-a="resetcmd"]'));
 
 /* ---------------------------------------------------- panel redimensionado */
-step('la tabla va abajo, a todo el ancho, y la cinta encima', () => {
+/* La distribución ya no es una sola: cada modo reparte la pantalla a su
+   manera, y eso es lo que hay que comprobar. En MODELAR la tabla está a la
+   DERECHA y de arriba abajo —es lo que permite teclear los ángulos sin
+   desplazar— y la cinta va bajo el 3D, no bajo la tabla. */
+step('en Modelar la tabla va a la derecha, entera, y el 3D al lado', () => {
+  click('[data-md="model"]');
   const bt = q('#bt').getBoundingClientRect();
+  const ct = q('#ct').getBoundingClientRect();
   const rb = q('#rb').getBoundingClientRect();
   const app = q('#app').getBoundingClientRect();
+  if (!(ct.right <= bt.left + 1)) throw new Error('el 3D no está a la izquierda de la tabla');
+  if (bt.height < app.height * 0.7) throw new Error('la tabla no ocupa el alto: ' + bt.height);
+  if (!(rb.right <= bt.left + 1)) throw new Error('la cinta se mete debajo de la tabla');
+  const filas = document.querySelectorAll('#panes table.lra tbody tr').length;
+  const visibles = [...document.querySelectorAll('#panes table.lra tbody tr')]
+    .filter(tr => tr.getBoundingClientRect().bottom <= bt.bottom).length;
+  if (visibles < 10) throw new Error(`solo ${visibles} filas de ${filas} a la vista`);
+});
+step('en Compensar la tabla de comandos va a todo el ancho', () => {
+  click('[data-md="comp"]');
+  const bt = q('#bt').getBoundingClientRect();
+  const app = q('#app').getBoundingClientRect();
   if (bt.width < app.width - 1) throw new Error('la tabla no ocupa el ancho: ' + bt.width);
-  if (rb.width < app.width - 1) throw new Error('la cinta no ocupa el ancho: ' + rb.width);
-  if (!(rb.bottom <= bt.top + 1)) throw new Error('la cinta no está encima de la tabla');
-  if (!(rb.height < 110)) throw new Error('la cinta no es una banda fina: ' + rb.height);
+  const vis = [...document.querySelectorAll('#panes table.cmd tbody tr')]
+    .filter(tr => tr.getBoundingClientRect().bottom <= bt.bottom).length;
+  if (vis < 5) throw new Error('solo ' + vis + ' filas de comando a la vista');
+  click('[data-md="model"]');
 });
-step('la tabla de 13 columnas cabe sin desplazar en X', () => {
-  click('#tabs [data-t="model"]');
-  const t = q('table.lra');
-  if (t.scrollWidth > t.parentElement.clientWidth + 1) {
-    throw new Error(t.scrollWidth + ' px en ' + t.parentElement.clientWidth);
+/* Las 13 columnas piden 1000 px y la columna de la tabla arranca en 760: en
+   Modelar se teclea de RECTA a ÁNGULO sin desplazar, y el resto —radio,
+   torsión y las dos calculadas— entra ensanchando con el tirador. La página
+   NUNCA se desplaza en horizontal: el desplazamiento vive dentro de .tw. */
+step('en Modelar se teclea de Recta a Ángulo sin desplazar, y el resto con el tirador', () => {
+  click('[data-md="model"]');
+  const tw = q('#panes .tw');
+  const th = [...document.querySelectorAll('#panes table.lra thead th')];
+  const angulo = th.findIndex(x => x.textContent.trim() === 'Ángulo');
+  const caja = tw.getBoundingClientRect();
+  const cel = th[angulo].getBoundingClientRect();
+  if (cel.right > caja.right + 1) throw new Error('la columna Ángulo no cabe sin desplazar');
+  if (document.documentElement.scrollWidth > document.documentElement.clientWidth) {
+    throw new Error('la página se desplaza en horizontal');
   }
-});
-step('el tirador horizontal sube y baja la tabla', () => {
-  const antes = q('#bt').getBoundingClientRect().height;
-  document.documentElement.style.setProperty('--btH', '420px');
+  document.documentElement.style.setProperty('--btW', '1080px');
   window.dispatchEvent(new Event('resize'));
-  const ahora = q('#bt').getBoundingClientRect().height;
-  if (!(ahora > antes + 50)) throw new Error(antes + ' -> ' + ahora);
+  const ultima = th[th.length - 1].getBoundingClientRect();
+  const caja2 = tw.getBoundingClientRect();
+  if (ultima.right > caja2.right + 2) throw new Error('ni ensanchando caben las 13 columnas');
+  document.documentElement.style.setProperty('--btW', '760px');
+  window.dispatchEvent(new Event('resize'));
+});
+/* Cada tirador cambia de oficio con el modo, porque la pantalla cambia de
+   forma: en Compensar la banda de abajo es el 3D, no la tabla. */
+step('el tirador de abajo mueve la cinta en Modelar y la banda 3D en Compensar', () => {
+  click('[data-md="model"]');
+  const rb0 = q('#rb').getBoundingClientRect().height;
+  document.documentElement.style.setProperty('--ribbon', '130px');
+  window.dispatchEvent(new Event('resize'));
+  const rb1 = q('#rb').getBoundingClientRect().height;
+  if (!(rb1 > rb0 + 20)) throw new Error(`la cinta no creció: ${rb0} -> ${rb1}`);
+  document.documentElement.style.setProperty('--ribbon', '74px');
+
+  click('[data-md="comp"]');
+  const vp0 = q('#ct').getBoundingClientRect().height;
+  document.documentElement.style.setProperty('--compVP', '380px');
+  window.dispatchEvent(new Event('resize'));
+  const vp1 = q('#ct').getBoundingClientRect().height;
+  if (!(vp1 > vp0 + 20)) throw new Error(`la banda 3D no creció: ${vp0} -> ${vp1}`);
+  document.documentElement.style.setProperty('--compVP', '250px');
+  click('[data-md="model"]');
 });
 step('el 3D nunca baja de 200 px de alto', () => {
   document.documentElement.style.setProperty('--btH', '5000px');
@@ -772,25 +856,40 @@ step('el lienzo no invade la cinta ni la tabla', () => {
   }
 });
 
-step('el lienzo no invade el panel derecho', () => {
-  document.documentElement.style.setProperty('--rtW', '780px');
-  window.dispatchEvent(new Event('resize'));
-  const cv = document.querySelector('#vp').getBoundingClientRect();
-  const rt = document.querySelector('#rt').getBoundingClientRect();
-  if (cv.right > rt.left + 1) {
-    throw new Error(`lienzo hasta ${cv.right.toFixed(0)} px, panel empieza en ${rt.left.toFixed(0)} px`);
+step('el lienzo no invade lo que tenga a la derecha', () => {
+  /* En Modelar lo de la derecha es la TABLA; en Medir, el lateral. En los dos
+     el lienzo tiene que quedarse en su columna: sin onResize() conserva su
+     tamaño en píxeles y se monta encima. */
+  const casos = [['model', '#bt', '--btW'], ['meas', '#rt', '--rtW']];
+  for (const [modo, sel, css] of casos) {
+    click(`[data-md="${modo}"]`);
+    document.documentElement.style.setProperty(css, '780px');
+    window.dispatchEvent(new Event('resize'));
+    const cv = q('#vp').getBoundingClientRect();
+    const otro = q(sel).getBoundingClientRect();
+    if (cv.right > otro.left + 1) {
+      throw new Error(`${modo}: lienzo hasta ${cv.right.toFixed(0)} px, ${sel} empieza en ${otro.left.toFixed(0)} px`);
+    }
   }
 });
 step('y tampoco al volver a estrecharlo', () => {
-  document.documentElement.style.setProperty('--rtW', '420px');
+  click('[data-md="model"]');
+  document.documentElement.style.setProperty('--btW', '760px');
   window.dispatchEvent(new Event('resize'));
-  const cv = document.querySelector('#vp').getBoundingClientRect();
-  const rt = document.querySelector('#rt').getBoundingClientRect();
-  if (cv.right > rt.left + 1) throw new Error('invade al estrechar');
-  if (cv.width < 100) throw new Error('el lienzo se quedó en ' + cv.width);
+  const cv = q('#vp').getBoundingClientRect();
+  const bt = q('#bt').getBoundingClientRect();
+  if (cv.right > bt.left + 1) throw new Error('invade al estrechar');
+  document.documentElement.style.setProperty('--rtW', '360px');
 });
 
 /* ---------------------------------------------------------------- E/S --- */
+step('el modo de trabajo viaja en el JSON', () => {
+  click('[data-md="comp"]');
+  const doc = Eg().toDoc(S().model, S().command, S().comp, S().proc, [], S().variants,
+                         S().ref, S().anchor, { ui: { theme: S().theme, mode: S().mode } });
+  if (doc.ui.mode !== 'comp') throw new Error('ui.mode = ' + doc.ui.mode);
+  click('[data-md="model"]');
+});
 step('el JSON guardado lleva tema e idioma', () => {
   click('[data-th="light"]');
   const doc = window.BARCOMP.E.toDoc(S().model, S().command, S().comp, S().proc, [],

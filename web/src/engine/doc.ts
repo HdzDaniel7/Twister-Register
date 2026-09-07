@@ -42,7 +42,7 @@ type ToDocExtra = {
   place?: Partial<Place>;
   marks?: Mark[];
   tweak?: Tweak[];
-  ui?: { theme?: UiPrefs['theme']; lang?: UiPrefs['lang'] };
+  ui?: { theme?: UiPrefs['theme']; lang?: UiPrefs['lang']; mode?: UiPrefs['mode'] };
 };
 
 export function toDoc(
@@ -90,6 +90,9 @@ export function toDoc(
     ui: {
       theme: (extra.ui && extra.ui.theme) || 'system',
       lang: (extra.ui && extra.ui.lang) || 'es',
+      /* el modo de trabajo viaja igual que el tema: es cómo estaba puesta la
+         pantalla, no un dato de la pieza */
+      mode: (extra.ui && extra.ui.mode) || 'model',
     },
   };
 }
@@ -196,7 +199,8 @@ export function fromDoc(d: Doc): LoadedDoc {
       angle: +t.angle || 0, rot: +t.rot || 0, feed: +t.feed || 0,
     })),
     /* null = el archivo no dijo nada: no se pisa la preferencia actual */
-    ui: d.ui ? { theme: d.ui.theme || null, lang: d.ui.lang || null } : null,
+    ui: d.ui ? { theme: d.ui.theme || null, lang: d.ui.lang || null,
+                 mode: d.ui.mode || null } : null,
   };
 }
 

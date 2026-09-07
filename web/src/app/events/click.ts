@@ -6,10 +6,10 @@ import { setLang } from '../../i18n.ts';
 import { fitView, setView, rebuildScene } from '../../scene.ts';
 import { drawRibbon } from '../../ribbon.ts';
 import { renderShell, renderRight, renderPanels } from '../../panels.ts';
-import type { DatumMode } from '../../types.ts';
+import type { DatumMode, Mode } from '../../types.ts';
 import type { ViewName } from '../../scene.ts';
 import { $ } from '../dom.ts';
-import { refresh, renderAll, selectBend } from '../render.ts';
+import { refresh, renderAll, selectBend, setMode } from '../render.ts';
 import { setTheme } from '../theme.ts';
 import { action, variantById, varActivate, varDuplicate, varDelete } from '../actions.ts';
 
@@ -28,12 +28,13 @@ export function bindClick(): void {
       if (!['checkbox', 'color', 'radio'].includes((e.target as HTMLInputElement).type)) return;
     }
     const t = (e.target as HTMLElement).closest(
-      '[data-a],[data-v],[data-dm],[data-l],[data-th],[data-dx],[data-dsel],[data-cm],' +
+      '[data-a],[data-v],[data-dm],[data-l],[data-th],[data-md],[data-dx],[data-dsel],[data-cm],' +
       '[data-vsel],[data-vx],[data-vd],[data-vr],[data-r]') as HTMLElement | null;
     if (!t) return;
     const d = t.dataset;
     if (d.l !== undefined) { setLang(d.l); renderAll(); return; }
     if (d.th !== undefined) { setTheme(d.th); return; }
+    if (d.md !== undefined) { setMode(d.md as Mode); return; }
     if (d.v !== undefined) { d.v === 'fit' ? fitView() : setView(d.v as ViewName); return; }
     if (d.cm !== undefined) { ST.view.cmode = d.cm as 'solid' | 'dev'; renderShell(); rebuildScene(); return; }
     if (d.dm !== undefined) { ST.datum = d.dm as DatumMode; refresh(); return; }

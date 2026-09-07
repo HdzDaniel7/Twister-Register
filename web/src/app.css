@@ -10,6 +10,8 @@
   --mono:ui-monospace,"SF Mono","Cascadia Mono","Roboto Mono",Menlo,Consolas,monospace;
   --sans:"Inter","Segoe UI",system-ui,-apple-system,"Helvetica Neue",Arial,sans-serif;
   --h:44px; --ribbon:74px; --statusH:26px; --rtW:360px; --lfW:250px; --btH:340px;
+  /* MODELAR: ancho de la tabla a la derecha. COMPENSAR: alto de la banda 3D. */
+  --btW:760px; --compVP:250px;
 
   /* Todo lo que antes iba en crudo dentro del CSS, de scene.js y de ribbon.js.
      El 3D y la cinta LEEN estos tokens en tiempo de ejecución, así que aquí
@@ -78,12 +80,59 @@ button,input,select,textarea{font-family:inherit;font-size:inherit;color:inherit
    3D, desviación), y abajo van la cinta —horizontal por naturaleza, mide la
    longitud desarrollada— y la tabla a todo el ancho, que es lo que necesita
    con sus 14 columnas. El alto de la tabla lo pone #btgrip. */
-#app{display:grid;height:100vh;
-  grid-template-columns:var(--lfW) 1fr var(--rtW);
-  grid-template-rows:var(--h) minmax(200px,1fr) var(--ribbon) var(--btH) var(--statusH);
-  grid-template-areas:"hd hd hd" "lf ct rt" "rb rb rb" "bt bt bt" "st st st"}
+/* ---------- LA DISTRIBUCIÓN, POR MODO DE TRABAJO ----------
+   El programa hace tres trabajos y cada uno quiere la pantalla para otra cosa.
+   Antes los tres compartían un reparto fijo y ninguno cabía: la tabla de 13
+   columnas enseñaba dos filas y el 3D se quedaba con un tercio de la pantalla.
+   Ahora la clase del #app manda sobre la rejilla entera.
+
+     m-model   MODELAR    la tabla a la derecha, entera y de arriba abajo,
+                          con el 3D AL LADO — no debajo, que es lo que la
+                          ahogaba— y la cinta bajo el 3D.
+     m-meas    MEDIR      el modelo grande, la cinta alta y las estadísticas
+                          en el lateral. No hay tabla que teclear.
+     m-comp    COMPENSAR  ganancias en una tira y los comandos a todo el
+                          ancho; el 3D queda como banda de comprobación.
+                          Es además el modo taller: si en pantalla no hay nada
+                          que no sea compensación, no hace falta un
+                          interruptor de bloqueo aparte.
+
+   Lo que un modo no usa se oculta con `display:none`, y su render se salta:
+   ver renderPanels() en panels/render.ts.                                  */
+#app{display:grid;height:100vh}
 #hd{grid-area:hd}#lf{grid-area:lf}#ct{grid-area:ct}#rt{grid-area:rt}
 #rb{grid-area:rb}#bt{grid-area:bt}#st{grid-area:st}
+
+/* --- MODELAR: teclear ángulos sin desplazar --- */
+#app.m-model{
+  grid-template-columns:var(--lfW) minmax(320px,1fr) var(--btW);
+  grid-template-rows:var(--h) minmax(200px,1fr) var(--ribbon) var(--statusH);
+  grid-template-areas:"hd hd hd" "lf ct bt" "lf rb bt" "st st st"}
+#app.m-model #rt{display:none}
+
+/* --- MEDIR: mirar la pieza --- */
+#app.m-meas{
+  grid-template-columns:var(--lfW) minmax(320px,1fr) var(--rtW);
+  grid-template-rows:var(--h) minmax(200px,1fr) calc(var(--ribbon) + 46px) var(--statusH);
+  grid-template-areas:"hd hd hd" "lf ct rt" "rb rb rb" "st st st"}
+#app.m-meas #bt{display:none}
+
+/* --- COMPENSAR: la tabla de comandos manda, y no hay nada más --- */
+#app.m-comp{
+  grid-template-columns:1fr;
+  grid-template-rows:var(--h) minmax(200px,1fr) var(--ribbon) var(--compVP) var(--statusH);
+  grid-template-areas:"hd" "bt" "rb" "ct" "st"}
+#app.m-comp #lf,#app.m-comp #rt{display:none}
+/* Los dos tiradores siguen ahí en los tres modos, pero cada modo les da otro
+   trabajo (ver bindGrips en app/events/grips.ts):
+
+     #rtgrip   MODELAR el ancho de la tabla · MEDIR el ancho del lateral
+               COMPENSAR nada: no hay columna a la derecha, y se esconde
+     #btgrip   COMPENSAR el alto de la banda 3D · los demás el alto de la cinta
+
+   Sin esto el tirador de la izquierda movía --rtW en un modo donde el lateral
+   no existe, y no pasaba nada al arrastrarlo. */
+#app.m-comp #rtgrip{display:none}
 
 /* ---------- header ---------- */
 #hd{display:flex;align-items:center;gap:14px;padding:0 12px;
@@ -217,12 +266,29 @@ input[type=number]{-moz-appearance:textfield;appearance:textfield}
 input[type=number]::-webkit-outer-spin-button,
 input[type=number]::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
 
-.fgrid{display:grid;grid-template-columns:1fr 112px;gap:6px 10px;align-items:center;padding:2px 0}
+/* Un par etiqueta/campo NO crece con la pantalla. En una banda de 1600 px, un
+   solo par estirado dejaba la etiqueta pegada al borde izquierdo y su campo al
+   derecho con un metro de vacío en medio; lo que se quiere ahí son varios
+   pares por renglón. `auto-fit` los reparte y `max-width` impide que el
+   último superviviente se estire. */
+.fgrid{display:grid;grid-template-columns:1fr 112px;gap:6px 10px;align-items:center;padding:2px 0;
+  max-width:460px}
 .fgrid label{font-size:11.5px;color:var(--dim)}
 .fgrid.w3{grid-template-columns:1fr 72px 72px}
 /* dos pares etiqueta/campo por renglón: la cabecera del modelo tiene que caber
    en una banda baja, o empuja la tabla fuera de la pantalla */
-.fgrid.pair{grid-template-columns:auto 82px auto 82px;gap:5px 10px}
+.fgrid.pair{grid-template-columns:auto 82px auto 82px;gap:5px 10px;max-width:none}
+/* La tira de ajustes de COMPENSAR va a todo el ancho, pero repartida en
+   columnas de ancho fijo en vez de un par estirado por renglón. */
+#app.m-comp #panes .grp .body{display:flex;flex-wrap:wrap;gap:6px 28px;align-items:flex-start}
+#app.m-comp #panes .grp .body > *{flex:0 1 auto}
+#app.m-comp #panes .grp .body > .tw{flex:1 1 100%}
+#app.m-comp #panes .grp .body > .hintline{flex:1 1 100%}
+/* un botón de acción no tiene por qué medir 1460 px */
+#panes .row .btn.grow{max-width:420px}
+/* ni una celda de compensación 700 px: la tabla crece con las columnas que
+   estén activas y para de crecer cuando ya caben todas */
+#app.m-comp #panes table.cmd{max-width:1150px}
 .mhead{display:flex;gap:24px;align-items:flex-start;flex-wrap:wrap;padding-top:8px}
 .mhead .eyebrow{padding:0 0 5px}
 .mcol{min-width:210px}

@@ -188,7 +188,7 @@ function saveJson(): void {
   const doc = E.toDoc(ST.model!, ST.command, ST.comp, ST.proc, ST.datasets,
                       ST.variants, ST.ref, ST.anchor,
                       { place: ST.place, marks: ST.marks, tweak: ST.tweak,
-                        ui: { theme: ST.theme, lang: LANG.cur } });
+                        ui: { theme: ST.theme, lang: LANG.cur, mode: ST.mode } });
   download(safeName(ST.model!.name) + '.json', JSON.stringify(doc, null, 1));
 }
 function openJson(): void {
@@ -207,6 +207,9 @@ function openJson(): void {
       if (d.ui) {
         if (d.ui.lang) setLang(d.ui.lang);
         if (d.ui.theme) useTheme(d.ui.theme);
+        if (d.ui.mode === 'model' || d.ui.mode === 'meas' || d.ui.mode === 'comp') {
+          ST.mode = d.ui.mode;
+        }
       }
       for (const x of d.datasets) {
         const ds = addDataset(

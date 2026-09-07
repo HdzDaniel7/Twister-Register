@@ -6,7 +6,7 @@
    insignia W/T y con signo.
    ========================================================================= */
 import { T } from '../i18n.ts';
-import type { Orientation } from '../types.ts';
+import type { Mode, Orientation } from '../types.ts';
 
 /** i18n.ts no exporta `I18nKey`: se deriva aquí del propio parámetro de T()
  *  para no duplicar la lista de 169 claves y para que tsc siga comprobando
@@ -20,6 +20,14 @@ export const $ = <T extends Element = HTMLElement>(s: string): T | null => docum
 /* Las pestañas de abajo. La MEDICIÓN ya no es una pestaña: sus estadísticas y
    su tabla de desviación viven fijas en el lateral derecho, porque son lo que
    se mira MIENTRAS se toca la tabla. */
+/** Las sub-pestañas de cada MODO. Modelar tiene dos tablas —la LRA y la de
+ *  puntos—; Medir y Compensar tienen una sola cosa que enseñar y por eso no
+ *  gastan una fila de pestañas en decirlo. */
+export const MODES: Mode[] = ['model', 'meas', 'comp'];
+export const TABS_OF: Record<Mode, string[]> = {
+  model: ['model', 'points'], meas: [], comp: ['comp'],
+};
+/** Compatibilidad: la lista plana que usaba renderRight() antes de los modos. */
 export const TABS = ['model', 'points', 'comp'];
 export const fx = (v: number | null | undefined, n: number = 2): string =>
   (v === null || v === undefined || !isFinite(v)) ? '—' : v.toFixed(n);

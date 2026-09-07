@@ -5,13 +5,28 @@
    ========================================================================= */
 import { T, LANG, LANGS } from '../i18n.ts';
 import { ST, V, REF } from '../state.ts';
-import { $, TABS, fx, esc } from './fmt.ts';
+import { $, MODES, TABS_OF, fx, esc } from './fmt.ts';
 import type { I18nKey } from './fmt.ts';
+import type { Mode } from '../types.ts';
+
+/* Las etiquetas del selector de modo, escritas una por una a propósito: con
+   `T(('mode' + m) as I18nKey)` el tipo dejaría de comprobar que la clave
+   existe, que es justo la red que hace que falte una traducción sea un error
+   de compilación y no un hueco en pantalla. */
+const MODE_LAB: Record<Mode, I18nKey> = {
+  model: 'modeModel', meas: 'modeMeas', comp: 'modeComp',
+};
+const MODE_TIP: Record<Mode, I18nKey> = {
+  model: 'modeModelTip', meas: 'modeMeasTip', comp: 'modeCompTip',
+};
 
 /* ============================================================== armazón == */
 export function renderShell(): void {
   $('#hd')!.innerHTML = `
    <div class="brand"><b>BARCOMP</b><span class="v">α</span><span class="sub">${T('sub')}</span></div>
+   <div class="seg modes" style="margin-left:14px">
+     ${MODES.map(m => `<button data-md="${m}" title="${T(MODE_TIP[m])}"
+       class="${ST.mode === m ? 'on' : ''}">${T(MODE_LAB[m])}</button>`).join('')}</div>
    <div class="hspace"></div>
    <div class="hbtns">
      <button class="btn" data-a="demo">${T('bDemo')}</button>
@@ -57,6 +72,17 @@ export function renderShell(): void {
       <div class="ends"><span>0</span><span>${fx(tol, 2)}</span><span>${fx(tol * 2, 2)} mm</span></div></div>`;
 
   $('#hint')!.textContent = T('hint');
-  $('#tabs')!.innerHTML = TABS.map(t =>
-    `<button data-t="${t}" class="${ST.tab === t ? 'on' : ''}">${T(t as I18nKey)}</button>`).join('');
+  /* La clase del #app es la que reparte la pantalla: una rejilla por modo. */
+  const app = $('#app');
+  if (app) app.className = 'm-' + ST.mode;
+
+  /* Sub-pestañas solo donde hay más de una tabla que enseñar: en Medir y en
+     Compensar la fila de pestañas sería una etiqueta de una sola opción. */
+  const tabs = TABS_OF[ST.mode] || [];
+  const bar = $('#tabs');
+  if (bar) {
+    bar.style.display = tabs.length > 1 ? '' : 'none';
+    bar.innerHTML = tabs.map(t =>
+      `<button data-t="${t}" class="${ST.tab === t ? 'on' : ''}">${T(t as I18nKey)}</button>`).join('');
+  }
 }

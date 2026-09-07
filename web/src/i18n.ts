@@ -30,6 +30,8 @@ type I18nKey =
   | 'batchUse' | 'batchTip' | 'batchOn' | 'batchHint' | 'spread' | 'spreadTip'
   | 'sbMeas' | 'sbUse' | 'sbNote' | 'sbCircular' | 'sbSpreadTip'
   | 'sbTrend' | 'sbTrendTip'
+  | 'modeModel' | 'modeMeas' | 'modeComp'
+  | 'modeModelTip' | 'modeMeasTip' | 'modeCompTip'
   | 'srcSimTip' | 'srcVerifyTip' | 'srcMeasTip' | 'srcUnkTip'
   | 'statMaxA' | 'statRms' | 'statTip' | 'statOut' | 'gains' | 'gainW' | 'gainT' | 'what'
   | 'cAng' | 'cRot' | 'cFeed' | 'apply' | 'reset' | 'cmdTbl' | 'cNow' | 'cNew'
@@ -130,6 +132,13 @@ es: {
    + 'ciclo cerrado, no una medición.',
  sbSpreadTip: 'Dispersión entre dobleces y entre piezas. Si es del tamaño del propio '
    + 'valor, ese resorte no está medido: está adivinado.',
+ /* Los tres trabajos. Son verbos porque nombran lo que se está haciendo, no
+    una pestaña donde mirar. */
+ modeModel: 'Modelar', modeMeas: 'Medir', modeComp: 'Compensar',
+ modeModelTip: 'Teclear la pieza: la tabla entera a la derecha y el modelo al lado.',
+ modeMeasTip: 'Mirar la pieza medida: el modelo grande, la cinta alta y las estadísticas.',
+ modeCompTip: 'Modo taller: solo se editan las celdas de compensación. Los comandos a '
+   + 'todo el ancho y el 3D como banda de comprobación.',
  sbTrend: 'depende del ángulo (%s %/°, r=%r)',
  sbTrendTip: 'El resorte cambia con el ángulo comandado, así que una constante única '
    + 'no describe el proceso. Con esta señal, ajuste por rango de ángulo en vez '
@@ -235,6 +244,11 @@ en: {
    + 'closed loop, not a measurement.',
  sbSpreadTip: 'Scatter across bends and parts. If it is as large as the value itself, '
    + 'that springback is not measured: it is guessed.',
+ modeModel: 'Model', modeMeas: 'Measure', modeComp: 'Compensate',
+ modeModelTip: 'Type the part: the whole table on the right and the model beside it.',
+ modeMeasTip: 'Look at the measured part: big model, tall ribbon and the statistics.',
+ modeCompTip: 'Shop-floor mode: only the compensation cells can be edited. Commands '
+   + 'full width and the 3D as a check strip.',
  sbTrend: 'depends on the angle (%s %/°, r=%r)',
  sbTrendTip: 'Springback changes with the commanded angle, so a single constant does not '
    + 'describe the process. With this flag, fit per angle range instead of '
@@ -345,6 +359,11 @@ de: {
    + 'ein geschlossener Kreis, keine Messung.',
  sbSpreadTip: 'Streuung über Bögen und Teile. Ist sie so groß wie der Wert selbst, ist '
    + 'diese Rückfederung nicht gemessen, sondern geraten.',
+ modeModel: 'Modellieren', modeMeas: 'Messen', modeComp: 'Kompensieren',
+ modeModelTip: 'Das Teil eingeben: die ganze Tabelle rechts und das Modell daneben.',
+ modeMeasTip: 'Das gemessene Teil ansehen: großes Modell, hohes Band und die Statistik.',
+ modeCompTip: 'Werkstattmodus: nur die Kompensationszellen sind editierbar. Befehle über '
+   + 'die volle Breite, das 3D als Kontrollstreifen.',
  sbTrend: 'hängt vom Winkel ab (%s %/°, r=%r)',
  sbTrendTip: 'Die Rückfederung ändert sich mit dem befohlenen Winkel, eine einzige '
    + 'Konstante beschreibt den Prozess also nicht. Bei diesem Hinweis je '
