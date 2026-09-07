@@ -41,17 +41,29 @@ const relJs = rel.replace(/\.ts$/, '.js');
 const strip = async (code, loader) =>
   (await transform(code, { loader, format: 'esm', target: 'es2022' })).code;
 
-let antes;
+/* En la revisión anterior el archivo puede llamarse `.js` (todavía sin portar)
+   o `.ts` (ya portado, y lo que se compara entonces es la anotación). Se
+   prueban los dos, en ese orden. */
+const show = p => execFileSync('git', ['-C', REPO, 'show', `${rev}:${p}`],
+  /* el primer intento falla a propósito cuando el archivo ya era .ts, así que
+     el «fatal:» de git se calla: no es un error, es la búsqueda */
+  { encoding: 'utf8', maxBuffer: 64 << 20, stdio: ['ignore', 'pipe', 'ignore'] });
+
+let antes, loaderAntes = 'js';
 try {
-  antes = execFileSync('git', ['-C', REPO, 'show', `${rev}:${relJs}`],
-    { encoding: 'utf8', maxBuffer: 64 << 20 });
+  antes = show(relJs);
 } catch {
-  console.error(`No encuentro ${relJs} en ${rev}. ¿Seguro que el archivo era .js antes?`);
-  process.exit(2);
+  try {
+    antes = show(rel);
+    loaderAntes = 'ts';
+  } catch {
+    console.error(`No encuentro ni ${relJs} ni ${rel} en ${rev}.`);
+    process.exit(2);
+  }
 }
 
 const ahora = fs.readFileSync(path.resolve(WEB, target), 'utf8');
-const a = await strip(antes, 'js');
+const a = await strip(antes, loaderAntes);
 const b = await strip(ahora, 'ts');
 
 if (a === b) {

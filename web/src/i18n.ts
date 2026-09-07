@@ -1,4 +1,3 @@
-// @ts-nocheck  — puerto en curso: este archivo aún no está anotado. Se quita al anotarlo.
 /* ------------------------------------------------------------------ i18n --
    Todo texto visible pasa por T('clave'). Al agregar una cadena hay que
    ponerla en los TRES: I18N.es, I18N.en e I18N.de. test_motor.js comprueba
@@ -11,6 +10,34 @@
    es Hochkantbiegung y el de plano Flachbiegung; springback es Rückfederung;
    PI es Schnittpunkt; longitud desarrollada es Abwicklungslänge. OJO: «datum»
    en alemán significa fecha, así que el datum de medición es Bezug.        */
+type Lang = 'es' | 'en' | 'de';
+
+/** Las 169 claves que deben existir en LOS TRES diccionarios. Que falte una
+ *  en alguno es, con esto, un error de compilación — ya no solo de prueba. */
+type I18nKey =
+  | 'sub' | 'bNew' | 'bOpen' | 'bSave' | 'bRep' | 'bDemo' | 'layers' | 'datasets'
+  | 'model' | 'meas' | 'thSys' | 'thLight' | 'thDark' | 'comp' | 'points' | 'lNom'
+  | 'lVar' | 'lDiff' | 'lMeas' | 'lPred' | 'lDev' | 'lPts' | 'lLbl' | 'lGrid'
+  | 'lFix' | 'addSim' | 'del' | 'view' | 'vIso' | 'vTop' | 'vFront' | 'vSide'
+  | 'vFit' | 'exag' | 'cmode' | 'cSolid' | 'cDev' | 'legend' | 'devscale' | 'hint'
+  | 'ribbon' | 'vsRef' | 'gripW' | 'gripH' | 'name' | 'section' | 'width' | 'thick'
+  | 'chamfer' | 'endlen' | 'tail' | 'tol' | 'tolA' | 'tolR' | 'tolF' | 'tolP'
+  | 'bends' | 'addBend' | 'nBend' | 'feed' | 'rot' | 'ang' | 'rad' | 'twist'
+  | 'twlen' | 'ori' | 'dcol' | 'straight' | 'arcL' | 'cumL' | 'tailRow' | 'lenNote'
+  | 'kbdNote' | 'twnote' | 'proc' | 'sbW' | 'sbT' | 'slip' | 'biasR' | 'noise'
+  | 'seed' | 'simulate' | 'dNone' | 'deltas' | 'dA' | 'dR' | 'dF' | 'dP'
+  | 'statMaxA' | 'statRms' | 'statTip' | 'statOut' | 'gains' | 'gainW' | 'gainT' | 'what'
+  | 'cAng' | 'cRot' | 'cFeed' | 'apply' | 'reset' | 'cmdTbl' | 'cNow' | 'cNew'
+  | 'cDelta' | 'predict' | 'verify' | 'noMeas' | 'stLen' | 'stBends' | 'stDatum' | 'stMax'
+  | 'stUnits' | 'engine' | 'dStart' | 'dBest' | 'formula' | 'note' | 'repTitle' | 'repDate'
+  | 'repPiece' | 'ok' | 'bad' | 'piece' | 'orW' | 'orT' | 'confirmNew' | 'pts'
+  | 'x' | 'y' | 'z' | 'variants' | 'addVar' | 'dupVar' | 'setRef' | 'isRef'
+  | 'anchor' | 'aStart' | 'aEnd' | 'aBest' | 'insPt' | 'delPt' | 'ptNote' | 'bake'
+  | 'zeroD' | 'bakeAsk' | 'dTip' | 'dblz' | 'place' | 'pivot' | 'plX' | 'plY'
+  | 'plZ' | 'plRX' | 'plRY' | 'plRZ' | 'plReset' | 'plNote' | 'lMarks' | 'marks'
+  | 'addMark' | 'nearPi' | 'distPi' | 'markNote' | 'cCalc' | 'cAdj' | 'zeroTw' | 'cellNote'
+  | 'tweakOn';
+
 export const I18N = {
 es: {
  sub: 'Compensación de dobleces · alfa',
@@ -237,9 +264,9 @@ de: {
  cCalc: 'Δ ber.', cAdj: 'Δ angewandt', zeroTw: 'Manuelles Δ auf null',
  cellNote: 'Die Zelle Δ angewandt nimmt Rechnungen auf das an, was der Regelkreis berechnet hat, geschrieben als c: »+2« oder »c+2« addiert 2, »c*1.1« gibt 10 % mehr, und eine blanke Zahl ersetzt den Wert. Der Rest der Tabelle ist schreibgeschützt.',
  tweakOn: 'manuell angepasst',
-}};
+}} satisfies Record<Lang, Record<I18nKey, string>>;
 
-export const LANGS = ['es', 'en', 'de'];
-export const LANG = { cur: 'es' };
-export const setLang = l => { LANG.cur = LANGS.includes(l) ? l : 'es'; };
-export const T = k => (I18N[LANG.cur][k] ?? k);
+export const LANGS: Lang[] = ['es', 'en', 'de'];
+export const LANG: { cur: Lang } = { cur: 'es' };
+export const setLang = (l: string): void => { LANG.cur = LANGS.includes(l as Lang) ? (l as Lang) : 'es'; };
+export const T = (k: I18nKey): string => (I18N[LANG.cur][k] ?? k);
