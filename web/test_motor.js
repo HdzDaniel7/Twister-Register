@@ -11,8 +11,8 @@
  * Correr esto DESPUÉS de cada cambio en src/ y ANTES de `node build.mjs`.
  */
 import { Matrix4, Euler, Vector3 } from 'three';
-import * as E from './src/engine.js';
-import { I18N, LANGS, LANG, setLang, T } from './src/i18n.js';
+import * as E from './src/engine.ts';
+import { I18N, LANGS, LANG, setLang, T } from './src/i18n.ts';
 
 let fails = 0;
 function ok(name, cond, detail = '') {
@@ -483,6 +483,190 @@ ok('deletePi se niega a dejar el modelo sin dobleces',
    E.deletePi(E.normalizeModel({ ...EM, bends: [E.newBend()] }), 1).bends.length === 1);
 
 /* ---------------------------------------------------------------------- */
+console.log('\n— importar una pieza medida —');
+
+/* La regla del lector es la del motor de Python: de cada línea, las TRES
+   ÚLTIMAS columnas numéricas. Todo lo demás se descarta solo. */
+{
+  const csv = E.writePointsCsv(E.fk(M).pis);
+  const back = E.readPointsCsv(csv);
+  ok('writePointsCsv -> readPointsCsv es ida y vuelta',
+     back.length === P.length &&
+     maxAbs(back.map((q, i) => q.distanceTo(P[i]))) < 1e-3,
+     `${back.length} pts, error máx ${maxAbs(back.map((q, i) => q.distanceTo(P[i]))).toExponential(1)}`);
+
+  ok('el encabezado no entra como punto',
+     E.readPointsCsv('idx,x,y,z\n0,1,2,3').length === 1);
+  ok('acepta punto y coma, tabulador y espacios',
+     E.readPointsCsv('1;2;3\n4\t5\t6\n7 8 9').length === 3);
+  ok('toma las TRES ÚLTIMAS columnas, no las primeras',
+     E.readPointsCsv('7,1,2,3')[0].x === 1);
+  ok('una línea con menos de tres números se descarta',
+     E.readPointsCsv('nombre,unidad\n1,2\n1,2,3').length === 1);
+  ok('un archivo vacío da cero puntos y no revienta',
+     E.readPointsCsv('').length === 0 && E.readPointsCsv('   \n\n').length === 0);
+
+  /* measuredModel: los puntos traen la forma; radio y torsión se arrastran del
+     nominal por índice, porque no viven en los puntos. */
+  const same = E.measuredModel(M, P);
+  ok('measuredModel sobre los PI del nominal reproduce el nominal',
+     same.bends.length === M.bends.length &&
+     maxAbs(E.fk(same).pis.map((q, i) => q.distanceTo(P[i]))) < 1e-9);
+  ok('measuredModel arrastra radio y torsión del nominal',
+     same.bends.every((b, i) => Math.abs(b.radius - M.bends[i].radius) < 1e-12 &&
+                                Math.abs(b.twist - M.bends[i].twist) < 1e-12));
+
+  /* Una pieza escaneada puede llegar con un doblez de menos. Ya reventó una
+     vez, así que aquí se comprueba que entra y que se puede medir contra el
+     nominal sin salirse de rango. */
+  const corta = E.measuredModel(M, P.slice(0, P.length - 1));
+  ok('measuredModel acepta una pieza con menos PI que el nominal',
+     corta.bends.length === M.bends.length - 1);
+  const dev = E.deviations(M, corta, 'start');
+  ok('deviations compara una pieza corta sin desbordar',
+     dev.angle.length === corta.bends.length && dev.angle.every(v => isFinite(v)));
+
+  /* Y la de verdad: una pieza deformada tiene que verse deformada. */
+  const movidos = P.map((q, i) => (i === 6 ? q.clone().add(new Vector3(0, 0, 12)) : q.clone()));
+  const torcida = E.measuredModel(M, movidos);
+  const dev2 = E.deviations(M, torcida, 'start');
+  ok('un PI movido 12 mm se ve en la desviación de punto',
+     maxAbs(dev2.point) > 5, `punta máx ${maxAbs(dev2.point).toFixed(2)} mm`);
+}
+
+/* ---------------------------------------------------------------------- */
+console.log('\n— varias piezas medidas —');
+
+{
+  ok('statOf de una muestra impar da la mediana de en medio',
+     E.statOf([5, 1, 3]).med === 3);
+  ok('statOf de una muestra par promedia las dos de en medio',
+     E.statOf([1, 3, 5, 7]).med === 4);
+  ok('statOf de una muestra vacía no revienta',
+     E.statOf([]).n === 0 && E.statOf([]).med === 0);
+  ok('statOf descarta los no finitos',
+     E.statOf([1, NaN, 3, Infinity]).n === 2);
+
+  /* Lo que de verdad importa: un valor absurdo —un PI mal extraído— no debe
+     mover la mediana, y sí movería la media. */
+  const limpio = [10, 10.1, 9.9, 10.05, 9.95];
+  const conBasura = [...limpio, 400];
+  const media = a => a.reduce((x, y) => x + y, 0) / a.length;
+  ok('un valor absurdo mueve la media pero no la mediana',
+     Math.abs(E.statOf(conBasura).med - E.statOf(limpio).med) < .1 &&
+     Math.abs(media(conBasura) - media(limpio)) > 50,
+     `mediana ${E.statOf(conBasura).med.toFixed(2)} vs media ${media(conBasura).toFixed(1)}`);
+
+  ok('sigma es el MAD escalado 1.4826', (() => {
+    const st = E.statOf([1, 2, 3, 4, 5]);   // MAD = 1
+    return Math.abs(st.mad - 1) < 1e-12 && Math.abs(st.sigma - 1.4826) < 1e-9;
+  })());
+  ok('una muestra sin dispersión da sigma cero',
+     E.statOf([7, 7, 7]).sigma === 0);
+
+  /* Tres piezas simuladas con semillas distintas: el lote se parece al
+     nominal más que cualquiera de las piezas sueltas, que es toda la razón de
+     compensar contra la mediana. */
+  const ori = E.orientations(M);
+  const piezas = [3, 11, 29].map(seed =>
+    E.simulate(M.bends, { ...E.PROC_DEFAULT, seed }, ori, true));
+  const st = E.bendStats(piezas);
+  ok('bendStats da una fila por doblez y cuenta las piezas',
+     st.length === M.bends.length && st.every(x => x.n === 3));
+  ok('bendStats reporta dispersión donde el simulador metió ruido',
+     st.some(x => x.angle.sigma > 0));
+
+  const med = E.medianPart(piezas);
+  ok('medianPart devuelve una pieza completa', med.length === M.bends.length);
+  ok('medianPart arrastra radio y torsión, que no se miden',
+     med.every((b, i) => Math.abs(b.radius - piezas[0][i].radius) < 1e-12));
+  ok('cada ángulo de la mediana es la mediana de los tres',
+     med.every((b, i) => Math.abs(b.angle - E.statOf(piezas.map(p => p[i].angle)).med) < 1e-12));
+  ok('la mediana cae entre la menor y la mayor de las piezas',
+     med.every((b, i) => {
+       const v = piezas.map(p => p[i].angle);
+       return b.angle >= Math.min(...v) - 1e-12 && b.angle <= Math.max(...v) + 1e-12;
+     }));
+
+  /* Y la que justifica el cambio: la mediana del lote está más cerca del
+     proceso real (sin ruido) que la pieza suelta más ruidosa. */
+  const sinRuido = E.simulate(M.bends, { ...E.PROC_DEFAULT, seed: 3 }, ori, false);
+  const err = bs => Math.max(...bs.map((b, i) => Math.abs(b.angle - sinRuido[i].angle)));
+  ok('la mediana del lote se acerca al proceso más que la peor pieza suelta',
+     err(med) < Math.max(...piezas.map(err)),
+     `mediana ${err(med).toFixed(4)}° vs peor pieza ${Math.max(...piezas.map(err)).toFixed(4)}°`);
+
+  /* Una pieza escaneada puede traer menos dobleces. */
+  const cortas = [piezas[0], piezas[1].slice(0, 10), piezas[2]];
+  const st2 = E.bendStats(cortas);
+  ok('bendStats llega hasta la pieza más larga y baja n donde falta muestra',
+     st2.length === M.bends.length && st2[0].n === 3 && st2[12].n === 2);
+  ok('medianPart se detiene en la pieza más corta',
+     E.medianPart(cortas).length === 10);
+  ok('medianPart de una sola pieza es esa pieza',
+     E.medianPart([piezas[0]]).every((b, i) => Math.abs(b.angle - piezas[0][i].angle) < 1e-12));
+  ok('medianPart sin piezas devuelve nada', E.medianPart([]).length === 0);
+}
+
+/* ---------------------------------------------------------------------- */
+console.log('\n— resorte medido —');
+
+{
+  const ori = E.orientations(M);
+  const cmd = M.bends;
+
+  /* Sin ruido, la estimación tiene que devolver EXACTAMENTE las constantes con
+     las que el simulador fabricó la pieza: es la prueba de que la cuenta y su
+     inversa son la misma. */
+  const proc = { ...E.PROC_DEFAULT, sbW: 1.6, sbT: 1.0 };
+  const limpia = E.simulate(cmd, proc, ori, false);
+  const sb = E.springback([{ cmd, meas: limpia }], ori);
+  ok('sin ruido el resorte estimado es el que usó el simulador',
+     Math.abs(sb.W.stat.med - 1.6) < 1e-9 && Math.abs(sb.T.stat.med - 1.0) < 1e-9,
+     `W ${sb.W.stat.med.toFixed(4)} % · T ${sb.T.stat.med.toFixed(4)} %`);
+  ok('sin ruido la dispersión es cero',
+     sb.W.stat.sigma < 1e-9 && sb.T.stat.sigma < 1e-9);
+  ok('las dos orientaciones se estiman por separado',
+     sb.W.stat.n > 0 && sb.T.stat.n > 0 && sb.W.stat.n + sb.T.stat.n <= cmd.length);
+
+  /* Con ruido y varias piezas, la mediana sigue cayendo cerca. */
+  const piezas = [3, 11, 29, 47].map(seed =>
+    ({ cmd, meas: E.simulate(cmd, { ...proc, seed }, ori, true) }));
+  const sbn = E.springback(piezas, ori);
+  ok('con ruido la mediana sigue cerca del valor real',
+     Math.abs(sbn.W.stat.med - 1.6) < .3 && Math.abs(sbn.T.stat.med - 1.0) < .3,
+     `W ${sbn.W.stat.med.toFixed(3)} ± ${sbn.W.stat.sigma.toFixed(3)}`);
+  ok('con ruido la dispersión deja de ser cero', sbn.W.stat.sigma > 0);
+  ok('cuatro piezas dan cuatro veces la muestra de una',
+     sbn.W.stat.n === 4 * sb.W.stat.n);
+
+  /* Un doblez casi recto no entra: ahí la división amplifica el ruido hasta
+     inventar un resorte. */
+  const conRecto = E.normalizeModel({
+    ...M, bends: [E.newBend({ feed: 100, rot: 0, angle: 0.3, radius: 30 }), ...M.bends],
+  });
+  const oriR = E.orientations(conRecto);
+  const sbR = E.springback(
+    [{ cmd: conRecto.bends, meas: E.simulate(conRecto.bends, proc, oriR, false) }], oriR);
+  ok('un doblez de 0.3° no entra en la estimación',
+     sbR.W.stat.n + sbR.T.stat.n === sb.W.stat.n + sb.T.stat.n,
+     `${sbR.W.stat.n + sbR.T.stat.n} muestras`);
+
+  /* Y la señal que evita el error de fondo: si el resorte depende del ángulo,
+     una constante única miente y hay que decirlo. */
+  const dep = cmd.map(b => E.newBend({
+    ...b, angle: b.angle * (1 - (0.5 + 0.02 * Math.abs(b.angle)) / 100),
+  }));
+  const sbD = E.springback([{ cmd, meas: dep }], ori);
+  ok('se detecta que el resorte depende del ángulo comandado',
+     Math.abs(sbD.W.r) > .9 && sbD.W.slope > 0,
+     `r ${sbD.W.r.toFixed(3)}, pendiente ${sbD.W.slope.toFixed(4)} %/°`);
+  ok('con resorte constante no se señala dependencia', Math.abs(sb.W.r) < 1e-9);
+  ok('sin piezas no revienta y devuelve n=0',
+     E.springback([], ori).W.stat.n === 0);
+}
+
+/* ---------------------------------------------------------------------- */
 console.log('\n— colocación en el espacio —');
 
 /* La colocación es SOLO presentación: mueve y gira la escena entera alrededor
@@ -526,10 +710,11 @@ console.log('\n— puntos de referencia —');
 /* ---------------------------------------------------------------------- */
 console.log('\n— expresiones en la celda de compensación —');
 {
+  /* Con la celda sin ajuste, `v` y `c` valen lo mismo: es el caso de siempre. */
   const cases = [
     ['2', 1.5, 2], ['+2', 1.5, 3.5], ['c+2', 1.5, 3.5], ['c-0.5', 1.5, 1],
     ['c*1.1', 2, 2.2], ['*2', 1.5, 3], ['/2', 3, 1.5], ['(c+1)/2', 3, 2],
-    ['-3', 1.5, -3], ['1,5', 0, 1.5], ['  c  +  2  ', 1, 3],
+    ['1,5', 0, 1.5], ['  c  +  2  ', 1, 3],
   ];
   let bad = '';
   for (const [t, c, exp] of cases) {
@@ -538,7 +723,40 @@ console.log('\n— expresiones en la celda de compensación —');
   }
   ok('evalCell resuelve número, atajo y cuenta sobre c', !bad, bad);
 
-  const malos = ['', '   ', 'abc', '2+', '(2', '2)', 'c c', '1/0*0'];
+  /* Lo que cambió: un operador al principio opera sobre lo MOSTRADO, que es
+     como se comporta una hoja de cálculo. `c` sigue siendo el cálculo del
+     lazo, y los dos se separan en la segunda edición de la misma celda. */
+  const dos = [
+    /* texto, calc, mostrado, esperado */
+    ['+2', 1.5, 4.0, 6.0], ['-0.3', 1.5, 4.0, 3.7], ['*2', 1.5, 4.0, 8.0],
+    ['c+2', 1.5, 4.0, 3.5], ['c', 1.5, 4.0, 1.5], ['v', 1.5, 4.0, 4.0],
+    ['7', 1.5, 4.0, 7.0], ['=-3', 1.5, 4.0, -3], ['= 2.5', 1.5, 4.0, 2.5],
+    ['v-c', 1.5, 4.0, 2.5],
+  ];
+  let bad2 = '';
+  for (const [t, c, v, exp] of dos) {
+    const g = E.evalCell(t, c, v);
+    if (g === null || Math.abs(g - exp) > 1e-9) bad2 += ` ${JSON.stringify(t)}->${g}`;
+  }
+  ok('un operador al principio opera sobre lo MOSTRADO, y `c` sobre el cálculo',
+     !bad2, bad2);
+
+  /* La consecuencia práctica, que es la que hay que poder explicar: teclear
+     «+2» dos veces en la misma celda suma dos veces. Antes la segunda no hacía
+     nada, porque ambas se medían contra el mismo cálculo del lazo. */
+  const calc = 0.163;
+  const uno = E.evalCell('+2', calc, calc);
+  const dosVeces = E.evalCell('+2', calc, uno);
+  ok('teclear «+2» dos veces suma dos veces',
+     Math.abs(uno - (calc + 2)) < 1e-9 && Math.abs(dosVeces - (calc + 4)) < 1e-9,
+     `${uno.toFixed(3)} -> ${dosVeces.toFixed(3)}`);
+
+  ok('un `-` al principio ya no es un número negativo suelto',
+     E.evalCell('-3', 1.5, 1.5) === -1.5 && E.evalCell('=-3', 1.5, 1.5) === -3);
+  ok('sin `shown`, `v` es el cálculo: una llamada de antes significa lo mismo',
+     E.evalCell('v', 2.5) === 2.5 && E.evalCell('+1', 2.5) === 3.5);
+
+  const malos = ['', '   ', 'abc', '2+', '(2', '2)', 'c c', '1/0*0', '=', '=  '];
   ok('evalCell rechaza lo que no es una expresión',
      malos.every(t => E.evalCell(t, 1) === null),
      malos.filter(t => E.evalCell(t, 1) !== null).join(' ') || 'todos rechazados');
@@ -606,7 +824,12 @@ console.log('\n— idiomas —');
      en alemán no —Datum significa fecha, y el bezug de medición es Bezug—, así
      que ahí siguen sin exención y la prueba los vigila. */
   const COMUNES = ['nBend', 'dcol', 'ori', 'x', 'y', 'z', 'arcL', 'cumL',
-                   'isRef', 'vIso', 'cDelta', 'rad', 'name'];
+                   'isRef', 'vIso', 'cDelta', 'rad', 'name',
+                   /* «SIM» es la misma sigla en los tres idiomas, como REF. La
+                      medida sí cambia (MED/MEAS/MESS) y sigue vigilada. */
+                   'srcSim', 'srcVerify',
+                   /* «±σ» es notación, no idioma. Su tooltip sí está traducido. */
+                   'spread'];
   const IGUALES = {
     en: new Set([...COMUNES, 'cmode', 'distPi', 'nearPi', 'stDatum', 'twist']),
     de: new Set(COMUNES),

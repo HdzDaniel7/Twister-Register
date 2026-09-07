@@ -1,12 +1,12 @@
 # ---------------------------------------------------------------- este repo
 # Solo se publica el visor web (GitHub Pages sirve index.html desde la raíz).
-# El motor Python, el comparador y las notas internas se quedan fuera.
-python/
-compare_engines.py
+# El motor Python y el comparador ya no viven aquí: se mudaron a la carpeta
+# hermana «Twister Register Python». Las notas internas se quedan fuera.
 CONTEXTO_BARCOMP.md
 PROMPT_WEB_V2.md
 PROMPT_WEB_V3.md
 PROMPT_WEB_V4.md
+PROMPT_WEB_V5.md
 
 # --------------------------------------------------------------- artefactos
 # index.html (raíz) ES la página publicada y sí se versiona.
@@ -39,5 +39,7 @@ desktop.ini
 tmp/
 scratch/
 
-# Banco de pruebas de interfaz por CDP: solo local, no es parte de la página
-web/tools/
+# Perfiles de Edge que el banco de interfaz crea por corrida
+web/tools/ep_*/
+web/tools/eps_*/
+web/tools/*.png

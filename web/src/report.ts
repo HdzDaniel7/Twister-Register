@@ -2,27 +2,29 @@
    Imprimible: capturas de las 4 vistas + la cinta + la tabla por doblez.
    Se abre en una ventana nueva; las imágenes van empotradas como data URI,
    así que el archivo se puede guardar y llevar tal cual.                    */
-import * as E from './engine.js';
-import { T } from './i18n.js';
-import { ST, activeDataset, REF } from './state.js';
-import { captureViews, devCssColor } from './scene.js';
-import { fx, esc } from './panels.js';
+import * as E from './engine.ts';
+import { T } from './i18n.ts';
+import { ST, activeDataset, REF } from './state.ts';
+import { captureViews, devCssColor } from './scene.ts';
+import { fx, esc } from './panels.ts';
 
-export function makeReport() {
-  const M = ST.model, D = activeDataset(), ori = E.orientations(M);
+/* Solo se llega aquí desde el botón de reporte, con un modelo ya cargado: por
+   eso `ST.model` y el lienzo de la cinta se dan por existentes. */
+export function makeReport(): void {
+  const M = ST.model!, D = activeDataset(), ori = E.orientations(M);
   const shots = captureViews();
-  const rb = document.querySelector('#rbc').toDataURL('image/png');
+  const rb = document.querySelector<HTMLCanvasElement>('#rbc')!.toDataURL('image/png');
   const dv = D ? D.dev : null;
 
   const rows = M.bends.map((b, i) => {
     const has = dv && i < dv.angle.length;
-    const col = has ? devCssColor(Math.abs(dv.theta[i]), M.tol.angle) : '#888';
+    const col = has ? devCssColor(Math.abs(dv!.theta[i]), M.tol.angle) : '#888';
     return `<tr><td>B${i + 1}</td><td>${ori[i]}</td>
       <td>${fx(E.bendTheta(b), 3)}</td>
-      <td>${has ? fx(E.bendTheta(D.model.bends[i]), 3) : '—'}</td>
-      <td style="color:${col}">${has ? (dv.theta[i] > 0 ? '+' : '') + fx(dv.theta[i], 3) : '—'}</td>
+      <td>${has ? fx(E.bendTheta(D!.model.bends[i]), 3) : '—'}</td>
+      <td style="color:${col}">${has ? (dv!.theta[i] > 0 ? '+' : '') + fx(dv!.theta[i], 3) : '—'}</td>
       <td>${ST.command[i] ? fx(ST.command[i].angle, 3) : '—'}</td>
-      <td>${has ? fx(dv.point[i + 1], 2) : '—'}</td></tr>`;
+      <td>${has ? fx(dv!.point[i + 1], 2) : '—'}</td></tr>`;
   }).join('');
 
   const varRows = ST.variants.map(v => {
@@ -61,9 +63,9 @@ export function makeReport() {
     <div><span>${T('stLen')}</span> ${fx(E.buildPath(M).total, 1)} mm</div>
     <div><span>${T('tolA')}</span> ±${M.tol.angle}°</div>
     <div><span>${T('anchor')}</span> ${anchorLab}</div>
-    <div><span>${T('statMaxA')}</span> ${D ? fx(D.dev.maxA, 3) + '°' : '—'}</div>
-    <div><span>${T('statTip')}</span> ${D ? fx(D.dev.tip, 2) + ' mm' : '—'}</div>
-    <div><span>${T('statOut')}</span> ${D ? D.dev.out + '/' + M.bends.length : '—'}</div>
+    <div><span>${T('statMaxA')}</span> ${D ? fx(D.dev!.maxA, 3) + '°' : '—'}</div>
+    <div><span>${T('statTip')}</span> ${D ? fx(D.dev!.tip, 2) + ' mm' : '—'}</div>
+    <div><span>${T('statOut')}</span> ${D ? D.dev!.out + '/' + M.bends.length : '—'}</div>
     <div><span>${T('engine')}</span> JavaScript · three.js</div></div>
   ${shots.map(([, u]) => `<img src="${u}">`).join('')}
   <img class="wide" src="${rb}">

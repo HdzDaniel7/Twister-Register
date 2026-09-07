@@ -4,9 +4,14 @@
   --txt:#D8DFE9; --dim:#7E8A9C; --dim2:#5A6576;
   --nominal:#3FA9F5; --measured:#F0A02E; --corrected:#3FD68C;
   --ok:#3FD68C; --warn:#FFC53D; --bad:#FF4D5E;
+  /* violeta: la pieza NO es real. No comparte familia con ningún otro
+     color semántico justamente para que no se confunda con una medida. */
+  --synthetic:#C08AF0;
   --mono:ui-monospace,"SF Mono","Cascadia Mono","Roboto Mono",Menlo,Consolas,monospace;
   --sans:"Inter","Segoe UI",system-ui,-apple-system,"Helvetica Neue",Arial,sans-serif;
   --h:44px; --ribbon:74px; --statusH:26px; --rtW:360px; --lfW:250px; --btH:340px;
+  /* MODELAR: ancho de la tabla a la derecha. COMPENSAR: alto de la banda 3D. */
+  --btW:760px; --compVP:250px;
 
   /* Todo lo que antes iba en crudo dentro del CSS, de scene.js y de ribbon.js.
      El 3D y la cinta LEEN estos tokens en tiempo de ejecución, así que aquí
@@ -18,6 +23,9 @@
   --oriW:#C9A5F5; --oriWbd:#6B4B9E; --oriT:#7FD8C4; --oriTbd:#3B7A6C;
   --hd1:#151A23; --hd2:#10141B; --scroll:#465268;
   --lblbg:#0B0E13CC; --floatbg:#0B0E13D9; --hintbg:#0B0E13B0;
+  /* texto de las etiquetas del 3D. Iban en --dim y en un #fff a pelo, y
+     en tema claro el blanco sobre blanco no se leía. */
+  --lblTxt:#AEB9C8; --lblSel:#FFFFFF;
   --ring:#3FA9F533; --grip:#3FA9F544; --selRing:#3FA9F540;
 }
 
@@ -32,7 +40,7 @@
   --line:#D7DDE6; --line2:#BFC8D4;
   --txt:#18202C; --dim:#5B6778; --dim2:#8391A3;
   --nominal:#0D6FC4; --measured:#A96400; --corrected:#0F7A52;
-  --ok:#0F7A52; --warn:#9A6B00; --bad:#C42133;
+  --ok:#0F7A52; --warn:#9A6B00; --bad:#C42133; --synthetic:#7A3FB0;
   --vpbg:#EDF0F4; --grid1:#C2CBD8; --grid2:#D9DFE7; --fixture:#AEB9C8;
   --inputbg:#FFFFFF; --inputbg2:#F7F9FC; --inputHovBd:#A6B2C2;
   --sel:#D5E7F8; --selBd:#8CBCE4; --selTxt:#0A4B87; --selHov:#C2DCF4;
@@ -40,6 +48,7 @@
   --oriW:#6A38A2; --oriWbd:#B49BDE; --oriT:#0C6A58; --oriTbd:#84C9BB;
   --hd1:#FFFFFF; --hd2:#F1F4F9; --scroll:#B4BDCA;
   --lblbg:#FFFFFFD9; --floatbg:#FFFFFFE6; --hintbg:#FFFFFFCC;
+  --lblTxt:#3B475A; --lblSel:#0A4B87;
   --ring:#0D6FC433; --grip:#0D6FC444; --selRing:#0D6FC440;
 }
 @media (prefers-color-scheme:light){
@@ -48,7 +57,7 @@
     --line:#D7DDE6; --line2:#BFC8D4;
     --txt:#18202C; --dim:#5B6778; --dim2:#8391A3;
     --nominal:#0D6FC4; --measured:#A96400; --corrected:#0F7A52;
-    --ok:#0F7A52; --warn:#9A6B00; --bad:#C42133;
+    --ok:#0F7A52; --warn:#9A6B00; --bad:#C42133; --synthetic:#7A3FB0;
     --vpbg:#EDF0F4; --grid1:#C2CBD8; --grid2:#D9DFE7; --fixture:#AEB9C8;
     --inputbg:#FFFFFF; --inputbg2:#F7F9FC; --inputHovBd:#A6B2C2;
     --sel:#D5E7F8; --selBd:#8CBCE4; --selTxt:#0A4B87; --selHov:#C2DCF4;
@@ -56,6 +65,7 @@
     --oriW:#6A38A2; --oriWbd:#B49BDE; --oriT:#0C6A58; --oriTbd:#84C9BB;
     --hd1:#FFFFFF; --hd2:#F1F4F9; --scroll:#B4BDCA;
     --lblbg:#FFFFFFD9; --floatbg:#FFFFFFE6; --hintbg:#FFFFFFCC;
+    --lblTxt:#3B475A; --lblSel:#0A4B87;
     --ring:#0D6FC433; --grip:#0D6FC444; --selRing:#0D6FC440;
   }
 }
@@ -75,12 +85,68 @@ button,input,select,textarea{font-family:inherit;font-size:inherit;color:inherit
    3D, desviación), y abajo van la cinta —horizontal por naturaleza, mide la
    longitud desarrollada— y la tabla a todo el ancho, que es lo que necesita
    con sus 14 columnas. El alto de la tabla lo pone #btgrip. */
-#app{display:grid;height:100vh;
-  grid-template-columns:var(--lfW) 1fr var(--rtW);
-  grid-template-rows:var(--h) minmax(200px,1fr) var(--ribbon) var(--btH) var(--statusH);
-  grid-template-areas:"hd hd hd" "lf ct rt" "rb rb rb" "bt bt bt" "st st st"}
-#hd{grid-area:hd}#lf{grid-area:lf}#ct{grid-area:ct}#rt{grid-area:rt}
+/* ---------- LA DISTRIBUCIÓN, POR MODO DE TRABAJO ----------
+   El programa hace tres trabajos y cada uno quiere la pantalla para otra cosa.
+   Antes los tres compartían un reparto fijo y ninguno cabía: la tabla de 13
+   columnas enseñaba dos filas y el 3D se quedaba con un tercio de la pantalla.
+   Ahora la clase del #app manda sobre la rejilla entera.
+
+     m-model   MODELAR    la tabla a la derecha, entera y de arriba abajo,
+                          con el 3D AL LADO — no debajo, que es lo que la
+                          ahogaba— y la cinta bajo el 3D.
+     m-meas    MEDIR      el modelo grande, la cinta alta y las estadísticas
+                          en el lateral. No hay tabla que teclear.
+     m-comp    COMPENSAR  ganancias en una tira y los comandos a todo el
+                          ancho; el 3D queda como banda de comprobación.
+                          Es además el modo taller: si en pantalla no hay nada
+                          que no sea compensación, no hace falta un
+                          interruptor de bloqueo aparte.
+
+   Lo que un modo no usa se oculta con `display:none`, y su render se salta:
+   ver renderPanels() en panels/render.ts.                                  */
+#app{display:grid;height:100vh}
+#hd{grid-area:hd}#ct{grid-area:ct}#rt{grid-area:rt}
 #rb{grid-area:rb}#bt{grid-area:bt}#st{grid-area:st}
+
+/* --- MODELAR: teclear ángulos sin desplazar --- */
+#app.m-model{
+  grid-template-columns:minmax(320px,1fr) var(--btW);
+  grid-template-rows:var(--h) minmax(200px,1fr) var(--ribbon) var(--statusH);
+  grid-template-areas:"hd hd" "ct bt" "rb bt" "st st"}
+#app.m-model #rt{display:none}
+
+/* --- MEDIR: mirar la pieza --- */
+#app.m-meas{
+  grid-template-columns:minmax(320px,1fr) var(--rtW);
+  grid-template-rows:var(--h) minmax(200px,1fr) calc(var(--ribbon) + 46px) var(--statusH);
+  grid-template-areas:"hd hd" "ct rt" "rb rb" "st st"}
+#app.m-meas #bt{display:none}
+
+/* --- COMPENSAR: la tabla de comandos manda, y no hay nada más --- */
+#app.m-comp{
+  grid-template-columns:1fr;
+  grid-template-rows:var(--h) minmax(200px,1fr) var(--ribbon) var(--compVP) var(--statusH);
+  grid-template-areas:"hd" "bt" "rb" "ct" "st"}
+#app.m-comp #rt{display:none}
+/* ---------- el 3D a pantalla completa ----------
+   Pliega la tabla, el lateral y la cinta sin salir del modo: la tabla sigue
+   donde estaba y el sitio en ella no se pierde. Es para mirar la pieza, que
+   es la mitad del trabajo y la que peor llevaba compartir la pantalla. */
+#app.solo{grid-template-columns:1fr;
+  grid-template-rows:var(--h) 1fr var(--statusH);
+  grid-template-areas:"hd" "ct" "st"}
+#app.solo #bt,#app.solo #rt,#app.solo #rb,#app.solo #rtgrip{display:none}
+
+/* Los dos tiradores siguen ahí en los tres modos, pero cada modo les da otro
+   trabajo (ver bindGrips en app/events/grips.ts):
+
+     #rtgrip   MODELAR el ancho de la tabla · MEDIR el ancho del lateral
+               COMPENSAR nada: no hay columna a la derecha, y se esconde
+     #btgrip   COMPENSAR el alto de la banda 3D · los demás el alto de la cinta
+
+   Sin esto el tirador de la izquierda movía --rtW en un modo donde el lateral
+   no existe, y no pasaba nada al arrastrarlo. */
+#app.m-comp #rtgrip{display:none}
 
 /* ---------- header ---------- */
 #hd{display:flex;align-items:center;gap:14px;padding:0 12px;
@@ -105,8 +171,26 @@ button,input,select,textarea{font-family:inherit;font-size:inherit;color:inherit
 .seg button.on{background:var(--sel);color:var(--selTxt)}
 
 /* ---------- panels ---------- */
-#lf,#rt{background:var(--panel);overflow-y:auto;overflow-x:hidden}
-#lf{border-right:1px solid var(--line)}
+#rt{background:var(--panel);overflow-y:auto;overflow-x:hidden}
+/* ---------- el cajón de menú ----------
+   Flota bajo la barra, encima del 3D. Está FUERA de la rejilla a propósito:
+   así abrirlo no reparte la pantalla otra vez ni obliga a un onResize(), y el
+   3D y la tabla no dan un salto cada vez que alguien mira las capas. */
+#lf{position:fixed;top:var(--h);left:0;width:var(--lfW);z-index:30;
+  max-height:calc(100vh - var(--h) - var(--statusH));
+  background:var(--panel);border-right:1px solid var(--line2);
+  border-bottom:1px solid var(--line2);
+  box-shadow:6px 6px 18px #0006;overflow-y:auto;overflow-x:hidden}
+#lf[hidden]{display:none}
+
+/* ---------- la barra de menús ---------- */
+.menubar{display:flex;gap:2px}
+.mn{background:none;border:1px solid transparent;border-radius:3px;padding:5px 11px;
+  cursor:pointer;color:var(--dim);font-family:var(--sans);font-size:12px;
+  letter-spacing:.02em;transition:.12s}
+.mn:hover{color:var(--txt);background:var(--panel3)}
+.mn.on{color:var(--txt);background:var(--panel3);border-color:var(--line2)}
+.col{display:flex;flex-direction:column;gap:5px}
 #rt{border-left:1px solid var(--line);position:relative;z-index:2;background:var(--panel)}
 .grp{border-bottom:1px solid var(--line)}
 .eyebrow{font-family:var(--sans);font-size:9.5px;font-weight:600;letter-spacing:.15em;
@@ -150,7 +234,13 @@ button,input,select,textarea{font-family:inherit;font-size:inherit;color:inherit
 #labels{position:absolute;inset:0;pointer-events:none;overflow:hidden}
 .lbl{position:absolute;transform:translate(-50%,-50%);font-size:10px;padding:1px 4px;
   border-radius:2px;background:var(--lblbg);border:1px solid var(--line2);white-space:nowrap;
-  letter-spacing:.03em}
+  letter-spacing:.03em;color:var(--lblTxt)}
+.lbl.sel{color:var(--lblSel);border-color:currentColor}
+/* La cota lleva su color en un punto, no en el texto: un color de identidad
+   elegido sobre fondo oscuro se lava sobre fondo claro, y lo que hay que poder
+   leer es la cifra. */
+.lbl .swatch{display:inline-block;width:6px;height:6px;border-radius:1px;
+  margin-right:4px;vertical-align:baseline}
 #vptool{position:absolute;top:8px;left:8px;display:flex;gap:5px;align-items:center;
   background:var(--floatbg);border:1px solid var(--line);border-radius:4px;padding:5px 7px;
   backdrop-filter:blur(6px);flex-wrap:wrap;
@@ -214,12 +304,29 @@ input[type=number]{-moz-appearance:textfield;appearance:textfield}
 input[type=number]::-webkit-outer-spin-button,
 input[type=number]::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
 
-.fgrid{display:grid;grid-template-columns:1fr 112px;gap:6px 10px;align-items:center;padding:2px 0}
+/* Un par etiqueta/campo NO crece con la pantalla. En una banda de 1600 px, un
+   solo par estirado dejaba la etiqueta pegada al borde izquierdo y su campo al
+   derecho con un metro de vacío en medio; lo que se quiere ahí son varios
+   pares por renglón. `auto-fit` los reparte y `max-width` impide que el
+   último superviviente se estire. */
+.fgrid{display:grid;grid-template-columns:1fr 112px;gap:6px 10px;align-items:center;padding:2px 0;
+  max-width:460px}
 .fgrid label{font-size:11.5px;color:var(--dim)}
 .fgrid.w3{grid-template-columns:1fr 72px 72px}
 /* dos pares etiqueta/campo por renglón: la cabecera del modelo tiene que caber
    en una banda baja, o empuja la tabla fuera de la pantalla */
-.fgrid.pair{grid-template-columns:auto 82px auto 82px;gap:5px 10px}
+.fgrid.pair{grid-template-columns:auto 82px auto 82px;gap:5px 10px;max-width:none}
+/* La tira de ajustes de COMPENSAR va a todo el ancho, pero repartida en
+   columnas de ancho fijo en vez de un par estirado por renglón. */
+#app.m-comp #panes .grp .body{display:flex;flex-wrap:wrap;gap:6px 28px;align-items:flex-start}
+#app.m-comp #panes .grp .body > *{flex:0 1 auto}
+#app.m-comp #panes .grp .body > .tw{flex:1 1 100%}
+#app.m-comp #panes .grp .body > .hintline{flex:1 1 100%}
+/* un botón de acción no tiene por qué medir 1460 px */
+#panes .row .btn.grow{max-width:420px}
+/* ni una celda de compensación 700 px: la tabla crece con las columnas que
+   estén activas y para de crecer cuando ya caben todas */
+#app.m-comp #panes table.cmd{max-width:1150px}
 .mhead{display:flex;gap:24px;align-items:flex-start;flex-wrap:wrap;padding-top:8px}
 .mhead .eyebrow{padding:0 0 5px}
 .mcol{min-width:210px}
@@ -306,6 +413,26 @@ td.dcol input[type=text]{text-align:right}
 .refbadge{font-family:var(--sans);font-size:8px;font-weight:700;letter-spacing:.12em;
   color:var(--nominal);border:1px solid var(--nominal);border-radius:2px;padding:0 3px;
   flex:none;opacity:.9}
+/* Procedencia de una pieza. Una pieza inventada por el simulador y una medida
+   se veían igual, y con eso se puede compensar contra números que no existen. */
+.srcbadge{font-family:var(--sans);font-size:8px;font-weight:700;letter-spacing:.12em;
+  border:1px solid currentColor;border-radius:2px;padding:0 3px;flex:none;opacity:.9;
+  cursor:help}
+.srcbadge.sim{color:var(--synthetic)}
+.srcbadge.meas{color:var(--measured)}
+.srcbadge.unk{color:var(--dim2)}
+
+/* ---------- resorte medido ----------
+   Una cifra sola no dice si vale: al lado van la dispersión y el n, y en
+   ámbar el aviso de que el resorte depende del ángulo comandado. */
+.sbrow{display:flex;align-items:baseline;gap:6px;padding:2px 0;
+  font-family:var(--mono);font-size:11px;font-variant-numeric:tabular-nums}
+.sbrow .k{flex:1;color:var(--dim);font-family:var(--sans);font-size:10px;letter-spacing:.06em}
+.sbrow .v{color:var(--txt);font-size:13px}
+.sbrow .v .u{color:var(--dim);font-size:9px;margin-left:1px}
+.sbrow .pm{color:var(--dim2);cursor:help}
+.sbrow .n{color:var(--dim2);font-size:10px}
+.sbrow .warn{flex-basis:100%;color:var(--warn);font-family:var(--sans);font-size:9.5px;cursor:help}
 .linkbtn{background:none;border:0;color:var(--dim2);cursor:pointer;padding:3px 0 0;
   font-family:var(--sans);font-size:9.5px;letter-spacing:.06em;text-align:left;width:100%}
 .linkbtn:hover{color:var(--nominal);text-decoration:underline}
