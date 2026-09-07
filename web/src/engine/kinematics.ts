@@ -84,6 +84,11 @@ import { newBend } from './bend.ts';
  *  (-180, 180]: cuatro cuartos de vuelta dejan el eje donde estaba, y media
  *  vuelta se escribe 180 —como en la máquina— y no -180.
  */
+/** Sentido de giro del ángulo: +1 dobla como el motor lo hacía histórico, -1 al
+ *  revés. Lo consumen bendDecomp() —o sea toda la cinemática— e ik(), que es su
+ *  inversa; cambiarlo aquí voltea la pieza entera sin tocar ni un dato. */
+export const ANG_DIR = -1;
+
 /** Lleva un par (eje, ángulo) a la forma canónica: el eje al plano que le toca
  *  —dentro de (-90, 90]— y el signo del doblez al ángulo. La geometría no
  *  cambia: girar el eje media vuelta es lo mismo que doblar al revés. */
@@ -150,8 +155,9 @@ export function ik(points: Vector3[], radii: (number | undefined)[] | null | und
       ? prevRot                       //   y lo que corresponde es no moverlo
       : Math.atan2(-d.z, -d.y) * R2D;
     /* forma canónica: el eje al plano (-90, 90] y el signo del doblez al
-       ángulo, para no escribir la dirección dos veces */
-    const c = canonRot(crudo, ang);
+       ángulo, para no escribir la dirección dos veces. El ángulo sale con el
+       SENTIDO del modelo (ANG_DIR), que es el que bendDecomp() va a leer. */
+    const c = canonRot(crudo, ANG_DIR * ang);
     const rot = c.rot;
     bends.push(newBend({
       feed: fe, rot: wrapTurn(rot - prevRot), angle: c.angle,
@@ -199,7 +205,11 @@ export const orientations = (model: Model): Orientation[] =>
 type BendAngle = { rot?: number; angle?: number };
 
 export function bendDecomp(b: BendAngle): { axis: Vector3; theta: number; psi: number } {
-  const a = (b.angle || 0) * D2R;
+  /* ANG_DIR es el SENTIDO DE GIRO del ángulo, y vive aquí porque es lo único
+     que decide hacia dónde se dobla un ángulo positivo. Está en -1 porque el
+     taller teclea sus ángulos con el signo contrario al que usaba el motor:
+     los datos no se tocan y la pieza sale al lado bueno. */
+  const a = ANG_DIR * (b.angle || 0) * D2R;
   /* Rz(-angle): un `angle` positivo desvía hacia -y, así que el eje del arco
      parte de -z. Con el ángulo negativo se invierte y theta vuelve a ser >= 0. */
   const axis = new Vector3(0, 0, a < 0 ? 1 : -1)

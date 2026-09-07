@@ -113,7 +113,8 @@ y se devuelve la sección a su sitio. Con el marco local `x` = eje de la barra �
 
 Convención **LRA**, la de las dobladoras. `rot` **inclina el eje de doblado**;
 no rueda la barra, así que la sección sale del doblez con la misma cara arriba
-con la que entró. `angle` es el doblez entero, en el plano que eligió `rot`.
+con la que entró. `angle` es el doblez entero, en el plano que eligió `rot`, y
+un `angle` positivo desvía hacia **+y** — lo fija `ANG_DIR`, ver más abajo.
 
 ```
 rot = 0    →  dobla contra la cara plana (el espesor, y)
@@ -357,12 +358,15 @@ El **avance** de PI a PI ya no está en la tabla. Es la geometría del CAD —do
 se cruzarían las rectas si el doblez fuera una esquina viva— y el doblez le come
 un `trim` por cada lado; de ahí que no coincida con la recta.
 
-**El signo del ángulo:** la interfaz enseña y acepta el ángulo con el signo
-CONTRARIO al que guarda el archivo. Es una vuelta en la frontera de la pantalla
-—vive en `angOut()`/`angIn()`, en `panels/fmt.ts`— y alcanza a la tabla de
-dobleces, su Δ, la tabla de comandos y la desviación por doblez. El JSON, el
-motor y el gemelo de Python no cambian: un archivo guardado sigue diciendo
-`angle: 17.9` donde la pantalla muestra `−17.90`.
+**El sentido de giro del ángulo:** un `angle` positivo desvía hacia **+y**. Lo
+decide una sola constante en el motor, `ANG_DIR` (`engine/kinematics.ts`), que
+consumen `bendDecomp()` —o sea toda la cinemática— e `ik()`, su inversa.
+Cambiarla voltea la pieza entera sin tocar un solo dato.
+
+Está en `-1`, o sea al revés de lo que hacía el motor histórico, porque es el
+sentido con el que llegan los datos del taller: **los mismos números doblan al
+otro lado**, y en pantalla se leen tal como están en el archivo. La interfaz no
+voltea nada.
 
 **La regla de edición:** las rectas mandan. Cambiar un radio, un rodado o un
 ángulo deja **todas las rectas donde estaban** y recoloca los avances

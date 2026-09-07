@@ -167,8 +167,14 @@ ok('con R=90 el mismo ángulo cae contra el canto (ancho, z)',
    `y=${pcE.y.toExponential(1)}  z=${pcE.z.toFixed(1)}`);
 ok('rodar no cambia el tamaño del doblez, solo el plano',
    Math.abs(Math.abs(ppE.y) - Math.abs(pcE.z)) < 1e-9);
-ok('un ángulo positivo desvía hacia -y (signo invertido respecto a 1.0)',
-   ppE.y < -10, `y=${ppE.y.toFixed(1)}`);
+/* SENTIDO DE GIRO. Un ángulo positivo desvía hacia +y: es lo contrario de lo
+   que hacía el motor histórico, y se cambió sin tocar un solo dato —los mismos
+   números doblan al otro lado— porque es el sentido con el que llegan los
+   datos del taller. Lo decide ANG_DIR, en el motor. */
+ok('un ángulo positivo desvía hacia +y', ppE.y > 10, `y=${ppE.y.toFixed(1)}`);
+ok('ANG_DIR es lo único que decide el sentido', E.ANG_DIR === -1);
+ok('voltear el signo del ángulo voltea el doblez',
+   Math.abs(punta(uno(0, -40)).y + ppE.y) < 1e-9);
 ok('R=180 dobla lo mismo hacia el otro lado',
    Math.abs(punta(uno(180, 40)).y + ppE.y) < 1e-9);
 ok('orientations lee el rodado, no el ángulo',

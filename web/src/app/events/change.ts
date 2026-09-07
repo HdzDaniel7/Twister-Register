@@ -8,7 +8,6 @@ import { rebuildScene } from '../../scene.ts';
 import { renderShell, renderLeft, renderRight, renderStatus } from '../../panels.ts';
 import type { AnchorMode, DeltaKey } from '../../types.ts';
 import { $ } from '../dom.ts';
-import { angIn } from '../../panels/fmt.ts';
 import { refresh } from '../render.ts';
 import { commit } from '../history.ts';
 import {
@@ -22,11 +21,6 @@ export function bindChange(): void {
   document.body.addEventListener('change', e => { onChange(e); commit(); });
   bindInput();
 }
-
-/** Lo que se teclea en una celda, ya en la convención del MODELO: el ángulo se
- *  enseña con el signo contrario y hay que devolverlo al entrar. */
-const valDe = (k: string | undefined, txt: string): number =>
-  (k === 'angle' ? angIn(+txt) : +txt);
 
 function onChange(e: Event): void {
   {
@@ -65,11 +59,9 @@ function onChange(e: Event): void {
     }
     if (d.s !== undefined) { (v.base.section as unknown as Record<string, number>)[d.s] = +t.value; syncModel(); refresh(); return; }
     if (d.t !== undefined && t.type === 'number') { (v.base.tol as unknown as Record<string, number>)[d.t] = +t.value; syncModel(); refresh(); return; }
-    /* el ángulo se teclea con el signo de PANTALLA: se devuelve al del modelo
-       aquí, en la misma frontera por la que salió (ver angOut/angIn) */
-    if (d.b !== undefined) { editBend(+d.b, d.k as DeltaKey, valDe(d.k, t.value)); return; }
+    if (d.b !== undefined) { editBend(+d.b, d.k as DeltaKey, +t.value); return; }
     if (d.st !== undefined) { editStraight(+d.st, +t.value); return; }
-    if (d.bd !== undefined) { editDelta(+d.bd, d.k as DeltaKey, valDe(d.k, t.value)); return; }
+    if (d.bd !== undefined) { editDelta(+d.bd, d.k as DeltaKey, +t.value); return; }
     if (d.p !== undefined && d.k) { editPoint(+d.p, d.k as 'x' | 'y' | 'z', +t.value); return; }
     if (d.c !== undefined) {
       (ST.comp as unknown as Record<string, number | boolean>)[d.c] = t.type === 'checkbox' ? t.checked : +t.value;

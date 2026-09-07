@@ -32,11 +32,10 @@ function hotkey(k, opts) {
   document.body.dispatchEvent(new KeyboardEvent('keydown',
     Object.assign({ key: k, bubbles: true, cancelable: true }, opts || {})));
 }
-/* El ángulo se ENSEÑA con el signo contrario al que guarda el modelo (ver
-   angOut/angIn en panels/fmt.ts). Estos pasos comprueban lo que ve el usuario,
-   así que leen el modelo ya girado. */
-const ANG_SIGN = -1;
-const angVisto = i => ANG_SIGN * S().model.bends[i].angle;
+/* El ángulo se enseña TAL CUAL lo guarda el modelo. Lo que está volteado es el
+   SENTIDO DE GIRO, y eso vive en el motor (ANG_DIR): los mismos números doblan
+   al otro lado, y en pantalla se leen como están en los datos. */
+const angVisto = i => S().model.bends[i].angle;
 
 function drawer(k) {
   if (window.BARCOMP.ST.drawer !== k) q(`[data-dr="${k}"]`).click();
@@ -138,7 +137,8 @@ step('R inclina el eje: R=0 dobla de plano, R=90 de canto', () => {
   const a = punta(uno(0, 40)), b = punta(uno(90, 40));
   if (!(Math.abs(a.z) < 1e-9 && Math.abs(a.y) > 10)) throw new Error('R=0 no dobla de plano');
   if (!(Math.abs(b.y) < 1e-9 && Math.abs(b.z) > 10)) throw new Error('R=90 no dobla de canto');
-  if (!(a.y < 0)) throw new Error('el signo no esta invertido: y=' + a.y.toFixed(2));
+  /* sentido de giro: un ángulo positivo desvía hacia +y (ANG_DIR = -1) */
+  if (!(a.y > 0)) throw new Error('un ángulo positivo no desvía hacia +y: y=' + a.y.toFixed(2));
 });
 step('el rodado NO rueda la seccion: no hace de twist', () => {
   const e = Eg().fk(uno(90, 40)).end.elements;      // columna y del marco final
@@ -149,23 +149,31 @@ step('el rodado NO rueda la seccion: no hace de twist', () => {
 });
 /* El proceso es SECUENCIAL: `rot` dice cuánto gira el eje de doblado y el eje
    se queda ahí hasta que otra fila lo mueva. Un 0 es «no lo toques». */
-/* El ángulo se ENSEÑA con el signo contrario al que guarda el modelo. La
-   vuelta vive en un solo sitio (angOut/angIn), y esto vigila que no se cuele
-   una celda de ángulo sin pasar por ahí. */
-step('el ángulo se ve con el signo contrario al del modelo', () => {
+/* El ángulo se ve TAL CUAL está guardado —los datos del taller no se tocan— y
+   lo que cambió es el SENTIDO en que dobla: un ángulo positivo desvía hacia
+   +y. Lo decide ANG_DIR en el motor, y esto vigila las dos cosas. */
+step('el ángulo se ve tal como está guardado', () => {
   click('[data-md="model"]');
   click('#tabs [data-t="model"]');
   const cel = q('#panes input[data-b="0"][data-k="angle"]');
   const visto = parseFloat(cel.value);
   const guardado = S().model.bends[0].angle;
-  if (Math.abs(visto + guardado) > 1e-6) {
-    throw new Error(`se ve ${visto} y se guarda ${guardado}: no son opuestos`);
+  if (Math.abs(visto - guardado) > 1e-6) {
+    throw new Error(`se ve ${visto} y se guarda ${guardado}`);
   }
-  setval('#panes input[data-b="0"][data-k="angle"]', '-25.5');
+  setval('#panes input[data-b="0"][data-k="angle"]', '25.5');
   if (Math.abs(S().model.bends[0].angle - 25.5) > 1e-6) {
-    throw new Error('tecleado -25.5 y el modelo guardó ' + S().model.bends[0].angle);
+    throw new Error('tecleado 25.5 y el modelo guardó ' + S().model.bends[0].angle);
   }
   setval('#panes input[data-b="0"][data-k="angle"]', String(visto));
+});
+step('un ángulo positivo desvía hacia +y', () => {
+  const m = Eg().normalizeModel({ ...Eg().emptyModel(), tail: 200,
+    bends: [Eg().newBend({ feed: 200, rot: 0, angle: 40, radius: 30 })] });
+  const P = Eg().fk(m).pis;
+  const y = P[P.length - 1].y;
+  if (!(y > 10)) throw new Error('la punta quedó en y=' + y.toFixed(1));
+  if (Eg().ANG_DIR !== -1) throw new Error('ANG_DIR = ' + Eg().ANG_DIR);
 });
 step('el eje de doblado se sostiene entre estaciones', () => {
   const mk = (...rots) => Eg().normalizeModel({ ...Eg().emptyModel(), tail: 200,
@@ -973,10 +981,10 @@ step('el lazo puede leer la mediana del lote en vez de la última pieza', () => 
 });
 /* La tabla de comandos tiene que hablar el MISMO idioma que la de dobleces: si
    una enseña -17.9 y la otra +17.9, el ajuste manual se escribe al revés. */
-step('la tabla de comandos usa el mismo signo que la de dobleces', () => {
+step('la tabla de comandos enseña el ángulo tal como está guardado', () => {
   const fila = q('#panes table.cmd tbody tr');
   const ahora = parseFloat(fila.cells[2].textContent);
-  if (Math.abs(ahora + S().command[0].angle) > 1e-3) {
+  if (Math.abs(ahora - S().command[0].angle) > 1e-3) {
     throw new Error(`la tabla dice ${ahora} y el modelo ${S().command[0].angle}`);
   }
 });
