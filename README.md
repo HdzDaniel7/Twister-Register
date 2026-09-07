@@ -120,10 +120,24 @@ rot = 0    →  dobla contra la cara plana (el espesor, y)
 rot = ±90  →  dobla contra el canto      (el ancho,   z)
 ```
 
-Como el rodado no queda en el marco, **`rot` no se acumula** entre dobleces: el
-de cada fila se lee siempre desde la sección tal como llega. `twist` sigue
-siendo lo único que rueda la barra. `ik()` deja la forma canónica con
-`angle ≥ 0` y usa `rot` para elegir la dirección.
+**El proceso es secuencial, y el eje se queda donde lo dejaron.** La máquina
+gira el eje de doblado, dobla, y no lo devuelve solo: por eso `rot` no es la
+posición del eje sino **cuánto gira** respecto a la estación anterior. El eje
+absoluto de una estación es la suma de los giros hasta ella.
+
+```
+rot:   90     0        0       -90
+eje:   90    90       90         0
+       gira  mantiene mantiene  vuelve
+```
+
+Un `0` significa «no toques el eje», que es lo que se teclea la mayoría de las
+veces: una lista de ceros es una pieza que se dobla siempre contra la misma
+cara. La columna `Or.` (W/T) mira el eje **absoluto**, no el giro de la fila.
+
+Ojo con la confusión fácil: el eje acumula, pero **la sección sigue sin rodar**.
+`twist` es lo único que rueda la barra. `ik()` deja la forma canónica con
+`angle ≥ 0` y devuelve `rot` como giro, no como posición.
 
 Un PI es un vértice y por lo tanto **un solo arco**: `bendDecomp()` parte el par
 en `Rot(eje, θ) · Rx(ψ)`, donde el eje es perpendicular al eje de la barra —lo
@@ -166,7 +180,7 @@ web/
     engine/fitting.ts     Kabsch, anclaje entre modelos, colocación
     engine/compensate.ts  pieza simulada, lazo, desviaciones, lote, resorte
     engine/expr.ts        la celda de compensación (parser propio, sin eval)
-    engine/doc.ts         esquema barcomp/2.1, migración, CSV de puntos
+    engine/doc.ts         esquema barcomp/2.2, migración, CSV de puntos
   src/app.ts        arranque y cableado; el resto en app/
     app/render.ts · app/theme.ts · app/actions.ts · app/history.ts
     app/events/{click,change,keyboard,grips}.ts
@@ -371,7 +385,7 @@ confirmar una celda no se reconstruye el panel, así que el foco nunca salta.
 
 ## Formato de archivo
 
-Esquema `barcomp/2.1`, un JSON con el modelo, los comandos de máquina, las
+Esquema `barcomp/2.2`, un JSON con el modelo, los comandos de máquina, las
 ganancias, los parámetros del simulador, las piezas medidas y los modelos
 comparados. Las claves `variants`, `ref` y `anchor` son opcionales: los archivos
 viejos siguen abriendo.
@@ -385,7 +399,8 @@ una:
 |---|---|
 | `barcomp/1.0` | un doblez de canto, y `angle` tenía el signo contrario |
 | `barcomp/2.0` | un rodado de verdad: la sección salía girada del doblez |
-| `barcomp/2.1` | inclina el eje del arco; la sección no se rueda |
+| `barcomp/2.1` | la posición ABSOLUTA del eje del arco, declarada en cada fila |
+| `barcomp/2.2` | **cuánto GIRA** ese eje; el eje se sostiene entre estaciones |
 
 Al abrir un archivo anterior se convierte solo, y la conversión no aproxima
 nada: del modelo viejo se sacan sus PI en el espacio (la forma real) y de ahí se
@@ -400,7 +415,7 @@ teclea.
 
 ```jsonc
 {
-  "schema": "barcomp/2.1",
+  "schema": "barcomp/2.2",
   "model": {
     "name": "...",
     "section": { "width": 40, "thickness": 12, "chamfer": 1.2, "endLen": 20 },

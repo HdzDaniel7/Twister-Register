@@ -1,5 +1,5 @@
 /* =========================================================================
-   ESQUEMA Y DOCUMENTO — el esquema `barcomp/2.1`, la lectura/escritura del
+   ESQUEMA Y DOCUMENTO — el esquema `barcomp/2.2`, la lectura/escritura del
    JSON y la migración de archivos de versiones anteriores.
 
    Es el MISMO esquema JSON que usa python/barcomp/core.py, así que los
@@ -22,11 +22,11 @@ import { ik } from './kinematics.ts';
 import { PROC_DEFAULT, COMP_DEFAULT } from './compensate.ts';
 import { PLACE_DEFAULT } from './fitting.ts';
 
-export const SCHEMA = 'barcomp/2.1';
+export const SCHEMA = 'barcomp/2.2';
 /** Esquemas anteriores, cada uno con su cinemática. Se convierten al abrirlos.
  *  · 1.0  `rot` era un doblez de canto y `angle` tenía el signo contrario
  *  · 2.0  `rot` rodaba la barra de verdad y la sección salía girada */
-export const SCHEMA_LEGACY: string[] = ['barcomp/1.0', 'barcomp/2.0'];
+export const SCHEMA_LEGACY: string[] = ['barcomp/1.0', 'barcomp/2.0', 'barcomp/2.1'];
 
 /* ---------------------------------------------------------------------- E/S */
 /** Una pieza medida, tal como la ve `toDoc()`: solo lo que hace falta para
@@ -121,9 +121,19 @@ export function fkLegacy(model: Model, schema = 'barcomp/1.0'): { pis: Vector3[]
   for (const b of model.bends) {
     T = T.multiply(trans(b.feed));
     pis.push(posOf(T));
-    T = schema === 'barcomp/2.0'
+    /* Tres convenciones han existido, y los mismos números describen otra
+       pieza en cada una:
+         1.0  Ry(rot)·Rz(angle)                 rot era el doblez de canto
+         2.0  Rx(rot)·Rz(-angle)                rot rodaba la barra de verdad
+         2.1  Rx(rot)·Rz(-angle)·Rx(-rot)       rot era el eje ABSOLUTO
+       En 2.2 `rot` pasa a ser el INCREMENTO del eje, así que un archivo 2.1 se
+       relee aquí con su eje absoluto y sale por ik() convertido a giros. */
+    T = schema === 'barcomp/2.1'
       ? T.multiply(rotX(b.rot * D2R)).multiply(rotZ(-b.angle * D2R))
-      : T.multiply(rotY(b.rot * D2R)).multiply(rotZ(b.angle * D2R));
+          .multiply(rotX(-b.rot * D2R))
+      : schema === 'barcomp/2.0'
+        ? T.multiply(rotX(b.rot * D2R)).multiply(rotZ(-b.angle * D2R))
+        : T.multiply(rotY(b.rot * D2R)).multiply(rotZ(b.angle * D2R));
     if (b.twist) T = T.multiply(rotX(b.twist * D2R));
   }
   T = T.multiply(trans(model.tail));

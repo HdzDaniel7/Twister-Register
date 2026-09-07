@@ -17,6 +17,10 @@ export function paneModel(M: Model): string {
      editables. El AVANCE es de solo lectura y se lee del modelo efectivo: es la
      consecuencia de la recta más lo que el doblez le come por los dos lados. */
   const base = v.base.bends, ori = E.orientations(M);
+  /* El eje de doblado ABSOLUTO tras cada giro. La columna «Rodado» dice cuánto
+     GIRA el eje, no dónde queda, así que una fila de ceros no significa «eje a
+     cero» sino «no lo muevas»: la celda lleva el resultado en su tooltip. */
+  const ejes = E.axisAngles(M);
   const LEN = E.rowLengths(M), BASE = E.rowLengths(v.base);
   /* la cabecera del pie ocupa las 10 columnas de parámetros; la recta de salida
      va bajo L y la longitud desarrollada bajo Σ L */
@@ -38,7 +42,8 @@ export function paneModel(M: Model): string {
       <td>${nfield('.5', `data-st="${i}" class="${BASE[i].straight < 25 ? 'v-bad' : ''}"`,
                    BASE[i].straight)}</td>
       <td class="dcol">${dnum(i, 'feed', '.1')}</td>
-      <td>${num('b', i, 'rot', bb.rot, '.1')}</td>
+      <td>${nfield('.1', `data-b="${i}" data-k="rot"
+        title="${T('rotAxisTip').replace('%e', fx(ejes[i], 1))}"`, bb.rot)}</td>
       <td class="dcol">${dnum(i, 'rot', '.1')}</td>
       <td>${num('b', i, 'angle', bb.angle, '.1')}</td>
       <td class="dcol">${dnum(i, 'angle', '.1')}</td>
@@ -73,7 +78,7 @@ export function paneModel(M: Model): string {
     <div class="tw"><table class="lra"><thead><tr>
       <th>${T('nBend')}</th><th>${T('ori')}</th>
       <th>${T('straight')}</th><th class="dcol">${d}</th>
-      <th>${T('rot')}</th><th class="dcol">${d}</th>
+      <th title="${T('rotHeadTip')}">${T('rot')}</th><th class="dcol">${d}</th>
       <th>${T('ang')}</th><th class="dcol">${d}</th>
       <th>${T('rad')}</th><th>${T('twist')}</th><th>${T('twlen')}</th>
       <th>${T('arcL')}</th><th>${T('cumL')}</th>

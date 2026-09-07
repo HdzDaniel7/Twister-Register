@@ -141,22 +141,34 @@ step('el rodado NO rueda la seccion: no hace de twist', () => {
     throw new Error('la seccion quedo rodada: y = ' + y.map(v => v.toFixed(3)).join(', '));
   }
 });
-step('el rodado no se acumula entre dobleces', () => {
-  const m = Eg().normalizeModel({ ...Eg().emptyModel(), tail: 200, bends: [
-    Eg().newBend({ feed: 200, rot: 90, angle: 30, radius: 30 }),
-    Eg().newBend({ feed: 200, rot: 0, angle: 30, radius: 30 })] });
-  const o = Eg().orientations(m).join('');
-  if (o !== 'WT') throw new Error('orientaciones ' + o);
+/* El proceso es SECUENCIAL: `rot` dice cuánto gira el eje de doblado y el eje
+   se queda ahí hasta que otra fila lo mueva. Un 0 es «no lo toques». */
+step('el eje de doblado se sostiene entre estaciones', () => {
+  const mk = (...rots) => Eg().normalizeModel({ ...Eg().emptyModel(), tail: 200,
+    bends: rots.map(rt => Eg().newBend({ feed: 200, rot: rt, angle: 30, radius: 30 })) });
+  const ejes = Eg().axisAngles(mk(90, 0, 0, -90)).join(',');
+  if (ejes !== '90,90,90,0') throw new Error('ejes ' + ejes);
+  const o = Eg().orientations(mk(90, 0)).join('');
+  if (o !== 'WW') throw new Error('con el eje sostenido deberían ser WW, y salió ' + o);
+  const v = Eg().orientations(mk(90, -90)).join('');
+  if (v !== 'WT') throw new Error('al girar de vuelta deberían ser WT, y salió ' + v);
+});
+step('la celda de rodado dice a qué eje deja', () => {
+  click('[data-md="model"]');
+  click('#tabs [data-t="model"]');
+  const cel = q('#panes input[data-b="1"][data-k="rot"]');
+  if (!cel.title) throw new Error('la celda no explica el giro');
+  if (!/[0-9]/.test(cel.title)) throw new Error('no dice el eje resultante: ' + cel.title);
 });
 step('la tabla dice Rodado y Angulo, no canto ni plano', () => {
   const th = [...document.querySelectorAll('table.lra thead th')].map(x => x.textContent.trim());
   if (th[4] !== 'Rodado') throw new Error('columna 5 = ' + th[4]);
   if (th[6] !== 'Ángulo') throw new Error('columna 7 = ' + th[6]);
 });
-step('el esquema guardado es barcomp/2.1', () => {
+step('el esquema guardado es barcomp/2.2', () => {
   const doc = Eg().toDoc(S().model, S().command, S().comp, S().proc, [], S().variants,
                          S().ref, S().anchor, {});
-  if (doc.schema !== 'barcomp/2.1') throw new Error(doc.schema);
+  if (doc.schema !== 'barcomp/2.2') throw new Error(doc.schema);
 });
 /* Importar CSV existió, se fue con el cambio de convención LRA (4cc9b7e) y
    volvió como `impts`, ya sobre measuredModel(). Lo que este paso vigila es

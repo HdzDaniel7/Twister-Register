@@ -265,7 +265,7 @@ export type UiPrefs = {
 export type Mode = 'model' | 'meas' | 'comp';
 
 /**
- * Documento del esquema `barcomp/2.1`, tal como lo escribe `toDoc()`. Las
+ * Documento del esquema `barcomp/2.2`, tal como lo escribe `toDoc()`. Las
  * claves marcadas opcionales son las que el README declara opcionales:
  * `variants`, `ref`, `anchor`, `place`, `marks`, `tweak` y `ui`. Los archivos
  * guardados con versiones anteriores siguen abriendo sin ellas — es

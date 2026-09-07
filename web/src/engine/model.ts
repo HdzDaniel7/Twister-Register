@@ -9,7 +9,7 @@
    ========================================================================= */
 import { Vector3 } from 'three';
 import type { Bend, Model, Variant, DeltaKey, Delta } from '../types.ts';
-import { clamp, mulberry32 } from './math.ts';
+import { clamp, wrap180, mulberry32 } from './math.ts';
 import { BEND_DEFAULT, newBend, bendFrom, normalizeModel, cloneModel } from './bend.ts';
 import type { RawModel } from './bend.ts';
 import { fk, ik } from './kinematics.ts';
@@ -34,13 +34,19 @@ export function demoModel(): Model {
      contra el canto. `angle` es el doblez entero y nunca es negativo. */
   const sign = [1, -1, -1, 1, 1, -1, 1, 1, -1, -1, 1, -1, 1, 1, -1];
   const bends: Bend[] = [];
+  /* El eje de doblado se SOSTIENE entre estaciones, así que lo que se guarda es
+     el giro: la diferencia contra el eje que dejó la fila anterior. La pieza es
+     exactamente la misma que con la convención anterior. */
+  let eje = 0;
   for (let i = 0; i < 15; i++) {
     const canto = (i % 3 === 1);
     const ang = Math.round((16 + r() * 54) * 10) / 10;
+    const ejeNuevo = canto ? 90 * sign[i] : (sign[i] > 0 ? 0 : 180);
+    const giro = wrap180(ejeNuevo - eje);
+    eje = ejeNuevo;
     bends.push(newBend({
       feed: i === 0 ? 140 : Math.round(80 + r() * 70),
-      /* el rodado no se arrastra: cada estación declara el suyo y punto */
-      rot: canto ? 90 * sign[i] : (sign[i] > 0 ? 0 : 180),
+      rot: giro,
       angle: ang,
       // doblar de canto pide herramental más grande
       radius: canto ? 45 : 30,

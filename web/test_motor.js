@@ -195,15 +195,40 @@ ok('con un solo arco nunca queda rodado residual',
   ok('doblar de canto deja la sección sin rodar',
      Math.abs(yc[0]) < 1e-9 && Math.abs(yc[1] - 1) < 1e-9 && Math.abs(yc[2]) < 1e-9,
      `y del marco = (${yc.map(v => v.toFixed(3)).join(', ')})`);
-  const dosCantos = E.normalizeModel({ ...EM, tail: 200, bends: [
-    E.newBend({ feed: 200, rot: 90, angle: 30, radius: 30 }),
-    E.newBend({ feed: 200, rot: 90, angle: 30, radius: 30 })] });
-  ok('dos dobleces de canto seguidos siguen siendo de canto',
-     E.orientations(dosCantos).join('') === 'WW');
-  ok('el rodado NO se acumula entre dobleces',
-     E.orientations(E.normalizeModel({ ...EM, tail: 200, bends: [
-       E.newBend({ feed: 200, rot: 90, angle: 30 }),
-       E.newBend({ feed: 200, rot: 0, angle: 30 })] })).join('') === 'WT');
+  /* EL PROCESO ES SECUENCIAL: `rot` dice cuánto GIRA el eje de doblado y el eje
+     se queda ahí. Dos dobleces de canto seguidos son «gira 90» y luego «no
+     toques nada», no «90 y 90 otra vez». */
+  const mk = (...rots) => E.normalizeModel({ ...EM, tail: 200,
+    bends: rots.map(rt => E.newBend({ feed: 200, rot: rt, angle: 30, radius: 30 })) });
+
+  ok('el eje de doblado acumula: 90, 0, 0, -90 -> 90, 90, 90, 0',
+     E.axisAngles(mk(90, 0, 0, -90)).join(',') === '90,90,90,0');
+  ok('dos dobleces de canto seguidos: se gira una vez y el eje se queda',
+     E.orientations(mk(90, 0)).join('') === 'WW');
+  ok('para volver de canto a plano hay que girar de vuelta',
+     E.orientations(mk(90, -90)).join('') === 'WT');
+  ok('una lista de ceros dobla siempre contra la misma cara',
+     E.orientations(mk(0, 0, 0)).join('') === 'TTT');
+  /* el acumulado se envuelve a ±180: media vuelta sale como -180, que es el
+     mismo eje que +180 —Rx(±180) lleva (0,0,-1) al mismo sitio— y la cuarta
+     estación vuelve a 0, o sea al eje de partida */
+  ok('cuatro cuartos de vuelta dejan el eje donde estaba',
+     E.axisAngles(mk(90, 90, 90, 90)).join(',') === '90,-180,-90,0');
+
+  /* La consecuencia geométrica, que es la que importa: con el eje sostenido,
+     dos dobleces seguidos salen en el MISMO plano; con la convención anterior
+     —donde cada fila declaraba su eje absoluto— hacían falta dos noventas. */
+  const sostenido = mk(90, 0);
+  const P2 = E.fk(sostenido).pis;
+  const plano = P2.every(q => Math.abs(q.y) < 1e-9);
+  ok('con el eje sostenido los dos dobleces salen en el mismo plano', plano,
+     `y máx ${maxAbs(P2.map(q => q.y)).toExponential(1)}`);
+
+  /* Y la inversa devuelve INCREMENTOS, no posiciones absolutas. */
+  const vuelta = E.ik(P2, [30, 30]);
+  ok('ik devuelve el rodado como incremento',
+     Math.abs(vuelta.bends[0].rot - 90) < 1e-9 && Math.abs(vuelta.bends[1].rot) < 1e-9,
+     `${vuelta.bends[0].rot.toFixed(3)}, ${vuelta.bends[1].rot.toFixed(3)}`);
 }
 ok('el desvío total es el ángulo, ruede lo que ruede',
    Math.abs(dp.theta * E.R2D - 40) < 1e-9 && Math.abs(dc.theta * E.R2D - 40) < 1e-9);
@@ -778,7 +803,35 @@ ok('un modelo de 1 doblez funciona',
   };
   const doc = E.toDoc(M, M.bends, { ...E.COMP_DEFAULT }, { ...E.PROC_DEFAULT }, [],
                       [V, W], 'v1', 'end', extra);
-  ok('el documento lleva el esquema compartido', doc.schema === 'barcomp/2.1');
+  ok('el documento lleva el esquema compartido', doc.schema === 'barcomp/2.2');
+
+  /* MIGRACIÓN 2.1 -> 2.2. En 2.1 cada fila declaraba el eje ABSOLUTO; ahora
+     declara cuánto gira. Un archivo anterior tiene que abrir con la MISMA
+     pieza: la conversión pasa por los PI, así que no aproxima nada. */
+  {
+    const viejo = {
+      schema: 'barcomp/2.1',
+      model: { ...E.demoModel(), bends: [
+        E.newBend({ feed: 200, rot: 90, angle: 30, radius: 30 }),
+        E.newBend({ feed: 200, rot: 90, angle: 40, radius: 30 }),
+        E.newBend({ feed: 200, rot: 0, angle: 25, radius: 30 })], tail: 150 },
+      command: [], comp: {}, proc: {}, datasets: [],
+    };
+    /* la forma que describía ese archivo con la convención de 2.1 */
+    const pisViejos = E.fkLegacy(E.normalizeModel(viejo.model), 'barcomp/2.1').pis;
+    const abierto = E.fromDoc(JSON.parse(JSON.stringify(viejo)));
+    const pisNuevos = E.fk(abierto.model).pis;
+    ok('un archivo 2.1 abre con la misma pieza',
+       pisNuevos.length === pisViejos.length &&
+       maxAbs(pisNuevos.map((q, i) => q.distanceTo(pisViejos[i]))) < 1e-9,
+       `error máx ${maxAbs(pisNuevos.map((q, i) => q.distanceTo(pisViejos[i]))).toExponential(1)} mm`);
+    ok('y sus ejes absolutos son los que decía el archivo',
+       E.axisAngles(abierto.model).map(v => Math.round(v)).join(',') === '90,90,0',
+       E.axisAngles(abierto.model).map(v => v.toFixed(2)).join(','));
+    ok('el segundo doblez pasa a ser «no muevas el eje»',
+       Math.abs(abierto.model.bends[1].rot) < 1e-9,
+       `rot = ${abierto.model.bends[1].rot.toFixed(4)}`);
+  }
   const rt = E.fromDoc(JSON.parse(JSON.stringify(doc)));
   ok('el documento va y vuelve sin perder variantes',
      rt.variants.length === 2 && rt.ref === 'v1' && rt.anchor === 'end' &&

@@ -33,7 +33,7 @@ type I18nKey =
   | 'modeModel' | 'modeMeas' | 'modeComp'
   | 'modeModelTip' | 'modeMeasTip' | 'modeCompTip'
   | 'mnFile' | 'mnModel' | 'mnView' | 'mnPieces' | 'expPts'
-  | 'soloOn' | 'soloOff' | 'soloTip'
+  | 'soloOn' | 'soloOff' | 'soloTip' | 'rotAxisTip' | 'rotHeadTip'
   | 'history' | 'undo' | 'redo' | 'histNote'
   | 'srcSimTip' | 'srcVerifyTip' | 'srcMeasTip' | 'srcUnkTip'
   | 'statMaxA' | 'statRms' | 'statTip' | 'statOut' | 'gains' | 'gainW' | 'gainT' | 'what'
@@ -141,6 +141,10 @@ es: {
     se pagaba siempre, y lo que había dentro se toca una vez y se olvida. */
  mnFile: 'Archivo', mnModel: 'Modelos', mnView: 'Vista', mnPieces: 'Piezas',
  soloOn: 'Solo 3D', soloOff: 'Volver',
+ /* el rodado es un GIRO, no una posición: el eje se queda donde lo dejaron */
+ rotAxisTip: 'Cuánto gira el eje de doblado en esta estación. Queda en %e°.',
+ rotHeadTip: 'Giro del eje de doblado respecto a la estación anterior. '
+   + 'Un 0 deja el eje donde estaba: el proceso es secuencial.',
  /* Deshacer trabaja sobre el DOCUMENTO: no mueve la cámara ni cambia de
     pantalla, porque lo que se espera de vuelta son datos. */
  history: 'Historial', undo: 'Deshacer', redo: 'Rehacer',
@@ -262,6 +266,9 @@ en: {
    + 'that springback is not measured: it is guessed.',
  mnFile: 'File', mnModel: 'Models', mnView: 'View', mnPieces: 'Parts',
  soloOn: '3D only', soloOff: 'Back',
+ rotAxisTip: 'How much the bending axis turns at this station. It ends at %e°.',
+ rotHeadTip: 'Turn of the bending axis relative to the previous station. '
+   + 'A 0 leaves the axis where it was: the process is sequential.',
  history: 'History', undo: 'Undo', redo: 'Redo',
  histNote: 'Undoes edits to the part: cells, points, models, reference points, '
    + 'placement and applied compensation. It does not undo the camera, theme, '
@@ -386,6 +393,9 @@ de: {
    + 'diese Rückfederung nicht gemessen, sondern geraten.',
  mnFile: 'Datei', mnModel: 'Modelle', mnView: 'Ansicht', mnPieces: 'Teile',
  soloOn: 'Nur 3D', soloOff: 'Zurück',
+ rotAxisTip: 'Wie weit sich die Biegeachse an dieser Station dreht. Sie endet bei %e°.',
+ rotHeadTip: 'Drehung der Biegeachse gegenüber der vorherigen Station. '
+   + 'Eine 0 lässt die Achse stehen: der Prozess ist sequenziell.',
  history: 'Verlauf', undo: 'Rückgängig', redo: 'Wiederholen',
  histNote: 'Macht Änderungen am Teil rückgängig: Zellen, Punkte, Modelle, '
    + 'Bezugspunkte, Platzierung und angewandte Kompensation. Nicht Kamera, '
