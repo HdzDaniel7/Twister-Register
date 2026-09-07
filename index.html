@@ -360,16 +360,22 @@ td{padding:2px 4px;text-align:right;border-top:1px solid var(--line);white-space
 tbody tr:hover{background:var(--panel2)}
 tbody tr.sel{background:var(--sel)}
 tbody tr.clk{cursor:pointer}
+/* El ancho de una celda editable se mide en DÍGITOS: box-sizing es border-box,
+   así que del min-width hay que descontar los 12 px de padding. Con la mono a
+   12.5 px un dígito son ~7 px, y de ahí salen los números de abajo. */
 td input{padding:5px 6px;font-size:12.5px;border-color:transparent;background:transparent;
-  min-width:66px}
+  min-width:59px}
+/* la tabla de comandos aprieta dos dígitos más: sus celdas llevan cifras más
+   cortas (un Δ, no una longitud de tres enteros y tres decimales) */
+table.cmd td input{min-width:52px}
 td input:hover{border-color:var(--line2);background:var(--inputbg)}
 td input:focus{border-color:var(--nominal);background:var(--inputbg);box-shadow:0 0 0 2px var(--ring)}
 /* la tabla LRA no se comprime: si no cabe, el contenedor .tw desplaza en X
    y el panel derecho se puede ensanchar arrastrando #rtgrip.              */
-table.lra{min-width:1000px}
+table.lra{min-width:910px}
 /* las dos últimas son de leer, no de teclear: sitio propio para que Σ L no
    quede pegada al borde ni bajo la barra de desplazamiento */
-table.lra th:nth-child(n+12),table.lra td:nth-child(n+12){min-width:90px}
+table.lra th:nth-child(n+12),table.lra td:nth-child(n+12){min-width:76px}
 table.lra th:last-child,table.lra td:last-child{padding-right:12px}
 tfoot tr.foot td{border-top:1px solid var(--line2);color:var(--dim);
   background:var(--panel3)}
@@ -4871,7 +4877,7 @@ Fortfahren?`,dTip:"Δ Spitze ggü. Ref.",dblz:"Bg.",place:"Platzierung",pivot:"D
   </div></div>
   <div class="grp"><div class="eyebrow">${C("cmdTbl")}</div><div class="body">
     ${u.length?`<div class="tw"><table class="cmd"
-      style="min-width:${120+u.length*230}px"><thead><tr>
+      style="min-width:${106+u.length*174}px"><thead><tr>
       <th>${C("nBend")}</th><th>${C("ori")}</th>${h}</tr></thead>
       <tbody>${p.join("")}</tbody></table></div>
     <div class="row mt6"><span class="grow"></span>

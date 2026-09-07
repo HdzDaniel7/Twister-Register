@@ -81,7 +81,7 @@ export function paneComp(M: Model): string {
   </div></div>
   <div class="grp"><div class="eyebrow">${T('cmdTbl')}</div><div class="body">
     ${cols.length ? `<div class="tw"><table class="cmd"
-      style="min-width:${120 + cols.length * 230}px"><thead><tr>
+      style="min-width:${106 + cols.length * 174}px"><thead><tr>
       <th>${T('nBend')}</th><th>${T('ori')}</th>${head}</tr></thead>
       <tbody>${rows.join('')}</tbody></table></div>
     <div class="row mt6"><span class="grow"></span>
