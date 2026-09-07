@@ -202,9 +202,15 @@ export type Dataset = {
   name: string;
   color: string;
   visible: boolean;
+  /** de dónde salió la pieza: 'sim', 'verify' o lo que dijera el archivo.
+   *  Viaja en el JSON (ver Doc.datasets) y hoy nadie lo enseña; es lo único
+   *  que distingue una pieza inventada por simulate() de una medida. */
+  src: string;
   model: Model;
   pis: import('three').Vector3[];
-  dev: Deviations | null;
+  /** opcional a propósito: addDataset() crea la pieza sin `dev` y computeDev()
+   *  la rellena en la línea siguiente. Todo lo que la lee después usa `dev!`. */
+  dev?: Deviations | null;
 };
 
 /** Ajuste manual de la compensación, por doblez. Se guarda la DIFERENCIA. */

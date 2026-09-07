@@ -161,11 +161,13 @@ export const recomputeAll = (): void => { ST.datasets.forEach(computeDev); };
 
 export function addDataset(model: Model, name: string, src: string): Dataset {
   dsSeq += 1;
-  const ds = {
+  /* `dev` lo rellena computeDev() en la línea de abajo, y por eso el tipo lo
+     declara opcional: aquí no hay ningún null que el runtime llegue a ver. */
+  const ds: Dataset = {
     id: `ds${dsSeq}`, name, src,
     color: DS_COLORS[ST.datasets.length % DS_COLORS.length],
     visible: true, model, pis: [],
-  } as unknown as Dataset;
+  };
   ST.datasets.push(ds);
   ST.dsActive = ds.id;
   computeDev(ds);
