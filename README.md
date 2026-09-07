@@ -19,6 +19,19 @@ tiene internet.
 
 ## Qué hace
 
+- **Tres modos de trabajo** —Modelar, Medir, Compensar— y cada uno se queda la
+  pantalla entera. No son pestañas de una tabla: el programa hace tres trabajos
+  distintos y antes los tres se repartían el mismo hueco, así que la tabla de 13
+  columnas enseñaba dos filas. En Modelar la tabla va a la derecha, de arriba
+  abajo, con el 3D **al lado**; en Medir manda el modelo; en Compensar los
+  comandos van a todo el ancho. La tecla **F** deja el 3D a pantalla completa
+  sin perder el sitio en la tabla.
+- **Modo taller**: entrar en Compensar deja fuera de pantalla todo lo que no sea
+  compensación, así que no hace falta un interruptor de bloqueo aparte.
+- **Deshacer y rehacer** con Ctrl+Z / Ctrl+Y, 50 pasos. Deshace lo que cambia la
+  PIEZA —celdas, puntos, modelos, cotas, colocación, compensación aplicada— y no
+  la cámara, el modo, las capas ni el idioma: se espera que devuelva datos, no
+  la vista desde la que se estaban mirando.
 - **Cinemática directa e inversa** sobre los PI (puntos de intersección) del eje
   neutro, con arcos inscritos y torsión repartida a lo largo de un tramo.
 - **La tabla se teclea en rectas.** La primera columna es `Recta`, el tramo
@@ -46,22 +59,40 @@ tiene internet.
   su alrededor para verla en el ángulo que quieras. Es solo presentación — no
   toca ningún avance, ángulo ni radio, y se aplica a la escena entera, así que
   la comparación entre modelos no cambia.
-- **Puntos de referencia**: cotas sueltas que pones a mano o importas por CSV.
-  Cada una se une con el PI más cercano del modelo activo y dice a cuánto quedó.
-  Sirve para acotar contra el fixture o un datum de taller.
+- **Puntos de referencia**: cotas sueltas que pones a mano. Cada una se une con
+  el PI más cercano del modelo activo y dice a cuánto quedó. Sirve para acotar
+  contra el fixture o un datum de taller.
+- **Importar piezas medidas por CSV, en lote**: un archivo por pieza, con los PI
+  en columnas x,y,z. De cada línea se toman las tres últimas columnas numéricas,
+  así que un volcado con encabezado, con columna de índice o separado por punto
+  y coma entra sin limpiarlo a mano. Los radios y la torsión no están en la nube
+  de puntos: se arrastran del nominal por índice.
+- **Cada pieza dice de dónde salió**: `SIM` si la inventó el simulador, `MED` si
+  se importó. Sin eso se podía compensar contra números que no existen.
 - **Lazo de compensación**: `nuevo comando = comando actual + ganancia ×
   (nominal − medido)`, con ganancia separada para el doblez de canto y el de
   plano. No se calcula el arrastre entre dobleces: se regenera la cadena entera.
   Las medidas son fijas y **la compensación es lo único editable**: la celda
-  `Δ aplicada` acepta cuentas sobre lo que calculó el lazo, escrito `c`.
+  `Δ aplicada` se comporta como la de una hoja de cálculo (ver más abajo).
+- **El lazo puede leer la mediana del lote** en vez de la última pieza. Con
+  piezas reales hay variación, y compensar desde una sola mueve el comando por
+  lo que fue dispersión de esa pieza: la siguiente puede salir peor. Con dos
+  piezas o más, la tabla de desviación añade una columna **±σ** —MAD escalado—
+  que separa un doblez sistemáticamente fuera de uno con mala puntería.
+- **El resorte se mide, no se teclea a ojo**: `sb = 1 − ángulo medido / ángulo
+  comandado`, por orientación, con su dispersión y su `n`. Avisa si depende del
+  ángulo comandado —ahí una constante única miente— y si las piezas visibles son
+  simuladas, porque entonces la cuenta devuelve lo que ya está escrito en el
+  simulador. Adoptarlo es un botón, nunca automático.
 - **Cinta inferior** que desenrolla la longitud desarrollada, una columna por
   doblez coloreada por desviación. Con pieza medida muestra la desviación del
   desvío total; sin ella, el Δ contra el modelo de referencia.
 - **Tema claro y oscuro**, con un tercer estado que sigue la preferencia del
   sistema. El 3D y la cinta leen sus colores del CSS, así que cambian con el
   resto: no hay una segunda paleta escondida en el código.
-- Reporte imprimible con las cuatro vistas, importar/exportar CSV de puntos, y
-  todo en **español, inglés y alemán**.
+- Reporte imprimible con las cuatro vistas, exportar CSV de puntos, y todo en
+  **español, inglés y alemán**. La paridad de los tres idiomas es un error de
+  compilación, no una prueba en tiempo de ejecución.
 
 ---
 
@@ -99,28 +130,66 @@ en `Rot(eje, θ) · Rx(ψ)`, donde el eje es perpendicular al eje de la barra �
 único que no rueda la sección— y `ψ` es el rodado residual, cero exacto cuando
 el doblez tiene una sola componente.
 
-El espacio está repartido en tres bandas: arriba los paneles a los lados y el
-3D en medio, con la desviación y las estadísticas en el lateral derecho; debajo
-la cinta como banda fina; y al fondo la tabla a todo el ancho con sus pestañas.
-Dos tiradores: `#rtgrip` mueve el ancho del lateral y `#btgrip` el alto de la
-tabla.
+### La pantalla la reparte el MODO
+
+Cada modo tiene su propia rejilla, y la clase de `#app` es quien manda:
+
+| modo | qué ocupa la pantalla |
+|---|---|
+| **Modelar** | la tabla a la derecha de arriba abajo, el 3D al lado, la cinta bajo el 3D |
+| **Medir** | el modelo grande, la cinta alta y el lateral con estadísticas, desviación por doblez y resorte medido |
+| **Compensar** | las ganancias en una tira y los comandos a todo el ancho; el 3D como banda de comprobación |
+
+Los paneles de modelos, vista y piezas no ocupan una columna fija: viven en
+cajones que abre la barra de menús y **flotan sobre el 3D**, fuera de la
+rejilla, para que abrir uno no reparta la pantalla otra vez. Se cierran con el
+mismo menú, con Escape o con un clic fuera.
+
+Los dos tiradores cambian de oficio con el modo: `#rtgrip` mueve el ancho de la
+tabla en Modelar y el del lateral en Medir; `#btgrip`, el alto de la cinta, o el
+de la banda 3D en Compensar. **F** pliega todo y deja el 3D solo.
+
+### Los archivos
+
+Todo es **TypeScript con `strict`**, y `tsc` solo comprueba: quien empaqueta es
+esbuild y quien corre las pruebas es Node, que borra los tipos por su cuenta.
+Los cuatro barriles —`engine.ts`, `scene.ts`, `panels.ts` y `app.ts`— reexportan
+su carpeta, así que quien los importa no nota el reparto.
 
 ```
 web/
-  src/engine.js     EL MOTOR: cinemática, variantes, anclaje, compensación. Sin DOM.
-  src/app.js        orquestador: acciones, eventos por delegación, arranque
-  src/state.js      ST: modelos, referencia, anclaje, capas, piezas medidas
-  src/scene.js      three.js: barrido de la sección, capas, picking, capturas
-  src/panels.js     paneles, las 3 pestañas y el lateral fijo (devuelven cadenas)
-  src/ribbon.js     la cinta inferior (canvas 2D)
-  src/report.js     reporte imprimible · src/io.js  archivos locales
-  src/i18n.js       I18N.es / .en / .de — todo texto visible pasa por T('clave')
+  src/engine.ts     EL MOTOR, barril de engine/. Sin DOM. 83 exports.
+    engine/math.ts        matrices, wrap, PRNG
+    engine/bend.ts        el doblez y su normalización
+    engine/kinematics.ts  fk · ik · bendDecomp · buildPath · rowLengths
+    engine/model.ts       variantes, deltas, edición de puntos PI
+    engine/fitting.ts     Kabsch, anclaje entre modelos, colocación
+    engine/compensate.ts  pieza simulada, lazo, desviaciones, lote, resorte
+    engine/expr.ts        la celda de compensación (parser propio, sin eval)
+    engine/doc.ts         esquema barcomp/2.1, migración, CSV de puntos
+  src/app.ts        arranque y cableado; el resto en app/
+    app/render.ts · app/theme.ts · app/actions.ts · app/history.ts
+    app/events/{click,change,keyboard,grips}.ts
+  src/scene.ts      three.js, barril de scene/
+    scene/stage.ts · geometry.ts · layers.ts · build.ts · view.ts
+  src/panels.ts     la interfaz, barril de panels/ (cadenas de plantilla)
+    panels/{fmt,shell,left,focus,model,points,meas,comp,status,render}.ts
+  src/state.ts      ST: modelos, referencia, anclaje, capas, piezas medidas
+  src/ribbon.ts     la cinta inferior (canvas 2D)
+  src/report.ts     reporte imprimible · src/io.ts  archivos locales
+  src/i18n.ts       I18N.es / .en / .de — todo texto visible pasa por T('clave')
+  src/types.ts      los tipos del dominio, State y el documento
   src/app.css       tokens de diseño y layout; la paleta de los DOS temas
   src/shell.html    esqueleto con los marcadores del build
   build.mjs         esbuild: src/ + three  ->  index.html
-  test_motor.js     120 pruebas del motor y del i18n, en Node y sin navegador
+  test_motor.js     163 pruebas del motor y del i18n, en Node y sin navegador
+  tools/            banco de interfaz por CDP y las sondas de medición
 index.html          SALIDA GENERADA — no se edita a mano
 ```
+
+Ningún archivo pasa de 400 líneas y ninguna función de 60. `rebuildScene()` eran
+248 líneas y ahora son diez capas con nombre; `bind()` eran 286 y ahora es una
+lista de llamadas.
 
 ---
 
@@ -129,12 +198,26 @@ index.html          SALIDA GENERADA — no se edita a mano
 ```bash
 cd web
 npm install          # una sola vez: three + esbuild
-npm test             # 120 pruebas del motor
+npm run check        # typecheck -> pruebas -> build -> banco de interfaz
+npm run typecheck    # tsc --noEmit, con strict
+npm test             # 163 pruebas del motor y del i18n
 npm run build        # regenera index.html (y web/barcomp_viewer.html en local)
+npm run test:ui      # 140 pasos de interfaz en Edge headless, por CDP
 ```
 
-**`index.html` es un artefacto compilado de ~643 KB con three.js empotrado.
-Nunca se edita a mano: el siguiente build borra el cambio.** Se edita `web/src/`.
+Cuatro redes, y ninguna fase cierra con una en rojo: los tipos, las pruebas del
+motor, el banco de interfaz y —si se tocó el motor— `compare_engines.py` contra
+la implementación de Python (100 pruebas de su lado).
+
+Hay dos sondas de medición, que no son pruebas: `tools/probe_perf.js` mide el
+coste de la escena dentro del navegador y `tools/bundle_report.mjs` dice de qué
+está hecho el bundle. Hoy: `rebuildScene()` 2.8 ms con 15 dobleces y 9.6 ms con
+60, sin fugas de geometría, cero cuadros dibujados en reposo, y un paso de
+deshacer cuesta 6 µs y 5.3 KB.
+
+**`index.html` es un artefacto compilado de ~672 KB con three.js empotrado —186
+KB comprimido, que es lo que sirve Pages. Nunca se edita a mano: el siguiente
+build borra el cambio.** Se edita `web/src/`.
 
 El empaquetador es **esbuild**: resuelve todos los `import` (three y
 `OrbitControls` incluidos) y emite un IIFE que se empotra en un único `<script>`
@@ -150,8 +233,10 @@ internet es el `npm install`.
   `I18N.en` **y** `I18N.de`. `npm test` comprueba que los tres tengan
   exactamente el mismo juego de claves, que ninguna esté vacía y que ninguna
   arrastre el español sin traducir.
-- Ni `scene.js` ni `ribbon.js` llevan colores propios: los leen de `:root` con
-  `cssVar()`. Un color nuevo se define en `app.css`, en los dos temas.
+- Ni `scene/` ni `ribbon.ts` llevan colores propios: los leen de `:root` con
+  `cssVar()`. Un color nuevo se define en `app.css`, en los dos temas — y las
+  etiquetas del 3D también, o pasa lo que pasaba: un `#fff` a pelo era blanco
+  sobre blanco en tema claro.
 - La escena tiene dos grupos: `world` (la cuadrícula del suelo y los pedestales,
   matriz identidad) y `root` (la pieza, con la colocación por matriz). Mover la
   colocación mueve **la pieza sobre un suelo quieto**, no la cámara.
@@ -163,6 +248,15 @@ internet es el `npm install`.
   guardado y restauración del foco dentro de `renderRight()`.
 - `ST.model` es solo una caché del modelo efectivo (base + Δ) del modelo activo:
   después de tocar un modelo hay que llamar `syncModel()`.
+- El deshacer compara DOCUMENTOS serializados, así que la comparación tiene que
+  ser estable: `saved` (la hora) se excluye y un ajuste manual todo a cero se
+  canoniza como «sin ajuste». Si no, cualquier clic gastaría un paso.
+- Lo que se carga desde un diálogo de archivo se apila al TERMINAR la carga: el
+  diálogo es asíncrono y el `commit()` del clic ya pasó.
+- El estado de PANTALLA —modo, cajón, 3D a pantalla completa, selección— no
+  viaja en el documento ni entra en el deshacer. El modo sí se guarda en la
+  clave `ui` del JSON, junto al tema y el idioma, para que la sesión vuelva
+  como estaba.
 - Si agregas objetos a la escena, mételos en un grupo de `groups{}` y haz
   `dispose()`, o filtras memoria.
 
@@ -245,7 +339,7 @@ que es lo que ve `command[]` y lo que ve el motor de Python; la recta es la
 lectura de ese mismo estado y `feedForStraight()` da la vuelta. Por eso
 `compare_engines.py` sigue en verde y los archivos anteriores abren igual.
 
-La cuenta vive en un solo sitio, `rowLengths()` en `engine.js`; `machineFeeds()`,
+La cuenta vive en un solo sitio, `rowLengths()` en `engine/kinematics.ts`; `machineFeeds()`,
 `twistSpanOf()`, `buildPath()` y `bendStations()` la consumen en vez de
 repetirla.
 
@@ -336,18 +430,28 @@ español.
 
 ## Estado
 
-Alfa sin datos reales. En orden de impacto:
+Alfa: el visor ya acepta piezas medidas de verdad —se importan por CSV, se
+distinguen de las simuladas y el resorte se estima de ellas—, pero nadie le ha
+metido todavía una barra real. Lo que falta, en orden de impacto:
 
-1. Reemplazar `simulate()` por mediciones de GOM. Los valores de springback
-   (`sbW`, `sbT`) hay que ajustarlos contra piezas reales y **separados por
-   orientación**: doblar contra el ancho y contra el espesor, con el laminado a
-   lo largo, tiene constantes elásticas distintas.
-2. Extraer los PI desde la nube de puntos: segmentar tramos rectos → ajustar
-   rectas robustas → intersectar ejes → PI.
-3. Confirmar qué parámetros acepta la dobladora. Si solo toma ángulo, `doRot` y
-   `doFeed` se quedan apagados.
-4. Flexión por gravedad en el fixture: en 1.7 m de aluminio puede ser del orden
-   de las tolerancias.
+1. **Meterle piezas reales.** El camino está abierto: GOM → PI → CSV → importar
+   en lote. Con eso, `sbW` y `sbT` dejan de ser dos números tecleados a ojo y
+   pasan a salir de las piezas, con su dispersión a la vista.
+2. **Extraer los PI desde la nube de puntos**: segmentar tramos rectos → ajustar
+   rectas robustas (RANSAC) → intersectar ejes → PI. Va del lado Python, que
+   tiene numpy a mano; el visor recibe el CSV.
+3. **Confirmar qué parámetros acepta la dobladora.** Si solo toma ángulo,
+   `doRot` y `doFeed` se quedan apagados y el sesgo de rotación hay que atacarlo
+   por calibración del robot.
+4. **Flexión por gravedad en el fixture**: en 1.7 m de aluminio puede ser del
+   orden de las tolerancias, y hoy no se modela.
+5. **Consolidar en un solo motor.** El de Python y el del visor están
+   sincronizados y `compare_engines.py` lo demuestra, pero mantener los dos
+   cuesta el doble por cada cambio de cinemática.
+
+`simulate()` sigue ahí y se queda: es la única forma de contestar «con esta
+dispersión de medición, ¿converge el lazo o se pone a oscilar?» antes de gastar
+material. Lo que cambió es que ahora está etiquetado como lo que es.
 
 **Hallazgo de la validación:** corrigiendo solo ángulos, los ángulos convergen a
 0.15° pero la desviación de la punta libre se estanca en ~5 mm, porque el sesgo
