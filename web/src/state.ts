@@ -64,8 +64,8 @@ export function newVid(): string { varSeq += 1; return `v${varSeq}`; }
 /** Reemplaza el espacio de trabajo entero por un modelo (o un juego de
  *  variantes venido de un archivo). */
 export function loadModel(
-  model: Model, variants: Variant[] | null | undefined,
-  ref: string | null | undefined, anchor: AnchorMode | null | undefined,
+  model: Model, variants?: Variant[] | null,
+  ref?: string | null, anchor?: AnchorMode | null,
 ): void {
   if (variants && variants.length) {
     ST.variants = variants;

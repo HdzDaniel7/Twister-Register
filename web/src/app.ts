@@ -1,4 +1,3 @@
-// @ts-nocheck  — puerto en curso: este archivo aún no está anotado. Se quita al anotarlo.
 /* =========================================================================
    BARCOMP alpha — compensación de dobleces en barra rectangular de aluminio.
 
@@ -21,6 +20,7 @@
    ========================================================================= */
 import * as E from './engine.ts';
 import { T, I18N, LANG, setLang } from './i18n.ts';
+import type { AnchorMode, DatumMode, DeltaKey, Model, Variant } from './types.ts';
 import {
   ST, V, REF, VAR_COLORS, syncModel, newVid, loadModel, refModel,
   activeDataset, addDataset, recomputeAll, syncCommand, resetCommand,
@@ -30,6 +30,7 @@ import {
   initScene, rebuildScene, fitView, setView, setOnPick, setOnResize, markDirty,
   onResize, applyTheme, drawGizmo, drawLabels, groupHost,
 } from './scene.ts';
+import type { ViewName } from './scene.ts';
 import { drawRibbon, bindRibbon, setOnRibbonSelect } from './ribbon.ts';
 import {
   renderShell, renderLeft, renderSide, renderRight, renderStatus, renderPanels,
@@ -38,19 +39,19 @@ import {
 import { makeReport } from './report.ts';
 import { download, pickFile, safeName } from './io.ts';
 
-const $ = s => document.querySelector(s);
+const $ = <T extends Element = HTMLElement>(s: string): T | null => document.querySelector<T>(s);
 const clamp = E.clamp;
 
 /* ------------------------------------------------------------- refrescos */
-function renderAll() { renderShell(); renderPanels(); rebuildScene(); drawRibbon(); }
-function refresh() { recomputeAll(); renderPanels(); rebuildScene(); drawRibbon(); }
-function selectBend(i) { ST.sel = i; renderPanels(); rebuildScene(); drawRibbon(); }
+function renderAll(): void { renderShell(); renderPanels(); rebuildScene(); drawRibbon(); }
+function refresh(): void { recomputeAll(); renderPanels(); rebuildScene(); drawRibbon(); }
+function selectBend(i: number): void { ST.sel = i; renderPanels(); rebuildScene(); drawRibbon(); }
 
 /** Confirmación de una celda de la tabla de modelo. Recalcula todo pero NO
  *  reconstruye el panel derecho: reescribe solo las celdas derivadas, así el
  *  <input> que tiene el foco sobrevive y recorrer la tabla con el teclado no
  *  va a tirones. Si la tabla no está montada, cae al render de siempre. */
-function refreshTable() {
+function refreshTable(): void {
   recomputeAll();
   if (!updateModelDerived()) renderRight();
   renderLeft(); renderSide(); renderStatus(); rebuildScene(); drawRibbon();
@@ -59,15 +60,15 @@ function refreshTable() {
 /* ------------------------------------------------------------------ tema */
 /* Sin localStorage (regla dura): la elección vive en ST y viaja en el JSON.
    'system' = sin atributo, y manda @media (prefers-color-scheme). */
-function useTheme(t) {
-  ST.theme = ['system', 'light', 'dark'].includes(t) ? t : 'system';
+function useTheme(t: string): void {
+  ST.theme = (['system', 'light', 'dark'].includes(t) ? t : 'system') as typeof ST.theme;
   const root = document.documentElement;
   if (ST.theme === 'system') root.removeAttribute('data-theme');
   else root.setAttribute('data-theme', ST.theme);
   /* el 3D no lee CSS solo: hay que recolocarle fondo y niebla */
   applyTheme();
 }
-function setTheme(t) {
+function setTheme(t: string): void {
   useTheme(t);
   /* la rejilla y los pedestales llevan el color dentro del material, así que
      hay que reconstruirlos; la cinta se repinta entera. */
@@ -77,7 +78,7 @@ function setTheme(t) {
 /* ------------------------------------------------------ edición de datos */
 /** Editar puntos trabaja sobre la geometría EFECTIVA, así que primero hay que
  *  fundir los Δ en la base o se perderían sin avisar. */
-function bakeGuard() {
+function bakeGuard(): boolean {
   const v = V();
   E.syncDeltas(v);
   if (!E.hasDeltas(v)) return true;
@@ -92,7 +93,7 @@ function bakeGuard() {
    lo que se teclea, es ella la que no se mueve: se recolocan los avances. */
 const TRIM_KEYS = ['radius', 'rot', 'angle'];
 
-function editBend(i, key, val) {
+function editBend(i: number, key: DeltaKey, val: number): void {
   const v = V();
   E.syncDeltas(v);
   const B = v.base.bends;
@@ -126,7 +127,7 @@ function editBend(i, key, val) {
  *  Trabaja sobre la BASE, igual que el resto de columnas editables: su Δ va al
  *  lado, y sumar un Δ a `feed` suma exactamente lo mismo a la recta, porque los
  *  trims no dependen del avance. */
-function editStraight(i, val) {
+function editStraight(i: number, val: number): void {
   const v = V();
   E.syncDeltas(v);
   if (!(i >= 0 && i < v.base.bends.length)) return;
@@ -134,7 +135,7 @@ function editStraight(i, val) {
   v.base.bends[i].feed = E.feedForStraight(v.base, i, val);
   syncModel(); syncCommand(); refreshTable();
 }
-function editDelta(i, key, val) {
+function editDelta(i: number, key: DeltaKey, val: number): void {
   const v = V();
   E.syncDeltas(v);
   if (!(i >= 0 && i < v.deltas.length)) return;
@@ -144,7 +145,7 @@ function editDelta(i, key, val) {
 /** Edición ABSOLUTA en el espacio de los PI: mover un punto deja los demás
  *  donde están y la cadena se recalcula por inversa. Es lo contrario de editar
  *  un ángulo en la tabla LRA, que hace girar todo lo que va después. */
-function editPoint(i, key, val) {
+function editPoint(i: number, key: 'x' | 'y' | 'z', val: number): void {
   if (!bakeGuard()) { renderRight(); return; }
   const v = V();
   const P = E.fk(v.base).pis;
@@ -158,8 +159,8 @@ function editPoint(i, key, val) {
 /** Guarda el ajuste manual de una celda de compensación.
  *  El texto puede ser un número (reemplaza) o una cuenta sobre `c`, el valor
  *  que calculó el lazo. Si no se entiende, no se toca nada. */
-function editTweak(i, key, text) {
-  const M = ST.model, D = activeDataset();
+function editTweak(i: number, key: 'angle' | 'rot' | 'feed', text: string): void {
+  const M = ST.model!, D = activeDataset();
   if (!D) return;
   syncTweak(M.bends.length);
   if (!(i >= 0 && i < ST.tweak.length)) return;
@@ -173,14 +174,14 @@ function editTweak(i, key, text) {
 }
 
 /* ------------------------------------------------------------ variantes */
-function variantById(id) { return ST.variants.find(v => v.id === id); }
+function variantById(id: string): Variant | undefined { return ST.variants.find(v => v.id === id); }
 
-function varActivate(id) {
+function varActivate(id: string): void {
   if (!variantById(id)) return;
   ST.active = id; ST.sel = -1;
   syncModel(); syncCommand(); refresh();
 }
-function varDuplicate(v) {
+function varDuplicate(v: Variant | undefined): void {
   if (!v) return;
   const n = ST.variants.length;
   const w = E.cloneVariant(v, `${v.name} · ${n + 1}`,
@@ -188,29 +189,34 @@ function varDuplicate(v) {
   ST.variants.push(w);
   varActivate(w.id);
 }
-function varDelete(id) {
+function varDelete(id: string): void {
   if (ST.variants.length <= 1) return;
   ST.variants = ST.variants.filter(v => v.id !== id);
   const ids = ST.variants.map(v => v.id);
-  if (!ids.includes(ST.active)) ST.active = ids[0];
-  if (!ids.includes(ST.ref)) ST.ref = ids[0];
+  if (!ids.includes(ST.active as string)) ST.active = ids[0];
+  if (!ids.includes(ST.ref as string)) ST.ref = ids[0];
   ST.sel = -1;
   syncModel(); syncCommand(); refresh();
 }
 
 /* ------------------------------------------------------------- acciones */
-function predict() {
-  const M = ST.model, ori = E.orientations(M);
+/** `predict()` guarda dos cifras de resumen sobre el modelo predicho que
+ *  `Model` no declara (son de presentación, no del dominio): se tipan aquí,
+ *  sin tocar types.ts. */
+type Predicted = Model & { _maxA: number; _tip: number };
+
+function predict(): void {
+  const M = ST.model!, ori = E.orientations(M);
   const bends = E.simulate(ST.command, ST.proc, ori, false);
-  const pm = { ...M, bends, tail: M.tail };
+  const pm = { ...M, bends, tail: M.tail } as Predicted;
   const p1 = E.fk(pm).pis, p0 = E.fk(M).pis;
   pm._maxA = bends.reduce((a, b, i) => Math.max(a, Math.abs(b.angle - M.bends[i].angle)), 0);
   pm._tip = p1[p1.length - 1].distanceTo(p0[p0.length - 1]);
   ST.pred = pm;
 }
 
-function simPart(verify) {
-  const M = ST.model;
+function simPart(verify: boolean): void {
+  const M = ST.model!;
   syncCommand();
   const bends = E.simulate(ST.command, ST.proc, E.orientations(M), true);
   addDataset({ ...M, bends, tail: M.tail },
@@ -220,19 +226,22 @@ function simPart(verify) {
   renderPanels(); rebuildScene(); drawRibbon();
 }
 
-function loadFresh(model) {
+function loadFresh(model: Model): void {
+  /* loadModel() también acepta variantes/ref/anchor de un archivo (ver
+     openJson); aquí se arranca desde un modelo suelto y los otros tres van
+     en su valor de siempre: `undefined`. */
   loadModel(model);
   renderAll(); fitView();
 }
 
-function saveJson() {
-  const doc = E.toDoc(ST.model, ST.command, ST.comp, ST.proc, ST.datasets,
+function saveJson(): void {
+  const doc = E.toDoc(ST.model!, ST.command, ST.comp, ST.proc, ST.datasets,
                       ST.variants, ST.ref, ST.anchor,
                       { place: ST.place, marks: ST.marks, tweak: ST.tweak,
                         ui: { theme: ST.theme, lang: LANG.cur } });
-  download(safeName(ST.model.name) + '.json', JSON.stringify(doc, null, 1));
+  download(safeName(ST.model!.name) + '.json', JSON.stringify(doc, null, 1));
 }
-function openJson() {
+function openJson(): void {
   pickFile('.json', txt => {
     try {
       const d = E.fromDoc(JSON.parse(txt));
@@ -243,7 +252,7 @@ function openJson() {
       ST.place = { ...E.PLACE_DEFAULT, ...(d.place || {}) };
       setMarks(d.marks);
       ST.tweak = d.tweak || [];
-      syncTweak(ST.model.bends.length);
+      syncTweak(ST.model!.bends.length);
       /* un archivo sin `ui` no pisa el tema ni el idioma que ya haya puestos */
       if (d.ui) {
         if (d.ui.lang) setLang(d.ui.lang);
@@ -256,16 +265,16 @@ function openJson() {
         ds.color = x.color || ds.color;
       }
       renderAll(); fitView();
-    } catch (err) { alert('JSON: ' + err.message); }
+    } catch (err) { alert('JSON: ' + (err as Error).message); }
   });
 }
-function exportPoints() {
-  download('puntos_' + safeName(ST.model.name) + '.csv',
-           E.writePointsCsv(E.fk(ST.model).pis), 'text/csv');
+function exportPoints(): void {
+  download('puntos_' + safeName(ST.model!.name) + '.csv',
+           E.writePointsCsv(E.fk(ST.model!).pis), 'text/csv');
 }
 
-function action(a) {
-  const M = ST.model, v = V();
+function action(a: string): void {
+  const M = ST.model!, v = V();
   switch (a) {
     case 'demo': return loadFresh(E.demoModel());
     case 'new': if (confirm(T('confirmNew'))) loadFresh(E.emptyModel()); return;
@@ -352,8 +361,8 @@ function action(a) {
  *  el navegador marcaría inválido todo lo que no cae en su rejilla. No se
  *  redondea al paso, solo se limpia el ruido de coma flotante — así sumar un
  *  paso sobre 17.905 da 18.005 y no 18. */
-function stepField(t, dir) {
-  const st = parseFloat(t.dataset.step) || parseFloat(t.step) || 1;
+function stepField(t: HTMLInputElement, dir: number): void {
+  const st = parseFloat(t.dataset.step as string) || parseFloat(t.step) || 1;
   let v = (parseFloat(t.value) || 0) + dir * st;
   if (t.min !== '' && isFinite(+t.min)) v = Math.max(+t.min, v);
   if (t.max !== '' && isFinite(+t.max)) v = Math.min(+t.max, v);
@@ -363,14 +372,14 @@ function stepField(t, dir) {
 
 /** Campo editable de la MISMA columna, en la fila de arriba o de abajo. Salta
  *  las filas cuya celda de esa columna sea calculada. */
-function cellBelow(t, dRow) {
-  const td = t.closest('td'), tr = td && td.parentElement;
-  const body = tr && tr.parentElement;
+function cellBelow(t: HTMLInputElement | HTMLSelectElement, dRow: number): HTMLInputElement | HTMLSelectElement | null {
+  const td = t.closest('td'), tr = td && (td.parentElement as HTMLTableRowElement | null);
+  const body = tr && (tr.parentElement as HTMLTableSectionElement | null);
   if (!body || body.tagName !== 'TBODY') return null;
-  const rows = [...body.rows], c = td.cellIndex;
-  for (let r = rows.indexOf(tr) + dRow; r >= 0 && r < rows.length; r += dRow) {
+  const rows = [...body.rows], c = td!.cellIndex;
+  for (let r = rows.indexOf(tr as HTMLTableRowElement) + dRow; r >= 0 && r < rows.length; r += dRow) {
     const cel = rows[r].cells[c];
-    const el = cel && cel.querySelector(
+    const el = cel && cel.querySelector<HTMLInputElement | HTMLSelectElement>(
       'input:not([type=checkbox]):not([type=color]),select');
     if (el) return el;
   }
@@ -380,39 +389,40 @@ function cellBelow(t, dRow) {
 /** Mueve el foco confirmando antes el valor. El destino se vuelve a buscar por
  *  selector DESPUÉS del `change`: si algo forzó un renderRight(), el nodo de
  *  antes ya no está en el documento. */
-function moveCell(from, to) {
+function moveCell(from: HTMLInputElement | HTMLSelectElement, to: HTMLInputElement | HTMLSelectElement): void {
   const key = cellKey(to);
   from.blur();                        // dispara `change`: confirma el valor
-  const live = (key && ($('#panes ' + key) || $(key))) || to;
+  const live = ((key && ($<HTMLInputElement | HTMLSelectElement>('#panes ' + key)
+    || $<HTMLInputElement | HTMLSelectElement>(key))) || to) as HTMLInputElement | HTMLSelectElement;
   if (!live.isConnected) return;
   live.focus();
-  if (live.select) live.select();
+  if ((live as HTMLInputElement).select) (live as HTMLInputElement).select();
 }
 
-function bind() {
-  $('#tabs').addEventListener('click', e => {
-    const t = e.target.closest('[data-t]');
+function bind(): void {
+  $('#tabs')!.addEventListener('click', e => {
+    const t = (e.target as HTMLElement).closest('[data-t]') as HTMLElement | null;
     if (!t) return;
-    ST.tab = t.dataset.t;
+    ST.tab = t.dataset.t as string;
     renderShell(); renderRight();
   });
 
   document.body.addEventListener('click', e => {
     /* guardia: un clic dentro de un campo no debe disparar la selección de
        fila, o destruiría el input que se está editando. NO lo quites. */
-    if (/^(INPUT|SELECT|TEXTAREA)$/.test(e.target.tagName) && !e.target.dataset.v) {
-      if (!['checkbox', 'color', 'radio'].includes(e.target.type)) return;
+    if (/^(INPUT|SELECT|TEXTAREA)$/.test((e.target as HTMLElement).tagName) && !(e.target as HTMLElement).dataset.v) {
+      if (!['checkbox', 'color', 'radio'].includes((e.target as HTMLInputElement).type)) return;
     }
-    const t = e.target.closest(
+    const t = (e.target as HTMLElement).closest(
       '[data-a],[data-v],[data-dm],[data-l],[data-th],[data-dx],[data-dsel],[data-cm],' +
-      '[data-vsel],[data-vx],[data-vd],[data-vr],[data-r]');
+      '[data-vsel],[data-vx],[data-vd],[data-vr],[data-r]') as HTMLElement | null;
     if (!t) return;
     const d = t.dataset;
     if (d.l !== undefined) { setLang(d.l); renderAll(); return; }
     if (d.th !== undefined) { setTheme(d.th); return; }
-    if (d.v !== undefined) { d.v === 'fit' ? fitView() : setView(d.v); return; }
-    if (d.cm !== undefined) { ST.view.cmode = d.cm; renderShell(); rebuildScene(); return; }
-    if (d.dm !== undefined) { ST.datum = d.dm; refresh(); return; }
+    if (d.v !== undefined) { d.v === 'fit' ? fitView() : setView(d.v as ViewName); return; }
+    if (d.cm !== undefined) { ST.view.cmode = d.cm as 'solid' | 'dev'; renderShell(); rebuildScene(); return; }
+    if (d.dm !== undefined) { ST.datum = d.dm as DatumMode; refresh(); return; }
     if (d.vsel !== undefined) { varActivate(d.vsel); return; }
     if (d.vd !== undefined) { varDuplicate(variantById(d.vd)); return; }
     if (d.vx !== undefined) { varDelete(d.vx); return; }
@@ -432,7 +442,7 @@ function bind() {
   });
 
   document.body.addEventListener('change', e => {
-    const t = e.target, d = t.dataset, v = V();
+    const t = e.target as HTMLInputElement, d = t.dataset, v = V();
     /* Vaciar una celda y salirse NO debe escribir un 0 que nadie pidió: se
        devuelve lo que había al entrar. Con la selección automática al enfocar,
        teclear ya reemplaza el valor entero y borrar a mano deja de hacer falta. */
@@ -442,7 +452,7 @@ function bind() {
     }
     if (d.ly !== undefined) { ST.layers[d.ly].on = t.checked; rebuildScene(); return; }
     if (d.lc !== undefined) { ST.layers[d.lc].color = t.value; renderShell(); rebuildScene(); return; }
-    if (d.an !== undefined) { ST.anchor = d.an; renderLeft(); renderRight(); renderStatus(); rebuildScene(); return; }
+    if (d.an !== undefined) { ST.anchor = d.an as AnchorMode; renderLeft(); renderRight(); renderStatus(); rebuildScene(); return; }
     if (d.vv !== undefined) { const x = variantById(d.vv); if (x) { x.visible = t.checked; rebuildScene(); } return; }
     if (d.vc !== undefined) { const x = variantById(d.vc); if (x) { x.color = t.value; renderShell(); renderLeft(); rebuildScene(); } return; }
     /* el nombre se edita en los dos sitios: aquí, en la tarjeta del modelo, y
@@ -465,21 +475,21 @@ function bind() {
       else { v.base[d.m] = +t.value; syncModel(); refresh(); }
       return;
     }
-    if (d.s !== undefined) { v.base.section[d.s] = +t.value; syncModel(); refresh(); return; }
-    if (d.t !== undefined && t.type === 'number') { v.base.tol[d.t] = +t.value; syncModel(); refresh(); return; }
-    if (d.b !== undefined) { editBend(+d.b, d.k, +t.value); return; }
+    if (d.s !== undefined) { (v.base.section as unknown as Record<string, number>)[d.s] = +t.value; syncModel(); refresh(); return; }
+    if (d.t !== undefined && t.type === 'number') { (v.base.tol as unknown as Record<string, number>)[d.t] = +t.value; syncModel(); refresh(); return; }
+    if (d.b !== undefined) { editBend(+d.b, d.k as DeltaKey, +t.value); return; }
     if (d.st !== undefined) { editStraight(+d.st, +t.value); return; }
-    if (d.bd !== undefined) { editDelta(+d.bd, d.k, +t.value); return; }
-    if (d.p !== undefined && d.k) { editPoint(+d.p, d.k, +t.value); return; }
+    if (d.bd !== undefined) { editDelta(+d.bd, d.k as DeltaKey, +t.value); return; }
+    if (d.p !== undefined && d.k) { editPoint(+d.p, d.k as 'x' | 'y' | 'z', +t.value); return; }
     if (d.c !== undefined) {
-      ST.comp[d.c] = t.type === 'checkbox' ? t.checked : +t.value;
+      (ST.comp as unknown as Record<string, number | boolean>)[d.c] = t.type === 'checkbox' ? t.checked : +t.value;
       renderRight(); return;
     }
-    if (d.pr !== undefined) { ST.proc[d.pr] = +t.value; return; }
+    if (d.pr !== undefined) { (ST.proc as unknown as Record<string, number>)[d.pr] = +t.value; return; }
 
     /* --- colocación: solo presentación, no toca ningún dato del modelo --- */
     if (d.pl !== undefined) {
-      ST.place[d.pl] = +t.value || 0;
+      (ST.place as unknown as Record<string, number>)[d.pl] = +t.value || 0;
       renderStatus(); rebuildScene(); return;
     }
     if (d.plp !== undefined) {
@@ -491,7 +501,7 @@ function bind() {
     if (d.mk !== undefined) {
       const mk = ST.marks.find(x => x.id === d.mk);
       if (mk) {
-        mk[d.k] = d.k === 'name' ? t.value : (+t.value || 0);
+        (mk as unknown as Record<string, string | number>)[d.k as string] = d.k === 'name' ? t.value : (+t.value || 0);
         renderRight(); rebuildScene();
       }
       return;
@@ -513,21 +523,21 @@ function bind() {
        la ganancia o llega otra pieza medida, el ajuste sigue significando lo
        mismo ("dos décimas más de lo que sugiera el lazo"). */
     if (d.tw !== undefined && d.k) {
-      editTweak(+d.tw, d.k, t.value);
+      editTweak(+d.tw, d.k as 'angle' | 'rot' | 'feed', t.value);
       return;
     }
   });
 
   document.body.addEventListener('input', e => {
-    const t = e.target, d = t.dataset;
+    const t = e.target as HTMLInputElement, d = t.dataset;
     if (t.id === 'exag') {
       ST.view.exag = +t.value;
-      $('#exagv').textContent = t.value + '×';
+      $('#exagv')!.textContent = t.value + '×';
       rebuildScene();
     }
     if (d.pr !== undefined) {
-      ST.proc[d.pr] = +t.value;
-      const val = t.parentElement.querySelector('.val');
+      (ST.proc as unknown as Record<string, number>)[d.pr] = +t.value;
+      const val = t.parentElement!.querySelector('.val');
       if (val) {
         const suf = d.pr === 'biasRot' ? '°'
           : ['sbW', 'sbT', 'slip'].includes(d.pr) ? '%' : '';
@@ -541,7 +551,7 @@ function bind() {
      Dentro de una tabla las flechas navegan (ver el manejador de teclado), así
      que ahí el incremento por teclado es Ctrl+↑ / Ctrl+↓. */
   document.body.addEventListener('wheel', e => {
-    const t = e.target;
+    const t = e.target as HTMLInputElement;
     if (!t || t.tagName !== 'INPUT' || t.type !== 'number') return;
     if (document.activeElement !== t) return;
     e.preventDefault();
@@ -552,14 +562,14 @@ function bind() {
      se selecciona entero: teclear reemplaza, que es lo que se espera de una
      tabla, y no hay que borrar a mano cifra por cifra. */
   document.body.addEventListener('focusin', e => {
-    const t = e.target;
+    const t = e.target as HTMLInputElement;
     if (!t || t.tagName !== 'INPUT') return;
     t.dataset.orig = t.value;
     if (t.type !== 'number' && t.type !== 'text') return;
     try { t.select(); } catch (_) { return; }
     /* el `mouseup` que cierra un clic deshace la selección: se le quita el
        efecto una sola vez, o hacer clic en la celda la dejaría sin seleccionar */
-    const keep = ev => ev.preventDefault();
+    const keep = (ev: MouseEvent) => ev.preventDefault();
     t.addEventListener('mouseup', keep, { once: true });
     setTimeout(() => t.removeEventListener('mouseup', keep), 300);
   });
@@ -569,7 +579,7 @@ function bind() {
      así que ya se saltan solas. Aquí van los movimientos verticales, el
      descarte y el incremento por teclado que las flechas cedieron al navegar. */
   document.body.addEventListener('keydown', e => {
-    const t = e.target;
+    const t = e.target as HTMLInputElement;
     if (!t || t.tagName !== 'INPUT' || !t.closest('table')) return;
     if (t.type === 'checkbox' || t.type === 'color') return;
 
@@ -599,7 +609,7 @@ function bind() {
       e.preventDefault();
       grip.classList.add('drag');
       grip.setPointerCapture(e.pointerId);
-      const move = ev => {
+      const move = (ev: PointerEvent) => {
         const w = clamp(innerWidth - ev.clientX, 260, Math.min(880, innerWidth - 420));
         document.documentElement.style.setProperty('--rtW', w + 'px');
         /* sin esto el lienzo WebGL conserva su tamaño en píxeles y se monta
@@ -630,7 +640,7 @@ function bind() {
       const rib = parseFloat(cs.getPropertyValue('--ribbon')) || 74;
       const sth = parseFloat(cs.getPropertyValue('--statusH')) || 26;
       const hd = parseFloat(cs.getPropertyValue('--h')) || 44;
-      const move = ev => {
+      const move = (ev: PointerEvent) => {
         /* debajo del tirador van la cinta, la tabla y la barra de estado */
         const h = clamp(innerHeight - ev.clientY - rib - sth,
                         120, Math.max(120, innerHeight - hd - rib - sth - 200));
@@ -654,12 +664,12 @@ function bind() {
      cualquiera de los dos tiradores, cambiar el zoom del navegador o abrir las
      herramientas del IDE. */
   if (typeof ResizeObserver !== 'undefined') {
-    new ResizeObserver(() => onResize()).observe($('#vpwrap'));
+    new ResizeObserver(() => onResize()).observe($('#vpwrap')!);
   }
 
   /* con el tema en 'system', el CSS sigue solo a la preferencia del sistema,
      pero el lienzo WebGL y la cinta no: hay que avisarles. */
-  if (window.matchMedia) {
+  if ((window as { matchMedia?: typeof matchMedia }).matchMedia) {
     const mq = matchMedia('(prefers-color-scheme: light)');
     const onScheme = () => {
       if (ST.theme === 'system') { applyTheme(); rebuildScene(); drawRibbon(); }
@@ -675,7 +685,9 @@ function bind() {
 }
 
 /* =============================================================== arranque */
-function boot() {
+function boot(): void {
+  /* mismo caso que loadFresh(): loadModel() acepta variantes/ref/anchor de un
+     archivo, y aquí se arranca sin ninguno de los tres. */
   loadModel(E.demoModel());
   initScene();
   useTheme(ST.theme);
@@ -687,4 +699,11 @@ function boot() {
 document.addEventListener('DOMContentLoaded', boot);
 
 /* expuesto para depurar desde la consola del navegador */
-if (typeof window !== 'undefined') window.BARCOMP = { ST, E, I18N, LANG, renderAll, refresh, REF, drawGizmo, drawLabels, groupHost };
+/** Forma del objeto de depuración: vive solo aquí, un cast puntual sobre
+ *  `window` no necesita una declaración global nueva. */
+type DebugExports = {
+  ST: typeof ST; E: typeof E; I18N: typeof I18N; LANG: typeof LANG;
+  renderAll: typeof renderAll; refresh: typeof refresh; REF: typeof REF;
+  drawGizmo: typeof drawGizmo; drawLabels: typeof drawLabels; groupHost: typeof groupHost;
+};
+if (typeof window !== 'undefined') (window as unknown as { BARCOMP: DebugExports }).BARCOMP = { ST, E, I18N, LANG, renderAll, refresh, REF, drawGizmo, drawLabels, groupHost };
