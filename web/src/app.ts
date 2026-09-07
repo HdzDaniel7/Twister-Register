@@ -34,7 +34,7 @@ import * as E from './engine.ts';
 import { I18N, LANG } from './i18n.ts';
 import { ST, REF, loadModel } from './state.ts';
 import {
-  initScene, fitView, setOnPick, setOnResize, markDirty,
+  initScene, fitView, setOnPick, setOnResize, markDirty, rebuildScene, renderer,
   drawGizmo, drawLabels, groupHost,
 } from './scene.ts';
 import { drawRibbon, bindRibbon, setOnRibbonSelect } from './ribbon.ts';
@@ -75,12 +75,22 @@ function boot(): void {
 }
 document.addEventListener('DOMContentLoaded', boot);
 
-/* expuesto para depurar desde la consola del navegador */
+/* Expuesto para depurar desde la consola del navegador, y para que el banco
+   pueda medir. `rebuildScene` y `renderer` están aquí por eso último: sin
+   ellos, el coste de la escena solo se puede medir junto con el de los
+   paneles, y las geometrías vivas (renderer.info) no se pueden contar. */
 /** Forma del objeto de depuración: vive solo aquí, un cast puntual sobre
  *  `window` no necesita una declaración global nueva. */
 type DebugExports = {
   ST: typeof ST; E: typeof E; I18N: typeof I18N; LANG: typeof LANG;
   renderAll: typeof renderAll; refresh: typeof refresh; REF: typeof REF;
   drawGizmo: typeof drawGizmo; drawLabels: typeof drawLabels; groupHost: typeof groupHost;
+  rebuildScene: typeof rebuildScene; markDirty: typeof markDirty;
+  get renderer(): typeof renderer;
 };
-if (typeof window !== 'undefined') (window as unknown as { BARCOMP: DebugExports }).BARCOMP = { ST, E, I18N, LANG, renderAll, refresh, REF, drawGizmo, drawLabels, groupHost };
+/* `renderer` se lee por getter porque initScene() lo asigna DESPUÉS de que
+   este módulo se evalúe: copiarlo aquí guardaría el undefined de arranque. */
+if (typeof window !== 'undefined') (window as unknown as { BARCOMP: DebugExports }).BARCOMP = {
+  ST, E, I18N, LANG, renderAll, refresh, REF, drawGizmo, drawLabels, groupHost,
+  rebuildScene, markDirty, get renderer() { return renderer; },
+};
