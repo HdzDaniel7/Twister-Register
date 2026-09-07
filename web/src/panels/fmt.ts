@@ -1,0 +1,56 @@
+/* =========================================================================
+   FORMATO Y ATAJOS COMPARTIDOS — el selector $, la clave I18nKey derivada de
+   T(), las pestañas visibles y los formateadores que usan todos los paneles:
+   fx/nx para números, nfield para inputs de tabla, esc para texto libre, cls
+   para el semáforo v-ok/v-warn/v-bad, y oriTag/sgn para las celdas con
+   insignia W/T y con signo.
+   ========================================================================= */
+import { T } from '../i18n.ts';
+import type { Orientation } from '../types.ts';
+
+/** i18n.ts no exporta `I18nKey`: se deriva aquí del propio parámetro de T()
+ *  para no duplicar la lista de 169 claves y para que tsc siga comprobando
+ *  contra la misma unión si esa lista cambia. */
+export type I18nKey = Parameters<typeof T>[0];
+
+/** Selector con el tipo del elemento esperado; por defecto HTMLElement, que
+ *  es lo que necesitan .innerHTML/.textContent/.scrollTop/.title/.focus. */
+export const $ = <T extends Element = HTMLElement>(s: string): T | null => document.querySelector<T>(s);
+
+/* Las pestañas de abajo. La MEDICIÓN ya no es una pestaña: sus estadísticas y
+   su tabla de desviación viven fijas en el lateral derecho, porque son lo que
+   se mira MIENTRAS se toca la tabla. */
+export const TABS = ['model', 'points', 'comp'];
+export const fx = (v: number | null | undefined, n: number = 2): string =>
+  (v === null || v === undefined || !isFinite(v)) ? '—' : v.toFixed(n);
+/** Valor para un campo EDITABLE. Al menos `min` decimales y hasta `max`, sin
+ *  ceros de relleno de más: 30 se ve «30.00», 17.905 se ve entero. Es lo que
+ *  impide que repintar la tabla se coma el tercer decimal que alguien tecleó.
+ *
+ *  fx() se queda para las celdas de LECTURA, donde el ancho fijo alinea mejor. */
+export const nx = (v: number | null | undefined, min: number = 2, max: number = 3): string => {
+  if (v === null || v === undefined || !isFinite(v)) return '';
+  const r = +(+v).toFixed(max);
+  const dec = (String(r).split('.')[1] || '').length;
+  return r.toFixed(Math.max(min, dec));
+};
+
+/** Campo numérico de tabla o de formulario.
+ *
+ *  `step="any"` a propósito: con un paso declarado el navegador marca inválido
+ *  todo lo que no cae en la rejilla —con step=".1" un 17.905 es un error— y
+ *  redondea al usar las flechas. El paso vive en `data-step`, que es lo que
+ *  leen la rueda del ratón y Ctrl+flecha (ver stepField() en app.js). */
+export const nfield = (
+  step: string, attrs: string, val: number | null | undefined, extra: string = '',
+): string =>
+  `<input type="number" step="any" data-step="${step}" ${attrs}
+    value="${nx(val)}" ${extra}>`;
+
+export const esc = (s: string): string => String(s).replace(/[&<>"]/g,
+  c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' } as Record<string, string>)[c]);
+export const cls = (v: number, t: number): string => Math.abs(v) <= t ? 'v-ok' : Math.abs(v) <= 2 * t ? 'v-warn' : 'v-bad';
+/** Insignia W/T. La letra sola no dice nada a quien llega nuevo: el tooltip
+ *  lleva la explicación larga, que ya estaba traducida en los tres idiomas. */
+export const oriTag = (o: Orientation): string => `<span class="ori ${o}" title="${T(('or' + o) as I18nKey)}">${o}</span>`;
+export const sgn = (v: number, n: number): string => (v > 0 ? '+' : '') + fx(v, n);
