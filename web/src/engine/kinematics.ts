@@ -51,9 +51,22 @@
    su sitio, así que la cara que mira arriba no cambia por doblar. `twist` sigue
    siendo lo único que rueda la barra.
 
+   EL EJE MANDA MÓDULO 180, Y EL SIGNO DEL ÁNGULO VOLTEA EL DOBLEZ
+   ---------------------------------------------------------------
+   Un eje a 180° y un ángulo positivo doblan exactamente al mismo sitio que un
+   eje a 0° y el ángulo negativo: `Rot(-n, θ) = Rot(n, -θ)`. Escribir la
+   dirección de las dos maneras a la vez es lo que hacía ilegible la tabla —dos
+   filas con el mismo ángulo doblaban a lados distintos y nada en la columna lo
+   decía—, así que la forma canónica es:
+
+       eje absoluto  ∈ (-90, 90]      el PLANO en el que se dobla
+       angle          con signo       hacia qué lado dentro de ese plano
+
+   Así el rodado solo gira cuartos de vuelta —cambia de plano— y el signo del
+   ángulo es lo único que voltea el doblez. `canonRot()` es quien lo impone.
+
    El signo de `angle` va al revés que en barcomp/1.0: un `angle` positivo
-   desvía hacia `-y`. La forma canónica de ik() deja `angle >= 0` y usa `rot`
-   para elegir la dirección, que es como se programa una dobladora.
+   desvía hacia `-y`.
 
    Un PI es UN vértice y por lo tanto UN arco: `radius` es el radio de esa
    herramienta circular, y el arco es siempre uno solo — ver bendDecomp().
@@ -71,6 +84,17 @@ import { newBend } from './bend.ts';
  *  (-180, 180]: cuatro cuartos de vuelta dejan el eje donde estaba, y media
  *  vuelta se escribe 180 —como en la máquina— y no -180.
  */
+/** Lleva un par (eje, ángulo) a la forma canónica: el eje al plano que le toca
+ *  —dentro de (-90, 90]— y el signo del doblez al ángulo. La geometría no
+ *  cambia: girar el eje media vuelta es lo mismo que doblar al revés. */
+export function canonRot(rot: number, angle: number): { rot: number; angle: number } {
+  let r = wrapTurn(rot), a = angle;
+  if (r > 90 || r <= -90) { r = wrapTurn(r + 180); a = -a; }
+  /* wrapTurn devuelve +180 para media vuelta, así que un eje que venía de 180
+     cae en 0 en la primera pasada; -90 se queda, que es un plano legítimo. */
+  return { rot: r, angle: a };
+}
+
 export function axisAngles(model: Model): number[] {
   let a = 0;
   return model.bends.map(b => (a = wrapTurn(a + (b.rot || 0))));
@@ -122,14 +146,18 @@ export function ik(points: Vector3[], radii: (number | undefined)[] | null | und
        dónde, que es como se programa una dobladora. */
     const lat = Math.hypot(d.y, d.z);
     const ang = Math.atan2(lat, clamp(d.x, -1, 1)) * R2D;
-    const rot = lat < 1e-12          // sin desvío: el eje no se puede leer
+    const crudo = lat < 1e-12        // sin desvío: el eje no se puede leer
       ? prevRot                       //   y lo que corresponde es no moverlo
       : Math.atan2(-d.z, -d.y) * R2D;
+    /* forma canónica: el eje al plano (-90, 90] y el signo del doblez al
+       ángulo, para no escribir la dirección dos veces */
+    const c = canonRot(crudo, ang);
+    const rot = c.rot;
     bends.push(newBend({
-      feed: fe, rot: wrapTurn(rot - prevRot), angle: ang,
+      feed: fe, rot: wrapTurn(rot - prevRot), angle: c.angle,
       radius: (radii && radii[i - 1] !== undefined) ? +radii[i - 1]! : 30,
     }));
-    const nx = bendDecomp({ rot, angle: ang });
+    const nx = bendDecomp({ rot, angle: c.angle });
     F = F.multiply(rotAxis(nx.axis, nx.theta));
     prevRot = rot;
   }

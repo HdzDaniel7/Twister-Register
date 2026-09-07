@@ -172,9 +172,20 @@ step('el eje de doblado se sostiene entre estaciones', () => {
     bends: rots.map(rt => Eg().newBend({ feed: 200, rot: rt, angle: 30, radius: 30 })) });
   const ejes = Eg().axisAngles(mk(90, 0, 0, -90)).join(',');
   if (ejes !== '90,90,90,0') throw new Error('ejes ' + ejes);
-  /* media vuelta se escribe 180, como en la máquina, y no -180 */
-  const media = Eg().axisAngles(mk(90, 90)).join(',');
-  if (media !== '90,180') throw new Error('media vuelta: ' + media);
+  /* FORMA CANÓNICA: el eje elige el PLANO y nunca da media vuelta, porque
+     voltear el doblez es cosa del SIGNO del ángulo. Escribirlo de las dos
+     maneras a la vez era lo que hacía ilegible la tabla. */
+  const c1 = Eg().canonRot(180, 30);
+  if (!(Math.abs(c1.rot) < 1e-9 && Math.abs(c1.angle + 30) < 1e-9)) {
+    throw new Error(`canonRot(180,30) = ${c1.rot}, ${c1.angle}`);
+  }
+  const D = S().model;
+  if (!Eg().axisAngles(D).every(a => Math.abs(a) <= 90 + 1e-9)) {
+    throw new Error('el eje del modelo da media vuelta: ' + Eg().axisAngles(D).join(','));
+  }
+  if (!D.bends.every(b => [0, 90, -90].some(v => Math.abs(b.rot - v) < 1e-9))) {
+    throw new Error('hay giros que no son cuartos: ' + D.bends.map(b => b.rot).join(','));
+  }
   const o = Eg().orientations(mk(90, 0)).join('');
   if (o !== 'WW') throw new Error('con el eje sostenido deberían ser WW, y salió ' + o);
   const v = Eg().orientations(mk(90, -90)).join('');

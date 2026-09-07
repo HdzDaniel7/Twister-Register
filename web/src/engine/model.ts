@@ -12,7 +12,7 @@ import type { Bend, Model, Variant, DeltaKey, Delta } from '../types.ts';
 import { clamp, wrapTurn, mulberry32 } from './math.ts';
 import { BEND_DEFAULT, newBend, bendFrom, normalizeModel, cloneModel } from './bend.ts';
 import type { RawModel } from './bend.ts';
-import { fk, ik } from './kinematics.ts';
+import { fk, ik, canonRot } from './kinematics.ts';
 
 /* ------------------------------------------------------------------ modelo */
 export function emptyModel(): Model {
@@ -41,13 +41,18 @@ export function demoModel(): Model {
   for (let i = 0; i < 15; i++) {
     const canto = (i % 3 === 1);
     const ang = Math.round((16 + r() * 54) * 10) / 10;
-    const ejeNuevo = canto ? 90 * sign[i] : (sign[i] > 0 ? 0 : 180);
-    const giro = wrapTurn(ejeNuevo - eje);
-    eje = ejeNuevo;
+    /* Forma canónica: el eje elige el PLANO —0 de plano, ±90 de canto— y el
+       signo del ángulo dice hacia qué lado se dobla dentro de ese plano. Antes
+       esto se escribía con un eje a 180°, que es la misma pieza contada dos
+       veces. */
+    const crudo = canto ? 90 * sign[i] : (sign[i] > 0 ? 0 : 180);
+    const c = canonRot(crudo, ang);
+    const giro = wrapTurn(c.rot - eje);
+    eje = c.rot;
     bends.push(newBend({
       feed: i === 0 ? 140 : Math.round(80 + r() * 70),
       rot: giro,
-      angle: ang,
+      angle: c.angle,
       // doblar de canto pide herramental más grande
       radius: canto ? 45 : 30,
       twist: 0,

@@ -135,6 +135,21 @@ Un `0` significa «no toques el eje», que es lo que se teclea la mayoría de la
 veces: una lista de ceros es una pieza que se dobla siempre contra la misma
 cara. La columna `Or.` (W/T) mira el eje **absoluto**, no el giro de la fila.
 
+**El eje elige el plano; el signo del ángulo elige el lado.** Un eje a 180° con
+ángulo positivo dobla exactamente al mismo sitio que un eje a 0° con el ángulo
+negativo —`Rot(−n, θ) = Rot(n, −θ)`—, así que escribir la dirección de las dos
+maneras a la vez dejaba la tabla ilegible: dos filas con el mismo ángulo
+doblaban a lados distintos y nada en la columna lo decía. La forma canónica de
+`ik()` reparte los dos papeles:
+
+```
+eje absoluto  ∈ (−90, 90]   el PLANO: 0 de plano, ±90 de canto
+angle          con signo    hacia qué lado se dobla dentro de ese plano
+```
+
+Por eso el rodado solo gira **cuartos de vuelta** y el signo del ángulo es lo
+único que voltea el doblez.
+
 Ojo con la confusión fácil: el eje acumula, pero **la sección sigue sin rodar**.
 `twist` es lo único que rueda la barra. `ik()` deja la forma canónica con
 `angle ≥ 0` y devuelve `rot` como giro, no como posición.

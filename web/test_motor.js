@@ -217,11 +217,26 @@ ok('con un solo arco nunca queda rodado residual',
   ok('media vuelta se escribe 180, no -180',
      E.wrapTurn(180) === 180 && E.wrapTurn(-180) === 180 && E.wrapTurn(540) === 180 &&
      E.wrapTurn(-90) === -90 && E.wrapTurn(270) === -90);
-  /* el eje que resulta de los giros del demo es EXACTAMENTE la columna que
-     enseñaba la convención anterior, donde cada fila declaraba su eje */
-  ok('los giros del demo reconstruyen los ejes de la convención anterior',
-     E.axisAngles(E.demoModel()).join(',') ===
-     '0,-90,180,0,90,180,0,90,180,180,90,180,0,90,180');
+  /* FORMA CANÓNICA: el eje elige el PLANO —0 de plano, ±90 de canto— y nunca
+     media vuelta, porque voltear el doblez es cosa del signo del ángulo. */
+  {
+    const D = E.demoModel();
+    ok('el eje del demo solo usa planos, nunca media vuelta',
+       E.axisAngles(D).every(a => Math.abs(a) <= 90 + 1e-9),
+       E.axisAngles(D).join(','));
+    ok('los giros del demo son cuartos de vuelta o nada',
+       D.bends.every(b => [0, 90, -90].some(v => Math.abs(b.rot - v) < 1e-9)),
+       D.bends.map(b => b.rot).join(','));
+    ok('el signo del ángulo es lo que voltea el doblez',
+       D.bends.some(b => b.angle < 0) && D.bends.some(b => b.angle > 0));
+    /* y la pieza es la misma: los ejes de antes eran estos módulo 180 */
+    const antes = [0, -90, 180, 0, 90, 180, 0, 90, 180, 180, 90, 180, 0, 90, 180];
+    ok('la pieza no se movió: cada eje coincide con el anterior módulo 180',
+       E.axisAngles(D).every((a, i) => {
+         const d = Math.abs(E.wrap180(a - antes[i]));
+         return d < 1e-9 || Math.abs(d - 180) < 1e-9;
+       }));
+  }
 
   /* La consecuencia geométrica, que es la que importa: con el eje sostenido,
      dos dobleces seguidos salen en el MISMO plano; con la convención anterior
@@ -279,8 +294,9 @@ ok('trimOf usa el ángulo del doblez y no depende del rodado',
   ok('migrateModel conserva la cola y los radios',
      Math.abs(nuevo.tail - viejo.tail) < 1e-9 &&
      nuevo.bends.every((b, i) => b.radius === viejo.bends[i].radius));
-  ok('migrateModel deja los ángulos en forma canónica',
-     nuevo.bends.every(b => b.angle >= -1e-12));
+  ok('migrateModel deja el eje en su plano y el signo en el ángulo',
+     E.axisAngles(nuevo).every(a => Math.abs(a) <= 90 + 1e-9),
+     E.axisAngles(nuevo).map(a => a.toFixed(1)).join(','));
   ok('migrateModel conserva la orientación de cada doblez',
      E.orientations(nuevo).join('') === 'TWT');
   ok('isLegacyDoc distingue los esquemas anteriores',
