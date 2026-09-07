@@ -710,10 +710,11 @@ console.log('\n— puntos de referencia —');
 /* ---------------------------------------------------------------------- */
 console.log('\n— expresiones en la celda de compensación —');
 {
+  /* Con la celda sin ajuste, `v` y `c` valen lo mismo: es el caso de siempre. */
   const cases = [
     ['2', 1.5, 2], ['+2', 1.5, 3.5], ['c+2', 1.5, 3.5], ['c-0.5', 1.5, 1],
     ['c*1.1', 2, 2.2], ['*2', 1.5, 3], ['/2', 3, 1.5], ['(c+1)/2', 3, 2],
-    ['-3', 1.5, -3], ['1,5', 0, 1.5], ['  c  +  2  ', 1, 3],
+    ['1,5', 0, 1.5], ['  c  +  2  ', 1, 3],
   ];
   let bad = '';
   for (const [t, c, exp] of cases) {
@@ -722,7 +723,40 @@ console.log('\n— expresiones en la celda de compensación —');
   }
   ok('evalCell resuelve número, atajo y cuenta sobre c', !bad, bad);
 
-  const malos = ['', '   ', 'abc', '2+', '(2', '2)', 'c c', '1/0*0'];
+  /* Lo que cambió: un operador al principio opera sobre lo MOSTRADO, que es
+     como se comporta una hoja de cálculo. `c` sigue siendo el cálculo del
+     lazo, y los dos se separan en la segunda edición de la misma celda. */
+  const dos = [
+    /* texto, calc, mostrado, esperado */
+    ['+2', 1.5, 4.0, 6.0], ['-0.3', 1.5, 4.0, 3.7], ['*2', 1.5, 4.0, 8.0],
+    ['c+2', 1.5, 4.0, 3.5], ['c', 1.5, 4.0, 1.5], ['v', 1.5, 4.0, 4.0],
+    ['7', 1.5, 4.0, 7.0], ['=-3', 1.5, 4.0, -3], ['= 2.5', 1.5, 4.0, 2.5],
+    ['v-c', 1.5, 4.0, 2.5],
+  ];
+  let bad2 = '';
+  for (const [t, c, v, exp] of dos) {
+    const g = E.evalCell(t, c, v);
+    if (g === null || Math.abs(g - exp) > 1e-9) bad2 += ` ${JSON.stringify(t)}->${g}`;
+  }
+  ok('un operador al principio opera sobre lo MOSTRADO, y `c` sobre el cálculo',
+     !bad2, bad2);
+
+  /* La consecuencia práctica, que es la que hay que poder explicar: teclear
+     «+2» dos veces en la misma celda suma dos veces. Antes la segunda no hacía
+     nada, porque ambas se medían contra el mismo cálculo del lazo. */
+  const calc = 0.163;
+  const uno = E.evalCell('+2', calc, calc);
+  const dosVeces = E.evalCell('+2', calc, uno);
+  ok('teclear «+2» dos veces suma dos veces',
+     Math.abs(uno - (calc + 2)) < 1e-9 && Math.abs(dosVeces - (calc + 4)) < 1e-9,
+     `${uno.toFixed(3)} -> ${dosVeces.toFixed(3)}`);
+
+  ok('un `-` al principio ya no es un número negativo suelto',
+     E.evalCell('-3', 1.5, 1.5) === -1.5 && E.evalCell('=-3', 1.5, 1.5) === -3);
+  ok('sin `shown`, `v` es el cálculo: una llamada de antes significa lo mismo',
+     E.evalCell('v', 2.5) === 2.5 && E.evalCell('+1', 2.5) === 3.5);
+
+  const malos = ['', '   ', 'abc', '2+', '(2', '2)', 'c c', '1/0*0', '=', '=  '];
   ok('evalCell rechaza lo que no es una expresión',
      malos.every(t => E.evalCell(t, 1) === null),
      malos.filter(t => E.evalCell(t, 1) !== null).join(' ') || 'todos rechazados');

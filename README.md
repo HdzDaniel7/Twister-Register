@@ -174,13 +174,27 @@ La tabla de comandos muestra, por doblez, el valor actual, lo que sugiere el
 lazo (`Δ calc.`) y la **Δ aplicada**, que es la única celda editable. Ahí se
 escribe un número o una cuenta sobre el cálculo:
 
+La celda se comporta como la de una hoja de cálculo: **un operador al principio
+opera sobre lo que se ve**, y lo demás es absoluto.
+
 | escribes | resultado |
 |---|---|
 | `2` | la compensación pasa a valer 2 |
-| `+2` | dos más de lo que calculó el lazo |
-| `c+2` | lo mismo, explícito |
-| `c*1.1` | un 10 % más de lo que calculó |
+| `+2` | dos más de **lo que muestra la celda** |
+| `-0.3` | tres décimas menos de lo que muestra |
+| `*1.1` | un 10 % más de lo que muestra |
+| `=2` | 2, absoluto — la salida para escribir un negativo suelto: `=-3` |
+| `c` | lo que calculó el lazo |
+| `c+2` | dos más de lo que calculó el lazo |
 | `(c+1)/2` | lo que haga falta |
+
+En una celda recién puesta a cero, `+2` y `c+2` dan lo mismo; se separan en la
+**segunda edición de la misma celda**, que es justo cuando uno quiere seguir
+empujando sobre lo que ve. Teclear `+2` dos veces suma dos veces.
+
+> Esto cambió en la versión de los modos de trabajo. Antes `+2` significaba
+> «dos más de lo que calculó el lazo» y `-3` era el número negativo −3, que ni
+> siquiera era coherente consigo mismo.
 
 Se guarda la **diferencia** contra el cálculo, no el valor absoluto: si después
 cambias la ganancia o llega otra pieza medida, «dos décimas más de lo que

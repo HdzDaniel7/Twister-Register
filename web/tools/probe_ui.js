@@ -812,11 +812,32 @@ step('el lazo puede leer la mediana del lote en vez de la última pieza', () => 
   if (doc.comp.batch !== true) throw new Error('comp.batch no viaja en el JSON');
   check('input[data-c="batch"]', false);
 });
-step('ajuste manual: «+2» suma al cálculo', () => {
+step('ajuste manual: «+2» suma sobre lo mostrado', () => {
   const antes = parseFloat(q('input[data-tw="0"][data-k="angle"]').value);
   setval('input[data-tw="0"][data-k="angle"]', '+2');
   const ahora = parseFloat(q('input[data-tw="0"][data-k="angle"]').value);
   if (Math.abs(ahora - (antes + 2)) > 1e-6) throw new Error(antes + ' -> ' + ahora);
+});
+/* La celda es de hoja de cálculo: un operador al principio opera sobre lo que
+   se VE, no sobre el cálculo del lazo. Se nota en la segunda edición. */
+step('ajuste manual: «+2» dos veces suma dos veces', () => {
+  const cel = 'input[data-tw="1"][data-k="angle"]';
+  const leer = () => parseFloat(q(cel).value);
+  setval(cel, '=0');
+  const base = leer();
+  setval(cel, '+2');
+  const uno = leer();
+  setval(cel, '+2');
+  const dos = leer();
+  if (Math.abs(uno - (base + 2)) > 1e-6) throw new Error(`primera: ${base} -> ${uno}`);
+  if (Math.abs(dos - (base + 4)) > 1e-6) throw new Error(`segunda no acumuló: ${uno} -> ${dos}`);
+  setval(cel, '=0');
+});
+step('ajuste manual: «=» fuerza absoluto y admite negativos', () => {
+  const cel = 'input[data-tw="1"][data-k="angle"]';
+  setval(cel, '=-1.25');
+  if (Math.abs(parseFloat(q(cel).value) + 1.25) > 1e-6) throw new Error('=-1.25 -> ' + q(cel).value);
+  setval(cel, '=0');
 });
 step('ajuste manual: número suelto reemplaza', () => {
   setval('input[data-tw="1"][data-k="angle"]', '0.5');

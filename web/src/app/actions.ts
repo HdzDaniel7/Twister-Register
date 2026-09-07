@@ -117,7 +117,10 @@ export function editTweak(i: number, key: 'angle' | 'rot' | 'feed', text: string
   const calc = E.compensate(ST.command, M.bends, loopMeasured() || D.model.bends,
                             ST.comp, E.orientations(M));
   const dCalc = calc[i][key] - ST.command[i][key];
-  const v = E.evalCell(text, dCalc);
+  /* lo que la celda ENSEÑA es el cálculo del lazo más el ajuste ya escrito;
+     eso es `v`, y es sobre lo que opera un `+` o un `-` al principio */
+  const mostrado = dCalc + (ST.tweak[i][key] || 0);
+  const v = E.evalCell(text, dCalc, mostrado);
   if (v === null) { renderRight(); return; }     // texto inválido: se descarta
   ST.tweak[i][key] = v - dCalc;
   renderRight(); renderSide(); renderStatus();

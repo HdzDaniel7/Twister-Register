@@ -1,14 +1,26 @@
 /* =========================================================================
    EXPRESIONES EN LAS CELDAS DE COMPENSACIÓN
 
-   La celda de compensación acepta un número suelto (lo reemplaza) o una cuenta
-   sobre el valor que calculó el lazo, que se escribe `c`:
+   La celda se comporta como la de una hoja de cálculo: un operador al
+   principio opera sobre LO QUE SE VE, y el resto es absoluto.
 
        2          ->  la compensación pasa a valer 2
-       +2         ->  c + 2      (atajo: si empieza por un operador, va sobre c)
-       c + 2      ->  lo mismo, explícito
-       c*1.1      ->  un 10 % más de lo que sugiere el lazo
+       +2         ->  dos más de lo que muestra la celda   (v + 2)
+       -0.3       ->  tres décimas menos de lo que muestra
+       *1.1       ->  un 10 % más de lo que muestra
+       =2         ->  2, absoluto y sin discusión
+       c          ->  lo que calculó el lazo
+       c+2        ->  dos más de lo que calculó el lazo
        (c+1)/2
+
+   `v` es el valor mostrado y `c` el que calculó el lazo. En una celda recién
+   puesta a cero los dos valen lo mismo; se separan en la SEGUNDA edición de la
+   misma celda, que es justo cuando uno quiere seguir empujando sobre lo que ve.
+
+   OJO: esto cambió. Antes `+2` significaba «dos más de lo que calculó el lazo»
+   y `-3` era el número negativo −3, que ni siquiera era coherente consigo
+   mismo. Ahora los dos van sobre lo mostrado, y para escribir un absoluto
+   negativo está `=-3`.
 
    Se evalúa con un parser propio (patio de maniobras). NO se usa eval(): esto
    corre bajo file:// y no hay ninguna razón para ejecutar texto arbitrario.
@@ -22,7 +34,8 @@ const PREC: Record<string, number> = { '+': 1, '-': 1, '*': 2, '/': 2 };
  *  operador. */
 type Tok =
   | { t: 'num'; v: number }
-  | { t: 'var' }
+  /** `c` = lo que calculó el lazo · `v` = lo que muestra la celda */
+  | { t: 'var'; k: 'c' | 'v' }
   | { t: '(' }
   | { t: ')' }
   | { t: 'op'; v: string };
@@ -42,7 +55,7 @@ function tokenize(src: string): Tok[] | null {
       i = j;
       continue;
     }
-    if (ch === 'c') { out.push({ t: 'var' }); i++; continue; }
+    if (ch === 'c' || ch === 'v') { out.push({ t: 'var', k: ch }); i++; continue; }
     if (ch === '(' || ch === ')') { out.push({ t: ch }); i++; continue; }
     if (PREC[ch]) { out.push({ t: 'op', v: ch }); i++; continue; }
     return null;                      // cualquier otra cosa: expresión inválida
@@ -50,17 +63,28 @@ function tokenize(src: string): Tok[] | null {
   return out;
 }
 
-/** Evalúa la expresión de una celda. `calc` es el valor de `c`.
+/** Evalúa la expresión de una celda.
+ *
+ *  `calc` es el valor de `c` —lo que calculó el lazo— y `shown` el de `v`, lo
+ *  que la celda enseña ahora mismo. `shown` es opcional y cae en `calc`: en una
+ *  celda sin ajuste los dos son lo mismo, y así una llamada vieja sigue
+ *  significando lo que significaba.
+ *
  *  Devuelve null si el texto no es una expresión válida — el que llama decide
  *  qué hacer (normalmente: no tocar nada). */
-export function evalCell(text: unknown, calc = 0): number | null {
+export function evalCell(text: unknown, calc = 0, shown = calc): number | null {
   let src = String(text ?? '').trim().replace(/,/g, '.').toLowerCase();
   if (!src) return null;
-  /* Atajo: `+2`, `*1.1`, `/2` son cuentas sobre el valor calculado. `-3` NO:
-     un signo menos al principio es un número negativo, que es lo que uno
-     espera al teclear una compensación a mano. Para restar sobre el calculado
-     está `c-3`. */
-  if (/^[+*/]/.test(src)) src = 'c' + src;
+  /* `=` fuerza absoluto: es la salida para escribir un negativo suelto ahora
+     que un `-` al principio opera sobre lo mostrado. */
+  if (src[0] === '=') {
+    src = src.slice(1).trim();
+    if (!src) return null;
+  } else if (/^[+\-*/]/.test(src)) {
+    /* Como en una hoja de cálculo: el operador al principio opera sobre lo que
+       se ve. `c+2` sigue estando para operar sobre el cálculo del lazo. */
+    src = 'v' + src;
+  }
   const toks = tokenize(src);
   if (!toks || !toks.length) return null;
 
@@ -81,7 +105,7 @@ export function evalCell(text: unknown, calc = 0): number | null {
   let prev: Tok | null = null;
   for (const tk of toks) {
     if (tk.t === 'num') vals.push(tk.v);
-    else if (tk.t === 'var') vals.push(+calc || 0);
+    else if (tk.t === 'var') vals.push((tk.k === 'v' ? +shown : +calc) || 0);
     else if (tk.t === '(') ops.push('(');
     else if (tk.t === ')') {
       while (ops.length && ops[ops.length - 1] !== '(') if (!apply()) return null;
