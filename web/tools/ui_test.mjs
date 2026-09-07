@@ -73,10 +73,10 @@ try {
   await send('Runtime.enable');
   /* esperar a que la app haya arrancado de verdad */
   for (let i = 0; i < 40; i++) {
-    if (await evaluate('!!(window.BARCOMP && window.BARCOMP.ST.model && document.querySelector("[data-a=vardup]"))')) break;
+    if (await evaluate('!!(window.BARCOMP && window.BARCOMP.ST.model && document.querySelector("[data-md]"))')) break;
     await sleep(250);
   }
-  const ready = await evaluate('!!(window.BARCOMP && window.BARCOMP.ST.model && document.querySelector("[data-a=vardup]"))');
+  const ready = await evaluate('!!(window.BARCOMP && window.BARCOMP.ST.model && document.querySelector("[data-md]"))');
   if (!ready) throw new Error('la aplicación no arrancó (window.BARCOMP ausente)');
 
   const probe = fs.readFileSync(PROBE, 'utf8');

@@ -57,7 +57,7 @@ try {
 
   await send('Runtime.enable');
   for (let i = 0; i < 40; i++) {
-    if (await evaluate('!!(window.BARCOMP && window.BARCOMP.ST.model && document.querySelector("[data-a=vardup]"))')) break;
+    if (await evaluate('!!(window.BARCOMP && window.BARCOMP.ST.model && document.querySelector("[data-md]"))')) break;
     await sleep(250);
   }
   const setup = fs.readFileSync(SETUP, 'utf8');

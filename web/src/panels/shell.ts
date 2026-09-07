@@ -13,6 +13,13 @@ import type { Mode } from '../types.ts';
    `T(('mode' + m) as I18nKey)` el tipo dejaría de comprobar que la clave
    existe, que es justo la red que hace que falte una traducción sea un error
    de compilación y no un hueco en pantalla. */
+/* Los cuatro menús. Lo que abren son cajones (ver DRAWERS en left.ts): la
+   columna fija de 250 px se pagaba siempre, y casi todo lo que había ahí
+   —capas, colocación, extremo fijo— se toca una vez y se olvida. */
+const MENUS: [string, I18nKey][] = [
+  ['file', 'mnFile'], ['models', 'mnModel'], ['view', 'mnView'], ['pieces', 'mnPieces'],
+];
+
 const MODE_LAB: Record<Mode, I18nKey> = {
   model: 'modeModel', meas: 'modeMeas', comp: 'modeComp',
 };
@@ -28,12 +35,9 @@ export function renderShell(): void {
      ${MODES.map(m => `<button data-md="${m}" title="${T(MODE_TIP[m])}"
        class="${ST.mode === m ? 'on' : ''}">${T(MODE_LAB[m])}</button>`).join('')}</div>
    <div class="hspace"></div>
-   <div class="hbtns">
-     <button class="btn" data-a="demo">${T('bDemo')}</button>
-     <button class="btn" data-a="new">${T('bNew')}</button>
-     <button class="btn" data-a="open">${T('bOpen')}</button>
-     <button class="btn" data-a="save">${T('bSave')}</button>
-     <button class="btn pri" data-a="report">${T('bRep')}</button>
+   <div class="menubar">
+     ${MENUS.map(([k, lab]) => `<button class="mn ${ST.drawer === k ? 'on' : ''}"
+       data-dr="${k}" aria-expanded="${ST.drawer === k}">${T(lab)}</button>`).join('')}
    </div>
    <div class="seg" style="margin-left:8px">
      ${[['system', '◐', 'thSys'], ['light', '☀', 'thLight'], ['dark', '☾', 'thDark']].map(

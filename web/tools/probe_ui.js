@@ -22,6 +22,13 @@ const q = sel => {
   if (!el) throw new Error('no existe ' + sel);
   return el;
 };
+/* Los paneles de modelos, vista y piezas ya no son una columna fija: viven en
+   cajones que abre la barra de menús. Un paso que necesite uno lo pide aquí, y
+   si ya está abierto no lo vuelve a cerrar. */
+function drawer(k) {
+  if (window.BARCOMP.ST.drawer !== k) q(`[data-dr="${k}"]`).click();
+}
+
 const click = sel => q(sel).click();
 const setval = (sel, v) => {
   const el = q(sel);
@@ -439,6 +446,7 @@ step('tema del sistema quita el atributo', () => {
 
 /* ------------------------------------ nombre del modelo y eje de ejes --- */
 step('el nombre se edita desde la tarjeta del panel izquierdo', () => {
+  drawer('models');
   setval('#lf input[data-vn="v1"]', 'PIEZA-A');
   if (S().variants[0].name !== 'PIEZA-A') throw new Error(S().variants[0].name);
   if (S().model.name !== 'PIEZA-A') throw new Error('el modelo activo no se entero');
@@ -451,18 +459,21 @@ step('y el campo de la pestaña MODELO se entera', () => {
   }
 });
 step('editar desde la pestaña MODELO tambien actualiza la tarjeta', () => {
+  drawer('models');
   setval('input[data-m="name"]', 'PIEZA-B');
   if (q('#lf input[data-vn="v1"]').value !== 'PIEZA-B') {
     throw new Error(q('#lf input[data-vn="v1"]').value);
   }
 });
 step('escribir el nombre NO cambia de modelo activo', () => {
+  drawer('models');
   const antes = S().active;
   const el = q('#lf input[data-vn="v1"]');
   el.click();
   if (S().active !== antes) throw new Error('cambio a ' + S().active);
 });
 step('la tarjeta entera sigue activando el modelo', () => {
+  drawer('models');
   if (!q('#lf .ds[data-vsel="v1"]')) throw new Error('la tarjeta no activa');
 });
 
@@ -476,6 +487,7 @@ step('la cuadricula y los pedestales NO cuelgan de la colocacion', () => {
   }
 });
 step('mover la colocacion mueve la pieza, no la cuadricula', () => {
+  drawer('view');
   /* las etiquetas se proyectan a traves de la colocacion: si la pieza se movio,
      se movieron. La cuadricula no tiene etiquetas y vive en `world`. */
   const pos = () => {
@@ -510,6 +522,7 @@ step('el indicador de ejes gira con la vista', () => {
   if (pos() === a) throw new Error('no se movio: ' + a);
 });
 step('el indicador de ejes gira con la colocacion', () => {
+  drawer('view');
   const pos = () => {
     window.BARCOMP.drawGizmo();
     return [...q('#gizmo svg').querySelectorAll('circle')]
@@ -521,20 +534,24 @@ step('el indicador de ejes gira con la colocacion', () => {
   setval('input[data-pl="rz"]', '0');
 });
 
-step('duplicar modelo', () => click('[data-a="vardup"]'));
+step('duplicar modelo', () => { drawer('models'); click('[data-a="vardup"]'); });
 step('hay dos modelos', () => { if (S().variants.length !== 2) throw new Error(S().variants.length); });
 step('Δ en la copia', () => setval('input[data-bd="5"][data-k="rot"]', '3'));
 step('anclaje end/best/start', () => {
+  drawer('models');
   check('input[data-an="end"]', true);
   check('input[data-an="best"]', true);
   check('input[data-an="start"]', true);
 });
 step('marcar y devolver la referencia', () => {
+  drawer('models');
+  drawer('models');
   click(`[data-vr="${S().variants[1].id}"]`);
   click('[data-vr="v1"]');
   click('[data-vsel="v1"]');
 });
 step('capas diff / pred', () => {
+  drawer('view');
   check('input[data-ly="diff"]', false);
   check('input[data-ly="diff"]', true);
   check('input[data-ly="pred"]', true);
@@ -542,10 +559,10 @@ step('capas diff / pred', () => {
 step('fundir Δ', () => click('[data-a="bake"]'));
 
 /* ---------------------------------------------------------- colocación -- */
-step('colocación: girar Z', () => setval('input[data-pl="rz"]', '35'));
-step('colocación: girar X', () => setval('input[data-pl="rx"]', '-15'));
-step('colocación: mover X', () => setval('input[data-pl="x"]', '250'));
-step('colocación: cambiar el pivote', () => setval('select[data-plp]', '6'));
+step('colocación: girar Z', () => { drawer('view'); setval('input[data-pl="rz"]', '35'); });
+step('colocación: girar X', () => { drawer('view'); setval('input[data-pl="rx"]', '-15'); });
+step('colocación: mover X', () => { drawer('view'); setval('input[data-pl="x"]', '250'); });
+step('colocación: cambiar el pivote', () => { drawer('view'); setval('select[data-plp]', '6'); });
 step('la colocación NO toca el modelo', () => {
   const f = S().model.bends[0].feed;
   if (Math.abs(f - 140) > 1e-9) throw new Error('el avance cambió a ' + f);
@@ -555,7 +572,7 @@ step('la colocación mueve lo que se dibuja', () => {
     window.BARCOMP.E.fk(S().model).pis[S().place.pivot]);
   if (Math.abs(M.determinant() - 1) > 1e-9) throw new Error('no es rígida');
 });
-step('colocación: restablecer', () => click('[data-a="placereset"]'));
+step('colocación: restablecer', () => { drawer('view'); click('[data-a="placereset"]'); });
 
 /* ------------------------------------------------- puntos de referencia -- */
 step('pestaña Puntos', () => {
@@ -582,12 +599,13 @@ step('ocultar y mostrar el punto', () => {
 });
 
 /* ------------------------------------------------------- compensación --- */
-step('simular desde el lateral de desviación', () => click('[data-a="sim"]'));
+step('simular desde el lateral de desviación', () => { drawer('pieces'); click('[data-a="sim"]'); });
 /* Una pieza inventada por el simulador y una medida se veían igual: el
    distintivo es lo único que lo dice, y por eso se comprueba en los dos
    sitios donde sale (la tarjeta del lateral izquierdo y el lateral derecho). */
 step('la pieza simulada se marca como SIM en los dos lados', () => {
   click('[data-md="meas"]');
+  drawer('pieces');
   const ds = S().datasets[S().datasets.length - 1];
   if (ds.src !== 'sim') throw new Error('la pieza no quedó marcada como sim: ' + ds.src);
   const card = q(`#lf [data-dv="${ds.id}"]`).closest('.ds').querySelector('.srcbadge');
@@ -618,6 +636,7 @@ step('importar una pieza medida desde un CSV', () => {
   if (Math.max(...ds.dev.point) < 4) throw new Error('el punto movido 8 mm no se ve');
 });
 step('la pieza importada se marca como medida, no como SIM', () => {
+  drawer('pieces');
   const ds = S().datasets[S().datasets.length - 1];
   const b = q(`#lf [data-dv="${ds.id}"]`).closest('.ds').querySelector('.srcbadge');
   if (!b.classList.contains('meas')) throw new Error('distintivo equivocado: ' + b.className);
@@ -628,6 +647,7 @@ step('un CSV sin coordenadas no crea ninguna pieza', () => {
   if (S().datasets.length !== antes) throw new Error('creó una pieza igualmente');
 });
 step('el botón de importar está en el panel de piezas', () => {
+  drawer('pieces');
   const b = q('#lf [data-a="impts"]');
   if (!b) throw new Error('no hay botón de importar');
   if (!b.title) throw new Error('el botón no explica qué formato espera');
@@ -636,6 +656,40 @@ step('el botón de importar está en el panel de piezas', () => {
 /* El selector de arriba dejó de ser «pestaña de la tabla» y pasó a ser MODO
    DE TRABAJO: cada modo se queda la pantalla entera. Las sub-pestañas solo
    existen donde hay más de una tabla que enseñar, o sea en Modelar. */
+/* La columna fija de 250 px pasó a cajones que abre la barra de menús: se
+   pagaba ese ancho siempre, y capas, colocación y extremo fijo se tocan una
+   vez y se olvidan. */
+step('los menús abren y cierran su cajón', () => {
+  /* el guion viene de pasos anteriores que dejaron cajones abiertos */
+  if (S().drawer) { click(`[data-dr="${S().drawer}"]`); }
+  if (!q('#lf').hidden) throw new Error('el cajón sigue montado tras cerrarlo');
+  click('[data-dr="view"]');
+  if (S().drawer !== 'view') throw new Error('no se abrió');
+  if (q('#lf').hidden) throw new Error('el cajón sigue oculto');
+  if (!q('#lf input[data-ly="grid"]')) throw new Error('el cajón de Vista no trae las capas');
+  click('[data-dr="view"]');
+  if (S().drawer) throw new Error('el mismo menú no lo cerró');
+});
+step('el cajón flota: abrirlo no mueve el 3D ni la tabla', () => {
+  const antes = q('#vpwrap').getBoundingClientRect().width;
+  click('[data-dr="models"]');
+  const dur = q('#vpwrap').getBoundingClientRect().width;
+  if (Math.abs(dur - antes) > 1) throw new Error(`el 3D cambió de ancho: ${antes} -> ${dur}`);
+  const caja = q('#lf').getBoundingClientRect();
+  const vp = q('#vpwrap').getBoundingClientRect();
+  if (caja.left > vp.right || caja.right < vp.left) throw new Error('el cajón no está sobre el 3D');
+  click('[data-dr="models"]');
+});
+step('Escape cierra el cajón', () => {
+  click('[data-dr="pieces"]');
+  document.body.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+  if (S().drawer) throw new Error('sigue abierto');
+});
+step('un clic fuera también lo cierra', () => {
+  click('[data-dr="file"]');
+  q('#ct').click();
+  if (S().drawer) throw new Error('sigue abierto');
+});
 step('los tres modos están arriba y la medición no es pestaña', () => {
   const modos = [...document.querySelectorAll('[data-md]')].map(b => b.dataset.md);
   if (modos.join(',') !== 'model,meas,comp') throw new Error('modos: ' + modos.join(','));
@@ -646,9 +700,8 @@ step('en Medir no hay bloque de abajo y el lateral manda', () => {
   if (S().mode !== 'meas') throw new Error('no cambió de modo');
   if (getComputedStyle(q('#bt')).display !== 'none') throw new Error('el bloque de abajo sigue ahí');
   if (!q('#side .stat')) throw new Error('el lateral no trae las estadísticas');
-  if (getComputedStyle(q('#app')).gridTemplateAreas.indexOf('rb rb rb') < 0) {
-    throw new Error('la cinta no va a todo el ancho en Medir');
-  }
+  const cinta = q('#rb').getBoundingClientRect(), app = q('#app').getBoundingClientRect();
+  if (cinta.width < app.width - 1) throw new Error('la cinta no va a todo el ancho en Medir');
 });
 step('el lateral derecho trae las estadísticas y la desviación por doblez', () => {
   click('[data-md="meas"]');
@@ -765,7 +818,7 @@ step('el ajuste se consume al aplicar', () => {
   if (S().tweak.some(t => t.angle || t.rot || t.feed)) throw new Error('el ajuste sigue puesto');
 });
 step('verificar 2.ª pieza', () => click('[data-a="verify"]'));
-step('reporte', () => click('[data-a="report"]'));
+step('reporte', () => { drawer('file'); click('[data-a="report"]'); });
 step('reset de comandos', () => click('[data-a="resetcmd"]'));
 
 /* ---------------------------------------------------- panel redimensionado */
@@ -907,7 +960,8 @@ step('guardar JSON conserva colocación y cotas', () => {
   const rt = window.BARCOMP.E.fromDoc(JSON.parse(JSON.stringify(doc)));
   if (rt.marks[0].name !== 'apoyo A') throw new Error('la cota no volvió');
 });
-step('modelo nuevo y demo', () => { click('[data-a="new"]'); click('[data-a="demo"]'); });
+step('modelo nuevo y demo', () => {
+  drawer('file'); click('[data-a="new"]'); click('[data-a="demo"]'); });
 step('demo limpia las cotas', () => { if (S().marks.length) throw new Error('quedaron cotas'); });
 
 return log.join('\n');

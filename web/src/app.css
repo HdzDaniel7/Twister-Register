@@ -100,21 +100,21 @@ button,input,select,textarea{font-family:inherit;font-size:inherit;color:inherit
    Lo que un modo no usa se oculta con `display:none`, y su render se salta:
    ver renderPanels() en panels/render.ts.                                  */
 #app{display:grid;height:100vh}
-#hd{grid-area:hd}#lf{grid-area:lf}#ct{grid-area:ct}#rt{grid-area:rt}
+#hd{grid-area:hd}#ct{grid-area:ct}#rt{grid-area:rt}
 #rb{grid-area:rb}#bt{grid-area:bt}#st{grid-area:st}
 
 /* --- MODELAR: teclear ángulos sin desplazar --- */
 #app.m-model{
-  grid-template-columns:var(--lfW) minmax(320px,1fr) var(--btW);
+  grid-template-columns:minmax(320px,1fr) var(--btW);
   grid-template-rows:var(--h) minmax(200px,1fr) var(--ribbon) var(--statusH);
-  grid-template-areas:"hd hd hd" "lf ct bt" "lf rb bt" "st st st"}
+  grid-template-areas:"hd hd" "ct bt" "rb bt" "st st"}
 #app.m-model #rt{display:none}
 
 /* --- MEDIR: mirar la pieza --- */
 #app.m-meas{
-  grid-template-columns:var(--lfW) minmax(320px,1fr) var(--rtW);
+  grid-template-columns:minmax(320px,1fr) var(--rtW);
   grid-template-rows:var(--h) minmax(200px,1fr) calc(var(--ribbon) + 46px) var(--statusH);
-  grid-template-areas:"hd hd hd" "lf ct rt" "rb rb rb" "st st st"}
+  grid-template-areas:"hd hd" "ct rt" "rb rb" "st st"}
 #app.m-meas #bt{display:none}
 
 /* --- COMPENSAR: la tabla de comandos manda, y no hay nada más --- */
@@ -122,7 +122,7 @@ button,input,select,textarea{font-family:inherit;font-size:inherit;color:inherit
   grid-template-columns:1fr;
   grid-template-rows:var(--h) minmax(200px,1fr) var(--ribbon) var(--compVP) var(--statusH);
   grid-template-areas:"hd" "bt" "rb" "ct" "st"}
-#app.m-comp #lf,#app.m-comp #rt{display:none}
+#app.m-comp #rt{display:none}
 /* Los dos tiradores siguen ahí en los tres modos, pero cada modo les da otro
    trabajo (ver bindGrips en app/events/grips.ts):
 
@@ -157,8 +157,26 @@ button,input,select,textarea{font-family:inherit;font-size:inherit;color:inherit
 .seg button.on{background:var(--sel);color:var(--selTxt)}
 
 /* ---------- panels ---------- */
-#lf,#rt{background:var(--panel);overflow-y:auto;overflow-x:hidden}
-#lf{border-right:1px solid var(--line)}
+#rt{background:var(--panel);overflow-y:auto;overflow-x:hidden}
+/* ---------- el cajón de menú ----------
+   Flota bajo la barra, encima del 3D. Está FUERA de la rejilla a propósito:
+   así abrirlo no reparte la pantalla otra vez ni obliga a un onResize(), y el
+   3D y la tabla no dan un salto cada vez que alguien mira las capas. */
+#lf{position:fixed;top:var(--h);left:0;width:var(--lfW);z-index:30;
+  max-height:calc(100vh - var(--h) - var(--statusH));
+  background:var(--panel);border-right:1px solid var(--line2);
+  border-bottom:1px solid var(--line2);
+  box-shadow:6px 6px 18px #0006;overflow-y:auto;overflow-x:hidden}
+#lf[hidden]{display:none}
+
+/* ---------- la barra de menús ---------- */
+.menubar{display:flex;gap:2px}
+.mn{background:none;border:1px solid transparent;border-radius:3px;padding:5px 11px;
+  cursor:pointer;color:var(--dim);font-family:var(--sans);font-size:12px;
+  letter-spacing:.02em;transition:.12s}
+.mn:hover{color:var(--txt);background:var(--panel3)}
+.mn.on{color:var(--txt);background:var(--panel3);border-color:var(--line2)}
+.col{display:flex;flex-direction:column;gap:5px}
 #rt{border-left:1px solid var(--line);position:relative;z-index:2;background:var(--panel)}
 .grp{border-bottom:1px solid var(--line)}
 .eyebrow{font-family:var(--sans);font-size:9.5px;font-weight:600;letter-spacing:.15em;

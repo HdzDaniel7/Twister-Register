@@ -367,6 +367,10 @@ export type State = {
   /** pestaña activa del panel derecho ('model' | 'points' | 'comp', ver TABS) */
   /** el trabajo que se está haciendo: manda sobre TODA la distribución */
   mode: Mode;
+  /** cajón abierto ('file', 'models', 'view', 'pieces') o null.
+   *  Es estado de pantalla, no del documento: no viaja en el JSON ni entra en
+   *  el deshacer, igual que la selección o la cámara. */
+  drawer: string | null;
   /** sub-pestaña dentro de Modelar: 'model' (la tabla LRA) o 'points' */
   tab: string;
   /** predicción de la 2.ª pieza tras aplicar la compensación; null si no se corrió */

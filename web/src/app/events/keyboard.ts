@@ -5,6 +5,8 @@
    seleccion al enfocar y el incremento que las flechas cedieron al navegar. */
 import { cellKey, nx } from '../../panels.ts';
 import { $ } from '../dom.ts';
+import { ST } from '../../state.ts';
+import { openDrawer } from '../render.ts';
 
 /** Sube o baja un campo numérico un paso. Mismo cuerpo para la rueda y para
  *  Ctrl+↑ / Ctrl+↓, o los dos se separan en cuanto alguien toque uno.
@@ -52,6 +54,16 @@ function moveCell(from: HTMLInputElement | HTMLSelectElement, to: HTMLInputEleme
 }
 
 export function bindKeyboard(): void {
+  /* Escape cierra el cajón de menú, como en cualquier menú. Solo cuando el
+     foco NO está en un campo: dentro de una celda, Escape ya significa
+     «descarta lo que escribí», y esa es la que manda. */
+  document.body.addEventListener('keydown', e => {
+    if (e.key !== 'Escape' || !ST.drawer) return;
+    const t = e.target as HTMLElement;
+    if (/^(INPUT|SELECT|TEXTAREA)$/.test(t.tagName)) return;
+    openDrawer(null);
+  });
+
   /* rueda del ratón sobre un campo numérico ENFOCADO = sube/baja un paso.
      Sustituye a las flechas nativas, que se ocultaron para no tapar cifras.
      Dentro de una tabla las flechas navegan (ver el manejador de teclado), así

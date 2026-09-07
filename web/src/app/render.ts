@@ -39,3 +39,14 @@ export function setMode(m: Mode): void {
   onResize();
   fitView();
 }
+
+/** Abre o cierra un cajón de menú.
+ *
+ *  El cajón flota sobre el 3D, así que no cambia la rejilla y no hace falta
+ *  onResize(): lo único que se repinta es el propio cajón y la barra, que es
+ *  quien marca el menú abierto. */
+export function openDrawer(k: string | null): void {
+  ST.drawer = k;
+  renderShell();
+  renderLeft();
+}

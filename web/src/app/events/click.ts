@@ -9,7 +9,7 @@ import { renderShell, renderRight, renderPanels } from '../../panels.ts';
 import type { DatumMode, Mode } from '../../types.ts';
 import type { ViewName } from '../../scene.ts';
 import { $ } from '../dom.ts';
-import { refresh, renderAll, selectBend, setMode } from '../render.ts';
+import { refresh, renderAll, selectBend, setMode, openDrawer } from '../render.ts';
 import { setTheme } from '../theme.ts';
 import { action, variantById, varActivate, varDuplicate, varDelete } from '../actions.ts';
 
@@ -21,6 +21,16 @@ export function bindClick(): void {
     renderShell(); renderRight();
   });
 
+  /* Un clic fuera del cajón lo cierra, como cualquier menú. Va ANTES del
+     despachador y no consume el evento: si el clic era sobre un botón, ese
+     botón sigue haciendo lo suyo. */
+  document.body.addEventListener('click', e => {
+    if (!ST.drawer) return;
+    const t = e.target as HTMLElement;
+    if (t.closest('#lf') || t.closest('[data-dr]')) return;
+    openDrawer(null);
+  });
+
   document.body.addEventListener('click', e => {
     /* guardia: un clic dentro de un campo no debe disparar la selección de
        fila, o destruiría el input que se está editando. NO lo quites. */
@@ -28,13 +38,15 @@ export function bindClick(): void {
       if (!['checkbox', 'color', 'radio'].includes((e.target as HTMLInputElement).type)) return;
     }
     const t = (e.target as HTMLElement).closest(
-      '[data-a],[data-v],[data-dm],[data-l],[data-th],[data-md],[data-dx],[data-dsel],[data-cm],' +
+      '[data-a],[data-v],[data-dm],[data-l],[data-th],[data-md],[data-dr],[data-dx],[data-dsel],[data-cm],' +
       '[data-vsel],[data-vx],[data-vd],[data-vr],[data-r]') as HTMLElement | null;
     if (!t) return;
     const d = t.dataset;
     if (d.l !== undefined) { setLang(d.l); renderAll(); return; }
     if (d.th !== undefined) { setTheme(d.th); return; }
     if (d.md !== undefined) { setMode(d.md as Mode); return; }
+    /* el mismo menú abre y cierra su cajón */
+    if (d.dr !== undefined) { openDrawer(ST.drawer === d.dr ? null : d.dr); return; }
     if (d.v !== undefined) { d.v === 'fit' ? fitView() : setView(d.v as ViewName); return; }
     if (d.cm !== undefined) { ST.view.cmode = d.cm as 'solid' | 'dev'; renderShell(); rebuildScene(); return; }
     if (d.dm !== undefined) { ST.datum = d.dm as DatumMode; refresh(); return; }

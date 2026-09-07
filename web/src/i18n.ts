@@ -32,6 +32,7 @@ type I18nKey =
   | 'sbTrend' | 'sbTrendTip'
   | 'modeModel' | 'modeMeas' | 'modeComp'
   | 'modeModelTip' | 'modeMeasTip' | 'modeCompTip'
+  | 'mnFile' | 'mnModel' | 'mnView' | 'mnPieces' | 'expPts'
   | 'srcSimTip' | 'srcVerifyTip' | 'srcMeasTip' | 'srcUnkTip'
   | 'statMaxA' | 'statRms' | 'statTip' | 'statOut' | 'gains' | 'gainW' | 'gainT' | 'what'
   | 'cAng' | 'cRot' | 'cFeed' | 'apply' | 'reset' | 'cmdTbl' | 'cNow' | 'cNew'
@@ -134,6 +135,10 @@ es: {
    + 'valor, ese resorte no está medido: está adivinado.',
  /* Los tres trabajos. Son verbos porque nombran lo que se está haciendo, no
     una pestaña donde mirar. */
+ /* Los menús. Abren cajones que flotan sobre el 3D: la columna fija de 250 px
+    se pagaba siempre, y lo que había dentro se toca una vez y se olvida. */
+ mnFile: 'Archivo', mnModel: 'Modelos', mnView: 'Vista', mnPieces: 'Piezas',
+ expPts: 'Exportar puntos',
  modeModel: 'Modelar', modeMeas: 'Medir', modeComp: 'Compensar',
  modeModelTip: 'Teclear la pieza: la tabla entera a la derecha y el modelo al lado.',
  modeMeasTip: 'Mirar la pieza medida: el modelo grande, la cinta alta y las estadísticas.',
@@ -244,6 +249,8 @@ en: {
    + 'closed loop, not a measurement.',
  sbSpreadTip: 'Scatter across bends and parts. If it is as large as the value itself, '
    + 'that springback is not measured: it is guessed.',
+ mnFile: 'File', mnModel: 'Models', mnView: 'View', mnPieces: 'Parts',
+ expPts: 'Export points',
  modeModel: 'Model', modeMeas: 'Measure', modeComp: 'Compensate',
  modeModelTip: 'Type the part: the whole table on the right and the model beside it.',
  modeMeasTip: 'Look at the measured part: big model, tall ribbon and the statistics.',
@@ -359,6 +366,8 @@ de: {
    + 'ein geschlossener Kreis, keine Messung.',
  sbSpreadTip: 'Streuung über Bögen und Teile. Ist sie so groß wie der Wert selbst, ist '
    + 'diese Rückfederung nicht gemessen, sondern geraten.',
+ mnFile: 'Datei', mnModel: 'Modelle', mnView: 'Ansicht', mnPieces: 'Teile',
+ expPts: 'Punkte exportieren',
  modeModel: 'Modellieren', modeMeas: 'Messen', modeComp: 'Kompensieren',
  modeModelTip: 'Das Teil eingeben: die ganze Tabelle rechts und das Modell daneben.',
  modeMeasTip: 'Das gemessene Teil ansehen: großes Modell, hohes Band und die Statistik.',
