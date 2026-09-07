@@ -14,7 +14,7 @@ import {
   Color, Vector2, Vector3, Matrix4, Raycaster, SRGBColorSpace,
 } from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
-import * as E from './engine.js';
+import * as E from './engine.ts';
 import { ST, refModel, placeMatrix } from './state.js';
 import { T } from './i18n.js';
 

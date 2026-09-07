@@ -7,7 +7,7 @@
    Los controles se cablean por delegación con atributos data-* (ver bind()
    en app.js). Para agregar un botón basta con darle el atributo correcto.   */
 import { Vector3 } from 'three';
-import * as E from './engine.js';
+import * as E from './engine.ts';
 import { T, LANG, LANGS } from './i18n.js';
 import {
   ST, LAYER_DEF, V, REF, refModel, activeDataset, activeShift, syncTweak,

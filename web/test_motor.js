@@ -11,7 +11,7 @@
  * Correr esto DESPUÉS de cada cambio en src/ y ANTES de `node build.mjs`.
  */
 import { Matrix4, Euler, Vector3 } from 'three';
-import * as E from './src/engine.js';
+import * as E from './src/engine.ts';
 import { I18N, LANGS, LANG, setLang, T } from './src/i18n.js';
 
 let fails = 0;

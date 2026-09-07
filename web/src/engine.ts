@@ -51,22 +51,27 @@
    de verdad, que dejaba la sección girada.
    ========================================================================= */
 import { Matrix4, Vector3, Quaternion } from 'three';
+import type {
+  Bend, DeltaKey, Delta, Model, Variant, Orientation, AnchorMode,
+  DatumMode, RowLength, PathSample, Proc, Comp, Deviations, Place, Mark,
+  Tweak, UiPrefs, Doc, LoadedDoc,
+} from './types.ts';
 
 export const SCHEMA = 'barcomp/2.1';
 /** Esquemas anteriores, cada uno con su cinemática. Se convierten al abrirlos.
  *  · 1.0  `rot` era un doblez de canto y `angle` tenía el signo contrario
  *  · 2.0  `rot` rodaba la barra de verdad y la sección salía girada */
-export const SCHEMA_LEGACY = ['barcomp/1.0', 'barcomp/2.0'];
+export const SCHEMA_LEGACY: string[] = ['barcomp/1.0', 'barcomp/2.0'];
 export const D2R = Math.PI / 180;
 export const R2D = 180 / Math.PI;
 
 /* --------------------------------------------------------------- utilidades */
-export const wrap180 = a => ((a + 180) % 360 + 360) % 360 - 180;
-export const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
-export const wrapPi = a => ((a + Math.PI) % (2 * Math.PI) + 2 * Math.PI) % (2 * Math.PI) - Math.PI;
+export const wrap180 = (a: number): number => ((a + 180) % 360 + 360) % 360 - 180;
+export const clamp = (v: number, a: number, b: number): number => (v < a ? a : v > b ? b : v);
+export const wrapPi = (a: number): number => ((a + Math.PI) % (2 * Math.PI) + 2 * Math.PI) % (2 * Math.PI) - Math.PI;
 
 /** PRNG portado exacto en los dos motores: misma semilla, misma pieza virtual. */
-export function mulberry32(a) {
+export function mulberry32(a: number): () => number {
   a |= 0;
   return function () {
     a = a + 0x6D2B79F5 | 0;
@@ -75,7 +80,7 @@ export function mulberry32(a) {
     return ((t ^ t >>> 14) >>> 0) / 4294967296;
   };
 }
-export function gauss(rnd) {
+export function gauss(rnd: () => number): number {
   let u = 0, v = 0;
   while (!u) u = rnd();
   while (!v) v = rnd();
@@ -83,36 +88,47 @@ export function gauss(rnd) {
 }
 
 /* -------------------------------------------------------------- matrices 4x4 */
-export const eye = () => new Matrix4();
-export const trans = (x, y = 0, z = 0) => new Matrix4().makeTranslation(x, y, z);
-export const rotX = a => new Matrix4().makeRotationX(a);
-export const rotY = a => new Matrix4().makeRotationY(a);
-export const rotZ = a => new Matrix4().makeRotationZ(a);
-export const rotAxis = (axis, a) => new Matrix4().makeRotationAxis(axis, a);
-export const posOf = M => new Vector3().setFromMatrixPosition(M);
-export function basisOf(M) {
+export const eye = (): Matrix4 => new Matrix4();
+export const trans = (x: number, y = 0, z = 0): Matrix4 => new Matrix4().makeTranslation(x, y, z);
+export const rotX = (a: number): Matrix4 => new Matrix4().makeRotationX(a);
+export const rotY = (a: number): Matrix4 => new Matrix4().makeRotationY(a);
+export const rotZ = (a: number): Matrix4 => new Matrix4().makeRotationZ(a);
+export const rotAxis = (axis: Vector3, a: number): Matrix4 => new Matrix4().makeRotationAxis(axis, a);
+export const posOf = (M: Matrix4): Vector3 => new Vector3().setFromMatrixPosition(M);
+export function basisOf(M: Matrix4): [Vector3, Vector3, Vector3] {
   const x = new Vector3(), y = new Vector3(), z = new Vector3();
   M.extractBasis(x, y, z);
   return [x, y, z];
 }
 /** Aplica una transformación rígida a una lista de puntos (copia). */
-export const applyMat = (M, pts) => pts.map(p => p.clone().applyMatrix4(M));
+export const applyMat = (M: Matrix4, pts: Vector3[]): Vector3[] => pts.map(p => p.clone().applyMatrix4(M));
 
 /* ------------------------------------------------------------------ modelo */
-export const BEND_DEFAULT = Object.freeze({
+export const BEND_DEFAULT: Bend = Object.freeze({
   feed: 100, rot: 0, angle: 30, radius: 30, twist: 0, twistLen: 0,
 });
-const BEND_KEYS = Object.keys(BEND_DEFAULT);
+const BEND_KEYS = Object.keys(BEND_DEFAULT) as (keyof Bend)[];
 
-export function newBend(o = {}) {
-  const b = { ...BEND_DEFAULT };
+/** Doblez tal como puede llegar de JSON crudo (archivo, formulario…): cualquier
+ *  clave, cualquier tipo. `newBend()` solo lee las de BEND_KEYS y las fuerza a
+ *  número con `+`, exactamente como antes — por eso el valor se tipa `any` en
+ *  vez de `unknown`: así el `+` sigue aceptando cualquier cosa, igual que en
+ *  JS suelto. */
+type RawBend = Record<string, any>;
+/** Modelo tal como puede llegar de un JSON de cualquier procedencia o versión:
+ *  cualquier clave, cualquier tipo. `normalizeModel()` rellena los defaults y
+ *  no valida nada más. */
+type RawModel = Record<string, any>;
+
+export function newBend(o: RawBend = {}): Bend {
+  const b: Bend = { ...BEND_DEFAULT };
   for (const k of BEND_KEYS) if (o[k] !== undefined && o[k] !== null) b[k] = +o[k];
   return b;
 }
-export const bendFrom = o => newBend(o || {});
+export const bendFrom = (o: RawBend | null | undefined): Bend => newBend(o || {});
 
 /** Rellena defaults de un modelo venido de JSON (quizá sin twistLen). */
-export function normalizeModel(m) {
+export function normalizeModel(m: RawModel | null | undefined): Model {
   const o = m || {};
   return {
     ...o,
@@ -123,9 +139,9 @@ export function normalizeModel(m) {
     bends: (o.bends || []).map(bendFrom),
   };
 }
-export const cloneModel = m => normalizeModel(JSON.parse(JSON.stringify(m)));
+export const cloneModel = (m: Model): Model => normalizeModel(JSON.parse(JSON.stringify(m)));
 
-export function emptyModel() {
+export function emptyModel(): Model {
   return normalizeModel({
     name: 'MODELO-01',
     section: { width: 40, thickness: 12, chamfer: 1.2, endLen: 20 },
@@ -137,13 +153,13 @@ export function emptyModel() {
 }
 
 /** Réplica bit a bit de demo_model() de core.py (mismo PRNG, misma semilla). */
-export function demoModel() {
+export function demoModel(): Model {
   const r = mulberry32(20240822);
   /* 1 de cada 3 estaciones va de canto y el resto de plano. Lo dice el RODADO,
      que inclina el eje de doblado: 0 y 180 doblan contra la cara plana, ±90
      contra el canto. `angle` es el doblez entero y nunca es negativo. */
   const sign = [1, -1, -1, 1, 1, -1, 1, 1, -1, -1, 1, -1, 1, 1, -1];
-  const bends = [];
+  const bends: Bend[] = [];
   for (let i = 0; i < 15; i++) {
     const canto = (i % 3 === 1);
     const ang = Math.round((16 + r() * 54) * 10) / 10;
@@ -167,7 +183,7 @@ export function demoModel() {
 
 /* --------------------------------------------------------------- cinemática */
 /** Cinemática directa -> n+2 puntos PI y los marcos de cada doblez. */
-export function fk(model) {
+export function fk(model: Model): { pis: Vector3[]; frames: Matrix4[]; end: Matrix4 } {
   let T = eye();
   const pis = [posOf(T)], frames = [T.clone()];
   for (const b of model.bends) {
@@ -193,8 +209,8 @@ export function fk(model) {
  *
  *  de donde  angle = asin(d_y)  y  rot = atan2(-d_z, d_x).
  */
-export function ik(points, radii) {
-  const P = points, n = P.length - 2, bends = [];
+export function ik(points: Vector3[], radii: (number | undefined)[] | null | undefined): { bends: Bend[]; tail: number } {
+  const P = points, n = P.length - 2, bends: Bend[] = [];
   let F = eye(), prevRot = 0;
   for (let i = 1; i <= n; i++) {
     const fe = P[i].distanceTo(P[i - 1]);
@@ -213,7 +229,7 @@ export function ik(points, radii) {
       : Math.atan2(-d.z, -d.y) * R2D;
     bends.push(newBend({
       feed: fe, rot, angle: ang,
-      radius: (radii && radii[i - 1] !== undefined) ? +radii[i - 1] : 30,
+      radius: (radii && radii[i - 1] !== undefined) ? +radii[i - 1]! : 30,
     }));
     const nx = bendDecomp({ rot, angle: ang });
     F = F.multiply(rotAxis(nx.axis, nx.theta));
@@ -238,7 +254,7 @@ export function ik(points, radii) {
  *  modo que tampoco cambia contra qué cara se dobla.
  *
  *  El corte va en 45°, donde deja de haber una cara dominante. */
-export const orientations = model =>
+export const orientations = (model: Model): Orientation[] =>
   model.bends.map(b => (Math.abs(Math.sin((b.rot || 0) * D2R)) > Math.SQRT1_2 ? 'W' : 'T'));
 
 /** Parte el doblez en {axis, theta}: el doblez es SIEMPRE un solo arco.
@@ -253,7 +269,11 @@ export const orientations = model =>
  *  · psi    0 siempre. Se conserva en la firma porque varias funciones lo
  *           desestructuran; con un solo arco no queda rodado residual.
  */
-export function bendDecomp(b) {
+/** Lo mínimo que bendDecomp() necesita leer de un doblez: se llama tanto con
+ *  un Bend completo como con el objeto suelto {rot, angle} que arma ik(). */
+type BendAngle = { rot?: number; angle?: number };
+
+export function bendDecomp(b: BendAngle): { axis: Vector3; theta: number; psi: number } {
   const a = (b.angle || 0) * D2R;
   /* Rz(-angle): un `angle` positivo desvía hacia -y, así que el eje del arco
      parte de -z. Con el ángulo negativo se invierte y theta vuelve a ser >= 0. */
@@ -264,9 +284,9 @@ export function bendDecomp(b) {
 
 /** Ángulo total de desvío del doblez, en grados. Es lo que ve la herramienta:
  *  con una sola componente coincide con |angle| o con |rot|. */
-export const bendTheta = b => bendDecomp(b).theta * R2D;
+export const bendTheta = (b: BendAngle): number => bendDecomp(b).theta * R2D;
 
-export const trimOf = b => (b.radius || 0) * Math.tan(bendDecomp(b).theta / 2);
+export const trimOf = (b: Bend): number => (b.radius || 0) * Math.tan(bendDecomp(b).theta / 2);
 
 /* ------------------------------------------------- longitudes por doblez ---
    UN SOLO SITIO PARA LA CUENTA DE LA RECTA. Antes vivía copiada en cuatro
@@ -282,23 +302,23 @@ export const trimOf = b => (b.radius || 0) * Math.tan(bendDecomp(b).theta / 2);
    la vuelta la da feedForStraight(). */
 
 /** trim(i), con 0 fuera de rango — así trim(−1) no necesita un caso aparte. */
-const trimAt = (B, i) => (i >= 0 && i < B.length) ? trimOf(B[i]) : 0;
+const trimAt = (B: Bend[], i: number): number => (i >= 0 && i < B.length) ? trimOf(B[i]) : 0;
 
 /** Recta tangencia a tangencia que PRECEDE al doblez i. */
-export const straightOf = (model, i) =>
+export const straightOf = (model: Model, i: number): number =>
   model.bends[i].feed - trimAt(model.bends, i) - trimAt(model.bends, i - 1);
 
 /** `feed` (PI a PI) que produce una recta dada en el doblez i. Inversa exacta
  *  de straightOf(): es lo que se escribe al teclear la columna «Recta». */
-export const feedForStraight = (model, i, straight) =>
+export const feedForStraight = (model: Model, i: number, straight: number): number =>
   straight + trimAt(model.bends, i) + trimAt(model.bends, i - 1);
 
 /** Recta de salida: la cola, descontado el trim del último doblez. */
-export const tailStraight = model =>
+export const tailStraight = (model: Model): number =>
   model.tail - trimAt(model.bends, model.bends.length - 1);
 
 /** Por doblez: la recta que lo precede, el arco que genera y el acumulado. */
-export function rowLengths(model) {
+export function rowLengths(model: Model): RowLength[] {
   let cum = 0;
   return model.bends.map((b, i) => {
     const straight = straightOf(model, i);
@@ -309,22 +329,22 @@ export function rowLengths(model) {
 }
 
 /** Longitud desarrollada total: cum del último doblez más la cola. */
-export function developedLength(model) {
+export function developedLength(model: Model): number {
   const rows = rowLengths(model);
   return (rows.length ? rows[rows.length - 1].cum : 0) + tailStraight(model);
 }
 
 /** Avance tangente-a-tangente. Negativo o < 25 mm = los herramentales chocan. */
-export const machineFeeds = model => model.bends.map((_, i) => straightOf(model, i));
+export const machineFeeds = (model: Model): number[] => model.bends.map((_, i) => straightOf(model, i));
 
 /** Recta disponible (tangencia a tangencia) para repartir la torsión de i.
  *  Es la recta que SALE del doblez i, o sea la que precede al i+1. */
-export function twistSpanOf(model, i) {
+export function twistSpanOf(model: Model, i: number): number {
   const B = model.bends;
   if (i < 0 || i >= B.length) return 0;
   return i < B.length - 1 ? straightOf(model, i + 1) : tailStraight(model);
 }
-export function twistZone(len, twLen) {
+export function twistZone(len: number, twLen: number): number {
   if (!(len > 0)) return 0;
   return (twLen > 0 && twLen < len) ? twLen : len;
 }
@@ -335,12 +355,12 @@ export function twistZone(len, twLen) {
  *  recta. La suma vale siempre [len, tw]: el marco final coincide con el de
  *  fk() pase lo que pase, porque Rx conmuta con Trans(x).
  */
-export function twistSpans(len, twDeg, twLen) {
+export function twistSpans(len: number, twDeg: number, twLen: number): [number, number][] {
   const tw = (twDeg || 0) * D2R;
   if (!tw || !(len > 1e-9)) return [[len, tw]];
   const z = twistZone(len, twLen), lead = (len - z) / 2;
   const n = clamp(Math.ceil(Math.abs(twDeg) / 5), 8, 72);
-  const out = [];
+  const out: [number, number][] = [];
   if (lead > 1e-9) out.push([lead, 0]);
   for (let k = 0; k < n; k++) out.push([z / n, tw / n]);
   if (lead > 1e-9) out.push([lead, 0]);
@@ -349,17 +369,17 @@ export function twistSpans(len, twDeg, twLen) {
 
 /** Trayectoria muestreada del eje neutro: rectas + arcos + torsión repartida.
  *  samples[i] = {p, x, y, z, s} */
-export function buildPath(model, arcSeg = 12) {
-  const S = [];
+export function buildPath(model: Model, arcSeg = 12): { samples: PathSample[]; total: number } {
+  const S: PathSample[] = [];
   let F = eye(), s = 0;
-  const push = (M, sv) => {
+  const push = (M: Matrix4, sv: number) => {
     const [x, y, z] = basisOf(M);
     S.push({ p: posOf(M), x, y, z, s: sv });
   };
   push(F, 0);
   const B = model.bends, LEN = rowLengths(model);
 
-  const runStraight = (len, twDeg, twLen, s0) => {
+  const runStraight = (len: number, twDeg: number, twLen: number, s0: number) => {
     let acc = 0, twAcc = 0;
     for (const [dl, dt] of twistSpans(len, twDeg, twLen)) {
       acc += dl; twAcc += dt;
@@ -405,7 +425,7 @@ export function buildPath(model, arcSeg = 12) {
 
 /** Longitud desarrollada (mm) del centro del arco de cada doblez. Es la abscisa
  *  que usa la cinta inferior para colocar cada columna. */
-export function bendStations(model) {
+export function bendStations(model: Model): number[] {
   /* cum(i) ya trae la recta y el arco enteros: el centro del arco es medio
      arco antes del final de la fila. */
   return rowLengths(model).map(r => r.cum - r.arc / 2);
@@ -413,9 +433,9 @@ export function bendStations(model) {
 
 /* --------------------------------------------------------------- alineación */
 /* Jacobi para matrices simétricas n×n — sin numpy de este lado. */
-function jacobi(Ain, n) {
+function jacobi(Ain: number[][], n: number): { vals: number[]; vecs: number[][] } {
   const A = Ain.map(r => r.slice());
-  const Vv = [...Array(n)].map((_, i) => [...Array(n)].map((_, j) => (i === j ? 1 : 0)));
+  const Vv: number[][] = [...Array(n)].map((_, i) => [...Array(n)].map((_, j) => (i === j ? 1 : 0)));
   for (let sweep = 0; sweep < 60; sweep++) {
     let off = 0;
     for (let i = 0; i < n; i++) for (let j = i + 1; j < n; j++) off += A[i][j] * A[i][j];
@@ -435,12 +455,12 @@ function jacobi(Ain, n) {
 
 /** Transformación rígida 4x4 que lleva P (medido) sobre Q (nominal).
  *  Cuaterniones (Horn) + Jacobi 4×4: el equivalente del SVD de numpy. */
-export function kabsch(P, Q) {
+export function kabsch(P: Vector3[], Q: Vector3[]): Matrix4 {
   const n = Math.min(P.length, Q.length);
   const pc = new Vector3(), qc = new Vector3();
   for (let i = 0; i < n; i++) { pc.add(P[i]); qc.add(Q[i]); }
   pc.divideScalar(n || 1); qc.divideScalar(n || 1);
-  const S = [[0, 0, 0], [0, 0, 0], [0, 0, 0]];
+  const S: number[][] = [[0, 0, 0], [0, 0, 0], [0, 0, 0]];
   for (let i = 0; i < n; i++) {
     const p = [P[i].x - pc.x, P[i].y - pc.y, P[i].z - pc.z];
     const q = [Q[i].x - qc.x, Q[i].y - qc.y, Q[i].z - qc.z];
@@ -462,14 +482,14 @@ export function kabsch(P, Q) {
 }
 
 /* ---------------------------------------------------------- proceso simulado */
-export const PROC_DEFAULT = Object.freeze({
+export const PROC_DEFAULT: Proc = Object.freeze({
   sbW: 1.6, sbT: 1.0, slip: .12, biasRot: .35,
   noiseA: .04, noiseF: .06, noiseR: .04, seed: 7,
 });
 
 /** PIEZA VIRTUAL. Es el único bloque que inventa números: hay que reemplazarlo
  *  por datos reales de GOM en cuanto los haya. */
-export function simulate(cmd, proc, ori, noise = true) {
+export function simulate(cmd: Bend[], proc: Proc, ori: Orientation[], noise = true): Bend[] {
   const rnd = mulberry32(proc.seed | 0);
   return cmd.map(b => {
     const n = noise ? 1 : 0;
@@ -492,7 +512,7 @@ export function simulate(cmd, proc, ori, noise = true) {
 }
 
 /* ------------------------------------------------------------- compensación */
-export const COMP_DEFAULT = Object.freeze({
+export const COMP_DEFAULT: Comp = Object.freeze({
   gainW: .75, gainT: .75, doAngle: true, doRot: false, doFeed: false,
 });
 
@@ -501,7 +521,7 @@ export const COMP_DEFAULT = Object.freeze({
  *  No se calcula el arrastre entre dobleces: se regenera la cadena entera, con
  *  lo cual el arrastre queda contenido en el modelo.
  */
-export function compensate(cmd, nom, meas, comp, ori) {
+export function compensate(cmd: Bend[], nom: Bend[], meas: Bend[], comp: Comp, ori: Orientation[]): Bend[] {
   return cmd.map((b, i) => {
     const o = bendFrom(b);
     if (i >= nom.length || i >= meas.length) return o;   // sin medición: no se toca
@@ -519,17 +539,17 @@ export function compensate(cmd, nom, meas, comp, ori) {
 
 /* ------------------------------------------------------------ desviaciones */
 /** Compara una pieza medida contra el nominal. datum: 'start' | 'best'. */
-export function deviations(model, measModel, datum = 'start') {
+export function deviations(model: Model, measModel: Model, datum: DatumMode = 'start'): Deviations {
   const nom = fk(model).pis;
   let P = fk(measModel).pis.map(p => p.clone());
   if (datum === 'best') P = applyMat(kabsch(P, nom), P);
   const m = Math.min(P.length, nom.length);
-  const point = [];
+  const point: number[] = [];
   for (let i = 0; i < m; i++) point.push(P[i].distanceTo(nom[i]));
   /* Una pieza medida puede tener menos dobleces que el nominal (p. ej. si se
      agregó un doblez después de medir). Se compara lo que existe en ambos. */
   const n = Math.min(model.bends.length, measModel.bends.length);
-  const angle = [], rot = [], feed = [], theta = [];
+  const angle: number[] = [], rot: number[] = [], feed: number[] = [], theta: number[] = [];
   for (let i = 0; i < n; i++) {
     angle.push(measModel.bends[i].angle - model.bends[i].angle);
     rot.push(wrap180(measModel.bends[i].rot - model.bends[i].rot));
@@ -552,15 +572,15 @@ export function deviations(model, measModel, datum = 'start') {
   };
 }
 
-const GRN = [.247, .839, .549], AMB = [1, .773, .239], RED = [1, .302, .369];
+const GRN: number[] = [.247, .839, .549], AMB: number[] = [1, .773, .239], RED: number[] = [1, .302, .369];
 /** verde -> ámbar -> rojo. tol = 1x · 2·tol = rojo pleno. */
-export function devColor(d, tol) {
+export function devColor(d: number, tol: number): number[] {
   const r = clamp(Math.abs(d) / (tol || 1), 0, 2);
-  const [a, b, f] = r < 1 ? [GRN, AMB, r] : [AMB, RED, r - 1];
+  const [a, b, f]: [number[], number[], number] = r < 1 ? [GRN, AMB, r] : [AMB, RED, r - 1];
   return [a[0] + (b[0] - a[0]) * f, a[1] + (b[1] - a[1]) * f, a[2] + (b[2] - a[2]) * f];
 }
 /** Desviación interpolada a lo largo de la longitud desarrollada. */
-export function devAt(pointDev, s, total) {
+export function devAt(pointDev: number[], s: number, total: number): number {
   const n = pointDev.length;
   if (!n || !(total > 0)) return 0;
   const f = clamp(s / total, 0, 1) * (n - 1);
@@ -575,12 +595,13 @@ export function devAt(pointDev, s, total) {
    efectivo es base + delta, y es lo único que ve la cinemática. Separarlos
    permite escribir la compensación al lado del dato sin perder el valor
    original, y volver a cero con un clic.                                    */
-export const DELTA_KEYS = ['feed', 'rot', 'angle', 'radius', 'twist', 'twistLen'];
+export const DELTA_KEYS: DeltaKey[] = ['feed', 'rot', 'angle', 'radius', 'twist', 'twistLen'];
 
-export const zeroDelta = () => Object.fromEntries(DELTA_KEYS.map(k => [k, 0]));
-export const zeroDeltas = n => [...Array(Math.max(0, n | 0))].map(zeroDelta);
+export const zeroDelta = (): Delta =>
+  Object.fromEntries(DELTA_KEYS.map(k => [k, 0] as [DeltaKey, number])) as Delta;
+export const zeroDeltas = (n: number): Delta[] => [...Array(Math.max(0, n | 0))].map(zeroDelta);
 
-export function newVariant(model, name, color = '#3FA9F5', vid = 'v1') {
+export function newVariant(model: RawModel, name?: string | null, color = '#3FA9F5', vid = 'v1'): Variant {
   const m = normalizeModel(model);
   return {
     id: vid, name: name || m.name || 'MODELO', color, visible: true,
@@ -588,7 +609,7 @@ export function newVariant(model, name, color = '#3FA9F5', vid = 'v1') {
   };
 }
 /** Copia independiente: base y deltas se duplican, nada queda compartido. */
-export function cloneVariant(v, name, color, vid) {
+export function cloneVariant(v: Variant, name?: string | null, color?: string | null, vid?: string | null): Variant {
   const w = JSON.parse(JSON.stringify(v));
   w.id = vid || (v.id + 'c');
   w.name = name || (v.name + ' (copia)');
@@ -596,15 +617,15 @@ export function cloneVariant(v, name, color, vid) {
   return w;
 }
 /** Ajusta la lista de deltas al número de dobleces de la base. */
-export function syncDeltas(v) {
+export function syncDeltas(v: Variant): Variant {
   const n = v.base.bends.length;
   const d = (v.deltas || []).slice(0, n);
   while (d.length < n) d.push(zeroDelta());
-  v.deltas = d.map(x => Object.fromEntries(DELTA_KEYS.map(k => [k, +(x?.[k] || 0)])));
+  v.deltas = d.map(x => Object.fromEntries(DELTA_KEYS.map(k => [k, +(x?.[k] || 0)] as [DeltaKey, number])) as Delta);
   return v;
 }
 /** base + deltas. Es el modelo que se dibuja y se mide. */
-export function effectiveModel(v) {
+export function effectiveModel(v: Variant): Model {
   syncDeltas(v);
   const m = cloneModel(v.base);
   m.bends.forEach((b, i) => {
@@ -616,14 +637,14 @@ export function effectiveModel(v) {
   return m;
 }
 /** Funde los deltas en la base y los deja en cero. Sin vuelta atrás. */
-export function bakeDeltas(v) {
+export function bakeDeltas(v: Variant): Variant {
   const m = effectiveModel(v);
   v.base = m;
   v.deltas = zeroDeltas(m.bends.length);
   v.tailDelta = 0;
   return v;
 }
-export const hasDeltas = v =>
+export const hasDeltas = (v: Variant): boolean =>
   (v.deltas || []).some(d => DELTA_KEYS.some(k => d[k])) || !!v.tailDelta;
 
 /* ------------------------------------------------------------------ anclaje */
@@ -638,14 +659,14 @@ export const hasDeltas = v =>
  *           posición del extremo maquinado.
  *  'best'   mejor ajuste global de los PI (Kabsch). Reparte el error.
  */
-export function anchorTransform(model, ref, mode = 'start') {
+export function anchorTransform(model: Model, ref: Model, mode: AnchorMode = 'start'): Matrix4 {
   if (mode === 'end') {
     return new Matrix4().multiplyMatrices(fk(ref).end, fk(model).end.clone().invert());
   }
   if (mode === 'best') return kabsch(fk(model).pis, fk(ref).pis);
   return eye();
 }
-export const anchoredPis = (model, ref, mode = 'start') =>
+export const anchoredPis = (model: Model, ref: Model, mode: AnchorMode = 'start'): Vector3[] =>
   applyMat(anchorTransform(model, ref, mode), fk(model).pis);
 
 /** Cuánto se movió cada PI respecto a la referencia, ya anclado.
@@ -654,7 +675,7 @@ export const anchoredPis = (model, ref, mode = 'start') =>
  *  variantes no tienen el mismo número de dobleces se compara lo que existe en
  *  ambas, contando desde el extremo anclado.
  */
-export function piShift(model, ref, mode = 'start') {
+export function piShift(model: Model, ref: Model, mode: AnchorMode = 'start'): number[] {
   let a = anchoredPis(model, ref, mode);
   let b = fk(ref).pis;
   const n = Math.min(a.length, b.length);
@@ -670,7 +691,7 @@ export function piShift(model, ref, mode = 'start') {
  *  torsión no viven en los puntos: hay que arrastrarlos de `keep`, la lista de
  *  dobleces que corresponde uno a uno con los PI nuevos.
  */
-function modelFromPoints(model, P, keep) {
+function modelFromPoints(model: Model, P: Vector3[], keep: Bend[]): Model {
   const r = ik(P, keep.map(b => b.radius));
   const bends = r.bends.map((b, j) => {
     const src = keep[j] || BEND_DEFAULT;
@@ -691,7 +712,7 @@ function modelFromPoints(model, P, keep) {
  *  No se calcula el arrastre hacia los dobleces siguientes: se recalcula todo,
  *  que es la misma idea que sostiene la compensación.
  */
-export function movePi(model, i, xyz) {
+export function movePi(model: Model, i: number, xyz: number[]): Model {
   const P = fk(model).pis;
   if (!(i >= 0 && i < P.length)) return model;
   P[i] = new Vector3(xyz[0], xyz[1], xyz[2]);
@@ -699,7 +720,7 @@ export function movePi(model, i, xyz) {
 }
 
 /** Elimina el PI `i` (1..n). P0 y el extremo libre no se pueden borrar. */
-export function deletePi(model, i) {
+export function deletePi(model: Model, i: number): Model {
   const B = model.bends;
   if (!(i >= 1 && i <= B.length) || B.length <= 1) return model;
   const P = fk(model).pis;
@@ -713,7 +734,7 @@ export function deletePi(model, i) {
  *  Nace colineal, o sea con ángulo 0: es un punto de control listo para
  *  moverse, no un doblez real todavía. El radio se hereda del vecino.
  */
-export function insertPi(model, i, t = 0.5) {
+export function insertPi(model: Model, i: number, t = 0.5): Model {
   const P = fk(model).pis;
   if (!(i >= 0 && i < P.length - 1)) return model;
   t = clamp(+t, 0.02, 0.98);
@@ -732,7 +753,7 @@ export function insertPi(model, i, t = 0.5) {
    relativo. Sirve para acomodar la barra en el ángulo que uno quiere verla,
    girándola alrededor del PI que se elija como origen. Como se aplica a TODA
    la escena por igual, la comparación entre modelos no cambia.               */
-export const PLACE_DEFAULT = Object.freeze({
+export const PLACE_DEFAULT: Place = Object.freeze({
   pivot: 0, x: 0, y: 0, z: 0, rx: 0, ry: 0, rz: 0,
 });
 
@@ -743,16 +764,16 @@ export const PLACE_DEFAULT = Object.freeze({
  *  Con todo en cero devuelve la identidad, así que un archivo sin `place` se ve
  *  exactamente igual que antes.
  */
-export function placeTransform(place, pivotPoint) {
-  const q = { ...PLACE_DEFAULT, ...(place || {}) };
+export function placeTransform(place: Partial<Place> | null | undefined, pivotPoint: Vector3 | null | undefined): Matrix4 {
+  const q: Place = { ...PLACE_DEFAULT, ...(place || {}) };
   const p = pivotPoint || new Vector3();
   const R = rotZ(q.rz * D2R).multiply(rotY(q.ry * D2R)).multiply(rotX(q.rx * D2R));
   return trans(q.x + p.x, q.y + p.y, q.z + p.z)
     .multiply(R)
     .multiply(trans(-p.x, -p.y, -p.z));
 }
-export const isPlaced = place => {
-  const q = { ...PLACE_DEFAULT, ...(place || {}) };
+export const isPlaced = (place: Partial<Place> | null | undefined): boolean => {
+  const q: Place = { ...PLACE_DEFAULT, ...(place || {}) };
   return !!(q.x || q.y || q.z || q.rx || q.ry || q.rz);
 };
 
@@ -765,7 +786,7 @@ export const isPlaced = place => {
 export const MARK_DEFAULT = Object.freeze({ x: 0, y: 0, z: 0 });
 
 /** PI más cercano a un punto: {i, d}. Con `pts` vacío devuelve d = Infinity. */
-export function nearestPoint(pts, q) {
+export function nearestPoint(pts: Vector3[], q: Vector3): { i: number; d: number } {
   let i = -1, d = Infinity;
   for (let k = 0; k < pts.length; k++) {
     const e = pts[k].distanceTo(q);
@@ -788,10 +809,19 @@ export function nearestPoint(pts, q) {
 
    Se evalúa con un parser propio (patio de maniobras). NO se usa eval(): esto
    corre bajo file:// y no hay ninguna razón para ejecutar texto arbitrario.  */
-const PREC = { '+': 1, '-': 1, '*': 2, '/': 2 };
+const PREC: Record<string, number> = { '+': 1, '-': 1, '*': 2, '/': 2 };
 
-function tokenize(src) {
-  const out = [];
+/** Un token de la expresión: un número, la variable `c`, un paréntesis o un
+ *  operador. */
+type Tok =
+  | { t: 'num'; v: number }
+  | { t: 'var' }
+  | { t: '(' }
+  | { t: ')' }
+  | { t: 'op'; v: string };
+
+function tokenize(src: string): Tok[] | null {
+  const out: Tok[] = [];
   let i = 0;
   while (i < src.length) {
     const ch = src[i];
@@ -816,7 +846,7 @@ function tokenize(src) {
 /** Evalúa la expresión de una celda. `calc` es el valor de `c`.
  *  Devuelve null si el texto no es una expresión válida — el que llama decide
  *  qué hacer (normalmente: no tocar nada). */
-export function evalCell(text, calc = 0) {
+export function evalCell(text: unknown, calc = 0): number | null {
   let src = String(text ?? '').trim().replace(/,/g, '.').toLowerCase();
   if (!src) return null;
   /* Atajo: `+2`, `*1.1`, `/2` son cuentas sobre el valor calculado. `-3` NO:
@@ -827,8 +857,8 @@ export function evalCell(text, calc = 0) {
   const toks = tokenize(src);
   if (!toks || !toks.length) return null;
 
-  const vals = [], ops = [];
-  const apply = () => {
+  const vals: number[] = [], ops: string[] = [];
+  const apply = (): boolean => {
     const op = ops.pop();
     if (op === 'u-') {
       const a = vals.pop();
@@ -841,7 +871,7 @@ export function evalCell(text, calc = 0) {
     vals.push(op === '+' ? a + b : op === '-' ? a - b : op === '*' ? a * b : a / b);
     return true;
   };
-  let prev = null;
+  let prev: Tok | null = null;
   for (const tk of toks) {
     if (tk.t === 'num') vals.push(tk.v);
     else if (tk.t === 'var') vals.push(+calc || 0);
@@ -873,8 +903,29 @@ export function evalCell(text, calc = 0) {
 }
 
 /* ---------------------------------------------------------------------- E/S */
-export function toDoc(model, command, comp, proc, datasets = [], variants = [],
-                      ref = null, anchor = 'start', extra = {}) {
+/** Una pieza medida, tal como la ve `toDoc()`: solo lo que hace falta para
+ *  reconstruirla — `pis`/`dev` no se guardan, se recalculan al abrir. */
+type ToDocDataset = { name: string; color: string; src?: string; model: Model };
+/** Lo demás que lleva el documento: presentación y preferencias, nada de
+ *  cinemática. Todo opcional porque toDoc() rellena cualquier falta. */
+type ToDocExtra = {
+  place?: Partial<Place>;
+  marks?: Mark[];
+  tweak?: Tweak[];
+  ui?: { theme?: UiPrefs['theme']; lang?: UiPrefs['lang'] };
+};
+
+export function toDoc(
+  model: Model,
+  command: Bend[] | null | undefined,
+  comp: Comp | null | undefined,
+  proc: Proc | null | undefined,
+  datasets: ToDocDataset[] = [],
+  variants: Variant[] = [],
+  ref: string | null = null,
+  anchor: AnchorMode = 'start',
+  extra: ToDocExtra = {},
+): Doc {
   return {
     schema: SCHEMA,
     saved: new Date().toISOString(),
@@ -928,7 +979,7 @@ export function toDoc(model, command, comp, proc, datasets = [], variants = [],
 
 /** Recorre la cadena con la cinemática de un esquema anterior y devuelve los
  *  PI. Es lo único que hace falta para convertir: la forma. */
-export function fkLegacy(model, schema = 'barcomp/1.0') {
+export function fkLegacy(model: Model, schema = 'barcomp/1.0'): { pis: Vector3[] } {
   let T = eye();
   const pis = [posOf(T)];
   for (const b of model.bends) {
@@ -946,7 +997,7 @@ export function fkLegacy(model, schema = 'barcomp/1.0') {
 
 /** Pasa un modelo de un esquema anterior a la convención de hoy, sin mover la
  *  pieza. `schema` dice de cuál viene. */
-export function migrateModel(model, schema = 'barcomp/1.0') {
+export function migrateModel(model: RawModel, schema = 'barcomp/1.0'): Model {
   const m = normalizeModel(model);
   if (!m.bends.length) return m;
   const out = ik(fkLegacy(m, schema).pis, m.bends.map(b => b.radius));
@@ -959,17 +1010,17 @@ export function migrateModel(model, schema = 'barcomp/1.0') {
 }
 
 /** ¿El documento viene con una convención anterior? */
-export const isLegacyDoc = d => !!d && d.schema !== SCHEMA;
+export const isLegacyDoc = (d: Doc | null | undefined): boolean => !!d && d.schema !== SCHEMA;
 
 /** Normaliza un documento leído de JSON. Gemelo de load_json() de core.py. */
-export function fromDoc(d) {
+export function fromDoc(d: Doc): LoadedDoc {
   /* Un archivo anterior a barcomp/2.0 describe la misma pieza con otra
      convención: se convierte antes de tocar nada, o se abriría con la forma
      equivocada y en silencio. Quien llama se entera por `legacy`. */
   const legacy = isLegacyDoc(d);
   /* un archivo sin `schema` es de los primeros: 1.0 */
   const from = (d && d.schema) || 'barcomp/1.0';
-  const conv = m => (legacy ? migrateModel(m, from) : normalizeModel(m));
+  const conv = (m: RawModel): Model => (legacy ? migrateModel(m, from) : normalizeModel(m));
   const model = conv(d.model);
   const variants = (d.variants || []).map((v, i) => syncDeltas({
     id: v.id || `v${i + 1}`,
@@ -1014,6 +1065,6 @@ export function fromDoc(d) {
   };
 }
 
-export const writePointsCsv = pts =>
+export const writePointsCsv = (pts: Vector3[]): string =>
   'idx,x,y,z\n' + pts.map((p, i) =>
     `${i},${p.x.toFixed(4)},${p.y.toFixed(4)},${p.z.toFixed(4)}`).join('\n');

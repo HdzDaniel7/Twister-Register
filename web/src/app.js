@@ -18,7 +18,7 @@
 
    Llama lo más barato que sirva.
    ========================================================================= */
-import * as E from './engine.js';
+import * as E from './engine.ts';
 import { T, I18N, LANG, setLang } from './i18n.js';
 import {
   ST, V, REF, VAR_COLORS, syncModel, newVid, loadModel, refModel,

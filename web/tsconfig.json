@@ -1,0 +1,44 @@
+{
+  // TypeScript aquí NO compila nada: `noEmit` es el punto. Quien genera el
+  // bundle sigue siendo esbuild (build.mjs) y quien corre las pruebas es Node,
+  // que borra los tipos por su cuenta desde v22.18. `tsc` solo comprueba.
+  //
+  //     npx tsc --noEmit        (o  npm run typecheck)
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "module": "nodenext",
+    "moduleResolution": "nodenext",
+    "noEmit": true,
+    "skipLibCheck": true,
+
+    // Los `import` llevan la extensión real ('./engine.ts'), porque es lo que
+    // Node exige para borrar tipos y lo que esbuild resuelve igual.
+    "allowImportingTsExtensions": true,
+
+    // Node solo BORRA tipos, no los transforma: nada de `enum`, `namespace` ni
+    // propiedades de parámetro. Estas dos banderas hacen que tsc lo grite en
+    // vez de dejar que reviente al correr las pruebas.
+    "erasableSyntaxOnly": true,
+    "verbatimModuleSyntax": true,
+
+    "strict": true,
+    "noImplicitOverride": true,
+    "noFallthroughCasesInSwitch": true,
+
+    // Deliberadamente APAGADAS. `noUncheckedIndexedAccess` obligaría a un
+    // guardia en cada `pis[i]` y `bends[i]`, y este motor indexa arreglos en
+    // casi todas las líneas: metería cientos de comprobaciones que no atrapan
+    // ningún error real y taparían los que sí importan.
+    "noUncheckedIndexedAccess": false,
+    "exactOptionalPropertyTypes": false,
+
+    // El puerto es gradual: los .js que quedan entran para que sus `import` se
+    // resuelvan, pero todavía no se comprueban. Un archivo se añade a la
+    // comprobación cuando ya está portado y en verde, nunca con avisos
+    // abiertos.
+    "allowJs": true,
+    "checkJs": false
+  },
+  "include": ["src/**/*", "test_motor.js", "engine_dump.js", "build.mjs"]
+}

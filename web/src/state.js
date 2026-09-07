@@ -6,7 +6,7 @@
    caché del modelo efectivo (base + deltas) de la activa: todo el código que
    dibuja y mide sigue leyendo de ahí. Después de tocar una variante hay que
    llamar syncModel() o la caché miente.                                     */
-import * as E from './engine.js';
+import * as E from './engine.ts';
 
 export const LAYER_DEF = [
   ['nom', 'lNom', '#3FA9F5'], ['var', 'lVar', '#8CD65A'], ['diff', 'lDiff', '#E15FA0'],

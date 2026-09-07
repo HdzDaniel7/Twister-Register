@@ -2,7 +2,7 @@
    Imprimible: capturas de las 4 vistas + la cinta + la tabla por doblez.
    Se abre en una ventana nueva; las imágenes van empotradas como data URI,
    así que el archivo se puede guardar y llevar tal cual.                    */
-import * as E from './engine.js';
+import * as E from './engine.ts';
 import { T } from './i18n.js';
 import { ST, activeDataset, REF } from './state.js';
 import { captureViews, devCssColor } from './scene.js';

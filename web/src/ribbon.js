@@ -8,7 +8,7 @@
    ángulo de plano daría por bueno un doblez de canto completamente fuera).
    Sin pieza medida, y con la activa distinta de la referencia, muestra el Δ
    desvío entre variantes.                                                   */
-import * as E from './engine.js';
+import * as E from './engine.ts';
 import { ST, activeDataset, refModel } from './state.js';
 import { T } from './i18n.js';
 import { devCssColor, cssVar } from './scene.js';
