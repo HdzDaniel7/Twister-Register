@@ -2,7 +2,9 @@
    PROCESO SIMULADO, COMPENSACIÓN Y DESVIACIONES — la pieza virtual, el lazo
    de corrección y la comparación de una pieza medida contra su nominal.
    ========================================================================= */
-import type { Bend, Proc, Orientation, Comp, Model, DatumMode, Deviations } from '../types.ts';
+import type {
+  Bend, Proc, Orientation, Comp, Model, DatumMode, Deviations, Stat, BendStat,
+} from '../types.ts';
 import { clamp, mulberry32, gauss, wrap180, applyMat } from './math.ts';
 import { bendFrom, newBend } from './bend.ts';
 import { fk, bendTheta } from './kinematics.ts';
@@ -38,9 +40,79 @@ export function simulate(cmd: Bend[], proc: Proc, ori: Orientation[], noise = tr
   });
 }
 
+/* ------------------------------------------------- varias piezas medidas --
+   Una sola pieza no distingue un doblez sistemáticamente fuera de uno que
+   simplemente tuvo mala puntería. Compensar desde una pieza es perseguir
+   ruido: se mueve el comando por una dispersión que no se repite y la
+   siguiente sale peor. Es el mismo mecanismo por el que una ganancia de 1.0
+   oscila.                                                                   */
+
+/** Mediana y dispersión robusta de una muestra.
+ *
+ *  Mediana y MAD, no media y desviación: un PI mal extraído de la nube produce
+ *  un doblez absurdo, y una media se lo traga entero. `sigma` es el MAD
+ *  escalado por 1.4826, que sobre una normal estima la misma desviación
+ *  estándar de siempre — así la cifra se lee como se espera sin heredar la
+ *  fragilidad de la media. */
+export function statOf(v: number[]): Stat {
+  const a = v.filter(x => isFinite(x)).sort((p, q) => p - q);
+  const n = a.length;
+  if (!n) return { med: 0, mad: 0, sigma: 0, n: 0 };
+  const mid = (b: number[]): number => {
+    const h = b.length >> 1;
+    return b.length % 2 ? b[h] : (b[h - 1] + b[h]) / 2;
+  };
+  const med = mid(a);
+  const mad = mid(a.map(x => Math.abs(x - med)).sort((p, q) => p - q));
+  return { med, mad, sigma: 1.4826 * mad, n };
+}
+
+/** Estadística por doblez sobre varias piezas medidas.
+ *
+ *  Va hasta el doblez más largo que haya, no hasta el más corto: una pieza
+ *  escaneada puede traer menos dobleces, y ahí lo que corresponde es decir que
+ *  ese doblez tiene menos muestras (`n`), no tirar las que sí están. */
+export function bendStats(pieces: Bend[][]): BendStat[] {
+  const len = pieces.reduce((m, p) => Math.max(m, p.length), 0);
+  const out: BendStat[] = [];
+  for (let i = 0; i < len; i++) {
+    const have = pieces.filter(p => i < p.length);
+    out.push({
+      angle: statOf(have.map(p => p[i].angle)),
+      rot: statOf(have.map(p => p[i].rot)),
+      feed: statOf(have.map(p => p[i].feed)),
+      n: have.length,
+    });
+  }
+  return out;
+}
+
+/** La pieza MEDIANA del lote, la que debería consumir el lazo.
+ *
+ *  Solo llega hasta el doblez más corto: más allá no hay pieza que sostenga la
+ *  cuenta y inventar un doblez sería exactamente lo que este cambio evita. El
+ *  radio y la torsión se toman de la primera pieza —no se miden, se arrastran—
+ *  igual que en measuredModel(). */
+export function medianPart(pieces: Bend[][]): Bend[] {
+  if (!pieces.length) return [];
+  if (pieces.length === 1) return pieces[0].map(b => bendFrom(b));
+  const len = pieces.reduce((m, p) => Math.min(m, p.length), Infinity);
+  const st = bendStats(pieces);
+  const out: Bend[] = [];
+  for (let i = 0; i < len; i++) {
+    const src = pieces[0][i];
+    out.push(newBend({
+      feed: st[i].feed.med, rot: st[i].rot.med, angle: st[i].angle.med,
+      radius: src.radius, twist: src.twist, twistLen: src.twistLen,
+    }));
+  }
+  return out;
+}
+
 /* ------------------------------------------------------------- compensación */
 export const COMP_DEFAULT: Comp = Object.freeze({
   gainW: .75, gainT: .75, doAngle: true, doRot: false, doFeed: false,
+  batch: false,
 });
 
 /** nuevo_comando = comando_actual + ganancia × (nominal − medido).

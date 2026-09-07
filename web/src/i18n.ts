@@ -27,6 +27,7 @@ type I18nKey =
   | 'kbdNote' | 'twnote' | 'proc' | 'sbW' | 'sbT' | 'slip' | 'biasR' | 'noise'
   | 'seed' | 'simulate' | 'dNone' | 'deltas' | 'dA' | 'dR' | 'dF' | 'dP'
   | 'srcSim' | 'srcVerify' | 'srcMeas' | 'srcUnk' | 'impCsv' | 'impTip' | 'csvBad'
+  | 'batchUse' | 'batchTip' | 'batchOn' | 'batchHint' | 'spread' | 'spreadTip'
   | 'srcSimTip' | 'srcVerifyTip' | 'srcMeasTip' | 'srcUnkTip'
   | 'statMaxA' | 'statRms' | 'statTip' | 'statOut' | 'gains' | 'gainW' | 'gainT' | 'what'
   | 'cAng' | 'cRot' | 'cFeed' | 'apply' | 'reset' | 'cmdTbl' | 'cNow' | 'cNew'
@@ -104,6 +105,17 @@ es: {
  impTip: 'Piezas medidas: un CSV por pieza, con los PI en columnas x,y,z. '
    + 'Se pueden elegir varios archivos a la vez.',
  csvBad: 'Estos archivos no traían al menos tres puntos con coordenadas y no se importaron:',
+ /* Compensar desde una sola pieza persigue la dispersión de esa pieza. Con
+    varias, la mediana separa lo sistemático de la mala puntería. */
+ batchUse: 'Usar la mediana de las piezas visibles ·',
+ batchTip: 'Con una sola pieza, el lazo corrige también lo que fue dispersión de esa '
+   + 'pieza y la siguiente puede salir peor. Con varias, la mediana deja pasar '
+   + 'solo lo que se repite.',
+ batchOn: 'El lazo lee la mediana de %n piezas, no la última.',
+ batchHint: 'Hay más de una pieza visible: marque la casilla para que el lazo lea la mediana.',
+ spread: '±σ',
+ spreadTip: 'Dispersión del ángulo entre las piezas visibles (MAD escalado). '
+   + 'Grande junto a una desviación grande = mala puntería, no un doblez mal ajustado.',
  srcSimTip: 'Pieza inventada por el simulador. No se ha medido nada.',
  srcVerifyTip: 'Verificación simulada tras aplicar la compensación. Tampoco es una medida.',
  srcMeasTip: 'Pieza medida importada.',
@@ -186,6 +198,15 @@ en: {
  impTip: 'Measured parts: one CSV per part, with the PIs in x,y,z columns. '
    + 'Several files can be picked at once.',
  csvBad: 'These files did not carry at least three points with coordinates and were not imported:',
+ batchUse: 'Use the median of the visible parts ·',
+ batchTip: 'With a single part the loop also corrects what was scatter in that part, '
+   + 'and the next one can come out worse. With several, the median only lets '
+   + 'through what repeats.',
+ batchOn: 'The loop reads the median of %n parts, not the last one.',
+ batchHint: 'More than one part is visible: tick the box so the loop reads the median.',
+ spread: '±σ',
+ spreadTip: 'Angle scatter across the visible parts (scaled MAD). Large next to a large '
+   + 'deviation means poor repeatability, not a mis-set bend.',
  srcSimTip: 'Part invented by the simulator. Nothing was measured.',
  srcVerifyTip: 'Simulated check after applying compensation. Not a measurement either.',
  srcMeasTip: 'Imported measured part.',
@@ -272,6 +293,16 @@ de: {
  impTip: 'Gemessene Teile: eine CSV je Teil, mit den Schnittpunkten in den '
    + 'Spalten x,y,z. Es können mehrere Dateien auf einmal gewählt werden.',
  csvBad: 'Diese Dateien enthielten keine drei Punkte mit Koordinaten und wurden nicht importiert:',
+ batchUse: 'Median der sichtbaren Teile verwenden ·',
+ batchTip: 'Mit nur einem Teil korrigiert der Regelkreis auch dessen Streuung, und das '
+   + 'nächste Teil kann schlechter ausfallen. Mit mehreren lässt der Median nur '
+   + 'das durch, was sich wiederholt.',
+ batchOn: 'Der Regelkreis liest den Median von %n Teilen, nicht das letzte.',
+ batchHint: 'Es ist mehr als ein Teil sichtbar: Haken setzen, damit der Regelkreis den Median liest.',
+ spread: '±σ',
+ spreadTip: 'Streuung des Winkels über die sichtbaren Teile (skalierter MAD). Groß neben '
+   + 'einer großen Abweichung heißt schlechte Wiederholbarkeit, kein falsch '
+   + 'eingestellter Bogen.',
  srcSimTip: 'Vom Simulator erzeugtes Teil. Es wurde nichts gemessen.',
  srcVerifyTip: 'Simulierte Prüfung nach der Kompensation. Ebenfalls keine Messung.',
  srcMeasTip: 'Importiertes gemessenes Teil.',

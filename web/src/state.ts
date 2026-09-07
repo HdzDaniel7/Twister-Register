@@ -132,6 +132,26 @@ export function zeroTweak(): Tweak[] {
 }
 export const hasTweak = (): boolean => ST.tweak.some(t => t.angle || t.rot || t.feed);
 
+/** Las piezas medidas que entran en el lazo.
+ *
+ *  Con `comp.batch` puesto y más de una pieza visible, entran todas; si no, la
+ *  activa y nada más, que es el comportamiento de siempre. */
+export function loopPieces(): Dataset[] {
+  const vis = ST.datasets.filter(d => d.visible);
+  if (ST.comp.batch && vis.length > 1) return vis;
+  const a = activeDataset();
+  return a ? [a] : [];
+}
+
+/** Los dobleces medidos que consume el lazo: la pieza sola, o la MEDIANA del
+ *  lote. Compensar desde una sola pieza es perseguir la dispersión de esa
+ *  pieza; con varias, la mediana separa lo sistemático de la mala puntería. */
+export function loopMeasured(): Bend[] | null {
+  const ps = loopPieces();
+  if (!ps.length) return null;
+  return ps.length === 1 ? ps[0].model.bends : E.medianPart(ps.map(d => d.model.bends));
+}
+
 /** Comando compensado: lo que calcula el lazo MÁS el ajuste escrito a mano.
  *  Es lo único que se aplica y lo que muestra la tabla. */
 export function compensatedCommand(meas: Bend[]): Bend[] {

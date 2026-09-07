@@ -9,7 +9,7 @@ import type { DeltaKey, Model, Variant } from '../types.ts';
 import {
   ST, V, VAR_COLORS, syncModel, newVid, loadModel, refModel,
   activeDataset, addDataset, syncCommand, resetCommand,
-  addMark, setMarks, syncTweak, zeroTweak, compensatedCommand,
+  addMark, setMarks, syncTweak, zeroTweak, compensatedCommand, loopMeasured,
 } from '../state.ts';
 import { rebuildScene, fitView } from '../scene.ts';
 import { drawRibbon } from '../ribbon.ts';
@@ -111,8 +111,10 @@ export function editTweak(i: number, key: 'angle' | 'rot' | 'feed', text: string
   if (!D) return;
   syncTweak(M.bends.length);
   if (!(i >= 0 && i < ST.tweak.length)) return;
-  const calc = E.compensate(ST.command, M.bends, D.model.bends, ST.comp,
-                            E.orientations(M));
+  /* el mismo medido que muestra la tabla, o el ajuste escrito a mano se
+     guardaría contra un cálculo distinto del que se ve */
+  const calc = E.compensate(ST.command, M.bends, loopMeasured() || D.model.bends,
+                            ST.comp, E.orientations(M));
   const dCalc = calc[i][key] - ST.command[i][key];
   const v = E.evalCell(text, dCalc);
   if (v === null) { renderRight(); return; }     // texto inválido: se descarta
@@ -306,7 +308,7 @@ export function action(a: string): void {
       /* lo que se aplica es lo que muestra la tabla: cálculo del lazo MÁS el
          ajuste escrito a mano. Una vez aplicado, el ajuste ya está dentro del
          comando, así que se pone a cero. */
-      ST.command = compensatedCommand(D.model.bends);
+      ST.command = compensatedCommand(loopMeasured() || D.model.bends);
       zeroTweak();
       predict();
       renderPanels(); rebuildScene(); drawRibbon();

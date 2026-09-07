@@ -144,6 +144,10 @@ export type Proc = {
 
 /** Ajustes del lazo: nuevo = actual + ganancia × (nominal − medido). */
 export type Comp = {
+  /** Consumir la MEDIANA de las piezas medidas visibles en vez de la activa.
+   *  Opcional: los archivos anteriores no la traen y siguen abriendo con el
+   *  comportamiento de siempre, que es compensar contra una sola pieza. */
+  batch?: boolean;
   gainW: number;
   gainT: number;
   doAngle: boolean;
@@ -212,6 +216,15 @@ export type Dataset = {
    *  la rellena en la línea siguiente. Todo lo que la lee después usa `dev!`. */
   dev?: Deviations | null;
 };
+
+/** Resumen robusto de una muestra: mediana, MAD y el MAD escalado a sigma.
+ *  Mediana y MAD porque un PI mal extraído produce un doblez absurdo y una
+ *  media se lo traga entero. */
+export type Stat = { med: number; mad: number; sigma: number; n: number };
+
+/** Lo que dispersan varias piezas medidas en un mismo doblez. `n` es cuántas
+ *  piezas llegaron a tener ese doblez: una pieza escaneada puede traer menos. */
+export type BendStat = { angle: Stat; rot: Stat; feed: Stat; n: number };
 
 /** Ajuste manual de la compensación, por doblez. Se guarda la DIFERENCIA. */
 export type Tweak = {

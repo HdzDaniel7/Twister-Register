@@ -535,6 +535,80 @@ console.log('\n— importar una pieza medida —');
 }
 
 /* ---------------------------------------------------------------------- */
+console.log('\n— varias piezas medidas —');
+
+{
+  ok('statOf de una muestra impar da la mediana de en medio',
+     E.statOf([5, 1, 3]).med === 3);
+  ok('statOf de una muestra par promedia las dos de en medio',
+     E.statOf([1, 3, 5, 7]).med === 4);
+  ok('statOf de una muestra vacía no revienta',
+     E.statOf([]).n === 0 && E.statOf([]).med === 0);
+  ok('statOf descarta los no finitos',
+     E.statOf([1, NaN, 3, Infinity]).n === 2);
+
+  /* Lo que de verdad importa: un valor absurdo —un PI mal extraído— no debe
+     mover la mediana, y sí movería la media. */
+  const limpio = [10, 10.1, 9.9, 10.05, 9.95];
+  const conBasura = [...limpio, 400];
+  const media = a => a.reduce((x, y) => x + y, 0) / a.length;
+  ok('un valor absurdo mueve la media pero no la mediana',
+     Math.abs(E.statOf(conBasura).med - E.statOf(limpio).med) < .1 &&
+     Math.abs(media(conBasura) - media(limpio)) > 50,
+     `mediana ${E.statOf(conBasura).med.toFixed(2)} vs media ${media(conBasura).toFixed(1)}`);
+
+  ok('sigma es el MAD escalado 1.4826', (() => {
+    const st = E.statOf([1, 2, 3, 4, 5]);   // MAD = 1
+    return Math.abs(st.mad - 1) < 1e-12 && Math.abs(st.sigma - 1.4826) < 1e-9;
+  })());
+  ok('una muestra sin dispersión da sigma cero',
+     E.statOf([7, 7, 7]).sigma === 0);
+
+  /* Tres piezas simuladas con semillas distintas: el lote se parece al
+     nominal más que cualquiera de las piezas sueltas, que es toda la razón de
+     compensar contra la mediana. */
+  const ori = E.orientations(M);
+  const piezas = [3, 11, 29].map(seed =>
+    E.simulate(M.bends, { ...E.PROC_DEFAULT, seed }, ori, true));
+  const st = E.bendStats(piezas);
+  ok('bendStats da una fila por doblez y cuenta las piezas',
+     st.length === M.bends.length && st.every(x => x.n === 3));
+  ok('bendStats reporta dispersión donde el simulador metió ruido',
+     st.some(x => x.angle.sigma > 0));
+
+  const med = E.medianPart(piezas);
+  ok('medianPart devuelve una pieza completa', med.length === M.bends.length);
+  ok('medianPart arrastra radio y torsión, que no se miden',
+     med.every((b, i) => Math.abs(b.radius - piezas[0][i].radius) < 1e-12));
+  ok('cada ángulo de la mediana es la mediana de los tres',
+     med.every((b, i) => Math.abs(b.angle - E.statOf(piezas.map(p => p[i].angle)).med) < 1e-12));
+  ok('la mediana cae entre la menor y la mayor de las piezas',
+     med.every((b, i) => {
+       const v = piezas.map(p => p[i].angle);
+       return b.angle >= Math.min(...v) - 1e-12 && b.angle <= Math.max(...v) + 1e-12;
+     }));
+
+  /* Y la que justifica el cambio: la mediana del lote está más cerca del
+     proceso real (sin ruido) que la pieza suelta más ruidosa. */
+  const sinRuido = E.simulate(M.bends, { ...E.PROC_DEFAULT, seed: 3 }, ori, false);
+  const err = bs => Math.max(...bs.map((b, i) => Math.abs(b.angle - sinRuido[i].angle)));
+  ok('la mediana del lote se acerca al proceso más que la peor pieza suelta',
+     err(med) < Math.max(...piezas.map(err)),
+     `mediana ${err(med).toFixed(4)}° vs peor pieza ${Math.max(...piezas.map(err)).toFixed(4)}°`);
+
+  /* Una pieza escaneada puede traer menos dobleces. */
+  const cortas = [piezas[0], piezas[1].slice(0, 10), piezas[2]];
+  const st2 = E.bendStats(cortas);
+  ok('bendStats llega hasta la pieza más larga y baja n donde falta muestra',
+     st2.length === M.bends.length && st2[0].n === 3 && st2[12].n === 2);
+  ok('medianPart se detiene en la pieza más corta',
+     E.medianPart(cortas).length === 10);
+  ok('medianPart de una sola pieza es esa pieza',
+     E.medianPart([piezas[0]]).every((b, i) => Math.abs(b.angle - piezas[0][i].angle) < 1e-12));
+  ok('medianPart sin piezas devuelve nada', E.medianPart([]).length === 0);
+}
+
+/* ---------------------------------------------------------------------- */
 console.log('\n— colocación en el espacio —');
 
 /* La colocación es SOLO presentación: mueve y gira la escena entera alrededor
@@ -661,7 +735,9 @@ console.log('\n— idiomas —');
                    'isRef', 'vIso', 'cDelta', 'rad', 'name',
                    /* «SIM» es la misma sigla en los tres idiomas, como REF. La
                       medida sí cambia (MED/MEAS/MESS) y sigue vigilada. */
-                   'srcSim', 'srcVerify'];
+                   'srcSim', 'srcVerify',
+                   /* «±σ» es notación, no idioma. Su tooltip sí está traducido. */
+                   'spread'];
   const IGUALES = {
     en: new Set([...COMUNES, 'cmode', 'distPi', 'nearPi', 'stDatum', 'twist']),
     de: new Set(COMUNES),

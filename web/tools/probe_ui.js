@@ -639,7 +639,29 @@ step('el lateral derecho trae las estadísticas y la desviación por doblez', ()
   if (filas !== S().model.bends.length) throw new Error('tabla de desviación con ' + filas);
   if (!side.querySelector('input[data-pr="seed"]')) throw new Error('falta el proceso simulado');
 });
+/* Con dos piezas o mas, la dispersion por doblez es lo que dice si un doblez
+   esta sistematicamente fuera o solo tuvo mala punteria. */
+step('con dos piezas visibles aparece la columna de dispersión', () => {
+  const vis = S().datasets.filter(d => d.visible).length;
+  if (vis < 2) throw new Error('solo hay ' + vis + ' pieza(s) visible(s)');
+  const th = [...q('#side table').querySelectorAll('thead th')].map(x => x.textContent.trim());
+  if (!th.includes('±σ')) throw new Error('sin columna de dispersión: ' + th.join('|'));
+});
+
 step('pestaña Compensación', () => click('#tabs [data-t="comp"]'));
+step('el lazo puede leer la mediana del lote en vez de la última pieza', () => {
+  const antes = [...document.querySelectorAll('#panes table.cmd tbody tr')]
+    .map(tr => tr.cells[3].textContent.trim());
+  check('input[data-c="batch"]', true);
+  if (!S().comp.batch) throw new Error('no se guardó comp.batch');
+  const dsp = [...document.querySelectorAll('#panes table.cmd tbody tr')]
+    .map(tr => tr.cells[3].textContent.trim());
+  if (antes.join() === dsp.join()) throw new Error('el Δ calculado no cambió al usar la mediana');
+  const doc = Eg().toDoc(S().model, S().command, S().comp, S().proc, [], S().variants,
+                         S().ref, S().anchor, {});
+  if (doc.comp.batch !== true) throw new Error('comp.batch no viaja en el JSON');
+  check('input[data-c="batch"]', false);
+});
 step('ajuste manual: «+2» suma al cálculo', () => {
   const antes = parseFloat(q('input[data-tw="0"][data-k="angle"]').value);
   setval('input[data-tw="0"][data-k="angle"]', '+2');

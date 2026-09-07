@@ -6,7 +6,7 @@
 import * as E from '../engine.ts';
 import { T } from '../i18n.ts';
 import type { Model } from '../types.ts';
-import { ST, activeDataset, syncTweak } from '../state.ts';
+import { ST, activeDataset, syncTweak, loopPieces, loopMeasured } from '../state.ts';
 import { fx, cls, nfield, oriTag, sgn } from './fmt.ts';
 import type { I18nKey } from './fmt.ts';
 
@@ -20,7 +20,10 @@ export function paneComp(M: Model): string {
   const cmd = ST.command;
   syncTweak(M.bends.length);
   /* lo que sugiere el lazo, sin tocar */
-  const calc = E.compensate(cmd, M.bends, D.model.bends, C, ori);
+  /* lo que consume el lazo: la pieza activa, o la mediana de las visibles */
+  const piezas = loopPieces();
+  const meas = loopMeasured() || D.model.bends;
+  const calc = E.compensate(cmd, M.bends, meas, C, ori);
   const pred = ST.pred;
   const n = Math.min(M.bends.length, calc.length, cmd.length);
 
@@ -62,7 +65,14 @@ export function paneComp(M: Model): string {
     <div class="row wrap">
       ${[['doAngle', 'cAng'], ['doRot', 'cRot'], ['doFeed', 'cFeed']].map(([k, l]) =>
       `<label class="row" style="gap:4px"><input type="checkbox" data-c="${k}" ${C[k as 'doAngle' | 'doRot' | 'doFeed'] ? 'checked' : ''}>${T(l as I18nKey)}</label>`).join('')}</div>
+    <label class="row" style="gap:4px;margin-top:4px" title="${T('batchTip')}">
+      <input type="checkbox" data-c="batch" ${C.batch ? 'checked' : ''}>
+      ${T('batchUse')} <b>${piezas.length}</b></label>
     <div class="hintline">${T('formula')}</div>
+    ${C.batch && piezas.length > 1
+      ? `<div class="hintline">${T('batchOn').replace('%n', String(piezas.length))}</div>`
+      : (ST.datasets.filter(d => d.visible).length > 1
+         ? `<div class="hintline">${T('batchHint')}</div>` : '')}
     <div class="row mt6"><button class="btn pri grow" data-a="apply">${T('apply')}</button>
       <button class="btn" data-a="resetcmd">${T('reset')}</button></div>
   </div></div>
