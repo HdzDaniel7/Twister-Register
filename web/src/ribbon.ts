@@ -1,4 +1,3 @@
-// @ts-nocheck  — puerto en curso: este archivo aún no está anotado. Se quita al anotarlo.
 /* ------------------------------------------------------ cinta inferior ----
    Desenrolla la longitud desarrollada y pone una columna por doblez,
    coloreada por desviación, con la línea de tolerancia punteada. Deja ver de
@@ -14,24 +13,33 @@ import { ST, activeDataset, refModel } from './state.ts';
 import { T } from './i18n.ts';
 import { devCssColor, cssVar } from './scene.ts';
 
-const $ = s => document.querySelector(s);
-const fx = (v, n = 2) => (v === null || v === undefined || !isFinite(v)) ? '—' : v.toFixed(n);
-let onSelect = () => {};
-export const setOnRibbonSelect = fn => { onSelect = fn; };
+/* El lienzo se guarda a sí mismo dónde quedó cada columna, para que el clic
+   pueda encontrar la más cercana sin recalcular la cinta entera. */
+type RibbonCanvas = HTMLCanvasElement & {
+  _pos?: number[];
+  _X?: (s: number) => number;
+};
 
-export function drawRibbon() {
-  const cv = $('#rbc');
+const $ = <T extends Element = HTMLElement>(s: string): T | null => document.querySelector<T>(s);
+const fx = (v: number | null | undefined, n = 2): string =>
+  (v === null || v === undefined || !isFinite(v)) ? '—' : v.toFixed(n);
+let onSelect: (i: number) => void = () => {};
+export const setOnRibbonSelect = (fn: (i: number) => void): void => { onSelect = fn; };
+
+export function drawRibbon(): void {
+  const cv = $<RibbonCanvas>('#rbc');
   if (!cv || !ST.model) return;
   const dpr = Math.min(devicePixelRatio, 2), w = cv.clientWidth, h = cv.clientHeight;
   cv.width = w * dpr; cv.height = h * dpr;
-  const g = cv.getContext('2d');
+  /* el lienzo es #rbc de index.html: un 2d context siempre existe */
+  const g = cv.getContext('2d')!;
   g.setTransform(dpr, 0, 0, dpr, 0, 0);
   g.clearRect(0, 0, w, h);
 
   const M = ST.model, D = activeDataset();
   const L = E.buildPath(M).total;
   const pad = 60, top = 26, bot = h - 18, mid = bot;
-  const X = s => pad + (s / (L || 1)) * (w - pad - 14);
+  const X = (s: number): number => pad + (s / (L || 1)) * (w - pad - 14);
   const tol = M.tol.angle || 1, maxR = 2.5;
 
   /* eje */
@@ -56,8 +64,9 @@ export function drawRibbon() {
 
   for (let i = 0; i < pos.length; i++) {
     const x = X(pos[i]);
-    let d = null;
-    if (D && i < D.dev.theta.length) d = Math.abs(D.dev.theta[i]);
+    let d: number | null = null;
+    /* computeDev() rellena `dev` al dar de alta la pieza medida. */
+    if (D && i < D.dev!.theta.length) d = Math.abs(D.dev!.theta[i]);
     else if (refB && i < refB.length) d = Math.abs(E.bendTheta(M.bends[i]) - E.bendTheta(refB[i]));
     if (d === null || !isFinite(d)) {
       g.fillStyle = cssVar('--panel3', '#1D2430'); g.fillRect(x - bw / 2, mid - 8, bw, 8);
@@ -81,14 +90,14 @@ export function drawRibbon() {
   if (title) title.textContent = refB ? T('vsRef') : T('ribbon');
 }
 
-export function bindRibbon() {
-  const cv = $('#rbc');
+export function bindRibbon(): void {
+  const cv = $<RibbonCanvas>('#rbc');
   if (!cv) return;
-  cv.addEventListener('click', ev => {
+  cv.addEventListener('click', (ev: MouseEvent) => {
     if (!cv._pos || !cv._pos.length) return;
     let best = -1, bd = Infinity;
-    cv._pos.forEach((p, i) => {
-      const dd = Math.abs(cv._X(p) - ev.offsetX);
+    cv._pos.forEach((p: number, i: number) => {
+      const dd = Math.abs(cv._X!(p) - ev.offsetX);
       if (dd < bd) { bd = dd; best = i; }
     });
     if (bd < 24) onSelect(best);

@@ -1,4 +1,3 @@
-// @ts-nocheck  — puerto en curso: este archivo aún no está anotado. Se quita al anotarlo.
 /* -------------------------------------------------------------- escena 3D --
    Three.js. Render BAJO DEMANDA: el bucle solo dibuja cuando `dirty` es true.
    Si cambias algo visual y no se ve, probablemente falta un markDirty().
@@ -14,12 +13,34 @@ import {
   MeshBasicMaterial, Box3,
   Color, Vector2, Vector3, Matrix4, Raycaster, SRGBColorSpace,
 } from 'three';
+import type { Material, Object3D } from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import * as E from './engine.ts';
 import { ST, refModel, placeMatrix } from './state.ts';
 import { T } from './i18n.ts';
+import type { Model, PathSample, Section, Variant } from './types.ts';
 
-export let renderer, scene, camera, controls;
+/* ---------------------------------------------------------- tipos locales --
+   Nada de esto vive en types.ts: son formas internas de este archivo. Ver
+   informe de la tarea para cuáles convendría compartir.                    */
+/** Lo que devuelve E.buildPath(): muestreo del eje neutro + longitud total. */
+type Path = ReturnType<typeof E.buildPath>;
+/** Colorea una muestra del barrido; null = color plano por defecto. */
+type DevFn = (q: PathSample, i: number) => number[];
+/** Una variante ya anclada y con su trayectoria calculada, lista de dibujar. */
+type ShownEntry = { v: Variant; m: Model; A: Matrix4; path: Path; pis: Vector3[] };
+/** Etiqueta HTML flotante anclada a un punto 3D (cifras de desviación). */
+type ExtraLabel = { p: Vector3; txt: string; color: string };
+/** Callback de picking: índice de PI clicado (o -1). */
+type PickHandler = (pi: number) => void;
+/** Vista mínima de un Mesh/LineSegments para poder liberar su GPU al vaciar un grupo. */
+type Disposable = { geometry?: BufferGeometry; material?: Material };
+/** Las cuatro vistas fijas de la barra de arriba y del reporte. */
+export type ViewName = 'iso' | 'top' | 'front' | 'side';
+/** Un brazo ya proyectado del gizmo de ejes, listo para pintarse en SVG. */
+type GizmoArm = { k: 'x' | 'y' | 'z'; tok: string; x: number; y: number; z: number };
+
+export let renderer: WebGLRenderer, scene: Scene, camera: PerspectiveCamera, controls: OrbitControls;
 /* Hay DOS grupos en la escena y la diferencia importa:
 
      world   el taller. La cuadrícula del suelo y los pedestales. Matriz
@@ -34,33 +55,35 @@ export let renderer, scene, camera, controls;
 /* Todo lo dibujado cuelga de `root`, cuya matriz es la COLOCACIÓN. Así girar o
    mover la pieza en el espacio no toca ni un dato del modelo: es una sola
    matriz sobre la escena entera, y la comparación entre modelos no cambia. */
-let root, world;
-const groups = {};
-let labelHost, gizmoHost, dirty = true, extraLabels = [];
-let onPick = () => {};
-export const setOnPick = fn => { onPick = fn; };
-export const markDirty = () => { dirty = true; };
+let root: Group, world: Group;
+const groups: Record<string, Group> = {};
+let labelHost: HTMLElement | null, gizmoHost: HTMLElement | null, dirty = true, extraLabels: ExtraLabel[] = [];
+let onPick: PickHandler = () => {};
+export const setOnPick = (fn: PickHandler): void => { onPick = fn; };
+export const markDirty = (): void => { dirty = true; };
 
-const $ = s => document.querySelector(s);
-const V3 = (x, y, z) => new Vector3(x, y, z);
+const $ = <T extends Element = HTMLElement>(s: string): T | null => document.querySelector<T>(s);
+const V3 = (x?: number, y?: number, z?: number): Vector3 => new Vector3(x, y, z);
 /** Lee un token de color de :root. Ni el 3D ni la cinta llevan colores
  *  propios: los toman del CSS en tiempo de ejecución, así que el tema claro se
  *  define UNA vez, en app.css, y aquí no hay una segunda paleta que mantener. */
-export const cssVar = (n, fb = '#000') =>
+export const cssVar = (n: string, fb = '#000'): string =>
   (getComputedStyle(document.documentElement).getPropertyValue(n) || '').trim() || fb;
 
 /* devColor() habla en sRGB; three trabaja en linear-sRGB desde r152, así que
    hay que declarar el espacio o la escala verde->ámbar->rojo sale apagada. */
-export const devThreeColor = (d, tol) =>
-  new Color().setRGB(...E.devColor(d, tol), SRGBColorSpace);
-export const devCssColor = (d, tol) => '#' + devThreeColor(d, tol).getHexString();
+/* devColor() devuelve number[] genérico aunque siempre entrega exactamente
+   tres componentes RGB; de ahí la tupla. */
+export const devThreeColor = (d: number, tol: number): Color =>
+  new Color().setRGB(...E.devColor(d, tol) as [number, number, number], SRGBColorSpace);
+export const devCssColor = (d: number, tol: number): string => '#' + devThreeColor(d, tol).getHexString();
 
 /* --------- geometría barrida de sección rectangular con chaflanes ------ */
-export function barGeometry(path, sec, devFn) {
+export function barGeometry(path: Path, sec: Section, devFn: DevFn | null): BufferGeometry {
   const S = path.samples, L = path.total, N = S.length;
-  const pos = [], col = [], idx = [];
+  const pos: number[] = [], col: number[] = [], idx: number[] = [];
   const hw = sec.width / 2, ht = sec.thickness / 2, ch = sec.chamfer || 0, el = sec.endLen || 0;
-  const shrink = s => {                    // extremo maquinado + rampa del chaflán
+  const shrink = (s: number): number => {                    // extremo maquinado + rampa del chaflán
     if (el <= 0 || ch <= 0) return 0;
     const d = Math.min(s, L - s);
     if (d >= el) return 0;
@@ -98,13 +121,13 @@ export function barGeometry(path, sec, devFn) {
 /** ¿De cuál de los dos grupos cuelga una capa? El taller (`world`) no lo mueve
  *  la colocación; la pieza (`root`) sí. Existe para que el banco de pruebas
  *  pueda vigilar que la cuadrícula no se vaya a `root` en un descuido. */
-export const groupHost = k =>
+export const groupHost = (k: string): 'world' | 'root' =>
   (groups[k] && groups[k].parent === world) ? 'world' : 'root';
 
 /** Vuelve a leer del CSS lo que no cuelga de un material: fondo y niebla. La
  *  rejilla y los pedestales se recogen solos en el siguiente rebuildScene(),
  *  que es lo que hace el cambio de tema. */
-export function applyTheme() {
+export function applyTheme(): void {
   if (!renderer) return;
   const bg = cssVar('--vpbg', '#080A0E');
   renderer.setClearColor(bg, 1);
@@ -113,8 +136,9 @@ export function applyTheme() {
 }
 
 /* ------------------------------------------------------------- arranque -- */
-export function initScene() {
-  const cv = $('#vp');
+export function initScene(): void {
+  /* #vp es el canvas fijo de index.html; initScene() se llama tras el DOM listo. */
+  const cv = $<HTMLCanvasElement>('#vp')!;
   /* preserveDrawingBuffer hace falta para que el reporte capture toDataURL(). */
   renderer = new WebGLRenderer({ canvas: cv, antialias: true, preserveDrawingBuffer: true });
   renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
@@ -158,10 +182,11 @@ export function initScene() {
   })();
 }
 
-let onResizeExtra = () => {};
-export const setOnResize = fn => { onResizeExtra = fn; };
-export function onResize() {
-  const w = $('#vpwrap').clientWidth, h = $('#vpwrap').clientHeight;
+let onResizeExtra: () => void = () => {};
+export const setOnResize = (fn: () => void): void => { onResizeExtra = fn; };
+export function onResize(): void {
+  /* #vpwrap es el contenedor fijo del viewport; existe siempre que hay canvas. */
+  const w = $('#vpwrap')!.clientWidth, h = $('#vpwrap')!.clientHeight;
   renderer.setSize(w, h, false);
   camera.aspect = w / h;
   camera.updateProjectionMatrix();
@@ -169,19 +194,20 @@ export function onResize() {
   onResizeExtra();
 }
 
-function clearGroup(g) {
+function clearGroup(g: Group): void {
   while (g.children.length) {
-    const c = g.children.pop();
+    /* el bucle exige children.length > 0: pop() siempre da un elemento aquí. */
+    const c: Object3D & Partial<Disposable> = g.children.pop()!;
     c.geometry && c.geometry.dispose();
     c.material && c.material.dispose();
     g.remove(c);
   }
 }
 
-const solidMat = () => new MeshStandardMaterial({
+const solidMat = (): MeshStandardMaterial => new MeshStandardMaterial({
   vertexColors: true, roughness: .55, metalness: .3,
 });
-function ghost(g, color, opacity = .75) {
+function ghost(g: BufferGeometry, color: string, opacity = .75): LineSegments {
   const e = new EdgesGeometry(g, 28);
   return new LineSegments(e, new LineBasicMaterial({
     color, transparent: true, opacity, depthWrite: false,
@@ -189,7 +215,7 @@ function ghost(g, color, opacity = .75) {
 }
 
 /* --------------------------------------------------------- reconstrucción */
-export function rebuildScene() {
+export function rebuildScene(): void {
   const M = ST.model;
   if (!M) return;
   const L = ST.layers;
@@ -202,7 +228,7 @@ export function rebuildScene() {
   const hasMeas = ST.datasets.some(d => d.visible);
 
   /* --- todas las variantes visibles, ancladas al extremo elegido -------- */
-  const shown = [];
+  const shown: ShownEntry[] = [];
   for (const v of ST.variants) {
     if (!v.visible) continue;
     const vm = E.effectiveModel(v);
@@ -297,9 +323,11 @@ export function rebuildScene() {
      cuánto se movió. La escala es relativa al MAYOR desplazamiento del cuadro,
      no a la tolerancia: aquí se comparan diseños, no piezas contra tolerancia. */
   if (L.diff.on && shown.length > 1) {
-    const rp = (shown.find(e => e.v.id === ST.ref) || {}).pis
+    /* shown.find() puede no hallar coincidencia; el objeto de respaldo se
+       afirma con `pis` opcional para tipar el `.pis` sin tocar su valor. */
+    const rp = (shown.find(e => e.v.id === ST.ref) || {} as { pis?: Vector3[] }).pis
       || E.anchoredPis(ref, ref, anchor);
-    const segs = [], mags = [];
+    const segs: [Vector3, Vector3][] = [], mags: number[] = [];
     for (const e of shown) {
       if (e.v.id === ST.ref) continue;
       let a = e.pis, b = rp;
@@ -314,8 +342,8 @@ export function rebuildScene() {
     }
     if (segs.length) {
       const scale = Math.max(...mags) / 2 || 1;
-      const pos = [], col = [];
-      segs.forEach(([p, q], i) => {
+      const pos: number[] = [], col: number[] = [];
+      segs.forEach(([p, q]: [Vector3, Vector3], i: number) => {
         const c = devThreeColor(mags[i], scale);
         pos.push(p.x, p.y, p.z, q.x, q.y, q.z);
         col.push(c.r, c.g, c.b, c.r, c.g, c.b);
@@ -327,10 +355,12 @@ export function rebuildScene() {
     }
     /* rombo + cifra en el extremo que SÍ se mueve (el opuesto al anclado) */
     const k = anchor === 'end' ? 0 : -1;
-    const rq = rp.at(k);
+    /* `fk()` devuelve siempre n+2 puntos —amarre, los PI y el extremo libre—,
+       así que el primero y el último existen y `at()` nunca da undefined. */
+    const rq = rp.at(k)!;
     const dia = new OctahedronGeometry(11);
     for (const e of shown) {
-      const q = e.pis.at(k);
+      const q = e.pis.at(k)!;
       const m = new Mesh(dia.clone(), new MeshBasicMaterial({ color: e.v.color }));
       m.position.copy(q);
       groups.diff.add(m);
@@ -448,7 +478,7 @@ function modelBox() {
     E.applyMat(E.anchorTransform(vm, ref, ST.anchor), E.fk(vm).pis)
       .forEach(p => { box.expandByPoint(p.applyMatrix4(W)); any = true; });
   }
-  if (!any) E.fk(ST.model).pis.forEach(p => box.expandByPoint(p.clone().applyMatrix4(W)));
+  if (!any) E.fk(ST.model!).pis.forEach(p => box.expandByPoint(p.clone().applyMatrix4(W)));
   for (const mk of ST.marks) {
     if (mk.visible) box.expandByPoint(new Vector3(mk.x, mk.y, mk.z).applyMatrix4(W));
   }
@@ -463,11 +493,12 @@ export function fitView() {
   camera.position.copy(c).addScaledVector(dir, r * 2.6);
   controls.update(); dirty = true;
 }
-export function setView(v) {
+export function setView(v: ViewName) {
   if (!ST.model) return;
   const box = modelBox();
   const c = box.getCenter(V3()), r = box.getSize(V3()).length() / 2 || 500, d = r * 2.6;
-  const dirs = { iso: [.75, -.85, .55], top: [0, -.001, 1], front: [0, -1, 0], side: [1, 0, 0] };
+  const dirs: Record<ViewName, [number, number, number]> =
+    { iso: [.75, -.85, .55], top: [0, -.001, 1], front: [0, -1, 0], side: [1, 0, 0] };
   const u = new Vector3(...dirs[v]).normalize();
   controls.target.copy(c);
   camera.position.copy(c).addScaledVector(u, d);
@@ -476,7 +507,7 @@ export function setView(v) {
 
 /* --------------------------------------------------------------- picking */
 const ray = new Raycaster(), mouse = new Vector2();
-function pick(ev) {
+function pick(ev: PointerEvent | MouseEvent) {
   const r = renderer.domElement.getBoundingClientRect();
   mouse.x = ((ev.clientX - r.left) / r.width) * 2 - 1;
   mouse.y = -((ev.clientY - r.top) / r.height) * 2 + 1;
@@ -494,7 +525,7 @@ function pick(ev) {
    ya significa fuera de tolerancia. Se reusan los de las insignias W/T, así que
    el eje del espesor se lee del mismo color que un doblez de plano y el del
    ancho del mismo color que uno de canto. */
-const GIZMO_AXES = [
+const GIZMO_AXES: [GizmoArm['k'], Vector3, string][] = [
   ['x', new Vector3(1, 0, 0), '--txt'],
   ['y', new Vector3(0, 1, 0), '--oriT'],
   ['z', new Vector3(0, 0, 1), '--oriW'],
@@ -510,7 +541,7 @@ export function drawGizmo() {
     const d = v.clone().applyMatrix4(M);      // en vista: +x derecha, +y arriba
     return { k, tok, x: c + d.x * len, y: c - d.y * len, z: d.z };
   }).sort((a, b) => a.z - b.z);               // pintor: primero lo que queda atrás
-  const arm = a => {
+  const arm = (a: GizmoArm) => {
     const col = cssVar(a.tok, '#8892A0');
     const op = a.z < -.15 ? '.4' : '1';       // apagado el que apunta hacia dentro
     const x = a.x.toFixed(1), y = a.y.toFixed(1);
@@ -527,10 +558,10 @@ export function drawGizmo() {
 /* -------------------------------------------------------------- etiquetas */
 export function drawLabels() {
   if (!ST.model || !labelHost) return;
-  const out = [];
+  const out: string[] = [];
   const w = labelHost.clientWidth, h = labelHost.clientHeight;
   const W = placeMatrix();
-  const put = (p, html) => {
+  const put = (p: Vector3, html: string) => {
     const v = p.clone().applyMatrix4(W).project(camera);
     if (v.z > 1) return;
     const x = (v.x * .5 + .5) * w, y = (-v.y * .5 + .5) * h;
@@ -554,7 +585,7 @@ export function drawLabels() {
 export function captureViews() {
   const keep = { pos: camera.position.clone(), tgt: controls.target.clone() };
   const shots = [];
-  for (const v of ['iso', 'top', 'front', 'side']) {
+  for (const v of ['iso', 'top', 'front', 'side'] as ViewName[]) {
     setView(v);
     renderer.render(scene, camera);
     shots.push([v, renderer.domElement.toDataURL('image/png')]);
