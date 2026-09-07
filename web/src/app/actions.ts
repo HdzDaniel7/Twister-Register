@@ -21,6 +21,7 @@ import { makeReport } from '../report.ts';
 import { download, pickFile, pickFiles, safeName } from '../io.ts';
 import { renderAll, refresh, refreshTable, toggleSolo } from './render.ts';
 import { useTheme } from './theme.ts';
+import { angOut, angIn } from '../panels/fmt.ts';
 import { undo, redo, commit } from './history.ts';
 
 const clamp = E.clamp;
@@ -127,13 +128,18 @@ export function editTweak(i: number, key: 'angle' | 'rot' | 'feed', text: string
      guardaría contra un cálculo distinto del que se ve */
   const calc = E.compensate(ST.command, M.bends, loopMeasured() || D.model.bends,
                             ST.comp, E.orientations(M));
-  const dCalc = calc[i][key] - ST.command[i][key];
+  /* La celda del ángulo se ve con el signo contrario al del modelo, así que la
+     cuenta se hace ENTERA en la convención de pantalla —`c` y `v` incluidos, o
+     un `c*1.1` significaría cosas distintas según la columna— y el resultado se
+     devuelve al modelo al guardarlo. */
+  const vista = (x: number): number => (key === 'angle' ? angOut(x) : x);
+  const dCalc = vista(calc[i][key] - ST.command[i][key]);
   /* lo que la celda ENSEÑA es el cálculo del lazo más el ajuste ya escrito;
      eso es `v`, y es sobre lo que opera un `+` o un `-` al principio */
-  const mostrado = dCalc + (ST.tweak[i][key] || 0);
+  const mostrado = dCalc + vista(ST.tweak[i][key] || 0);
   const v = E.evalCell(text, dCalc, mostrado);
   if (v === null) { renderRight(); return; }     // texto inválido: se descarta
-  ST.tweak[i][key] = v - dCalc;
+  ST.tweak[i][key] = key === 'angle' ? angIn(v - dCalc) : v - dCalc;
   renderRight(); renderSide(); renderStatus();
 }
 

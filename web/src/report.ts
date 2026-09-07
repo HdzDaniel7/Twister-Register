@@ -7,6 +7,7 @@ import { T } from './i18n.ts';
 import { ST, activeDataset, REF } from './state.ts';
 import { captureViews, devCssColor } from './scene.ts';
 import { fx, esc } from './panels.ts';
+import { angOut } from './panels/fmt.ts';
 
 /* Solo se llega aquí desde el botón de reporte, con un modelo ya cargado: por
    eso `ST.model` y el lienzo de la cinta se dan por existentes. */
@@ -23,7 +24,7 @@ export function makeReport(): void {
       <td>${fx(E.bendTheta(b), 3)}</td>
       <td>${has ? fx(E.bendTheta(D!.model.bends[i]), 3) : '—'}</td>
       <td style="color:${col}">${has ? (dv!.theta[i] > 0 ? '+' : '') + fx(dv!.theta[i], 3) : '—'}</td>
-      <td>${ST.command[i] ? fx(ST.command[i].angle, 3) : '—'}</td>
+      <td>${ST.command[i] ? fx(angOut(ST.command[i].angle), 3) : '—'}</td>
       <td>${has ? fx(dv!.point[i + 1], 2) : '—'}</td></tr>`;
   }).join('');
 

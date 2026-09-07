@@ -7,7 +7,7 @@ import * as E from '../engine.ts';
 import { T } from '../i18n.ts';
 import type { DeltaKey, Model } from '../types.ts';
 import { ST, V } from '../state.ts';
-import { fx, esc, nfield, oriTag } from './fmt.ts';
+import { fx, esc, nfield, oriTag, angOut } from './fmt.ts';
 
 /* --- pestaña MODELO ----------------------------------------------------- */
 export function paneModel(M: Model): string {
@@ -29,7 +29,9 @@ export function paneModel(M: Model): string {
   /* un Δ en cero se apaga: la columna solo debe cantar cuando hay corrección */
   const dnum = (i: number, k: DeltaKey, step: string): string => {
     const d = v.deltas[i][k];
-    return nfield(step, `class="${d ? '' : 'z'}" data-bd="${i}" data-k="${k}"`, d);
+    /* el Δ del ángulo se enseña con el mismo signo que su columna */
+    return nfield(step, `class="${d ? '' : 'z'}" data-bd="${i}" data-k="${k}"`,
+                  k === 'angle' ? angOut(d) : d);
   };
 
   const rows = M.bends.map((b, i) => {
@@ -45,7 +47,7 @@ export function paneModel(M: Model): string {
       <td>${nfield('.1', `data-b="${i}" data-k="rot"
         title="${T('rotAxisTip').replace('%e', fx(ejes[i], 1))}"`, bb.rot)}</td>
       <td class="dcol">${dnum(i, 'rot', '.1')}</td>
-      <td>${num('b', i, 'angle', bb.angle, '.1')}</td>
+      <td>${num('b', i, 'angle', angOut(bb.angle), '.1')}</td>
       <td class="dcol">${dnum(i, 'angle', '.1')}</td>
       <td>${num('b', i, 'radius', bb.radius, '.5')}</td>
       <td>${num('b', i, 'twist', bb.twist, '.1')}</td>

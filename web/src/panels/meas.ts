@@ -6,7 +6,7 @@ import * as E from '../engine.ts';
 import { T } from '../i18n.ts';
 import type { Model, Proc } from '../types.ts';
 import { ST, activeDataset, measuredSpringback, simCount } from '../state.ts';
-import { fx, esc, cls, oriTag, sgn, srcTag } from './fmt.ts';
+import { fx, esc, cls, oriTag, sgn, srcTag, angOut } from './fmt.ts';
 
 /* --- pestaña MEDICIÓN --------------------------------------------------- */
 export function paneMeas(M: Model): string {
@@ -73,7 +73,7 @@ export function paneMeas(M: Model): string {
       <th>${T('dR')}</th><th>${T('dF')}</th><th>${T('dP')}</th></tr></thead><tbody>
       ${M.bends.slice(0, D.dev!.angle.length).map((b, i) => `<tr class="clk ${i === ST.sel ? 'sel' : ''}" data-r="${i}"><td>B${i + 1}</td>
         <td>${oriTag(ori[i])}</td>
-        <td class="${cls(D.dev!.angle[i], M.tol.angle)}">${sgn(D.dev!.angle[i], 3)}</td>
+        <td class="${cls(D.dev!.angle[i], M.tol.angle)}">${sgn(angOut(D.dev!.angle[i]), 3)}</td>
         ${lote ? `<td class="v-dim">${st[i] ? '±' + fx(st[i].angle.sigma, 3) : '—'}</td>` : ''}
         <td class="${cls(D.dev!.rot[i], M.tol.rot)}">${sgn(D.dev!.rot[i], 3)}</td>
         <td class="${cls(D.dev!.feed[i], M.tol.feed)}">${sgn(D.dev!.feed[i], 2)}</td>

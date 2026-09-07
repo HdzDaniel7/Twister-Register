@@ -32,6 +32,12 @@ function hotkey(k, opts) {
   document.body.dispatchEvent(new KeyboardEvent('keydown',
     Object.assign({ key: k, bubbles: true, cancelable: true }, opts || {})));
 }
+/* El ángulo se ENSEÑA con el signo contrario al que guarda el modelo (ver
+   angOut/angIn en panels/fmt.ts). Estos pasos comprueban lo que ve el usuario,
+   así que leen el modelo ya girado. */
+const ANG_SIGN = -1;
+const angVisto = i => ANG_SIGN * S().model.bends[i].angle;
+
 function drawer(k) {
   if (window.BARCOMP.ST.drawer !== k) q(`[data-dr="${k}"]`).click();
 }
@@ -143,6 +149,24 @@ step('el rodado NO rueda la seccion: no hace de twist', () => {
 });
 /* El proceso es SECUENCIAL: `rot` dice cuánto gira el eje de doblado y el eje
    se queda ahí hasta que otra fila lo mueva. Un 0 es «no lo toques». */
+/* El ángulo se ENSEÑA con el signo contrario al que guarda el modelo. La
+   vuelta vive en un solo sitio (angOut/angIn), y esto vigila que no se cuele
+   una celda de ángulo sin pasar por ahí. */
+step('el ángulo se ve con el signo contrario al del modelo', () => {
+  click('[data-md="model"]');
+  click('#tabs [data-t="model"]');
+  const cel = q('#panes input[data-b="0"][data-k="angle"]');
+  const visto = parseFloat(cel.value);
+  const guardado = S().model.bends[0].angle;
+  if (Math.abs(visto + guardado) > 1e-6) {
+    throw new Error(`se ve ${visto} y se guarda ${guardado}: no son opuestos`);
+  }
+  setval('#panes input[data-b="0"][data-k="angle"]', '-25.5');
+  if (Math.abs(S().model.bends[0].angle - 25.5) > 1e-6) {
+    throw new Error('tecleado -25.5 y el modelo guardó ' + S().model.bends[0].angle);
+  }
+  setval('#panes input[data-b="0"][data-k="angle"]', String(visto));
+});
 step('el eje de doblado se sostiene entre estaciones', () => {
   const mk = (...rots) => Eg().normalizeModel({ ...Eg().emptyModel(), tail: 200,
     bends: rots.map(rt => Eg().newBend({ feed: 200, rot: rt, angle: 30, radius: 30 })) });
@@ -222,7 +246,7 @@ step('el tercer decimal se teclea y sobrevive al repintado', () => {
   const el = q('input[data-b="1"][data-k="angle"]');
   typeIn(el, '17.905');
   el.blur();
-  near(S().model.bends[1].angle, 17.905, 1e-9, 'guardado');
+  near(angVisto(1), 17.905, 1e-9, 'guardado');
   window.BARCOMP.renderAll();
   near(+q('input[data-b="1"][data-k="angle"]').value, 17.905, 1e-9, 'repintado');
   if (q('input[data-b="1"][data-k="angle"]').value !== '17.905') {
@@ -264,7 +288,7 @@ step('Ctrl+flecha respeta el tercer decimal', () => {
   const el = q('input[data-b="1"][data-k="angle"]');   // vale 17.905
   el.focus();
   key(el, 'ArrowUp', { ctrlKey: true });
-  near(S().model.bends[1].angle, 18.005, 1e-9, 'paso sobre tres decimales');
+  near(angVisto(1), 18.005, 1e-9, 'paso sobre tres decimales');
 });
 
 step('el pie da la cola y la longitud desarrollada', () => {
@@ -382,9 +406,9 @@ step('la navegacion no se sale de la tabla', () => {
 step('Ctrl+flecha sube el valor un paso', () => {
   const a = q('input[data-b="1"][data-k="angle"]');
   a.focus();
-  const antes = S().model.bends[1].angle;
+  const antes = angVisto(1);
   key(a, 'ArrowUp', { ctrlKey: true });
-  near(S().model.bends[1].angle, antes + 0.1, 1e-6, 'paso de angulo');
+  near(angVisto(1), antes + 0.1, 1e-6, 'paso de angulo');
 });
 
 step('Escape devuelve el valor de partida', () => {
@@ -399,9 +423,9 @@ step('Escape devuelve el valor de partida', () => {
 step('la rueda sigue subiendo el valor', () => {
   const a = q('input[data-b="1"][data-k="angle"]');
   a.focus();
-  const antes = S().model.bends[1].angle;
+  const antes = angVisto(1);
   a.dispatchEvent(new WheelEvent('wheel', { deltaY: -1, bubbles: true, cancelable: true }));
-  near(S().model.bends[1].angle, antes + 0.1, 1e-6, 'paso con rueda');
+  near(angVisto(1), antes + 0.1, 1e-6, 'paso con rueda');
 });
 
 step('el Delta de la Recta sigue funcionando', () => {
@@ -699,17 +723,17 @@ function alaPunta() {
 step('deshacer devuelve el valor anterior de una celda', () => {
   click('[data-md="model"]');
   click('#tabs [data-t="model"]');
-  const antes = S().model.bends[2].angle;
+  const antes = angVisto(2);
   setval('input[data-b="2"][data-k="angle"]', String(antes + 7));
-  if (Math.abs(S().model.bends[2].angle - (antes + 7)) > 1e-6) throw new Error('no se editó');
+  if (Math.abs(angVisto(2) - (antes + 7)) > 1e-6) throw new Error('no se editó');
   hotkey('z', { ctrlKey: true });
-  if (Math.abs(S().model.bends[2].angle - antes) > 1e-9) {
-    throw new Error(`no volvió: ${S().model.bends[2].angle} vs ${antes}`);
+  if (Math.abs(angVisto(2) - antes) > 1e-9) {
+    throw new Error(`no volvió: ${angVisto(2)} vs ${antes}`);
   }
   hotkey('y', { ctrlKey: true });
-  if (Math.abs(S().model.bends[2].angle - (antes + 7)) > 1e-6) throw new Error('rehacer no repuso');
+  if (Math.abs(angVisto(2) - (antes + 7)) > 1e-6) throw new Error('rehacer no repuso');
   hotkey('z', { ctrlKey: true });
-  if (Math.abs(S().model.bends[2].angle - antes) > 1e-9) throw new Error('el segundo deshacer falló');
+  if (Math.abs(angVisto(2) - antes) > 1e-9) throw new Error('el segundo deshacer falló');
 });
 step('deshacer no toca el modo, el cajón ni las capas', () => {
   click('[data-md="model"]');
@@ -932,6 +956,15 @@ step('el lazo puede leer la mediana del lote en vez de la última pieza', () => 
                          S().ref, S().anchor, {});
   if (doc.comp.batch !== true) throw new Error('comp.batch no viaja en el JSON');
   check('input[data-c="batch"]', false);
+});
+/* La tabla de comandos tiene que hablar el MISMO idioma que la de dobleces: si
+   una enseña -17.9 y la otra +17.9, el ajuste manual se escribe al revés. */
+step('la tabla de comandos usa el mismo signo que la de dobleces', () => {
+  const fila = q('#panes table.cmd tbody tr');
+  const ahora = parseFloat(fila.cells[2].textContent);
+  if (Math.abs(ahora + S().command[0].angle) > 1e-3) {
+    throw new Error(`la tabla dice ${ahora} y el modelo ${S().command[0].angle}`);
+  }
 });
 step('ajuste manual: «+2» suma sobre lo mostrado', () => {
   const antes = parseFloat(q('input[data-tw="0"][data-k="angle"]').value);

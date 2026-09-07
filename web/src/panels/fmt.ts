@@ -62,6 +62,23 @@ export const cls = (v: number, t: number): string => Math.abs(v) <= t ? 'v-ok' :
  *  lleva la explicación larga, que ya estaba traducida en los tres idiomas. */
 export const oriTag = (o: Orientation): string => `<span class="ori ${o}" title="${T(('or' + o) as I18nKey)}">${o}</span>`;
 export const sgn = (v: number, n: number): string => (v > 0 ? '+' : '') + fx(v, n);
+
+/** SIGNO DEL ÁNGULO EN PANTALLA.
+ *
+ *  El modelo guarda el ángulo con la convención del motor —la que comparte con
+ *  `core.py` y con el JSON— y la interfaz lo enseña con el signo contrario,
+ *  que es como se lee en la máquina. La conversión vive AQUÍ y solo aquí: si
+ *  un sitio enseña un ángulo sin pasar por `angOut()`, o lee uno sin
+ *  `angIn()`, se nota enseguida porque sale con el signo cambiado.
+ *
+ *  Es una vuelta en la frontera de la interfaz, no un cambio de modelo: el
+ *  archivo guardado, el motor de Python y la comparación entre motores siguen
+ *  hablando la misma convención de siempre. */
+export const ANG_SIGN = -1;
+/** modelo -> pantalla */
+export const angOut = (v: number): number => ANG_SIGN * (v || 0);
+/** pantalla -> modelo */
+export const angIn = (v: number): number => ANG_SIGN * (v || 0);
 /** Insignia de PROCEDENCIA de una pieza. `src` viaja en el JSON desde siempre
  *  ('sim' cuando la inventó el simulador, 'verify' cuando es la verificación
  *  posterior a compensar) pero no se enseñaba en ninguna parte, así que una

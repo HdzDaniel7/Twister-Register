@@ -342,6 +342,13 @@ El **avance** de PI a PI ya no está en la tabla. Es la geometría del CAD —do
 se cruzarían las rectas si el doblez fuera una esquina viva— y el doblez le come
 un `trim` por cada lado; de ahí que no coincida con la recta.
 
+**El signo del ángulo:** la interfaz enseña y acepta el ángulo con el signo
+CONTRARIO al que guarda el archivo. Es una vuelta en la frontera de la pantalla
+—vive en `angOut()`/`angIn()`, en `panels/fmt.ts`— y alcanza a la tabla de
+dobleces, su Δ, la tabla de comandos y la desviación por doblez. El JSON, el
+motor y el gemelo de Python no cambian: un archivo guardado sigue diciendo
+`angle: 17.9` donde la pantalla muestra `−17.90`.
+
 **La regla de edición:** las rectas mandan. Cambiar un radio, un rodado o un
 ángulo deja **todas las rectas donde estaban** y recoloca los avances
 por debajo. Como el `trim` de un doblez muerde por los dos lados, tocar el radio

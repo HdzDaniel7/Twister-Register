@@ -7,7 +7,7 @@ import * as E from '../engine.ts';
 import { T } from '../i18n.ts';
 import type { Model } from '../types.ts';
 import { ST, activeDataset, syncTweak, loopPieces, loopMeasured } from '../state.ts';
-import { fx, cls, nfield, oriTag, sgn } from './fmt.ts';
+import { fx, cls, nfield, oriTag, sgn, angOut } from './fmt.ts';
 import type { I18nKey } from './fmt.ts';
 
 /* --- pestaña COMPENSACIÓN ----------------------------------------------- */
@@ -43,10 +43,14 @@ export function paneComp(M: Model): string {
   const rows: string[] = [];
   for (let i = 0; i < n; i++) {
     const cells = cols.map(c => {
-      const now = cmd[i][c.k];
-      const dCalc = calc[i][c.k] - now;
+      /* la columna del ángulo se enseña y se teclea con el signo contrario al
+         del modelo, igual que en la tabla de dobleces: la vuelta vive en
+         angOut/angIn y no se hace en dos convenciones a la vez */
+      const vista = (x: number): number => (c.k === 'angle' ? angOut(x) : x);
+      const now = vista(cmd[i][c.k]);
+      const dCalc = vista(calc[i][c.k] - cmd[i][c.k]);
       const tw = ST.tweak[i][c.k];
-      const dApp = dCalc + tw;
+      const dApp = dCalc + vista(tw);
       return `<td class="v-dim">${fx(now, c.d)}</td>
         <td class="v-dim">${sgn(dCalc, c.d)}</td>
         <td class="dcol"><input type="text" data-tw="${i}" data-k="${c.k}"
