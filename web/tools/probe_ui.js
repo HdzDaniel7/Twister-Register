@@ -576,6 +576,18 @@ step('ocultar y mostrar el punto', () => {
 
 /* ------------------------------------------------------- compensación --- */
 step('simular desde el lateral de desviación', () => click('[data-a="sim"]'));
+/* Una pieza inventada por el simulador y una medida se veían igual: el
+   distintivo es lo único que lo dice, y por eso se comprueba en los dos
+   sitios donde sale (la tarjeta del lateral izquierdo y el lateral derecho). */
+step('la pieza simulada se marca como SIM en los dos lados', () => {
+  const ds = S().datasets[S().datasets.length - 1];
+  if (ds.src !== 'sim') throw new Error('la pieza no quedó marcada como sim: ' + ds.src);
+  const card = q(`#lf [data-dv="${ds.id}"]`).closest('.ds').querySelector('.srcbadge');
+  if (!card || !card.classList.contains('sim')) throw new Error('sin distintivo en la tarjeta');
+  const side = q('#side .srcbadge');
+  if (!side.classList.contains('sim')) throw new Error('sin distintivo en el lateral');
+  if (!side.title) throw new Error('el distintivo no explica qué significa');
+});
 step('la medición ya no es pestaña', () => {
   if (document.querySelector('#tabs [data-t="meas"]')) throw new Error('sigue habiendo pestaña');
   if (document.querySelectorAll('#tabs button').length !== 3) throw new Error('no son 3 pestañas');

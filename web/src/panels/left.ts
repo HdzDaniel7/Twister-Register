@@ -7,7 +7,7 @@ import * as E from '../engine.ts';
 import { T } from '../i18n.ts';
 import type { Place, Variant } from '../types.ts';
 import { ST, LAYER_DEF, refModel } from '../state.ts';
-import { $, fx, esc, cls, nfield } from './fmt.ts';
+import { $, fx, esc, cls, nfield, srcTag } from './fmt.ts';
 import type { I18nKey } from './fmt.ts';
 
 /* ========================================================= panel izquierdo */
@@ -93,6 +93,7 @@ export function renderLeft(): void {
           <input type="checkbox" data-dv="${d.id}" ${d.visible ? 'checked' : ''}>
           <input type="color" class="sw" data-dc="${d.id}" value="${d.color}">
           <span class="nm" data-dsel="${d.id}">${esc(d.name)}</span>
+          ${srcTag(d.src)}
           <button class="xbtn" data-dx="${d.id}" title="${T('del')}">✕</button></div>
         <div class="meta"><span>Δmax <b class="${cls(d.dev!.maxA, ST.model!.tol.angle)}">${fx(d.dev!.maxA, 3)}°</b></span>
         <span>RMS <b>${fx(d.dev!.rms, 3)}°</b></span>

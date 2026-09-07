@@ -54,3 +54,16 @@ export const cls = (v: number, t: number): string => Math.abs(v) <= t ? 'v-ok' :
  *  lleva la explicación larga, que ya estaba traducida en los tres idiomas. */
 export const oriTag = (o: Orientation): string => `<span class="ori ${o}" title="${T(('or' + o) as I18nKey)}">${o}</span>`;
 export const sgn = (v: number, n: number): string => (v > 0 ? '+' : '') + fx(v, n);
+/** Insignia de PROCEDENCIA de una pieza. `src` viaja en el JSON desde siempre
+ *  ('sim' cuando la inventó el simulador, 'verify' cuando es la verificación
+ *  posterior a compensar) pero no se enseñaba en ninguna parte, así que una
+ *  pieza inventada y una medida se veían igual — y con eso se puede compensar
+ *  contra números que no existen. Un archivo anterior puede no traer nada:
+ *  eso es 'S/D', no 'medida'. */
+export const srcTag = (src: string | undefined): string => {
+  const k = src === 'sim' ? ['sim', 'srcSim', 'srcSimTip']
+    : src === 'verify' ? ['sim', 'srcVerify', 'srcVerifyTip']
+    : src ? ['meas', 'srcMeas', 'srcMeasTip']
+    : ['unk', 'srcUnk', 'srcUnkTip'];
+  return `<span class="srcbadge ${k[0]}" title="${T(k[2] as I18nKey)}">${T(k[1] as I18nKey)}</span>`;
+};

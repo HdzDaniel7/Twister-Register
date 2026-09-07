@@ -4,6 +4,9 @@
   --txt:#D8DFE9; --dim:#7E8A9C; --dim2:#5A6576;
   --nominal:#3FA9F5; --measured:#F0A02E; --corrected:#3FD68C;
   --ok:#3FD68C; --warn:#FFC53D; --bad:#FF4D5E;
+  /* violeta: la pieza NO es real. No comparte familia con ningún otro
+     color semántico justamente para que no se confunda con una medida. */
+  --synthetic:#C08AF0;
   --mono:ui-monospace,"SF Mono","Cascadia Mono","Roboto Mono",Menlo,Consolas,monospace;
   --sans:"Inter","Segoe UI",system-ui,-apple-system,"Helvetica Neue",Arial,sans-serif;
   --h:44px; --ribbon:74px; --statusH:26px; --rtW:360px; --lfW:250px; --btH:340px;
@@ -32,7 +35,7 @@
   --line:#D7DDE6; --line2:#BFC8D4;
   --txt:#18202C; --dim:#5B6778; --dim2:#8391A3;
   --nominal:#0D6FC4; --measured:#A96400; --corrected:#0F7A52;
-  --ok:#0F7A52; --warn:#9A6B00; --bad:#C42133;
+  --ok:#0F7A52; --warn:#9A6B00; --bad:#C42133; --synthetic:#7A3FB0;
   --vpbg:#EDF0F4; --grid1:#C2CBD8; --grid2:#D9DFE7; --fixture:#AEB9C8;
   --inputbg:#FFFFFF; --inputbg2:#F7F9FC; --inputHovBd:#A6B2C2;
   --sel:#D5E7F8; --selBd:#8CBCE4; --selTxt:#0A4B87; --selHov:#C2DCF4;
@@ -48,7 +51,7 @@
     --line:#D7DDE6; --line2:#BFC8D4;
     --txt:#18202C; --dim:#5B6778; --dim2:#8391A3;
     --nominal:#0D6FC4; --measured:#A96400; --corrected:#0F7A52;
-    --ok:#0F7A52; --warn:#9A6B00; --bad:#C42133;
+    --ok:#0F7A52; --warn:#9A6B00; --bad:#C42133; --synthetic:#7A3FB0;
     --vpbg:#EDF0F4; --grid1:#C2CBD8; --grid2:#D9DFE7; --fixture:#AEB9C8;
     --inputbg:#FFFFFF; --inputbg2:#F7F9FC; --inputHovBd:#A6B2C2;
     --sel:#D5E7F8; --selBd:#8CBCE4; --selTxt:#0A4B87; --selHov:#C2DCF4;
@@ -306,6 +309,14 @@ td.dcol input[type=text]{text-align:right}
 .refbadge{font-family:var(--sans);font-size:8px;font-weight:700;letter-spacing:.12em;
   color:var(--nominal);border:1px solid var(--nominal);border-radius:2px;padding:0 3px;
   flex:none;opacity:.9}
+/* Procedencia de una pieza. Una pieza inventada por el simulador y una medida
+   se veían igual, y con eso se puede compensar contra números que no existen. */
+.srcbadge{font-family:var(--sans);font-size:8px;font-weight:700;letter-spacing:.12em;
+  border:1px solid currentColor;border-radius:2px;padding:0 3px;flex:none;opacity:.9;
+  cursor:help}
+.srcbadge.sim{color:var(--synthetic)}
+.srcbadge.meas{color:var(--measured)}
+.srcbadge.unk{color:var(--dim2)}
 .linkbtn{background:none;border:0;color:var(--dim2);cursor:pointer;padding:3px 0 0;
   font-family:var(--sans);font-size:9.5px;letter-spacing:.06em;text-align:left;width:100%}
 .linkbtn:hover{color:var(--nominal);text-decoration:underline}

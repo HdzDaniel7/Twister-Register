@@ -606,7 +606,10 @@ console.log('\n— idiomas —');
      en alemán no —Datum significa fecha, y el bezug de medición es Bezug—, así
      que ahí siguen sin exención y la prueba los vigila. */
   const COMUNES = ['nBend', 'dcol', 'ori', 'x', 'y', 'z', 'arcL', 'cumL',
-                   'isRef', 'vIso', 'cDelta', 'rad', 'name'];
+                   'isRef', 'vIso', 'cDelta', 'rad', 'name',
+                   /* «SIM» es la misma sigla en los tres idiomas, como REF. La
+                      medida sí cambia (MED/MEAS/MESS) y sigue vigilada. */
+                   'srcSim', 'srcVerify'];
   const IGUALES = {
     en: new Set([...COMUNES, 'cmode', 'distPi', 'nearPi', 'stDatum', 'twist']),
     de: new Set(COMUNES),

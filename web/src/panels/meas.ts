@@ -6,7 +6,7 @@ import * as E from '../engine.ts';
 import { T } from '../i18n.ts';
 import type { Model, Proc } from '../types.ts';
 import { ST, activeDataset } from '../state.ts';
-import { fx, esc, cls, oriTag, sgn } from './fmt.ts';
+import { fx, esc, cls, oriTag, sgn, srcTag } from './fmt.ts';
 
 /* --- pestaña MEDICIÓN --------------------------------------------------- */
 export function paneMeas(M: Model): string {
@@ -26,7 +26,7 @@ export function paneMeas(M: Model): string {
      ajusta una vez y luego se olvida, va al final del lateral. */
   return `<div class="pane on">
   ${!D ? `<div class="grp"><div class="body"><div class="hintline">${T('dNone')}</div></div></div>` : `
-  <div class="grp"><div class="eyebrow">${esc(D.name)}</div><div class="body">
+  <div class="grp"><div class="eyebrow">${esc(D.name)} ${srcTag(D.src)}</div><div class="body">
     <div class="stats">
       <div class="stat"><div class="k">${T('statMaxA')}</div><div class="v ${cls(D.dev!.maxA, M.tol.angle)}">${fx(D.dev!.maxA, 3)}<span class="u">°</span></div></div>
       <div class="stat"><div class="k">${T('statRms')}</div><div class="v">${fx(D.dev!.rms, 3)}<span class="u">°</span></div></div>

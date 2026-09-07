@@ -26,6 +26,8 @@ type I18nKey =
   | 'twlen' | 'ori' | 'dcol' | 'straight' | 'arcL' | 'cumL' | 'tailRow' | 'lenNote'
   | 'kbdNote' | 'twnote' | 'proc' | 'sbW' | 'sbT' | 'slip' | 'biasR' | 'noise'
   | 'seed' | 'simulate' | 'dNone' | 'deltas' | 'dA' | 'dR' | 'dF' | 'dP'
+  | 'srcSim' | 'srcVerify' | 'srcMeas' | 'srcUnk'
+  | 'srcSimTip' | 'srcVerifyTip' | 'srcMeasTip' | 'srcUnkTip'
   | 'statMaxA' | 'statRms' | 'statTip' | 'statOut' | 'gains' | 'gainW' | 'gainT' | 'what'
   | 'cAng' | 'cRot' | 'cFeed' | 'apply' | 'reset' | 'cmdTbl' | 'cNow' | 'cNew'
   | 'cDelta' | 'predict' | 'verify' | 'noMeas' | 'stLen' | 'stBends' | 'stDatum' | 'stMax'
@@ -95,6 +97,13 @@ es: {
  pts: 'Punto', x: 'X', y: 'Y', z: 'Z',
  variants: 'Modelos', addVar: '+ Modelo', dupVar: 'Duplicar',
  setRef: 'Usar como referencia', isRef: 'REF',
+ /* Procedencia de una pieza: sin esto, una pieza inventada por el simulador y
+    una medida de verdad se ven exactamente igual en pantalla. */
+ srcSim: 'SIM', srcVerify: 'SIM ✓', srcMeas: 'MED', srcUnk: 'S/D',
+ srcSimTip: 'Pieza inventada por el simulador. No se ha medido nada.',
+ srcVerifyTip: 'Verificación simulada tras aplicar la compensación. Tampoco es una medida.',
+ srcMeasTip: 'Pieza medida importada.',
+ srcUnkTip: 'Procedencia desconocida: viene de un archivo que no la guardaba.',
  anchor: 'Extremo fijo', aStart: 'Amarre (P0)', aEnd: 'Libre (punta)', aBest: 'Mejor ajuste',
  insPt: '+ Punto intermedio', delPt: '✕ Punto',
  ptNote: 'Edición ABSOLUTA: al mover un punto los demás se quedan donde están y la cadena LRA se recalcula por inversa. Un punto nuevo nace colineal (ángulo 0), listo para moverse. Editar puntos funde los Δ en la base.',
@@ -168,6 +177,11 @@ en: {
  pts: 'Point', x: 'X', y: 'Y', z: 'Z',
  variants: 'Models', addVar: '+ Model', dupVar: 'Duplicate',
  setRef: 'Use as reference', isRef: 'REF',
+ srcSim: 'SIM', srcVerify: 'SIM ✓', srcMeas: 'MEAS', srcUnk: 'N/A',
+ srcSimTip: 'Part invented by the simulator. Nothing was measured.',
+ srcVerifyTip: 'Simulated check after applying compensation. Not a measurement either.',
+ srcMeasTip: 'Imported measured part.',
+ srcUnkTip: 'Unknown origin: it comes from a file that did not record it.',
  anchor: 'Fixed end', aStart: 'Clamp (P0)', aEnd: 'Free (tip)', aBest: 'Best fit',
  insPt: '+ Midpoint', delPt: '✕ Point',
  ptNote: 'ABSOLUTE editing: moving a point leaves the others where they are and the LRA chain is re-derived by inverse kinematics. A new point is born collinear (angle 0), ready to be moved. Editing points bakes the deltas into the base.',
@@ -245,6 +259,11 @@ de: {
  pts: 'Punkt', x: 'X', y: 'Y', z: 'Z',
  variants: 'Modelle', addVar: '+ Modell', dupVar: 'Duplizieren',
  setRef: 'Als Referenz verwenden', isRef: 'REF',
+ srcSim: 'SIM', srcVerify: 'SIM ✓', srcMeas: 'MESS', srcUnk: 'K.A.',
+ srcSimTip: 'Vom Simulator erzeugtes Teil. Es wurde nichts gemessen.',
+ srcVerifyTip: 'Simulierte Prüfung nach der Kompensation. Ebenfalls keine Messung.',
+ srcMeasTip: 'Importiertes gemessenes Teil.',
+ srcUnkTip: 'Herkunft unbekannt: aus einer Datei, die sie nicht gespeichert hat.',
  anchor: 'Festes Ende', aStart: 'Einspannung (P0)', aEnd: 'Frei (Spitze)',
  aBest: 'Beste Anpassung',
  insPt: '+ Zwischenpunkt', delPt: '✕ Punkt',
