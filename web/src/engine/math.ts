@@ -11,6 +11,16 @@ export const R2D = 180 / Math.PI;
 
 /* --------------------------------------------------------------- utilidades */
 export const wrap180 = (a: number): number => ((a + 180) % 360 + 360) % 360 - 180;
+/** Como wrap180, pero media vuelta sale +180 y no -180.
+ *
+ *  Es para GIROS de eje, donde ±180 llevan al mismo sitio y el signo solo dice
+ *  por dónde: en una dobladora eso se escribe 180, no -180. Las diferencias de
+ *  medida siguen usando wrap180, donde el signo sí distingue de qué lado se
+ *  quedó la pieza. */
+export const wrapTurn = (a: number): number => {
+  const v = wrap180(a);
+  return v === -180 ? 180 : v;
+};
 export const clamp = (v: number, a: number, b: number): number => (v < a ? a : v > b ? b : v);
 export const wrapPi = (a: number): number => ((a + Math.PI) % (2 * Math.PI) + 2 * Math.PI) % (2 * Math.PI) - Math.PI;
 

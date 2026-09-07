@@ -60,7 +60,7 @@
    ========================================================================= */
 import { Matrix4, Vector3 } from 'three';
 import type { Bend, Model, Orientation, RowLength, PathSample } from '../types.ts';
-import { D2R, R2D, clamp, wrap180, eye, trans, rotX, rotAxis, posOf, basisOf } from './math.ts';
+import { D2R, R2D, clamp, wrapTurn, eye, trans, rotX, rotAxis, posOf, basisOf } from './math.ts';
 import { newBend } from './bend.ts';
 
 /* --------------------------------------------------------------- cinemática */
@@ -68,11 +68,12 @@ import { newBend } from './bend.ts';
  *
  *  `rot` es lo que gira el eje en esa estación; el eje real es la suma de los
  *  giros hasta ahí, porque la máquina no lo devuelve solo. Se envuelve a
- *  ±180°: cuatro cuartos de vuelta dejan el eje donde estaba.
+ *  (-180, 180]: cuatro cuartos de vuelta dejan el eje donde estaba, y media
+ *  vuelta se escribe 180 —como en la máquina— y no -180.
  */
 export function axisAngles(model: Model): number[] {
   let a = 0;
-  return model.bends.map(b => (a = wrap180(a + (b.rot || 0))));
+  return model.bends.map(b => (a = wrapTurn(a + (b.rot || 0))));
 }
 
 /** Cinemática directa -> n+2 puntos PI y los marcos de cada doblez. */
@@ -125,7 +126,7 @@ export function ik(points: Vector3[], radii: (number | undefined)[] | null | und
       ? prevRot                       //   y lo que corresponde es no moverlo
       : Math.atan2(-d.z, -d.y) * R2D;
     bends.push(newBend({
-      feed: fe, rot: wrap180(rot - prevRot), angle: ang,
+      feed: fe, rot: wrapTurn(rot - prevRot), angle: ang,
       radius: (radii && radii[i - 1] !== undefined) ? +radii[i - 1]! : 30,
     }));
     const nx = bendDecomp({ rot, angle: ang });

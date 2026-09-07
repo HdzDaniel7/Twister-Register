@@ -9,7 +9,7 @@
    ========================================================================= */
 import { Vector3 } from 'three';
 import type { Bend, Model, Variant, DeltaKey, Delta } from '../types.ts';
-import { clamp, wrap180, mulberry32 } from './math.ts';
+import { clamp, wrapTurn, mulberry32 } from './math.ts';
 import { BEND_DEFAULT, newBend, bendFrom, normalizeModel, cloneModel } from './bend.ts';
 import type { RawModel } from './bend.ts';
 import { fk, ik } from './kinematics.ts';
@@ -42,7 +42,7 @@ export function demoModel(): Model {
     const canto = (i % 3 === 1);
     const ang = Math.round((16 + r() * 54) * 10) / 10;
     const ejeNuevo = canto ? 90 * sign[i] : (sign[i] > 0 ? 0 : 180);
-    const giro = wrap180(ejeNuevo - eje);
+    const giro = wrapTurn(ejeNuevo - eje);
     eje = ejeNuevo;
     bends.push(newBend({
       feed: i === 0 ? 140 : Math.round(80 + r() * 70),

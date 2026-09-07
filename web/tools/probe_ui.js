@@ -172,6 +172,9 @@ step('el eje de doblado se sostiene entre estaciones', () => {
     bends: rots.map(rt => Eg().newBend({ feed: 200, rot: rt, angle: 30, radius: 30 })) });
   const ejes = Eg().axisAngles(mk(90, 0, 0, -90)).join(',');
   if (ejes !== '90,90,90,0') throw new Error('ejes ' + ejes);
+  /* media vuelta se escribe 180, como en la máquina, y no -180 */
+  const media = Eg().axisAngles(mk(90, 90)).join(',');
+  if (media !== '90,180') throw new Error('media vuelta: ' + media);
   const o = Eg().orientations(mk(90, 0)).join('');
   if (o !== 'WW') throw new Error('con el eje sostenido deberían ser WW, y salió ' + o);
   const v = Eg().orientations(mk(90, -90)).join('');

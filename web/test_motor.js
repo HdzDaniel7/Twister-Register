@@ -209,11 +209,19 @@ ok('con un solo arco nunca queda rodado residual',
      E.orientations(mk(90, -90)).join('') === 'WT');
   ok('una lista de ceros dobla siempre contra la misma cara',
      E.orientations(mk(0, 0, 0)).join('') === 'TTT');
-  /* el acumulado se envuelve a ±180: media vuelta sale como -180, que es el
-     mismo eje que +180 —Rx(±180) lleva (0,0,-1) al mismo sitio— y la cuarta
-     estación vuelve a 0, o sea al eje de partida */
+  /* El acumulado se envuelve a (-180, 180]: media vuelta se escribe 180, que es
+     como se teclea en la máquina, y no -180. La cuarta estación vuelve a 0, o
+     sea al eje de partida. */
   ok('cuatro cuartos de vuelta dejan el eje donde estaba',
-     E.axisAngles(mk(90, 90, 90, 90)).join(',') === '90,-180,-90,0');
+     E.axisAngles(mk(90, 90, 90, 90)).join(',') === '90,180,-90,0');
+  ok('media vuelta se escribe 180, no -180',
+     E.wrapTurn(180) === 180 && E.wrapTurn(-180) === 180 && E.wrapTurn(540) === 180 &&
+     E.wrapTurn(-90) === -90 && E.wrapTurn(270) === -90);
+  /* el eje que resulta de los giros del demo es EXACTAMENTE la columna que
+     enseñaba la convención anterior, donde cada fila declaraba su eje */
+  ok('los giros del demo reconstruyen los ejes de la convención anterior',
+     E.axisAngles(E.demoModel()).join(',') ===
+     '0,-90,180,0,90,180,0,90,180,180,90,180,0,90,180');
 
   /* La consecuencia geométrica, que es la que importa: con el eje sostenido,
      dos dobleces seguidos salen en el MISMO plano; con la convención anterior
