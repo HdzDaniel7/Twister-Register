@@ -805,6 +805,30 @@ step('el botón del visor hace lo mismo que la tecla', () => {
   click('#vptool [data-a="solo"]');
   if (S().solo) throw new Error('el botón no devolvió');
 });
+/* Las etiquetas del 3D llevaban el color en el estilo —un #fff a pelo para la
+   seleccionada— y en tema claro era blanco sobre blanco. Ahora va por clase,
+   con su token en los dos temas. */
+step('la etiqueta del doblez seleccionado se marca por clase, no por color fijo', () => {
+  click('[data-md="model"]');
+  click('tr[data-r="6"]');
+  /* el render es bajo demanda: las etiquetas se pintan en el próximo cuadro,
+     y este guion es síncrono */
+  S().layers.lbl.on = true;
+  window.BARCOMP.drawLabels();
+  const sel = q('#labels .lbl.sel');
+  if (!sel) throw new Error('ninguna etiqueta marcada como seleccionada');
+  if (sel.textContent.trim() !== 'B7') throw new Error('marcó ' + sel.textContent);
+  if (/#fff|white/i.test(q('#labels').innerHTML)) throw new Error('sigue habiendo un color fijo');
+  const col = getComputedStyle(sel).color;
+  if (!col || col === 'rgba(0, 0, 0, 0)') throw new Error('sin color de texto');
+});
+step('la cota lleva su color en un punto y el texto legible', () => {
+  window.BARCOMP.drawLabels();
+  const sw = q('#labels .lbl .swatch');
+  if (!sw) throw new Error('la cota no trae su punto de color');
+  const bg = getComputedStyle(sw).backgroundColor;
+  if (!bg || bg === 'rgba(0, 0, 0, 0)') throw new Error('el punto no lleva el color de la cota');
+});
 step('los tres modos están arriba y la medición no es pestaña', () => {
   const modos = [...document.querySelectorAll('[data-md]')].map(b => b.dataset.md);
   if (modos.join(',') !== 'model,meas,comp') throw new Error('modos: ' + modos.join(','));

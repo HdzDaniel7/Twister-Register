@@ -250,13 +250,22 @@ export function layerPoints(ctx: SceneCtx): void {
 export function layerDev(ctx: SceneCtx): void {
   const { M, nomPis, Axf, L } = ctx;
   if (L.dev.on && ST.datasets.length) {
+    /* TOPE de la exageración. El vector se dibuja ×exag para que una décima se
+       vea, pero con una punta a 20 mm y ×25 salen barras de medio metro que
+       tapan la pieza entera y ya no dicen nada. Se acota a un 6 % de la
+       longitud desarrollada: la DIRECCIÓN se sigue leyendo, que es para lo que
+       está la capa, y el tamaño real lo dan la tabla y el color. */
+    const tope = .06 * E.developedLength(M);
     const pos = [], col = [];
     for (const ds of ST.datasets) {
       if (!ds.visible) continue;
       const Q = E.applyMat(Axf, ds.pis);
       for (let i = 0; i < Math.min(Q.length, nomPis.length); i++) {
         const a = nomPis[i], d = Q[i].clone().sub(a);
-        const e2 = a.clone().addScaledVector(d, ST.view.exag);
+        const largo = Math.min(d.length() * ST.view.exag, tope);
+        const e2 = d.length() > 1e-9
+          ? a.clone().addScaledVector(d.clone().normalize(), largo)
+          : a.clone();
         const c = devThreeColor(d.length(), M.tol.point);
         pos.push(a.x, a.y, a.z, e2.x, e2.y, e2.z);
         col.push(c.r, c.g, c.b, c.r, c.g, c.b);

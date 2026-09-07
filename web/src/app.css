@@ -23,6 +23,9 @@
   --oriW:#C9A5F5; --oriWbd:#6B4B9E; --oriT:#7FD8C4; --oriTbd:#3B7A6C;
   --hd1:#151A23; --hd2:#10141B; --scroll:#465268;
   --lblbg:#0B0E13CC; --floatbg:#0B0E13D9; --hintbg:#0B0E13B0;
+  /* texto de las etiquetas del 3D. Iban en --dim y en un #fff a pelo, y
+     en tema claro el blanco sobre blanco no se leía. */
+  --lblTxt:#AEB9C8; --lblSel:#FFFFFF;
   --ring:#3FA9F533; --grip:#3FA9F544; --selRing:#3FA9F540;
 }
 
@@ -45,6 +48,7 @@
   --oriW:#6A38A2; --oriWbd:#B49BDE; --oriT:#0C6A58; --oriTbd:#84C9BB;
   --hd1:#FFFFFF; --hd2:#F1F4F9; --scroll:#B4BDCA;
   --lblbg:#FFFFFFD9; --floatbg:#FFFFFFE6; --hintbg:#FFFFFFCC;
+  --lblTxt:#3B475A; --lblSel:#0A4B87;
   --ring:#0D6FC433; --grip:#0D6FC444; --selRing:#0D6FC440;
 }
 @media (prefers-color-scheme:light){
@@ -61,6 +65,7 @@
     --oriW:#6A38A2; --oriWbd:#B49BDE; --oriT:#0C6A58; --oriTbd:#84C9BB;
     --hd1:#FFFFFF; --hd2:#F1F4F9; --scroll:#B4BDCA;
     --lblbg:#FFFFFFD9; --floatbg:#FFFFFFE6; --hintbg:#FFFFFFCC;
+    --lblTxt:#3B475A; --lblSel:#0A4B87;
     --ring:#0D6FC433; --grip:#0D6FC444; --selRing:#0D6FC440;
   }
 }
@@ -229,7 +234,13 @@ button,input,select,textarea{font-family:inherit;font-size:inherit;color:inherit
 #labels{position:absolute;inset:0;pointer-events:none;overflow:hidden}
 .lbl{position:absolute;transform:translate(-50%,-50%);font-size:10px;padding:1px 4px;
   border-radius:2px;background:var(--lblbg);border:1px solid var(--line2);white-space:nowrap;
-  letter-spacing:.03em}
+  letter-spacing:.03em;color:var(--lblTxt)}
+.lbl.sel{color:var(--lblSel);border-color:currentColor}
+/* La cota lleva su color en un punto, no en el texto: un color de identidad
+   elegido sobre fondo oscuro se lava sobre fondo claro, y lo que hay que poder
+   leer es la cifra. */
+.lbl .swatch{display:inline-block;width:6px;height:6px;border-radius:1px;
+  margin-right:4px;vertical-align:baseline}
 #vptool{position:absolute;top:8px;left:8px;display:flex;gap:5px;align-items:center;
   background:var(--floatbg);border:1px solid var(--line);border-radius:4px;padding:5px 7px;
   backdrop-filter:blur(6px);flex-wrap:wrap;

@@ -210,12 +210,12 @@ export function drawLabels() {
   const out: string[] = [];
   const w = labelHost.clientWidth, h = labelHost.clientHeight;
   const W = placeMatrix();
-  const put = (p: Vector3, html: string) => {
+  const put = (p: Vector3, html: string, cls = '') => {
     const v = p.clone().applyMatrix4(W).project(camera);
     if (v.z > 1) return;
     const x = (v.x * .5 + .5) * w, y = (-v.y * .5 + .5) * h;
     if (x < -60 || y < -20 || x > w + 60 || y > h + 20) return;
-    out.push(`<div class="lbl" style="left:${x.toFixed(0)}px;top:${(y - 16).toFixed(0)}px">${html}</div>`);
+    out.push(`<div class="lbl ${cls}" style="left:${x.toFixed(0)}px;top:${(y - 16).toFixed(0)}px">${html}</div>`);
   };
   if (ST.layers.lbl.on) {
     const act = ST.variants.find(v => v.id === ST.active);
@@ -223,9 +223,14 @@ export function drawLabels() {
       ? E.anchoredPis(E.effectiveModel(act), refModel(), ST.anchor)
       : E.fk(ST.model).pis;
     for (let i = 1; i < P.length - 1; i++) {
-      put(P[i], `<span style="color:${i - 1 === ST.sel ? '#fff' : 'var(--dim)'}">B${i}</span>`);
+      /* el color va por CLASE, no por estilo: un #fff a pelo era blanco sobre
+         blanco en tema claro, y la etiqueta del doblez seleccionado —justo la
+         que hay que poder leer— desaparecía */
+      put(P[i], `B${i}`, i - 1 === ST.sel ? 'sel' : '');
     }
   }
-  for (const l of extraLabels) put(l.p, `<span style="color:${l.color}">${l.txt}</span>`);
+  for (const l of extraLabels) {
+    put(l.p, `<span class="swatch" style="background:${l.color}"></span>${l.txt}`);
+  }
   labelHost.innerHTML = out.join('');
 }
