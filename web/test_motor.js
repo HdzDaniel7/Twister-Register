@@ -12,7 +12,7 @@
  */
 import { Matrix4, Euler, Vector3 } from 'three';
 import * as E from './src/engine.ts';
-import { I18N, LANGS, LANG, setLang, T } from './src/i18n.js';
+import { I18N, LANGS, LANG, setLang, T } from './src/i18n.ts';
 
 let fails = 0;
 function ok(name, cond, detail = '') {

@@ -1,3 +1,4 @@
+// @ts-nocheck  — puerto en curso: este archivo aún no está anotado. Se quita al anotarlo.
 /* -------------------------------------------------------------- escena 3D --
    Three.js. Render BAJO DEMANDA: el bucle solo dibuja cuando `dirty` es true.
    Si cambias algo visual y no se ve, probablemente falta un markDirty().
@@ -15,8 +16,8 @@ import {
 } from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import * as E from './engine.ts';
-import { ST, refModel, placeMatrix } from './state.js';
-import { T } from './i18n.js';
+import { ST, refModel, placeMatrix } from './state.ts';
+import { T } from './i18n.ts';
 
 export let renderer, scene, camera, controls;
 /* Hay DOS grupos en la escena y la diferencia importa:

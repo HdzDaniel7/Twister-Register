@@ -1,3 +1,4 @@
+// @ts-nocheck  — puerto en curso: este archivo aún no está anotado. Se quita al anotarlo.
 /* -------------------------------------------------------------------- E/S --
    Todo local: descarga por Blob y lectura por <input type=file>. Nada de
    fetch(), CDNs ni almacenamiento del navegador — el visor tiene que correr

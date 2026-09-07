@@ -1,3 +1,4 @@
+// @ts-nocheck  — puerto en curso: este archivo aún no está anotado. Se quita al anotarlo.
 /* ------------------------------------------------------ cinta inferior ----
    Desenrolla la longitud desarrollada y pone una columna por doblez,
    coloreada por desviación, con la línea de tolerancia punteada. Deja ver de
@@ -9,9 +10,9 @@
    Sin pieza medida, y con la activa distinta de la referencia, muestra el Δ
    desvío entre variantes.                                                   */
 import * as E from './engine.ts';
-import { ST, activeDataset, refModel } from './state.js';
-import { T } from './i18n.js';
-import { devCssColor, cssVar } from './scene.js';
+import { ST, activeDataset, refModel } from './state.ts';
+import { T } from './i18n.ts';
+import { devCssColor, cssVar } from './scene.ts';
 
 const $ = s => document.querySelector(s);
 const fx = (v, n = 2) => (v === null || v === undefined || !isFinite(v)) ? '—' : v.toFixed(n);

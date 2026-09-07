@@ -67,8 +67,10 @@ fs.writeFileSync(fa, a, 'utf8');
 fs.writeFileSync(fb, b, 'utf8');
 console.log(`DISTINTO  ${rel}  —  revisa cada diferencia a mano:\n`);
 try {
-  execFileSync('git', ['--no-pager', 'diff', '--no-index', '--', fa, fb],
-    { stdio: 'inherit' });
+  /* Los dos temporales llevan finales de línea de esbuild, y git avisaría por
+     cada uno. No es lo que se ha venido a mirar. */
+  execFileSync('git', ['-c', 'core.autocrlf=false', '-c', 'core.safecrlf=false',
+    '--no-pager', 'diff', '--no-index', '--', fa, fb], { stdio: 'inherit' });
 } catch { /* git diff --no-index sale con 1 cuando hay diferencias */ }
 fs.rmSync(tmp, { recursive: true, force: true });
 process.exit(1);

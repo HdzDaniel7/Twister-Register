@@ -1,3 +1,4 @@
+// @ts-nocheck  — puerto en curso: este archivo aún no está anotado. Se quita al anotarlo.
 /* ------------------------------------------------------------------ i18n --
    Todo texto visible pasa por T('clave'). Al agregar una cadena hay que
    ponerla en los TRES: I18N.es, I18N.en e I18N.de. test_motor.js comprueba

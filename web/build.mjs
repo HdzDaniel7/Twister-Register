@@ -5,7 +5,7 @@
  *
  *     node build.mjs          (o  npm run build)
  *
- * esbuild empaqueta src/app.js y todo lo que importa —incluido three.js y
+ * esbuild empaqueta src/app.ts y todo lo que importa —incluido three.js y
  * OrbitControls— en un IIFE que se puede empotrar en un <script> inline. No
  * queda ningún import en tiempo de ejecución, ningún fetch y ninguna CDN: el
  * HTML resultante abre con doble clic en un taller sin red.
@@ -26,7 +26,7 @@ const PAGE = path.join(ROOT, '..', 'index.html');
 const LOCAL = path.join(ROOT, 'barcomp_viewer.html');
 
 const result = await build({
-  entryPoints: [path.join(SRC, 'app.js')],
+  entryPoints: [path.join(SRC, 'app.ts')],
   bundle: true,
   format: 'iife',
   target: ['chrome110', 'firefox110', 'safari16'],

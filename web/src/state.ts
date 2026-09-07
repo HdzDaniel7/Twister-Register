@@ -1,3 +1,4 @@
+// @ts-nocheck  — puerto en curso: este archivo aún no está anotado. Se quita al anotarlo.
 /* ----------------------------------------------------------------- estado --
    Todo el estado vive en ST. Nada de localStorage / sessionStorage.
 

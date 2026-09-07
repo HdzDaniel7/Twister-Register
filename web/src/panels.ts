@@ -1,3 +1,4 @@
+// @ts-nocheck  — puerto en curso: este archivo aún no está anotado. Se quita al anotarlo.
 /* ---------------------------------------------------------------- paneles --
    No hay framework ni estado en el DOM: cada panel se reconstruye entero a
    partir de ST. Consecuencia: un renderRight() mientras alguien escribe le
@@ -8,10 +9,10 @@
    en app.js). Para agregar un botón basta con darle el atributo correcto.   */
 import { Vector3 } from 'three';
 import * as E from './engine.ts';
-import { T, LANG, LANGS } from './i18n.js';
+import { T, LANG, LANGS } from './i18n.ts';
 import {
   ST, LAYER_DEF, V, REF, refModel, activeDataset, activeShift, syncTweak,
-} from './state.js';
+} from './state.ts';
 
 const $ = s => document.querySelector(s);
 

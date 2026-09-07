@@ -1,3 +1,4 @@
+// @ts-nocheck  — puerto en curso: este archivo aún no está anotado. Se quita al anotarlo.
 /* =========================================================================
    BARCOMP alpha — compensación de dobleces en barra rectangular de aluminio.
 
@@ -19,23 +20,23 @@
    Llama lo más barato que sirva.
    ========================================================================= */
 import * as E from './engine.ts';
-import { T, I18N, LANG, setLang } from './i18n.js';
+import { T, I18N, LANG, setLang } from './i18n.ts';
 import {
   ST, V, REF, VAR_COLORS, syncModel, newVid, loadModel, refModel,
   activeDataset, addDataset, recomputeAll, syncCommand, resetCommand,
   addMark, setMarks, syncTweak, zeroTweak, compensatedCommand,
-} from './state.js';
+} from './state.ts';
 import {
   initScene, rebuildScene, fitView, setView, setOnPick, setOnResize, markDirty,
   onResize, applyTheme, drawGizmo, drawLabels, groupHost,
-} from './scene.js';
-import { drawRibbon, bindRibbon, setOnRibbonSelect } from './ribbon.js';
+} from './scene.ts';
+import { drawRibbon, bindRibbon, setOnRibbonSelect } from './ribbon.ts';
 import {
   renderShell, renderLeft, renderSide, renderRight, renderStatus, renderPanels,
   cellKey, updateModelDerived, nx,
-} from './panels.js';
-import { makeReport } from './report.js';
-import { download, pickFile, safeName } from './io.js';
+} from './panels.ts';
+import { makeReport } from './report.ts';
+import { download, pickFile, safeName } from './io.ts';
 
 const $ = s => document.querySelector(s);
 const clamp = E.clamp;
