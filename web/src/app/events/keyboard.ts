@@ -7,6 +7,7 @@ import { cellKey, nx } from '../../panels.ts';
 import { $ } from '../dom.ts';
 import { ST } from '../../state.ts';
 import { openDrawer, toggleSolo } from '../render.ts';
+import { action } from '../actions.ts';
 
 /** Sube o baja un campo numérico un paso. Mismo cuerpo para la rueda y para
  *  Ctrl+↑ / Ctrl+↓, o los dos se separan en cuanto alguien toque uno.
@@ -57,6 +58,18 @@ export function bindKeyboard(): void {
   /* Escape cierra el cajón de menú, como en cualquier menú. Solo cuando el
      foco NO está en un campo: dentro de una celda, Escape ya significa
      «descarta lo que escribí», y esa es la que manda. */
+  /* Ctrl+Z / Ctrl+Y, también dentro de una celda: lo que se deshace es la
+     edición confirmada, no el texto que se está tecleando —para eso está
+     Escape, que devuelve la celda a como estaba al entrar. */
+  document.body.addEventListener('keydown', e => {
+    if (!(e.ctrlKey || e.metaKey)) return;
+    const k = e.key.toLowerCase();
+    const esRehacer = k === 'y' || (k === 'z' && e.shiftKey);
+    if (k !== 'z' && k !== 'y') return;
+    e.preventDefault();
+    action(esRehacer ? 'redo' : 'undo');
+  });
+
   /* F pliega y despliega el 3D. Fuera de los campos, claro: dentro, la F es
      una letra. */
   document.body.addEventListener('keydown', e => {

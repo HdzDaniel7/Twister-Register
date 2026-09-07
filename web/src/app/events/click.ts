@@ -5,13 +5,14 @@ import { ST } from '../../state.ts';
 import { setLang } from '../../i18n.ts';
 import { fitView, setView, rebuildScene } from '../../scene.ts';
 import { drawRibbon } from '../../ribbon.ts';
-import { renderShell, renderRight, renderPanels } from '../../panels.ts';
+import { renderShell, renderLeft, renderRight, renderPanels } from '../../panels.ts';
 import type { DatumMode, Mode } from '../../types.ts';
 import type { ViewName } from '../../scene.ts';
 import { $ } from '../dom.ts';
 import { refresh, renderAll, selectBend, setMode, openDrawer } from '../render.ts';
 import { setTheme } from '../theme.ts';
 import { action, variantById, varActivate, varDuplicate, varDelete } from '../actions.ts';
+import { commit } from '../history.ts';
 
 export function bindClick(): void {
   $('#tabs')!.addEventListener('click', e => {
@@ -31,14 +32,22 @@ export function bindClick(): void {
     openDrawer(null);
   });
 
-  document.body.addEventListener('click', e => {
+  /* Cualquier rama de aquí abajo puede tocar el documento —borrar una cota,
+     quitar un modelo, aplicar la compensación—, así que se apila DESPUÉS del
+     despachador entero y no dentro de una rama. commit() no hace nada si el
+     documento no cambió, así que un clic en una pestaña no gasta un paso. */
+  document.body.addEventListener('click', e => { onClick(e); commit(); });
+}
+
+function onClick(e: MouseEvent): void {
+  {
     /* guardia: un clic dentro de un campo no debe disparar la selección de
        fila, o destruiría el input que se está editando. NO lo quites. */
     if (/^(INPUT|SELECT|TEXTAREA)$/.test((e.target as HTMLElement).tagName) && !(e.target as HTMLElement).dataset.v) {
       if (!['checkbox', 'color', 'radio'].includes((e.target as HTMLInputElement).type)) return;
     }
     const t = (e.target as HTMLElement).closest(
-      '[data-a],[data-v],[data-dm],[data-l],[data-th],[data-md],[data-dr],[data-dx],[data-dsel],[data-cm],' +
+      '[data-a],[data-v],[data-dm],[data-l],[data-th],[data-md],[data-dr],[data-dx],[data-dsel],[data-cm],[data-mx],' +
       '[data-vsel],[data-vx],[data-vd],[data-vr],[data-r]') as HTMLElement | null;
     if (!t) return;
     const d = t.dataset;
@@ -54,6 +63,13 @@ export function bindClick(): void {
     if (d.vd !== undefined) { varDuplicate(variantById(d.vd)); return; }
     if (d.vx !== undefined) { varDelete(d.vx); return; }
     if (d.vr !== undefined) { ST.ref = d.vr; refresh(); return; }
+    /* borrar una cota. El botón existía desde que se añadieron las cotas y no
+       lo escuchaba nadie: se veía, se pulsaba y no pasaba nada. */
+    if (d.mx !== undefined) {
+      ST.marks = ST.marks.filter(m => m.id !== d.mx);
+      renderLeft(); renderRight(); rebuildScene();
+      return;
+    }
     if (d.dx !== undefined) {
       ST.datasets = ST.datasets.filter(x => x.id !== d.dx);
       if (!ST.datasets.some(x => x.id === ST.dsActive)) {
@@ -66,5 +82,5 @@ export function bindClick(): void {
     }
     if (d.a !== undefined) { action(d.a); return; }
     if (d.r !== undefined) { selectBend(+d.r); return; }
-  });
+  }
 }

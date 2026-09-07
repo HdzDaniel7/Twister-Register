@@ -34,6 +34,7 @@ type I18nKey =
   | 'modeModelTip' | 'modeMeasTip' | 'modeCompTip'
   | 'mnFile' | 'mnModel' | 'mnView' | 'mnPieces' | 'expPts'
   | 'soloOn' | 'soloOff' | 'soloTip'
+  | 'history' | 'undo' | 'redo' | 'histNote'
   | 'srcSimTip' | 'srcVerifyTip' | 'srcMeasTip' | 'srcUnkTip'
   | 'statMaxA' | 'statRms' | 'statTip' | 'statOut' | 'gains' | 'gainW' | 'gainT' | 'what'
   | 'cAng' | 'cRot' | 'cFeed' | 'apply' | 'reset' | 'cmdTbl' | 'cNow' | 'cNew'
@@ -140,6 +141,12 @@ es: {
     se pagaba siempre, y lo que había dentro se toca una vez y se olvida. */
  mnFile: 'Archivo', mnModel: 'Modelos', mnView: 'Vista', mnPieces: 'Piezas',
  soloOn: 'Solo 3D', soloOff: 'Volver',
+ /* Deshacer trabaja sobre el DOCUMENTO: no mueve la cámara ni cambia de
+    pantalla, porque lo que se espera de vuelta son datos. */
+ history: 'Historial', undo: 'Deshacer', redo: 'Rehacer',
+ histNote: 'Deshace ediciones de la pieza: celdas, puntos, modelos, cotas, '
+   + 'colocación y compensación aplicada. No deshace la cámara, el tema, el '
+   + 'idioma, las capas ni el modo. 50 pasos.',
  soloTip: 'Plegar la tabla y el lateral para ver la pieza entera (tecla F). '
    + 'Al volver, la tabla sigue donde estaba.',
  expPts: 'Exportar puntos',
@@ -255,6 +262,10 @@ en: {
    + 'that springback is not measured: it is guessed.',
  mnFile: 'File', mnModel: 'Models', mnView: 'View', mnPieces: 'Parts',
  soloOn: '3D only', soloOff: 'Back',
+ history: 'History', undo: 'Undo', redo: 'Redo',
+ histNote: 'Undoes edits to the part: cells, points, models, reference points, '
+   + 'placement and applied compensation. It does not undo the camera, theme, '
+   + 'language, layers or mode. 50 steps.',
  soloTip: 'Fold the table and the sidebar away to see the whole part (F key). '
    + 'On the way back, the table is where you left it.',
  expPts: 'Export points',
@@ -375,6 +386,10 @@ de: {
    + 'diese Rückfederung nicht gemessen, sondern geraten.',
  mnFile: 'Datei', mnModel: 'Modelle', mnView: 'Ansicht', mnPieces: 'Teile',
  soloOn: 'Nur 3D', soloOff: 'Zurück',
+ history: 'Verlauf', undo: 'Rückgängig', redo: 'Wiederholen',
+ histNote: 'Macht Änderungen am Teil rückgängig: Zellen, Punkte, Modelle, '
+   + 'Bezugspunkte, Platzierung und angewandte Kompensation. Nicht Kamera, '
+   + 'Thema, Sprache, Ebenen oder Modus. 50 Schritte.',
  soloTip: 'Tabelle und Seitenleiste einklappen, um das ganze Teil zu sehen (Taste F). '
    + 'Beim Zurückkommen steht die Tabelle, wo sie war.',
  expPts: 'Punkte exportieren',

@@ -110,6 +110,14 @@ const f0 = B.renderer.info.render.frame;
 const c0 = B.renderer.info.render.calls;
 return await new Promise(res => setTimeout(() => {
   const df = B.renderer.info.render.frame - f0;
+  say('== el paso de deshacer ==');
+  const snap = () => JSON.stringify(E.toDoc(ST.model, ST.command, ST.comp, ST.proc,
+    ST.datasets, ST.variants, ST.ref, ST.anchor,
+    { place: ST.place, marks: ST.marks, tweak: ST.tweak }));
+  const ts = timeIt(snap, 30, 50);
+  say(`  serializar el documento ${(med(ts) * 1000).toFixed(0).padStart(6)} µs`.padEnd(34) + `  ${(snap().length / 1024).toFixed(1)} KB por paso`);
+  say(`  50 pasos ocupan ${(50 * snap().length / 1024 / 1024).toFixed(2)} MB`);
+  say('');
   say('== bucle de animación en reposo, 2 s sin tocar nada ==');
   say(`  cuadros dibujados ${df}   ${df <= 1 ? '(render bajo demanda: no gasta)' : '(GASTA cuadros de balde)'}`);
   say(`  llamadas de dibujo por cuadro ${((B.renderer.info.render.calls - c0) / Math.max(1, df)).toFixed(0)}`);

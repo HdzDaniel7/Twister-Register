@@ -21,6 +21,7 @@ import { makeReport } from '../report.ts';
 import { download, pickFile, pickFiles, safeName } from '../io.ts';
 import { renderAll, refresh, refreshTable, toggleSolo } from './render.ts';
 import { useTheme } from './theme.ts';
+import { undo, redo, commit } from './history.ts';
 
 const clamp = E.clamp;
 
@@ -102,6 +103,16 @@ export function editPoint(i: number, key: 'x' | 'y' | 'z', val: number): void {
   v.base = E.movePi(v.base, i, [P[i].x, P[i].y, P[i].z]);
   E.syncDeltas(v);
   syncModel(); syncCommand(); refresh();
+}
+
+/** Deshace o rehace y repinta todo.
+ *
+ *  El documento vuelve entero, así que hay que repintar entero; lo que NO se
+ *  toca es la cámara: `fitView()` no se llama a propósito, porque deshacer
+ *  devuelve datos y no la vista desde la que se estaban mirando. */
+function stepHistory(fn: () => boolean): void {
+  if (!fn()) return;
+  renderAll();
 }
 
 /** Guarda el ajuste manual de una celda de compensación.
@@ -221,6 +232,10 @@ function openJson(): void {
         ds.color = x.color || ds.color;
       }
       renderAll(); fitView();
+      /* mismo caso que el CSV: el diálogo es asíncrono. Abrir un archivo es un
+         paso más del historial, así que se puede deshacer y volver a lo que
+         había antes de abrirlo. */
+      commit();
     } catch (err) { alert('JSON: ' + (err as Error).message); }
   });
 }
@@ -240,6 +255,11 @@ export function importCsvText(txt: string, name: string): number {
   /* con menos de tres puntos no hay ni un doblez que medir */
   if (pts.length < 3) return 0;
   const ds = addDataset(E.measuredModel(M, pts), name, 'csv');
+  /* Apilar AQUÍ y no en el clic: entre el botón y este punto está el diálogo
+     de archivo, que es asíncrono, así que el commit() del clic ya pasó. Sin
+     esto la pieza importada no entraba en el historial y un deshacer se
+     saltaba la importación entera. */
+  commit();
   return ds.model.bends.length + 2;
 }
 
@@ -254,6 +274,7 @@ function importPieces(): void {
       if (!importCsvText(f.text, base)) malos.push(f.name);
     }
     renderPanels(); rebuildScene(); drawRibbon();
+    commit();
     if (malos.length) alert(T('csvBad') + '\n' + malos.join('\n'));
   });
 }
@@ -334,6 +355,8 @@ export function action(a: string): void {
       if (sb.T.stat.n) ST.proc.sbT = +sb.T.stat.med.toFixed(3);
       renderSide(); renderRight(); return;
     }
+    case 'undo': return stepHistory(undo);
+    case 'redo': return stepHistory(redo);
     case 'solo': return toggleSolo();
     case 'zerotw':
       zeroTweak(); renderRight(); return;

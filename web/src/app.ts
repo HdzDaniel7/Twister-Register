@@ -40,6 +40,7 @@ import {
 import { drawRibbon, bindRibbon, setOnRibbonSelect } from './ribbon.ts';
 import { renderAll, refresh, selectBend } from './app/render.ts';
 import { importCsvText } from './app/actions.ts';
+import { initHistory } from './app/history.ts';
 import { useTheme, bindScheme } from './app/theme.ts';
 import { bindClick } from './app/events/click.ts';
 import { bindChange } from './app/events/change.ts';
@@ -73,6 +74,9 @@ function boot(): void {
   renderAll();
   fitView();
   markDirty();
+  /* la pila arranca con el estado inicial: sin esto el primer deshacer no
+     tendría a dónde volver */
+  initHistory();
 }
 document.addEventListener('DOMContentLoaded', boot);
 

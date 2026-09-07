@@ -9,12 +9,21 @@ import { renderShell, renderLeft, renderRight, renderStatus } from '../../panels
 import type { AnchorMode, DeltaKey } from '../../types.ts';
 import { $ } from '../dom.ts';
 import { refresh } from '../render.ts';
+import { commit } from '../history.ts';
 import {
   variantById, editBend, editStraight, editDelta, editPoint, editTweak,
 } from '../actions.ts';
 
 export function bindChange(): void {
-  document.body.addEventListener('change', e => {
+  /* Un `change` confirmado es una edición del documento: se apila después, y
+     commit() no hace nada si el documento no cambió (una casilla de capa, por
+     ejemplo, no gasta un paso de deshacer). */
+  document.body.addEventListener('change', e => { onChange(e); commit(); });
+  bindInput();
+}
+
+function onChange(e: Event): void {
+  {
     const t = e.target as HTMLInputElement, d = t.dataset, v = V();
     /* Vaciar una celda y salirse NO debe escribir un 0 que nadie pidió: se
        devuelve lo que había al entrar. Con la selección automática al enfocar,
@@ -99,8 +108,10 @@ export function bindChange(): void {
       editTweak(+d.tw, d.k as 'angle' | 'rot' | 'feed', t.value);
       return;
     }
-  });
+  }
+}
 
+function bindInput(): void {
   document.body.addEventListener('input', e => {
     const t = e.target as HTMLInputElement, d = t.dataset;
     if (t.id === 'exag') {

@@ -25,6 +25,13 @@ const q = sel => {
 /* Los paneles de modelos, vista y piezas ya no son una columna fija: viven en
    cajones que abre la barra de menús. Un paso que necesite uno lo pide aquí, y
    si ya está abierto no lo vuelve a cerrar. */
+/* Un atajo GLOBAL: se dispara sobre el body, que es donde escuchan los
+   manejadores de la aplicación. (El `key(el, ...)` de más abajo es el de una
+   celda concreta.) */
+function hotkey(k, opts) {
+  document.body.dispatchEvent(new KeyboardEvent('keydown',
+    Object.assign({ key: k, bubbles: true, cancelable: true }, opts || {})));
+}
 function drawer(k) {
   if (window.BARCOMP.ST.drawer !== k) q(`[data-dr="${k}"]`).click();
 }
@@ -593,6 +600,15 @@ step('la tabla muestra la distancia al PI', () => {
   const t = document.querySelector('table.marks');
   if (!t || !/\d/.test(t.textContent)) throw new Error('sin distancia');
 });
+step('borrar una cota la borra de verdad', () => {
+  const n = S().marks.length;
+  const mk = S().marks[S().marks.length - 1];
+  click(`#panes [data-mx="${mk.id}"]`);
+  if (S().marks.length !== n - 1) throw new Error('el botón no borró nada');
+  if (S().marks.some(m => m.id === mk.id)) throw new Error('sigue en ST');
+  hotkey('z', { ctrlKey: true });
+  if (S().marks.length !== n) throw new Error('deshacer no la devolvió');
+});
 step('ocultar y mostrar el punto', () => {
   check('input[data-mv="mk1"]', false);
   check('input[data-mv="mk1"]', true);
@@ -659,6 +675,75 @@ step('el botón de importar está en el panel de piezas', () => {
 /* La columna fija de 250 px pasó a cajones que abre la barra de menús: se
    pagaba ese ancho siempre, y capas, colocación y extremo fijo se tocan una
    vez y se olvidan. */
+/* Deshacer guarda DOCUMENTOS serializados: lo que entra en el JSON entra en el
+   deshacer solo. Lo que NO está en el documento —cámara, modo, capas,
+   selección— no se deshace, y eso es deliberado.
+
+   Cada paso de aquí deja el documento como lo encontró: rehace hasta la punta
+   antes de terminar, o rebobinaría el trabajo de los pasos anteriores. */
+function alaPunta() {
+  for (let i = 0; i < 20 && q('#lf [data-a="redo"]'); i++) hotkey('y', { ctrlKey: true });
+}
+step('deshacer devuelve el valor anterior de una celda', () => {
+  click('[data-md="model"]');
+  click('#tabs [data-t="model"]');
+  const antes = S().model.bends[2].angle;
+  setval('input[data-b="2"][data-k="angle"]', String(antes + 7));
+  if (Math.abs(S().model.bends[2].angle - (antes + 7)) > 1e-6) throw new Error('no se editó');
+  hotkey('z', { ctrlKey: true });
+  if (Math.abs(S().model.bends[2].angle - antes) > 1e-9) {
+    throw new Error(`no volvió: ${S().model.bends[2].angle} vs ${antes}`);
+  }
+  hotkey('y', { ctrlKey: true });
+  if (Math.abs(S().model.bends[2].angle - (antes + 7)) > 1e-6) throw new Error('rehacer no repuso');
+  hotkey('z', { ctrlKey: true });
+  if (Math.abs(S().model.bends[2].angle - antes) > 1e-9) throw new Error('el segundo deshacer falló');
+});
+step('deshacer no toca el modo, el cajón ni las capas', () => {
+  click('[data-md="model"]');
+  const antes = S().model.bends[3].radius;
+  setval('input[data-b="3"][data-k="radius"]', String(antes + 4));
+  click('[data-md="comp"]');
+  const capa = S().layers.grid.on, modo = S().mode, exag = S().view.exag;
+  hotkey('z', { ctrlKey: true });
+  if (Math.abs(S().model.bends[3].radius - antes) > 1e-9) throw new Error('no deshizo el radio');
+  if (S().mode !== modo) throw new Error('cambió de modo al deshacer');
+  if (S().layers.grid.on !== capa) throw new Error('tocó las capas');
+  if (S().view.exag !== exag) throw new Error('tocó la exageración');
+  click('[data-md="model"]');
+});
+step('deshacer recupera una cota borrada', () => {
+  click('[data-md="model"]');
+  click('#tabs [data-t="points"]');
+  const mk = S().marks[0];
+  if (!mk) throw new Error('no hay cotas para la prueba');
+  const n = S().marks.length;
+  click(`#panes [data-mx="${mk.id}"]`);
+  if (S().marks.length !== n - 1) throw new Error('no se borró');
+  hotkey('z', { ctrlKey: true });
+  if (S().marks.length !== n) throw new Error('no volvió la cota');
+  if (S().marks[0].name !== mk.name) throw new Error('volvió con otro nombre: ' + S().marks[0].name);
+});
+step('una acción nueva corta la rama de rehacer', () => {
+  click('#tabs [data-t="model"]');
+  const antes = S().model.bends[1].radius;
+  setval('input[data-b="1"][data-k="radius"]', String(antes + 5));
+  hotkey('z', { ctrlKey: true });
+  setval('input[data-b="1"][data-k="radius"]', String(antes + 9));
+  hotkey('y', { ctrlKey: true });
+  if (Math.abs(S().model.bends[1].radius - (antes + 9)) > 1e-6) {
+    throw new Error('rehacer resucitó una rama muerta: ' + S().model.bends[1].radius);
+  }
+  hotkey('z', { ctrlKey: true });
+  if (Math.abs(S().model.bends[1].radius - antes) > 1e-9) throw new Error('no volvió al valor previo');
+});
+step('el cajón de Archivo dice cuántos pasos quedan', () => {
+  drawer('file');
+  const b = q('#lf [data-a="undo"]');
+  if (!b) throw new Error('no hay botón de deshacer');
+  if (!/[0-9]/.test(b.textContent)) throw new Error('no dice cuántos pasos: ' + b.textContent);
+  alaPunta();
+});
 step('los menús abren y cierran su cajón', () => {
   /* el guion viene de pasos anteriores que dejaron cajones abiertos */
   if (S().drawer) { click(`[data-dr="${S().drawer}"]`); }
