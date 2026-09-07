@@ -101,6 +101,7 @@ export function renderLeft(): void {
       </div>`).join('') : `<div class="hintline">${T('dNone')}</div>`}
     <div class="row mt6">
       <button class="btn sm grow" data-a="sim">+ ${T('addSim')}</button>
+      <button class="btn sm" data-a="impts" title="${T('impTip')}">${T('impCsv')}</button>
 </div>
    </div></div>`;
 }

@@ -26,7 +26,7 @@ type I18nKey =
   | 'twlen' | 'ori' | 'dcol' | 'straight' | 'arcL' | 'cumL' | 'tailRow' | 'lenNote'
   | 'kbdNote' | 'twnote' | 'proc' | 'sbW' | 'sbT' | 'slip' | 'biasR' | 'noise'
   | 'seed' | 'simulate' | 'dNone' | 'deltas' | 'dA' | 'dR' | 'dF' | 'dP'
-  | 'srcSim' | 'srcVerify' | 'srcMeas' | 'srcUnk'
+  | 'srcSim' | 'srcVerify' | 'srcMeas' | 'srcUnk' | 'impCsv' | 'impTip' | 'csvBad'
   | 'srcSimTip' | 'srcVerifyTip' | 'srcMeasTip' | 'srcUnkTip'
   | 'statMaxA' | 'statRms' | 'statTip' | 'statOut' | 'gains' | 'gainW' | 'gainT' | 'what'
   | 'cAng' | 'cRot' | 'cFeed' | 'apply' | 'reset' | 'cmdTbl' | 'cNow' | 'cNew'
@@ -100,6 +100,10 @@ es: {
  /* Procedencia de una pieza: sin esto, una pieza inventada por el simulador y
     una medida de verdad se ven exactamente igual en pantalla. */
  srcSim: 'SIM', srcVerify: 'SIM ✓', srcMeas: 'MED', srcUnk: 'S/D',
+ impCsv: 'Importar CSV',
+ impTip: 'Piezas medidas: un CSV por pieza, con los PI en columnas x,y,z. '
+   + 'Se pueden elegir varios archivos a la vez.',
+ csvBad: 'Estos archivos no traían al menos tres puntos con coordenadas y no se importaron:',
  srcSimTip: 'Pieza inventada por el simulador. No se ha medido nada.',
  srcVerifyTip: 'Verificación simulada tras aplicar la compensación. Tampoco es una medida.',
  srcMeasTip: 'Pieza medida importada.',
@@ -178,6 +182,10 @@ en: {
  variants: 'Models', addVar: '+ Model', dupVar: 'Duplicate',
  setRef: 'Use as reference', isRef: 'REF',
  srcSim: 'SIM', srcVerify: 'SIM ✓', srcMeas: 'MEAS', srcUnk: 'N/A',
+ impCsv: 'Import CSV',
+ impTip: 'Measured parts: one CSV per part, with the PIs in x,y,z columns. '
+   + 'Several files can be picked at once.',
+ csvBad: 'These files did not carry at least three points with coordinates and were not imported:',
  srcSimTip: 'Part invented by the simulator. Nothing was measured.',
  srcVerifyTip: 'Simulated check after applying compensation. Not a measurement either.',
  srcMeasTip: 'Imported measured part.',
@@ -260,6 +268,10 @@ de: {
  variants: 'Modelle', addVar: '+ Modell', dupVar: 'Duplizieren',
  setRef: 'Als Referenz verwenden', isRef: 'REF',
  srcSim: 'SIM', srcVerify: 'SIM ✓', srcMeas: 'MESS', srcUnk: 'K.A.',
+ impCsv: 'CSV importieren',
+ impTip: 'Gemessene Teile: eine CSV je Teil, mit den Schnittpunkten in den '
+   + 'Spalten x,y,z. Es können mehrere Dateien auf einmal gewählt werden.',
+ csvBad: 'Diese Dateien enthielten keine drei Punkte mit Koordinaten und wurden nicht importiert:',
  srcSimTip: 'Vom Simulator erzeugtes Teil. Es wurde nichts gemessen.',
  srcVerifyTip: 'Simulierte Prüfung nach der Kompensation. Ebenfalls keine Messung.',
  srcMeasTip: 'Importiertes gemessenes Teil.',

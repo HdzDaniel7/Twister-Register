@@ -137,6 +137,23 @@ function modelFromPoints(model: Model, P: Vector3[], keep: Bend[]): Model {
   return out;
 }
 
+/** Modelo MEDIDO a partir de los PI que salieron del escaneo.
+ *
+ *  Los puntos traen la forma real de la pieza, pero no traen ni el radio del
+ *  herramental ni la torsion: eso se arrastra del nominal por indice, que es
+ *  exactamente lo que ya hace la edicion de puntos. Si la pieza medida trae
+ *  MENOS puntos que el nominal --pasa, y ya revento una vez-- los dobleces que
+ *  sobran del nominal se quedan fuera, y si trae mas, los que falten caen en
+ *  BEND_DEFAULT.
+ *
+ *  Gemelo de `measured_model()` del motor de Python.
+ */
+export function measuredModel(nominal: Model, pts: Vector3[]): Model {
+  const n = Math.max(0, pts.length - 2);
+  const keep = nominal.bends.slice(0, n);
+  return modelFromPoints(nominal, pts.map(p => p.clone()), keep);
+}
+
 /** Mueve el PI `i` y regenera la cadena entera desde los puntos.
  *
  *  No se calcula el arrastre hacia los dobleces siguientes: se recalcula todo,

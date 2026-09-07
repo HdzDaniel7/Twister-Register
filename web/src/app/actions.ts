@@ -17,7 +17,7 @@ import {
   renderLeft, renderSide, renderRight, renderStatus, renderPanels,
 } from '../panels.ts';
 import { makeReport } from '../report.ts';
-import { download, pickFile, safeName } from '../io.ts';
+import { download, pickFile, pickFiles, safeName } from '../io.ts';
 import { renderAll, refresh, refreshTable } from './render.ts';
 import { useTheme } from './theme.ts';
 
@@ -215,6 +215,40 @@ function openJson(): void {
     } catch (err) { alert('JSON: ' + (err as Error).message); }
   });
 }
+/** Mete una pieza MEDIDA desde el texto de un CSV.
+ *
+ *  Va separada del dialogo de archivo a proposito: asi el banco de interfaz
+ *  puede ejercitar el camino entero sin abrir un dialogo, que es lo unico que
+ *  un navegador headless no puede hacer.
+ *
+ *  Los puntos traen la forma real; el radio del herramental y la torsion se
+ *  arrastran del nominal, porque no estan en la nube de puntos. Devuelve
+ *  cuantos puntos entraron, 0 si el archivo no servia.
+ */
+export function importCsvText(txt: string, name: string): number {
+  const M = ST.model!;
+  const pts = E.readPointsCsv(txt);
+  /* con menos de tres puntos no hay ni un doblez que medir */
+  if (pts.length < 3) return 0;
+  const ds = addDataset(E.measuredModel(M, pts), name, 'csv');
+  return ds.model.bends.length + 2;
+}
+
+/** Importa un LOTE de CSV: un archivo por pieza. Se repinta una sola vez al
+ *  final, y lo que no se pudo leer se cuenta y se dice de una vez, en lugar de
+ *  soltar un aviso por archivo. */
+function importPieces(): void {
+  pickFiles('.csv', files => {
+    const malos: string[] = [];
+    for (const f of files) {
+      const base = f.name.replace(/\.[^.]*$/, '');
+      if (!importCsvText(f.text, base)) malos.push(f.name);
+    }
+    renderPanels(); rebuildScene(); drawRibbon();
+    if (malos.length) alert(T('csvBad') + '\n' + malos.join('\n'));
+  });
+}
+
 function exportPoints(): void {
   download('puntos_' + safeName(ST.model!.name) + '.csv',
            E.writePointsCsv(E.fk(ST.model!).pis), 'text/csv');
@@ -229,6 +263,7 @@ export function action(a: string): void {
     case 'save': return saveJson();
     case 'report': return makeReport();
     case 'expts': return exportPoints();
+    case 'impts': return importPieces();
     case 'sim': return simPart(false);
     case 'verify': return simPart(true);
 

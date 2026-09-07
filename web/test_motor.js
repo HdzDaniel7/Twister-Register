@@ -483,6 +483,58 @@ ok('deletePi se niega a dejar el modelo sin dobleces',
    E.deletePi(E.normalizeModel({ ...EM, bends: [E.newBend()] }), 1).bends.length === 1);
 
 /* ---------------------------------------------------------------------- */
+console.log('\n— importar una pieza medida —');
+
+/* La regla del lector es la del motor de Python: de cada línea, las TRES
+   ÚLTIMAS columnas numéricas. Todo lo demás se descarta solo. */
+{
+  const csv = E.writePointsCsv(E.fk(M).pis);
+  const back = E.readPointsCsv(csv);
+  ok('writePointsCsv -> readPointsCsv es ida y vuelta',
+     back.length === P.length &&
+     maxAbs(back.map((q, i) => q.distanceTo(P[i]))) < 1e-3,
+     `${back.length} pts, error máx ${maxAbs(back.map((q, i) => q.distanceTo(P[i]))).toExponential(1)}`);
+
+  ok('el encabezado no entra como punto',
+     E.readPointsCsv('idx,x,y,z\n0,1,2,3').length === 1);
+  ok('acepta punto y coma, tabulador y espacios',
+     E.readPointsCsv('1;2;3\n4\t5\t6\n7 8 9').length === 3);
+  ok('toma las TRES ÚLTIMAS columnas, no las primeras',
+     E.readPointsCsv('7,1,2,3')[0].x === 1);
+  ok('una línea con menos de tres números se descarta',
+     E.readPointsCsv('nombre,unidad\n1,2\n1,2,3').length === 1);
+  ok('un archivo vacío da cero puntos y no revienta',
+     E.readPointsCsv('').length === 0 && E.readPointsCsv('   \n\n').length === 0);
+
+  /* measuredModel: los puntos traen la forma; radio y torsión se arrastran del
+     nominal por índice, porque no viven en los puntos. */
+  const same = E.measuredModel(M, P);
+  ok('measuredModel sobre los PI del nominal reproduce el nominal',
+     same.bends.length === M.bends.length &&
+     maxAbs(E.fk(same).pis.map((q, i) => q.distanceTo(P[i]))) < 1e-9);
+  ok('measuredModel arrastra radio y torsión del nominal',
+     same.bends.every((b, i) => Math.abs(b.radius - M.bends[i].radius) < 1e-12 &&
+                                Math.abs(b.twist - M.bends[i].twist) < 1e-12));
+
+  /* Una pieza escaneada puede llegar con un doblez de menos. Ya reventó una
+     vez, así que aquí se comprueba que entra y que se puede medir contra el
+     nominal sin salirse de rango. */
+  const corta = E.measuredModel(M, P.slice(0, P.length - 1));
+  ok('measuredModel acepta una pieza con menos PI que el nominal',
+     corta.bends.length === M.bends.length - 1);
+  const dev = E.deviations(M, corta, 'start');
+  ok('deviations compara una pieza corta sin desbordar',
+     dev.angle.length === corta.bends.length && dev.angle.every(v => isFinite(v)));
+
+  /* Y la de verdad: una pieza deformada tiene que verse deformada. */
+  const movidos = P.map((q, i) => (i === 6 ? q.clone().add(new Vector3(0, 0, 12)) : q.clone()));
+  const torcida = E.measuredModel(M, movidos);
+  const dev2 = E.deviations(M, torcida, 'start');
+  ok('un PI movido 12 mm se ve en la desviación de punto',
+     maxAbs(dev2.point) > 5, `punta máx ${maxAbs(dev2.point).toFixed(2)} mm`);
+}
+
+/* ---------------------------------------------------------------------- */
 console.log('\n— colocación en el espacio —');
 
 /* La colocación es SOLO presentación: mueve y gira la escena entera alrededor

@@ -191,6 +191,32 @@ export function fromDoc(d: Doc): LoadedDoc {
   };
 }
 
+/** Lee puntos de un CSV. Gemelo exacto de `read_points_csv()` del motor de
+ *  Python, hasta la regla rara: de cada linea se toman **las tres ultimas
+ *  columnas numericas**, y la linea que no tenga tres se descarta sola.
+ *
+ *  Suena laxo y es deliberado. Un volcado de GOM llega con encabezado, con una
+ *  columna de indice o de nombre delante, separado por comas, por punto y coma
+ *  o por tabuladores, y a veces con una linea de unidades. Con esta regla todo
+ *  eso entra sin pedirle a nadie que limpie el archivo a mano, y lo que no son
+ *  coordenadas no se cuela.
+ *
+ *  Lo que NO hace: adivinar el separador decimal. Un `1,5` europeo son dos
+ *  columnas, no un numero y medio. */
+export function readPointsCsv(txt: string): Vector3[] {
+  const out: Vector3[] = [];
+  for (const line of String(txt).split(/\r?\n/)) {
+    const nums = line.trim().split(/[,;\t ]+/)
+      .filter(t => t !== '' && isFinite(Number(t)))
+      .map(Number);
+    if (nums.length >= 3) {
+      const xyz = nums.slice(-3);
+      out.push(new Vector3(xyz[0], xyz[1], xyz[2]));
+    }
+  }
+  return out;
+}
+
 export const writePointsCsv = (pts: Vector3[]): string =>
   'idx,x,y,z\n' + pts.map((p, i) =>
     `${i},${p.x.toFixed(4)},${p.y.toFixed(4)},${p.z.toFixed(4)}`).join('\n');

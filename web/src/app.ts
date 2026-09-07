@@ -39,6 +39,7 @@ import {
 } from './scene.ts';
 import { drawRibbon, bindRibbon, setOnRibbonSelect } from './ribbon.ts';
 import { renderAll, refresh, selectBend } from './app/render.ts';
+import { importCsvText } from './app/actions.ts';
 import { useTheme, bindScheme } from './app/theme.ts';
 import { bindClick } from './app/events/click.ts';
 import { bindChange } from './app/events/change.ts';
@@ -87,10 +88,13 @@ type DebugExports = {
   drawGizmo: typeof drawGizmo; drawLabels: typeof drawLabels; groupHost: typeof groupHost;
   rebuildScene: typeof rebuildScene; markDirty: typeof markDirty;
   get renderer(): typeof renderer;
+  /* el banco no puede abrir un diálogo de archivo: entra por aquí, que es el
+     mismo camino que recorre un CSV de verdad menos el diálogo. */
+  importCsvText: typeof importCsvText;
 };
 /* `renderer` se lee por getter porque initScene() lo asigna DESPUÉS de que
    este módulo se evalúe: copiarlo aquí guardaría el undefined de arranque. */
 if (typeof window !== 'undefined') (window as unknown as { BARCOMP: DebugExports }).BARCOMP = {
   ST, E, I18N, LANG, renderAll, refresh, REF, drawGizmo, drawLabels, groupHost,
-  rebuildScene, markDirty, get renderer() { return renderer; },
+  rebuildScene, markDirty, importCsvText, get renderer() { return renderer; },
 };

@@ -144,11 +144,14 @@ step('el esquema guardado es barcomp/2.1', () => {
                          S().ref, S().anchor, {});
   if (doc.schema !== 'barcomp/2.1') throw new Error(doc.schema);
 });
-step('no queda ningun boton de importar CSV', () => {
-  const malos = [...document.querySelectorAll('#app [data-a]')]
-    .filter(x => /csv/i.test(x.dataset.a) && x.dataset.a !== 'expts')
-    .map(x => x.dataset.a);
-  if (malos.length) throw new Error('siguen: ' + malos.join(','));
+/* Importar CSV existió, se fue con el cambio de convención LRA (4cc9b7e) y
+   volvió como `impts`, ya sobre measuredModel(). Lo que este paso vigila es
+   que no queden los botones VIEJOS —`csv` y `markcsv`— de aquella versión. */
+step('no quedan los botones de CSV de la versión anterior', () => {
+  const viejos = [...document.querySelectorAll('#app [data-a]')]
+    .map(x => x.dataset.a)
+    .filter(a => a === 'csv' || a === 'markcsv');
+  if (viejos.length) throw new Error('siguen: ' + viejos.join(','));
 });
 
 step('la Recta va al principio y L al final, sin columna Avance', () => {
@@ -588,6 +591,43 @@ step('la pieza simulada se marca como SIM en los dos lados', () => {
   if (!side.classList.contains('sim')) throw new Error('sin distintivo en el lateral');
   if (!side.title) throw new Error('el distintivo no explica qué significa');
 });
+/* Importar una pieza medida. El diálogo de archivo es lo único que un
+   navegador headless no puede abrir, así que se entra por importCsvText(),
+   que es el mismo camino menos el diálogo. */
+step('importar una pieza medida desde un CSV', () => {
+  const B = window.BARCOMP;
+  const antes = S().datasets.length;
+  /* un CSV con encabezado, columna de índice y un PI movido 8 mm en Z: lo que
+     llegaría de un escaneo, no una copia exacta del nominal */
+  const pis = B.E.fk(S().model).pis;
+  const csv = 'idx;x;y;z\n' + pis.map((p, i) =>
+    `${i};${p.x.toFixed(3)};${p.y.toFixed(3)};${(p.z + (i === 6 ? 8 : 0)).toFixed(3)}`).join('\n');
+  const n = B.importCsvText(csv, 'lote_A_p1');
+  B.renderAll();
+  if (!n) throw new Error('el CSV no entró');
+  if (S().datasets.length !== antes + 1) throw new Error('no se creó la pieza');
+  const ds = S().datasets[S().datasets.length - 1];
+  if (ds.src !== 'csv') throw new Error('procedencia mal puesta: ' + ds.src);
+  if (ds.model.bends.length !== S().model.bends.length) throw new Error('dobleces distintos');
+  if (!(ds.dev && ds.dev.tip >= 0)) throw new Error('no se midió la desviación');
+  if (Math.max(...ds.dev.point) < 4) throw new Error('el punto movido 8 mm no se ve');
+});
+step('la pieza importada se marca como medida, no como SIM', () => {
+  const ds = S().datasets[S().datasets.length - 1];
+  const b = q(`#lf [data-dv="${ds.id}"]`).closest('.ds').querySelector('.srcbadge');
+  if (!b.classList.contains('meas')) throw new Error('distintivo equivocado: ' + b.className);
+});
+step('un CSV sin coordenadas no crea ninguna pieza', () => {
+  const antes = S().datasets.length;
+  if (window.BARCOMP.importCsvText('nombre;unidad\nx;y\n', 'vacio')) throw new Error('aceptó basura');
+  if (S().datasets.length !== antes) throw new Error('creó una pieza igualmente');
+});
+step('el botón de importar está en el panel de piezas', () => {
+  const b = q('#lf [data-a="impts"]');
+  if (!b) throw new Error('no hay botón de importar');
+  if (!b.title) throw new Error('el botón no explica qué formato espera');
+});
+
 step('la medición ya no es pestaña', () => {
   if (document.querySelector('#tabs [data-t="meas"]')) throw new Error('sigue habiendo pestaña');
   if (document.querySelectorAll('#tabs button').length !== 3) throw new Error('no son 3 pestañas');
