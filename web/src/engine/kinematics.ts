@@ -89,6 +89,15 @@ import { newBend } from './bend.ts';
  *  inversa; cambiarlo aquí voltea la pieza entera sin tocar ni un dato. */
 export const ANG_DIR = -1;
 
+/** Sentido de giro del EJE DE DOBLADO, la misma idea para el rodado: con -1, un
+ *  `rot` de 90 inclina el eje hacia donde antes lo llevaba un -90.
+ *
+ *  Los dos sentidos son independientes a propósito: el ángulo dice hacia qué
+ *  lado se dobla dentro del plano y el rodado qué plano se elige, y una máquina
+ *  puede tener cada eje montado al revés que la otra. Cambiar la constante no
+ *  toca ni un dato: los mismos números giran al otro lado. */
+export const ROT_DIR = -1;
+
 /** Lleva un par (eje, ángulo) a la forma canónica: el eje al plano que le toca
  *  —dentro de (-90, 90]— y el signo del doblez al ángulo. La geometría no
  *  cambia: girar el eje media vuelta es lo mismo que doblar al revés. */
@@ -151,9 +160,13 @@ export function ik(points: Vector3[], radii: (number | undefined)[] | null | und
        dónde, que es como se programa una dobladora. */
     const lat = Math.hypot(d.y, d.z);
     const ang = Math.atan2(lat, clamp(d.x, -1, 1)) * R2D;
-    const crudo = lat < 1e-12        // sin desvío: el eje no se puede leer
-      ? prevRot                       //   y lo que corresponde es no moverlo
-      : Math.atan2(-d.z, -d.y) * R2D;
+    /* El eje que se lee de la geometría está en la convención de la ESCENA; lo
+       que se guarda va en la del modelo, que puede tener el sentido cambiado
+       (ROT_DIR). Sin desvío el eje no se puede leer, y lo que corresponde es
+       no moverlo: se repite el anterior, ya en convención de modelo. */
+    const crudo = lat < 1e-12
+      ? prevRot
+      : ROT_DIR * Math.atan2(-d.z, -d.y) * R2D;
     /* forma canónica: el eje al plano (-90, 90] y el signo del doblez al
        ángulo, para no escribir la dirección dos veces. El ángulo sale con el
        SENTIDO del modelo (ANG_DIR), que es el que bendDecomp() va a leer. */
@@ -213,7 +226,7 @@ export function bendDecomp(b: BendAngle): { axis: Vector3; theta: number; psi: n
   /* Rz(-angle): un `angle` positivo desvía hacia -y, así que el eje del arco
      parte de -z. Con el ángulo negativo se invierte y theta vuelve a ser >= 0. */
   const axis = new Vector3(0, 0, a < 0 ? 1 : -1)
-    .applyMatrix4(rotX((b.rot || 0) * D2R)).normalize();
+    .applyMatrix4(rotX(ROT_DIR * (b.rot || 0) * D2R)).normalize();
   return { axis, theta: Math.abs(a), psi: 0 };
 }
 

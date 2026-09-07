@@ -167,6 +167,14 @@ step('el ángulo se ve tal como está guardado', () => {
   }
   setval('#panes input[data-b="0"][data-k="angle"]', String(visto));
 });
+step('un rodado positivo lleva el doblez a -z', () => {
+  const m = Eg().normalizeModel({ ...Eg().emptyModel(), tail: 200,
+    bends: [Eg().newBend({ feed: 200, rot: 90, angle: 40, radius: 30 })] });
+  const P = Eg().fk(m).pis;
+  const z = P[P.length - 1].z;
+  if (!(z < -10)) throw new Error('la punta quedó en z=' + z.toFixed(1));
+  if (Eg().ROT_DIR !== -1) throw new Error('ROT_DIR = ' + Eg().ROT_DIR);
+});
 step('un ángulo positivo desvía hacia +y', () => {
   const m = Eg().normalizeModel({ ...Eg().emptyModel(), tail: 200,
     bends: [Eg().newBend({ feed: 200, rot: 0, angle: 40, radius: 30 })] });

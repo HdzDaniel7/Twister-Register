@@ -368,6 +368,13 @@ sentido con el que llegan los datos del taller: **los mismos números doblan al
 otro lado**, y en pantalla se leen tal como están en el archivo. La interfaz no
 voltea nada.
 
+**El sentido del rodado** tiene su propia constante, `ROT_DIR`, también en `-1`:
+un `rot` de 90 inclina el eje hacia donde antes lo llevaba un −90. Los dos
+sentidos son independientes a propósito —el ángulo dice hacia qué lado se dobla
+dentro del plano y el rodado qué plano se elige, y una máquina puede tener cada
+eje montado al revés que la otra—, y ninguna de las dos toca un solo dato: los
+mismos números giran al otro lado.
+
 **La regla de edición:** las rectas mandan. Cambiar un radio, un rodado o un
 ángulo deja **todas las rectas donde estaban** y recoloca los avances
 por debajo. Como el `trim` de un doblez muerde por los dos lados, tocar el radio

@@ -172,7 +172,14 @@ ok('rodar no cambia el tamaño del doblez, solo el plano',
    números doblan al otro lado— porque es el sentido con el que llegan los
    datos del taller. Lo decide ANG_DIR, en el motor. */
 ok('un ángulo positivo desvía hacia +y', ppE.y > 10, `y=${ppE.y.toFixed(1)}`);
-ok('ANG_DIR es lo único que decide el sentido', E.ANG_DIR === -1);
+ok('ANG_DIR es lo único que decide el sentido del ángulo', E.ANG_DIR === -1);
+/* SENTIDO DEL RODADO. Un rot de +90 inclina el eje hacia donde antes lo
+   llevaba un -90: los mismos números giran al otro lado, sin tocar un dato.
+   Lo decide ROT_DIR, y es independiente del sentido del ángulo. */
+ok('un rodado de +90 lleva el doblez a -z', pcE.z < -10, `z=${pcE.z.toFixed(1)}`);
+ok('ROT_DIR es lo único que decide el sentido del rodado', E.ROT_DIR === -1);
+ok('voltear el signo del rodado voltea el plano',
+   Math.abs(punta(uno(-90, 40)).z + pcE.z) < 1e-9);
 ok('voltear el signo del ángulo voltea el doblez',
    Math.abs(punta(uno(0, -40)).y + ppE.y) < 1e-9);
 ok('R=180 dobla lo mismo hacia el otro lado',
