@@ -367,6 +367,9 @@ export type State = {
   /** pestaña activa del panel derecho ('model' | 'points' | 'comp', ver TABS) */
   /** el trabajo que se está haciendo: manda sobre TODA la distribución */
   mode: Mode;
+  /** el 3D a pantalla completa: se pliega lo demás sin perder el modo ni el
+   *  sitio en la tabla. Estado de pantalla, no del documento. */
+  solo: boolean;
   /** cajón abierto ('file', 'models', 'view', 'pieces') o null.
    *  Es estado de pantalla, no del documento: no viaja en el JSON ni entra en
    *  el deshacer, igual que la selección o la cámara. */

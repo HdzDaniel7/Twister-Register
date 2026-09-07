@@ -33,6 +33,7 @@ type I18nKey =
   | 'modeModel' | 'modeMeas' | 'modeComp'
   | 'modeModelTip' | 'modeMeasTip' | 'modeCompTip'
   | 'mnFile' | 'mnModel' | 'mnView' | 'mnPieces' | 'expPts'
+  | 'soloOn' | 'soloOff' | 'soloTip'
   | 'srcSimTip' | 'srcVerifyTip' | 'srcMeasTip' | 'srcUnkTip'
   | 'statMaxA' | 'statRms' | 'statTip' | 'statOut' | 'gains' | 'gainW' | 'gainT' | 'what'
   | 'cAng' | 'cRot' | 'cFeed' | 'apply' | 'reset' | 'cmdTbl' | 'cNow' | 'cNew'
@@ -138,6 +139,9 @@ es: {
  /* Los menús. Abren cajones que flotan sobre el 3D: la columna fija de 250 px
     se pagaba siempre, y lo que había dentro se toca una vez y se olvida. */
  mnFile: 'Archivo', mnModel: 'Modelos', mnView: 'Vista', mnPieces: 'Piezas',
+ soloOn: 'Solo 3D', soloOff: 'Volver',
+ soloTip: 'Plegar la tabla y el lateral para ver la pieza entera (tecla F). '
+   + 'Al volver, la tabla sigue donde estaba.',
  expPts: 'Exportar puntos',
  modeModel: 'Modelar', modeMeas: 'Medir', modeComp: 'Compensar',
  modeModelTip: 'Teclear la pieza: la tabla entera a la derecha y el modelo al lado.',
@@ -250,6 +254,9 @@ en: {
  sbSpreadTip: 'Scatter across bends and parts. If it is as large as the value itself, '
    + 'that springback is not measured: it is guessed.',
  mnFile: 'File', mnModel: 'Models', mnView: 'View', mnPieces: 'Parts',
+ soloOn: '3D only', soloOff: 'Back',
+ soloTip: 'Fold the table and the sidebar away to see the whole part (F key). '
+   + 'On the way back, the table is where you left it.',
  expPts: 'Export points',
  modeModel: 'Model', modeMeas: 'Measure', modeComp: 'Compensate',
  modeModelTip: 'Type the part: the whole table on the right and the model beside it.',
@@ -367,6 +374,9 @@ de: {
  sbSpreadTip: 'Streuung über Bögen und Teile. Ist sie so groß wie der Wert selbst, ist '
    + 'diese Rückfederung nicht gemessen, sondern geraten.',
  mnFile: 'Datei', mnModel: 'Modelle', mnView: 'Ansicht', mnPieces: 'Teile',
+ soloOn: 'Nur 3D', soloOff: 'Zurück',
+ soloTip: 'Tabelle und Seitenleiste einklappen, um das ganze Teil zu sehen (Taste F). '
+   + 'Beim Zurückkommen steht die Tabelle, wo sie war.',
  expPts: 'Punkte exportieren',
  modeModel: 'Modellieren', modeMeas: 'Messen', modeComp: 'Kompensieren',
  modeModelTip: 'Das Teil eingeben: die ganze Tabelle rechts und das Modell daneben.',

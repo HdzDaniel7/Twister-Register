@@ -123,6 +123,15 @@ button,input,select,textarea{font-family:inherit;font-size:inherit;color:inherit
   grid-template-rows:var(--h) minmax(200px,1fr) var(--ribbon) var(--compVP) var(--statusH);
   grid-template-areas:"hd" "bt" "rb" "ct" "st"}
 #app.m-comp #rt{display:none}
+/* ---------- el 3D a pantalla completa ----------
+   Pliega la tabla, el lateral y la cinta sin salir del modo: la tabla sigue
+   donde estaba y el sitio en ella no se pierde. Es para mirar la pieza, que
+   es la mitad del trabajo y la que peor llevaba compartir la pantalla. */
+#app.solo{grid-template-columns:1fr;
+  grid-template-rows:var(--h) 1fr var(--statusH);
+  grid-template-areas:"hd" "ct" "st"}
+#app.solo #bt,#app.solo #rt,#app.solo #rb,#app.solo #rtgrip{display:none}
+
 /* Los dos tiradores siguen ahí en los tres modos, pero cada modo les da otro
    trabajo (ver bindGrips en app/events/grips.ts):
 

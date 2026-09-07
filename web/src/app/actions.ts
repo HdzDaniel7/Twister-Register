@@ -19,7 +19,7 @@ import {
 } from '../panels.ts';
 import { makeReport } from '../report.ts';
 import { download, pickFile, pickFiles, safeName } from '../io.ts';
-import { renderAll, refresh, refreshTable } from './render.ts';
+import { renderAll, refresh, refreshTable, toggleSolo } from './render.ts';
 import { useTheme } from './theme.ts';
 
 const clamp = E.clamp;
@@ -331,6 +331,7 @@ export function action(a: string): void {
       if (sb.T.stat.n) ST.proc.sbT = +sb.T.stat.med.toFixed(3);
       renderSide(); renderRight(); return;
     }
+    case 'solo': return toggleSolo();
     case 'zerotw':
       zeroTweak(); renderRight(); return;
 

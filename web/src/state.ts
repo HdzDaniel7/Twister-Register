@@ -35,7 +35,7 @@ export const ST: State = {
   layers: Object.fromEntries(LAYER_DEF.map(([k, , c]) =>
     [k, { on: !OFF_BY_DEFAULT.includes(k), color: c }])) as State['layers'],
   view: { exag: 25, cmode: 'dev' },
-  datum: 'start', mode: 'model', tab: 'model', drawer: null, pred: null,
+  datum: 'start', mode: 'model', tab: 'model', drawer: null, solo: false, pred: null,
   /* 'system' | 'light' | 'dark'. Sin localStorage: viaja en el JSON. */
   theme: 'system',
   /* colocación: dónde y en qué ángulo se para la pieza. Solo presentación. */

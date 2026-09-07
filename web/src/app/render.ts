@@ -50,3 +50,18 @@ export function openDrawer(k: string | null): void {
   renderShell();
   renderLeft();
 }
+
+/** El 3D a pantalla completa, y de vuelta.
+ *
+ *  Pliega la tabla, el lateral y la cinta sin cambiar de modo: al volver, la
+ *  tabla está donde estaba. Como cambia la rejilla, hay que avisar al lienzo
+ *  (onResize) o se queda con los píxeles de antes; y se reencuadra, porque
+ *  pasar de media pantalla a la pantalla entera deja la pieza descentrada. */
+export function toggleSolo(): void {
+  ST.solo = !ST.solo;
+  if (ST.solo) ST.drawer = null;      // un cajón encima del 3D solo estorba aquí
+  renderShell();
+  renderLeft();
+  onResize();
+  fitView();
+}

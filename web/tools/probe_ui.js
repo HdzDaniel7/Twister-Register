@@ -690,6 +690,36 @@ step('un clic fuera también lo cierra', () => {
   q('#ct').click();
   if (S().drawer) throw new Error('sigue abierto');
 });
+/* Mirar la pieza es la mitad del trabajo, y es lo que peor llevaba compartir
+   pantalla. F la deja sola sin salir del modo ni perder el sitio en la tabla. */
+step('la tecla F deja el 3D a pantalla completa y vuelve', () => {
+  const antes = q('#vpwrap').getBoundingClientRect();
+  document.body.dispatchEvent(new KeyboardEvent('keydown', { key: 'f', bubbles: true }));
+  if (!S().solo) throw new Error('no se plegó');
+  const solo = q('#vpwrap').getBoundingClientRect();
+  if (!(solo.width > antes.width + 100)) throw new Error(`el 3D no creció: ${antes.width} -> ${solo.width}`);
+  if (getComputedStyle(q('#bt')).display !== 'none') throw new Error('la tabla sigue ahí');
+  const cv = q('#vp').getBoundingClientRect();
+  if (Math.abs(cv.width - solo.width) > 2) throw new Error('el lienzo no siguió al contenedor');
+  document.body.dispatchEvent(new KeyboardEvent('keydown', { key: 'F', bubbles: true }));
+  if (S().solo) throw new Error('no volvió');
+  if (Math.abs(q('#vpwrap').getBoundingClientRect().width - antes.width) > 1) {
+    throw new Error('al volver no quedó como estaba');
+  }
+});
+step('dentro de un campo la F es una letra', () => {
+  const inp = q('#panes input[type=number]');
+  inp.focus();
+  inp.dispatchEvent(new KeyboardEvent('keydown', { key: 'f', bubbles: true }));
+  if (S().solo) throw new Error('se plegó mientras se escribía');
+  inp.blur();
+});
+step('el botón del visor hace lo mismo que la tecla', () => {
+  click('#vptool [data-a="solo"]');
+  if (!S().solo) throw new Error('el botón no plegó');
+  click('#vptool [data-a="solo"]');
+  if (S().solo) throw new Error('el botón no devolvió');
+});
 step('los tres modos están arriba y la medición no es pestaña', () => {
   const modos = [...document.querySelectorAll('[data-md]')].map(b => b.dataset.md);
   if (modos.join(',') !== 'model,meas,comp') throw new Error('modos: ' + modos.join(','));

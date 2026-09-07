@@ -6,7 +6,7 @@
 import { cellKey, nx } from '../../panels.ts';
 import { $ } from '../dom.ts';
 import { ST } from '../../state.ts';
-import { openDrawer } from '../render.ts';
+import { openDrawer, toggleSolo } from '../render.ts';
 
 /** Sube o baja un campo numérico un paso. Mismo cuerpo para la rueda y para
  *  Ctrl+↑ / Ctrl+↓, o los dos se separan en cuanto alguien toque uno.
@@ -57,8 +57,23 @@ export function bindKeyboard(): void {
   /* Escape cierra el cajón de menú, como en cualquier menú. Solo cuando el
      foco NO está en un campo: dentro de una celda, Escape ya significa
      «descarta lo que escribí», y esa es la que manda. */
+  /* F pliega y despliega el 3D. Fuera de los campos, claro: dentro, la F es
+     una letra. */
   document.body.addEventListener('keydown', e => {
-    if (e.key !== 'Escape' || !ST.drawer) return;
+    if (e.key !== 'f' && e.key !== 'F') return;
+    if (e.ctrlKey || e.metaKey || e.altKey) return;
+    const t = e.target as HTMLElement;
+    if (/^(INPUT|SELECT|TEXTAREA)$/.test(t.tagName)) return;
+    e.preventDefault();
+    toggleSolo();
+  });
+
+  document.body.addEventListener('keydown', e => {
+    if (e.key !== 'Escape') return;
+    /* Escape sale primero de pantalla completa y luego cierra el cajón */
+    const t0 = e.target as HTMLElement;
+    if (ST.solo && !/^(INPUT|SELECT|TEXTAREA)$/.test(t0.tagName)) { toggleSolo(); return; }
+    if (!ST.drawer) return;
     const t = e.target as HTMLElement;
     if (/^(INPUT|SELECT|TEXTAREA)$/.test(t.tagName)) return;
     openDrawer(null);

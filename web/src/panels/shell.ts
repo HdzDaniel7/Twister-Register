@@ -57,6 +57,8 @@ export function renderShell(): void {
     ${['iso', 'top', 'front', 'side'].map(v =>
       `<button class="btn sm" data-v="${v}">${T(('v' + v[0].toUpperCase() + v.slice(1)) as I18nKey)}</button>`).join('')}
     <button class="btn sm" data-v="fit">${T('vFit')}</button>
+    <button class="btn sm ${ST.solo ? 'pri' : ''}" data-a="solo"
+      title="${T('soloTip')}">${T(ST.solo ? 'soloOff' : 'soloOn')}</button>
     <span class="tag" style="margin-left:6px">${T('exag')}</span>
     <input type="range" id="exag" min="0" max="120" step="1" value="${ST.view.exag}" style="width:80px">
     <span id="exagv" style="width:30px;text-align:right;color:var(--nominal)">${ST.view.exag}×</span>
@@ -78,7 +80,7 @@ export function renderShell(): void {
   $('#hint')!.textContent = T('hint');
   /* La clase del #app es la que reparte la pantalla: una rejilla por modo. */
   const app = $('#app');
-  if (app) app.className = 'm-' + ST.mode;
+  if (app) app.className = 'm-' + ST.mode + (ST.solo ? ' solo' : '');
 
   /* Sub-pestañas solo donde hay más de una tabla que enseñar: en Medir y en
      Compensar la fila de pestañas sería una etiqueta de una sola opción. */
