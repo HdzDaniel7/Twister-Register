@@ -11,7 +11,7 @@
 import * as E from '../engine.ts';
 import { T, LANG, setLang } from '../i18n.ts';
 import {
-  ST, loadModel, addDataset, setMarks, syncTweak,
+  ST, loadModel, addDataset, setMarks, setPedestals, syncTweak,
 } from '../state.ts';
 import { rebuildScene, fitView } from '../scene.ts';
 import { drawRibbon } from '../ribbon.ts';
@@ -24,7 +24,7 @@ import { commit, markSaved } from './history.ts';
 export function saveJson(): void {
   const doc = E.toDoc(ST.model!, ST.command, ST.comp, ST.proc, ST.datasets,
                       ST.variants, ST.ref, ST.anchor,
-                      { place: ST.place, marks: ST.marks, tweak: ST.tweak,
+                      { place: ST.place, marks: ST.marks, fixture: ST.fixture, tweak: ST.tweak,
                         ui: { theme: ST.theme, lang: LANG.cur, mode: ST.mode } });
   download(safeName(ST.model!.name) + '.json', JSON.stringify(doc, null, 1));
   /* A partir de aquí el trabajo está en disco: el aviso al cerrar deja de
@@ -41,6 +41,7 @@ export function openJson(): void {
       Object.assign(ST.proc, d.proc);
       ST.place = { ...E.PLACE_DEFAULT, ...(d.place || {}) };
       setMarks(d.marks);
+      setPedestals(d.fixture);
       ST.tweak = d.tweak || [];
       syncTweak(ST.model!.bends.length);
       /* un archivo sin `ui` no pisa el tema ni el idioma que ya haya puestos */

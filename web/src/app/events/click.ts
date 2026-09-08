@@ -47,7 +47,7 @@ function onClick(e: MouseEvent): void {
       if (!['checkbox', 'color', 'radio'].includes((e.target as HTMLInputElement).type)) return;
     }
     const t = (e.target as HTMLElement).closest(
-      '[data-a],[data-v],[data-dm],[data-l],[data-th],[data-md],[data-dr],[data-dx],[data-dsel],[data-cm],[data-mx],' +
+      '[data-a],[data-v],[data-dm],[data-l],[data-th],[data-md],[data-dr],[data-dx],[data-dsel],[data-cm],[data-mx],[data-px],' +
       '[data-vsel],[data-vx],[data-vd],[data-vr],[data-r]') as HTMLElement | null;
     if (!t) return;
     const d = t.dataset;
@@ -68,6 +68,14 @@ function onClick(e: MouseEvent): void {
     if (d.mx !== undefined) {
       ST.marks = ST.marks.filter(m => m.id !== d.mx);
       renderLeft(); renderRight(); rebuildScene();
+      return;
+    }
+    /* borrar un pedestal. No renumera los que quedan: el nombre es del taller
+       —está escrito en el pedestal— y renumerarlo aquí lo despegaría del que
+       hay atornillado a la mesa. */
+    if (d.px !== undefined) {
+      ST.fixture = ST.fixture.filter(p => p.id !== d.px);
+      renderRight(); rebuildScene();
       return;
     }
     if (d.dx !== undefined) {

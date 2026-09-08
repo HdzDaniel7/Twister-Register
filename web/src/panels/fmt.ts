@@ -25,10 +25,10 @@ export { $ } from '../dom.ts';
  *  gastan una fila de pestañas en decirlo. */
 export const MODES: Mode[] = ['model', 'meas', 'comp'];
 export const TABS_OF: Record<Mode, string[]> = {
-  model: ['model', 'points'], meas: [], comp: ['comp'],
+  model: ['model', 'points', 'fixture'], meas: [], comp: ['comp'],
 };
 /** Compatibilidad: la lista plana que usaba renderRight() antes de los modos. */
-export const TABS = ['model', 'points', 'comp'];
+export const TABS = ['model', 'points', 'fixture', 'comp'];
 export const fx = (v: number | null | undefined, n: number = 2): string =>
   (v === null || v === undefined || !isFinite(v)) ? '—' : v.toFixed(n);
 /** Valor para un campo EDITABLE. Al menos `min` decimales y hasta `max`, sin

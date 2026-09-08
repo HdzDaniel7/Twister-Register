@@ -22,6 +22,7 @@ export type I18nKey =
   | 'srcSim' | 'srcVerify' | 'srcMeas' | 'srcUnk' | 'impCsv' | 'impTip' | 'csvBad'
   | 'csvComma' | 'csvCols' | 'csvFew' | 'csvShort' | 'fileUnread' | 'csvNear'
   | 'csvScale'
+  | 'fixture' | 'pedH' | 'pedPad' | 'pedTilt' | 'pedWant' | 'pedS' | 'pedPlan' | 'pedGap' | 'pedSpan' | 'pedWorst' | 'pedOff' | 'pedOffN' | 'pedOffTip' | 'pedLiftTip' | 'addPed' | 'seedPed' | 'clearPed' | 'fixEmpty' | 'fixNote'
   | 'fabHead' | 'fabNeg' | 'fabShort' | 'fabTail' | 'fabOver'
   | 'compSim' | 'compShort' | 'rowNoMeas'
   | 'batchUse' | 'batchTip' | 'batchOn' | 'batchHint' | 'spread' | 'spreadTip'

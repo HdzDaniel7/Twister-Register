@@ -436,12 +436,58 @@ confirmar una celda no se reconstruye el panel, así que el foco nunca salta.
 - Los valores se rellenan a dos decimales y muestran el tercero solo cuando lo
   hay, así que la columna sigue alineada.
 
+## El fixture
+
+La barra se dobla y se mide apoyada en pedestales. Eso no es decoración: **el vano
+entre dos apoyos decide la flecha por gravedad**, y en 1.7 m de aluminio esa flecha
+puede ser del orden de la tolerancia de punto. Una flecha que nadie modela entra en
+la medición como si fuera error de doblado, el lazo de compensación intenta
+corregirla, no puede, y ahí se queda.
+
+La pestaña **Fixture**, dentro de Modelar, lleva la lista. Se teclean las cinco
+cifras que se miden en el taller con un flexómetro:
+
+| Campo | Qué es |
+|---|---|
+| **X**, **Y** | dónde se para el pie sobre la mesa, mm |
+| **Alto** | de la mesa a la cuna, mm |
+| **Cuna** | largo del apoyo a lo largo de la barra, mm |
+| **Inclin.** | inclinación de la cuna, ° |
+
+El resto de la tabla es de lectura y sale del modelo: en qué punto de la barra
+toca (**Toca**), cuánto se desvía en planta (**Desvío**), qué inclinación pide la
+barra ahí (**Pide**) y la diferencia (**Δ**), el aire que queda entre la cuna y la
+cara de abajo (**Hueco**) y la distancia al pedestal anterior a lo largo de la
+barra (**Vano**). Arriba se repite el vano mayor, que es el número que decide la
+flecha.
+
+**Los pedestales están atornillados a la mesa: no se mueven cuando la pieza se
+recoloca.** Lo que cambia es si siguen apoyando. El que deja de hacerlo —porque le
+falta altura, le sobra, o la barra ni siquiera le pasa por encima— se pone en rojo
+en la tabla y en el 3D.
+
+Δ no se juzga solo contra un número de grados: medio grado en una cuna de 20 mm no
+levanta nada y en una de 300 mm levanta más que la tolerancia. Lo que se compara
+contra `tol.point` es el **despegue** en la punta de la cuna, que es `cuna/2 · tan Δ`.
+
+«Sembrar» reparte unos cuantos bajo la pieza con la altura y la inclinación que
+pide en cada sitio. No es el fixture bueno —ese lo dicta el que está montado en el
+taller— sino algo que corregir, y de paso enseña qué alturas pide esta pieza.
+
+La mesa está en `z = TABLE_Z` (−260 mm), fija por ahora: mientras no haya un fixture
+real medido, una mesa configurable es un campo más que nadie puede rellenar con un
+valor de verdad.
+
+Lo que esta herramienta **no** hace es calcular la flecha. Da la geometría de la que
+sale; la flecha necesita el módulo elástico y la densidad del material, o un escaneo
+de una barra recta certificada montada en el fixture.
+
 ## Formato de archivo
 
 Esquema `barcomp/2.3`, un JSON con el modelo, los comandos de máquina, las
 ganancias, los parámetros del simulador, las piezas medidas y los modelos
-comparados. Las claves `variants`, `ref` y `anchor` son opcionales: los archivos
-viejos siguen abriendo.
+comparados. Las claves `variants`, `ref`, `anchor`, `place`, `marks`, `fixture` y
+`tweak` son opcionales: los archivos viejos siguen abriendo.
 
 Los archivos de piezas reales **no se versionan**: el repo es público y un
 `.json` lleva la geometría del cliente. La carpeta `piezas/` está apartada en

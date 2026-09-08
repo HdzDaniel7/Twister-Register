@@ -233,65 +233,93 @@ espera anotada: `AXIS_MIN_DEG` y `COMP_DEFAULT.dead` (A.6), `PI_MIN_MM = 1.0` (A
 ## Fase 2 · Estructural — cuando lleguen los datos
 
 **ARRANCADA 2026-09-08.** Los datos externos NO han llegado: no hay ningún export
-de ZEISS ni ningún programa de máquina en el repo ni en `.auditoria/`. Los tres
-puntos 🔴 siguen sin poder empezar, y no se empiezan: inventar el formato es
-peor que esperarlo, porque el error no se ve hasta que la barra está doblada.
+de ZEISS ni ningún programa de máquina en el repo ni en `.auditoria/`.
 
-Lo que sí se hizo, que es todo lo que no dependía de una respuesta:
+**DECISIÓN 2026-09-08 (del cliente del proyecto):** todo lo que dependa de los
+modelos CAD y de los archivos de inspección se **aplaza al final del proyecto**,
+como actualización posterior a la beta 1.0. No es que dejen de importar: es que
+llevan semanas parados esperando una respuesta que no llega, y el resto del
+trabajo no depende de ellos. Lo aplazado está más abajo, en «Futuras
+actualizaciones», con lo que hará falta para retomarlo.
+
+Lo que se hizo, que es todo lo que no dependía de una respuesta:
 
 - **Los dos correos, listos para enviar** — `.auditoria/correo-a-metrologia.md`
   y `.auditoria/correo-b-maquina.md`. El documento largo sigue siendo la fuente;
   esto es lo que se manda, cada uno a su destinatario, con la petición delante y
   el porqué detrás. A.1 y A.3 encabezan el de metrología; B.1 y B.2 el de la
-  máquina. **Es el único trabajo que desbloquea el resto de la fase, y no es
-  trabajo de software.**
-- **La mitad de C2 que no dependía de A.1** — ver abajo.
+  máquina. **Es el único trabajo que desbloquea lo aplazado, y no es trabajo de
+  software.**
+- **La guarda de ESCALA del CSV** — la mitad de C2 que no necesitaba A.1.
+- **La herramienta de fixture** — ver abajo.
 - **M16 / D4 resuelto** — ver abajo.
 
-Cada punto pendiente dice de qué respuesta depende.
-
-- [~] **[C2] Mapeo de columnas por cabecera · [O]** — partido en dos.
-
-      **Hecho, sin necesitar A.1:** la guarda de ESCALA (`csvScaleOk`,
-      `SCALE_MIN_RATIO = 0.25`). Tapa el agujero que quedaba después de la Fase 0
-      y que era el motivo entero de pedir A.1: un export cuyas tres últimas
-      columnas son la DESVIACIÓN y no la coordenada pasa todas las guardas
-      anteriores —tres columnas numéricas, decimales con punto, ningún PI
-      pegado— y entra como una pieza perfecta, porque una nube de desviaciones
-      es geométricamente una barra rectísima y diminuta. Ahora se compara el
-      paso medio entre PI contra el del nominal, que el visor ya tiene cargado:
-      no hace falta saber nada del formato del archivo.
+- [x] **[C2 parcial] Guarda de escala al importar · [O]** — hecho 2026-09-08.
+      `csvScaleOk()` con `SCALE_MIN_RATIO = 0.25`. Tapa el agujero que quedaba
+      después de la Fase 0 y que era el motivo entero de pedir A.1: un export
+      cuyas tres últimas columnas son la DESVIACIÓN y no la coordenada pasa
+      todas las guardas anteriores —tres columnas numéricas, decimales con
+      punto, ningún PI pegado— y entra como una pieza perfecta, porque una nube
+      de desviaciones es geométricamente una barra rectísima y diminuta. Ahora
+      se compara el paso medio entre PI contra el del nominal, que el visor ya
+      tiene cargado: no hace falta saber nada del formato del archivo.
 
       El hueco real estaba entre `PI_MIN_MM` y el paso nominal. Con desviaciones
-      de décimas de milímetro la nube ya la cazaba el guardia de PI pegados;
-      con las de varios milímetros de una pieza FUERA de tolerancia, no la
-      cazaba nadie. Son dos órdenes de magnitud donde no miraba ninguna guarda.
-      De paso caza las unidades equivocadas —metros, pulgadas, centímetros—,
-      que es el mismo error con otra cara.
+      de décimas de milímetro la nube ya la cazaba el guardia de PI pegados; con
+      las de varios milímetros de una pieza FUERA de tolerancia, no la cazaba
+      nadie. Dos órdenes de magnitud sin vigilar. De paso caza las unidades
+      equivocadas —metros, pulgadas, centímetros—, que es el mismo error con
+      otra cara.
 
-      La comprobación es de UN SOLO LADO a propósito: a un escaneo al que le
-      faltan puntos intermedios se le funden dos tramos y su paso medio SUBE.
-      Eso no es un archivo malo, es una pieza medida a medias, y ya lo dice
-      `csvShort`. El aviso trae las dos medias, la del archivo y la del nominal,
-      porque «escala rara» manda a mirar el archivo a ojo y «avanzan 9.1 mm y
-      deberían 117.9» nombra la columna equivocada.
+      De UN SOLO LADO a propósito: a un escaneo al que le faltan puntos
+      intermedios se le funden dos tramos y su paso medio SUBE. Eso no es un
+      archivo malo, es una pieza medida a medias, y ya lo dice `csvShort`.
 
-      **Pendiente, ⛔ depende de A.1:** leer el encabezado y mapear por nombre, y
-      el diálogo que muestre las columnas detectadas, los tres primeros puntos y
-      el conteo antes de crear el dataset. Sin un archivo real, los nombres de
-      columna que se mapearían serían inventados.
-- [ ] **[C4] Prealineación de la nube al nominal · [O]** — ⛔ depende de **A.4** (qué
-      alineación y qué datum). Si el export ya viene alineado al CAD, esto se reduce a
-      verificar el residual; si viene en coordenadas de escáner, hay que llamar al
-      `kabsch()` que ya existe y resolver el giro sobre x. Añadir `'end'` a `DatumMode`
-      reutilizando `anchorTransform`.
+- [x] **[NUEVO · A.5 parcial] Herramienta de fixture: los pedestales · [O]** —
+      hecho 2026-09-08. Antes la escena dibujaba pedestales de MENTIRA: una caja
+      cada tres PI, de tamaño fijo, levantada hasta el suelo. Se veían bien y no
+      significaban nada. Ahora hay `engine/fixture.ts`, una pestaña propia
+      dentro de Modelar y un modelo de datos que viaja en el JSON.
 
-      No se adelanta nada: cuál de los dos caminos es decide la forma entera del
-      código, y construir los dos para tirar uno cuesta más que esperar.
+      **Se colocan por posición en la MESA**, no sobre la barra, porque el
+      fixture es una cosa física que ya está montada: cada pedestal tiene su
+      `x`, `y`, su alto, el largo de la cuna y su inclinación, que son las cinco
+      cifras que alguien mide en el taller con un flexómetro. Lo demás son
+      columnas de LECTURA que salen del modelo: en qué punto de la barra toca,
+      cuánto se desvía en planta, qué hueco queda entre la cuna y la cara de
+      abajo, qué inclinación pide la barra ahí, y el **vano** hasta el pedestal
+      anterior a lo largo de la barra.
+
+      La inclinación lleva **las dos columnas y la diferencia**: la del pedestal
+      (que se teclea) y la que la pieza pide (que se calcula). Δ solo no se
+      puede juzgar contra una tolerancia —medio grado en una cuna de 20 mm no
+      levanta nada y en una de 300 mm levanta más que la tolerancia de punto—
+      así que lo que se pinta en rojo es el **despegue** que ese Δ produce en la
+      punta de la cuna, comparado contra `tol.point`.
+
+      Que se coloquen en la mesa tiene una consecuencia que es justo la que
+      hacía falta: **los pedestales NO se mueven cuando la pieza se recoloca.**
+      Lo que cambia es si siguen apoyando, y el que deja de hacerlo se pone del
+      color de fuera de tolerancia en la tabla y en el 3D. Hay una prueba de
+      banco dedicada a eso.
+
+      **Lo que esta herramienta NO hace: calcular la flecha.** Da la geometría
+      de la que sale —dónde apoya cada uno y qué vano queda— pero la flecha
+      necesita módulo elástico y densidad del material, que no están
+      confirmados. Ver M6.
+
+      De paso se le puso nombre al `-260` que estaba escrito dos veces a mano en
+      `scene/layers.ts`: es `TABLE_Z`, y ahora es el cero de una cota que
+      alguien va a mecanizar, no un detalle de dibujo.
+
 - [ ] **[B1/B2] Exportación de comandos a la máquina · [O]** — ⛔ depende de **B.1 y B.2**.
       Hoy no existe ninguna y los números se pasan a mano. Si la máquina lee CSV, es una
       función de 30 líneas junto a `expts`; lo caro no es escribirla, es acertar con las
       unidades y los signos. **Alto valor por poco esfuerzo en cuanto llegue el formato.**
+
+      **NO se aplaza** con lo del CAD: esto no depende del escáner ni del
+      informe de inspección, sino del manual de la dobladora, que es otra
+      persona y otro correo.
 - [x] **[A9 + A11] CI que verifica el artefacto · [S con revisión de O]** — hecho
       2026-09-08, adelantado a la Fase 1 porque sus dos prerrequisitos (A10 y M14) cayeron
       allí. `.github/workflows/ci.yml` corre lo mismo que `npm run check` —tipos, motor,
@@ -316,9 +344,14 @@ Cada punto pendiente dice de qué respuesta depende.
       **Regla de flujo que esto impone**, escrita en el workflow y en el README: los dos
       commits de un cambio —la fuente y el «build: regenerar»— se empujan JUNTOS. El
       disparador de push evalúa la punta.
-- [ ] **[M6] Medir la flecha por gravedad · [—]** — ⛔ depende de **A.5** (un escaneo de
-      barra recta en el fixture). **Cero código**: es una medición que se mete como offset
-      del nominal. Probablemente explica el estancamiento a ~5 mm en la punta.
+- [ ] **[M6] Medir la flecha por gravedad · [—]** — ⛔ sigue dependiendo de **A.5**,
+      pero ya no de todo: la geometría del fixture está modelada (ver arriba) y
+      el vano entre apoyos se lee en la tabla. Lo que falta es lo que no se
+      puede calcular: **un escaneo de una barra recta certificada montada en el
+      fixture**, que da la flecha medida, o el módulo elástico y la densidad del
+      material, que darían la calculada. Con cualquiera de los dos, esto pasa a
+      ser un offset del nominal. Probablemente explica el estancamiento a ~5 mm
+      en la punta.
 - [x] **[M16 / D4] Dónde viven los JSON de piezas reales · [—]** — resuelto
       2026-09-08. El repo es público y sirve `index.html` por Pages; un `.json`
       de BARCOMP lleva la geometría del cliente y las nubes medidas, y publicarlo
@@ -333,9 +366,32 @@ Cada punto pendiente dice de qué respuesta depende.
       pieza de ejemplo sigue siendo posible con `git add -f`, que es un gesto
       deliberado y no un descuido.
 
-**Criterio de cierre:** un export real de ZEISS entra al visor sin retoque manual y las
-desviaciones que muestra coinciden con las que calcula el informe de inspección; el comando
-corregido sale en el formato que la máquina lee.
+### Aplazado a futuras actualizaciones (decisión 2026-09-08)
+
+Lo que depende de los modelos CAD y de los archivos de inspección. **No está
+descartado: está esperando.** Cada punto dice qué respuesta lo despierta.
+
+- **[C2 completo] Mapeo de columnas por cabecera** — necesita **A.1**, un export
+  real. Leer el encabezado, mapear por nombre, y un diálogo que muestre las
+  columnas detectadas, los tres primeros puntos y el conteo antes de crear el
+  dataset. Sin un archivo real, los nombres de columna que se mapearían serían
+  inventados. Mientras tanto la guarda de escala tapa el fallo grave.
+- **[C4] Prealineación de la nube al nominal** — necesita **A.4**, qué alineación
+  y qué datum. Si el export ya viene alineado al CAD se reduce a verificar el
+  residual; si viene en coordenadas de escáner hay que llamar al `kabsch()` que
+  ya existe y resolver el giro sobre x, más añadir `'end'` a `DatumMode`. Cuál
+  de los dos caminos es decide la forma entera del código, y construir los dos
+  para tirar uno cuesta más que esperar.
+- **[A.3] El extractor de nube en Python (RANSAC)** — necesita saber si el plan
+  de inspección puede dar los puntos de intersección directamente. Si puede, no
+  se escribe nunca. Sigue siendo la pregunta que más trabajo ahorra.
+- **[A.7] Cotejar el nominal contra el CAD** — necesita el STEP/IGES o la tabla
+  de dobleces con la que se generó.
+
+**Criterio de cierre de la fase (recortado por el aplazamiento):** los pedestales
+del fixture real están metidos en el visor y la tabla dice que la barra apoya en
+todos; el comando corregido sale en el formato que la máquina lee. Lo del export
+de ZEISS se juzga cuando se retome.
 
 ---
 

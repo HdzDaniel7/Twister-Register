@@ -8,8 +8,8 @@
    llamar syncModel() o la caché miente.                                     */
 import * as E from './engine.ts';
 import type {
-  AnchorMode, Bend, Comp, Dataset, DatumMode, Mark, Model, Place, Proc, State, Tweak, Variant,
- Springback,
+  AnchorMode, Bend, Comp, Dataset, DatumMode, Mark, Model, PathSample, Pedestal, Place, Proc,
+  State, Tweak, Variant, Springback,
 } from './types.ts';
 import type { Matrix4, Vector3 } from 'three';
 
@@ -42,11 +42,13 @@ export const ST: State = {
   place: { ...E.PLACE_DEFAULT },
   /* puntos de referencia sueltos: cotas contra el fixture o un datum */
   marks: [],
+  /* los pedestales sobre los que se apoya la barra. Ver engine/fixture.ts */
+  fixture: [],
   /* ajuste manual sobre lo que calcula el lazo, por doblez */
   tweak: [],
 };
 
-let varSeq = 1, dsSeq = 0, markSeq = 0;
+let varSeq = 1, dsSeq = 0, markSeq = 0, pedSeq = 0;
 
 /* -------------------------------------------------------------- variantes */
 export const V = () => ST.variants.find(v => v.id === ST.active) || ST.variants[0];
@@ -80,8 +82,11 @@ export function loadModel(
   ST.ref = ids.includes(ref as string) ? (ref as string) : ids[0];
   ST.anchor = anchor || 'start';
   ST.datasets = []; ST.dsActive = null; ST.pred = null; ST.sel = -1;
-  dsSeq = 0; markSeq = 0;
+  dsSeq = 0; markSeq = 0; pedSeq = 0;
   ST.marks = [];
+  /* el fixture es de la PIEZA: cargar otra deja los pedestales de la anterior
+     apuntando a una barra que ya no está encima */
+  ST.fixture = [];
   ST.place = { ...E.PLACE_DEFAULT };
   syncModel();
   ST.command = ST.model!.bends.map(b => E.bendFrom(b));
@@ -118,6 +123,53 @@ export function setMarks(list: Partial<Mark>[] | null | undefined): Mark[] {
     n.visible = m.visible !== false;
   }
   return ST.marks;
+}
+
+/* ------------------------------------------------ el fixture (pedestales) */
+/** La trayectoria del eje neutro COLOCADA donde de verdad está la pieza.
+ *
+ *  Es lo que come todo el motor del fixture. Vive aquí y no en la escena
+ *  porque el panel la necesita igual que las capas, y calcularla dos veces con
+ *  matrices distintas es la forma más fácil de que la tabla y el dibujo digan
+ *  cosas diferentes.
+ *
+ *  Las DOS matrices, en el mismo orden que la escena: la barra que se ve en
+ *  pantalla se dibuja bajo `root` —que lleva la colocación— y además con la
+ *  transformación de anclaje de su variante. Con solo la colocación, cambiar de
+ *  anclaje movía la barra y dejaba los pedestales donde estaban, que es
+ *  exactamente el error que un fixture no puede tener. */
+export function placedPath(): PathSample[] {
+  const M = ST.model!;
+  const A = E.anchorTransform(M, refModel(), ST.anchor);
+  return E.placePath(placeMatrix().multiply(A), E.buildPath(M).samples);
+}
+
+export function addPedestal(p: Partial<Pedestal> = {}): Pedestal {
+  pedSeq += 1;
+  const d: Pedestal = {
+    id: `pd${pedSeq}`,
+    name: p.name || `Ped ${ST.fixture.length + 1}`,
+    visible: p.visible !== false,
+    x: +p.x! || 0, y: +p.y! || 0, h: +p.h! || 0,
+    tilt: +p.tilt! || 0, pad: +p.pad! || E.PED_DEFAULT.pad,
+  };
+  ST.fixture.push(d);
+  return d;
+}
+export function setPedestals(list: Partial<Pedestal>[] | null | undefined): Pedestal[] {
+  ST.fixture = [];
+  pedSeq = 0;
+  for (const p of list || []) addPedestal(p);
+  return ST.fixture;
+}
+/** Siembra un fixture de partida bajo la pieza actual y TIRA el que hubiera.
+ *
+ *  Reemplaza en vez de añadir a propósito: sembrar encima de un fixture ya
+ *  puesto deja catorce pedestales solapados y ninguna forma evidente de
+ *  distinguir los nuevos de los viejos. */
+export function seedFixture(n?: number): Pedestal[] {
+  if (!ST.model) return ST.fixture;
+  return setPedestals(E.seedPedestals(placedPath(), ST.model.section, n));
 }
 
 /* ------------------------------------------------- ajuste de compensación */

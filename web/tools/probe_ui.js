@@ -1443,6 +1443,109 @@ step('guardar JSON conserva colocación y cotas', () => {
   const rt = window.BARCOMP.E.fromDoc(JSON.parse(JSON.stringify(doc)));
   if (rt.marks[0].name !== 'apoyo A') throw new Error('la cota no volvió');
 });
+/* --- el fixture: pedestales -------------------------------------------- */
+/* Es la única pestaña donde lo que se teclea son medidas del TALLER y no de la
+   pieza, así que lo que hay que comprobar es que la pieza no las mueve y que
+   la tabla dice la verdad sobre si apoyan. */
+step('la pestaña Fixture existe dentro de Modelar', () => {
+  click('[data-md="model"]');
+  click('#tabs [data-t="fixture"]');
+  if (S().tab !== 'fixture') throw new Error('no cambió de pestaña: ' + S().tab);
+  q('#panes [data-a="seedped"]');
+});
+step('sin pedestales no hay tabla, hay una explicación', () => {
+  if (S().fixture.length) throw new Error('arrancó con pedestales puestos');
+  if (document.querySelector('#panes table.marks')) throw new Error('tabla vacía dibujada');
+});
+step('sembrar pone siete pedestales y enciende la capa del fixture', () => {
+  if (S().layers.fix.on) throw new Error('la capa ya estaba encendida');
+  click('#panes [data-a="seedped"]');
+  if (S().fixture.length !== 7) throw new Error('sembró ' + S().fixture.length);
+  if (!S().layers.fix.on) throw new Error('sembró y el 3D siguió sin enseñarlos');
+  if (q('#panes table.marks tbody').children.length !== 7) throw new Error('la tabla no los enseña');
+});
+step('lo sembrado apoya: ninguna fila sale en rojo', () => {
+  const malas = [...document.querySelectorAll('#panes table.marks tbody .v-bad')];
+  if (malas.length) throw new Error(malas.length + ' celdas en rojo: ' + malas[0].textContent);
+});
+step('el vano mayor se dice arriba, no escondido en una columna', () => {
+  const chip = [...document.querySelectorAll('#panes .chip')]
+    .find(c => /mm/.test(c.textContent));
+  if (!chip) throw new Error('no hay resumen de vano');
+  const v = parseFloat(chip.textContent.replace(/[^\d.]/g, ''));
+  if (!(v > 100 && v < 2000)) throw new Error('vano mayor absurdo: ' + chip.textContent);
+});
+step('subir un pedestal 5 mm abre un hueco de 5 mm y lo pinta en rojo', () => {
+  const p = S().fixture[2], antes = p.h;
+  setval(`#panes [data-pd="${p.id}"][data-k="h"]`, (antes + 5).toFixed(2));
+  if (Math.abs(S().fixture[2].h - (antes + 5)) > 1e-6) throw new Error('no tomó la altura');
+  const fila = q(`#panes [data-pd="${p.id}"][data-k="h"]`).closest('tr');
+  const rojo = fila.querySelector('.v-bad');
+  if (!rojo) throw new Error('el pedestal que estorba no se marca');
+  if (!/-5/.test(rojo.textContent)) throw new Error('el hueco no dice −5: ' + rojo.textContent);
+  setval(`#panes [data-pd="${p.id}"][data-k="h"]`, antes.toFixed(2));
+});
+step('apartarlo medio metro lo deja sin barra encima, y se dice', () => {
+  const p = S().fixture[2], antes = p.y;
+  setval(`#panes [data-pd="${p.id}"][data-k="y"]`, (antes + 500).toFixed(1));
+  const fila = q(`#panes [data-pd="${p.id}"][data-k="y"]`).closest('tr');
+  if (!/no le pasa|not pass|nicht dar/i.test(fila.textContent)) {
+    throw new Error('no avisa de que no sostiene: ' + fila.textContent);
+  }
+  setval(`#panes [data-pd="${p.id}"][data-k="y"]`, antes.toFixed(1));
+});
+step('el fixture NO se mueve cuando se recoloca la pieza', () => {
+  /* Es la propiedad que lo hace un fixture y no un adorno: está atornillado a
+     la mesa. Lo que cambia al mover la pieza es si sigue apoyando. */
+  const antes = S().fixture.map(p => [p.x, p.y, p.h, p.tilt]);
+  const place = S().place;
+  place.z += 40;
+  window.BARCOMP.refresh();
+  const ahora = S().fixture.map(p => [p.x, p.y, p.h, p.tilt]);
+  if (JSON.stringify(antes) !== JSON.stringify(ahora)) throw new Error('los pedestales se movieron con la pieza');
+  const rojas = document.querySelectorAll('#panes table.marks tbody .v-bad').length;
+  if (!rojas) throw new Error('subir la pieza 40 mm y ningún pedestal se queja');
+  place.z -= 40;
+  window.BARCOMP.refresh();
+  if (document.querySelectorAll('#panes table.marks tbody .v-bad').length) {
+    throw new Error('al devolverla a su sitio siguen en rojo');
+  }
+});
+step('borrar un pedestal quita su fila y no renumera los demás', () => {
+  const id = S().fixture[1].id, nombres = S().fixture.map(p => p.name);
+  click(`#panes [data-px="${id}"]`);
+  if (S().fixture.length !== 6) throw new Error('quedan ' + S().fixture.length);
+  if (S().fixture.some(p => p.id === id)) throw new Error('sigue ahí');
+  const esperado = nombres.filter((_, i) => i !== 1).join();
+  if (S().fixture.map(p => p.name).join() !== esperado) throw new Error('renumeró los que quedan');
+});
+step('un Ctrl+Z devuelve el pedestal borrado', () => {
+  hotkey('z', { ctrlKey: true });
+  if (S().fixture.length !== 7) throw new Error('el deshacer no lo repuso: ' + S().fixture.length);
+});
+step('el fixture viaja en el JSON guardado', () => {
+  const doc = window.BARCOMP.E.toDoc(
+    S().model, S().command, S().comp, S().proc, S().datasets, S().variants,
+    S().ref, S().anchor, { place: S().place, marks: S().marks, fixture: S().fixture });
+  if (!doc.fixture || doc.fixture.length !== 7) throw new Error('no guardó los pedestales');
+  if (doc.fixture[0].id !== undefined) throw new Error('guardó el id, que se reasigna al abrir');
+  if (!('tilt' in doc.fixture[0]) || !('pad' in doc.fixture[0])) throw new Error('faltan campos');
+});
+step('vaciar los quita todos y vuelve la explicación', () => {
+  click('#panes [data-a="clearped"]');
+  if (S().fixture.length) throw new Error('quedan ' + S().fixture.length);
+  if (document.querySelector('#panes table.marks')) throw new Error('la tabla sigue dibujada');
+});
+step('añadir uno suelto nace apoyando, no en el origen a cero', () => {
+  click('#panes [data-a="addped"]');
+  if (S().fixture.length !== 1) throw new Error('no lo creó');
+  const p = S().fixture[0];
+  if (p.h <= 1) throw new Error('nació sin altura: ' + p.h);
+  const malas = document.querySelectorAll('#panes table.marks tbody .v-bad').length;
+  if (malas) throw new Error('el pedestal recién creado ya sale en rojo');
+  click('#panes [data-a="clearped"]');
+});
+
 step('modelo nuevo y demo', () => {
   drawer('file'); click('[data-a="new"]'); click('[data-a="demo"]'); });
 step('demo limpia las cotas', () => { if (S().marks.length) throw new Error('quedaron cotas'); });

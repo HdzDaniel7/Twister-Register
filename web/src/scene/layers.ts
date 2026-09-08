@@ -12,35 +12,54 @@ import {
   Color, Vector3,
 } from 'three';
 import * as E from '../engine.ts';
-import { ST, placeMatrix } from '../state.ts';
+import { ST, placedPath } from '../state.ts';
 import { groups, cssVar, devThreeColor, ghost, solidMat, extraLabels } from './stage.ts';
 import { barGeometry } from './geometry.ts';
 import type { SceneCtx } from './types.ts';
 
 /* --- rejilla y pedestales: van en `world`, que la colocación no toca ---
-   Los pedestales sí tienen que seguir a la pieza, pero apoyando en el suelo:
-   por eso se levantan desde los PI YA COLOCADOS, no desde los del modelo. */
+   El pedestal está atornillado a la mesa: no se mueve cuando la pieza se
+   recoloca, y por eso sus coordenadas son las del taller y no las del modelo.
+   Quien se mueve es la barra, y de ahí sale si sigue apoyando o no. */
 export function layerGrid(ctx: SceneCtx): void {
   const { L } = ctx;
   if (L.grid.on) {
     const g = new GridHelper(4000, 40, cssVar('--grid1', '#2A3546'), cssVar('--grid2', '#1A212C'));
-    g.rotation.x = Math.PI / 2; g.position.z = -260;
+    g.rotation.x = Math.PI / 2; g.position.z = E.TABLE_Z;
     groups.grid.add(g);
   }
 }
 
+/** Los pedestales del fixture, tal como están declarados.
+ *
+ *  Antes esto ponía una caja cada tres PI, de tamaño fijo, levantada hasta el
+ *  suelo. Se veía bien y no significaba nada: no había pedestales, había
+ *  adorno. Ahora dibuja los que hay en `ST.fixture`, y el que no sostiene la
+ *  barra —porque le falta altura, le sobra, o la barra ni siquiera le pasa por
+ *  encima— sale en el color de fuera de tolerancia. Es la misma información
+ *  que la tabla, pero en el sitio donde se ve de un vistazo cuál falla. */
 export function layerFixtures(ctx: SceneCtx): void {
-  const { nomPis, L } = ctx;
-  if (L.fix.on) {
-    const mat = new MeshStandardMaterial({ color: cssVar('--fixture', '#3A4658'), roughness: .9, metalness: .1 });
-    const placed = E.applyMat(placeMatrix(), nomPis);
-    for (let i = 0; i < placed.length; i += 3) {
-      const p = placed[i], hgt = p.z + 260;
-      if (hgt <= 1) continue;
-      const m = new Mesh(new BoxGeometry(28, 28, hgt), mat.clone());
-      m.position.set(p.x, p.y, -260 + hgt / 2);
-      groups.fix.add(m);
-    }
+  const { M, L } = ctx;
+  if (!L.fix.on || !ST.fixture.length) return;
+  const ok = cssVar('--fixture', '#3A4658'), bad = cssVar('--bad', '#FF4D5E');
+  const path = placedPath();
+  for (const ped of ST.fixture) {
+    if (!ped.visible || !(ped.h > 1)) continue;
+    const f = E.pedestalFit(path, M.section, ped);
+    /* «apoya» es lo mismo que pinta la tabla en rojo: la barra le pasa por
+       encima Y la cuna la toca dentro de la tolerancia de punto. */
+    const apoya = !!f && f.over && Math.abs(f.gap) <= M.tol.point;
+    const mat = new MeshStandardMaterial({ color: apoya ? ok : bad, roughness: .9, metalness: .1 });
+    const col = new Mesh(new BoxGeometry(28, 28, ped.h), mat);
+    col.position.set(ped.x, ped.y, E.TABLE_Z + ped.h / 2);
+    groups.fix.add(col);
+    /* La cuna: mira por donde va la barra en planta, pero se inclina con SU
+       propio `tilt` y no con el que la barra pide. Si no coinciden se ve la
+       cuña de aire, que es la lectura que la columna Δ da en números. */
+    const cuna = new Mesh(new BoxGeometry(Math.max(ped.pad, 8), 44, 6), mat.clone());
+    cuna.position.set(ped.x, ped.y, E.TABLE_Z + ped.h + 3);
+    cuna.rotation.set(0, ped.tilt * E.D2R, (f ? f.head : 0) * E.D2R, 'ZYX');
+    groups.fix.add(cuna);
   }
 }
 

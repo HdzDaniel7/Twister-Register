@@ -22,3 +22,4 @@ export * from './engine/compensate.ts';
 export * from './engine/expr.ts';
 export * from './engine/doc.ts';
 export * from './engine/csv.ts';
+export * from './engine/fixture.ts';

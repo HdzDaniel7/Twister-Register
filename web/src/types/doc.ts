@@ -35,6 +35,30 @@ export type Mark = {
   z: number;
 };
 
+/** Un pedestal del fixture: dónde se para en la mesa, cuánto sube y con qué
+ *  inclinación tiene la cuna.
+ *
+ *  Se guarda SOLO lo que alguien mide con un flexómetro en el taller. Dónde
+ *  toca la barra, qué hueco queda y qué inclinación pide la pieza son cosas
+ *  derivadas —salen de `pedestalFit()` cada vez que se repinta— y guardarlas
+ *  sería guardar una copia que envejece en cuanto se toca un doblez. */
+export type Pedestal = {
+  id: string;
+  name: string;
+  visible: boolean;
+  /** posición del pie sobre la mesa, mm */
+  x: number;
+  y: number;
+  /** alto desde la mesa (z = TABLE_Z) hasta la cuna, mm */
+  h: number;
+  /** inclinación de la cuna, °. Positiva si sube en el sentido de la barra */
+  tilt: number;
+  /** largo de la cuna a lo largo de la barra, mm. Un pedestal no apoya en un
+   *  punto: apoya en un tramo, y ese tramo es lo que decide si la barra pisa
+   *  el pedestal o pasa de largo por al lado */
+  pad: number;
+};
+
 /** Una pieza medida. `model` son sus parámetros; `dev`, su comparación. */
 export type Dataset = {
   /** cadena, siempre: 'ds1', 'ds2'... */
@@ -127,6 +151,8 @@ export type Doc = {
   place?: Place;
   /** sin `id`: se reasigna al abrir, ver fromDoc() */
   marks?: { name: string; color: string; visible: boolean; x: number; y: number; z: number }[];
+  /** el fixture. Sin `id`: se reasigna al abrir, igual que en `marks` */
+  fixture?: Omit<Pedestal, 'id'>[];
   tweak?: Tweak[];
   ui?: UiPrefs;
 };
@@ -155,6 +181,7 @@ export type LoadedDoc = {
   ref: string | null;
   place: Place;
   marks: Mark[];
+  fixture: Pedestal[];
   tweak: Tweak[];
   /** null = el archivo no dijo nada: no se pisa la preferencia actual */
   ui: { theme: string | null; lang: string | null; mode: string | null } | null;

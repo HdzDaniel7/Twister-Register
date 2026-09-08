@@ -9,13 +9,15 @@ import type { DeltaKey, Model, Variant } from '../types.ts';
 import {
   ST, V, VAR_COLORS, syncModel, newVid, loadModel, refModel,
   activeDataset, addDataset, syncCommand, resetCommand,
-  addMark, syncTweak, zeroTweak, compensatedCommand, loopMeasured,
+  addMark, addPedestal, setPedestals, seedFixture, placedPath, placeMatrix,
+  syncTweak, zeroTweak, compensatedCommand, loopMeasured,
   measuredSpringback,
 } from '../state.ts';
 import { rebuildScene, fitView } from '../scene.ts';
 import { drawRibbon } from '../ribbon.ts';
 import {
-  renderLeft, renderSide, renderRight, renderStatus, renderPanels, markRejected,
+  renderShell, renderLeft, renderSide, renderRight, renderStatus, renderPanels,
+  markRejected,
 } from '../panels.ts';
 import { makeReport } from '../report.ts';
 import { renderAll, refresh, refreshTable, toggleSolo } from './render.ts';
@@ -208,8 +210,46 @@ function loadFresh(model: Model): void {
 }
 
 
+/** Las tres acciones del fixture. Salen del `switch` de `action()`, que ya
+ *  estaba en el límite de las 60 líneas antes de que existiera el fixture.
+ *  Devuelve si la acción era suya. */
+function fixtureAction(a: string, M: Model): boolean {
+  if (a === 'addped') {
+    /* Nace bajo el doblez seleccionado y CON la altura y la inclinación que la
+       barra pide ahí. Un pedestal que naciera en el origen y a cero no
+       sostendría nada, y la fila saldría entera en rojo: eso no es un valor
+       por defecto, es una tarea. */
+    const P = E.applyMat(placeMatrix(), E.anchoredPis(M, refModel(), ST.anchor));
+    const q = P[E.clamp(ST.sel + 1, 0, P.length - 1)];
+    const p = addPedestal({ x: q ? q.x : 0, y: q ? q.y : 0 });
+    const f = E.pedestalFit(placedPath(), M.section, p);
+    if (f) { p.h = +(f.low - E.TABLE_Z).toFixed(2); p.tilt = +f.want.toFixed(2); }
+    showFixture();
+  } else if (a === 'seedped') {
+    seedFixture();
+    showFixture();
+  } else if (a === 'clearped') {
+    setPedestals([]);
+  } else {
+    return false;
+  }
+  renderRight(); rebuildScene();
+  return true;
+}
+
+/** Enciende la capa del fixture al crear pedestales.
+ *
+ *  La capa nace APAGADA —un fixture vacío no tiene nada que dibujar y estorba
+ *  a quien solo mira la pieza— pero sembrar siete pedestales y que el 3D siga
+ *  igual se lee como que no funcionó. Se enciende sola la primera vez y a
+ *  partir de ahí manda el interruptor de siempre. */
+function showFixture(): void {
+  if (!ST.layers.fix.on) { ST.layers.fix.on = true; renderShell(); }
+}
+
 export function action(a: string): void {
   const M = ST.model!, v = V();
+  if (fixtureAction(a, M)) return;
   switch (a) {
     case 'demo': return loadFresh(E.demoModel());
     case 'new': if (confirm(T('confirmNew'))) loadFresh(E.emptyModel()); return;

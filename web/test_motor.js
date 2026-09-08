@@ -973,7 +973,11 @@ console.log('\n— idiomas —');
                    /* «±σ» es notación, no idioma. Su tooltip sí está traducido. */
                    'spread'];
   const IGUALES = {
-    en: new Set([...COMUNES, 'cmode', 'distPi', 'nearPi', 'stDatum', 'twist']),
+    /* «fixture» y «pedestal» son las palabras del taller y se dicen igual en
+       español que en inglés —así las escribe quien monta la pieza— pero NO en
+       alemán, donde son Vorrichtung y Bock: ahí la prueba las sigue vigilando. */
+    en: new Set([...COMUNES, 'cmode', 'distPi', 'nearPi', 'stDatum', 'twist',
+                 'fixture', 'addPed']),
     de: new Set(COMUNES),
   };
   for (const l of ['en', 'de']) {
@@ -1352,6 +1356,195 @@ console.log('\n— escala de la nube: una columna de desviación no es una barra
   ok('el umbral deja un factor 2.5 hasta el peor error de unidades real',
      E.SCALE_MIN_RATIO > 0.1 * 2 && E.SCALE_MIN_RATIO < 0.5,
      `${E.SCALE_MIN_RATIO}`);
+}
+
+/* ======================================================================== */
+console.log('\n— el fixture: pedestales, apoyo y vanos —');
+{
+  const M = E.demoModel();
+  const path = E.buildPath(M).samples;
+  const ped = (o) => ({ id: 'pd1', name: 'Ped', visible: true, pad: 60, ...o });
+
+  /* --- placePath: las direcciones no son puntos ------------------------ */
+  {
+    /* El error que esto vigila: aplicar la matriz ENTERA a la base convierte
+       `x`, `y`, `z` en puntos y la inclinación empieza a depender de dónde
+       esté colocada la pieza. Una traslación pura no puede tocar la base. */
+    const T2 = new Matrix4().makeTranslation(1000, -400, 250);
+    const movida = E.placePath(T2, path);
+    const dBase = Math.max(...movida.map((q, i) =>
+      Math.max(q.x.distanceTo(path[i].x), q.y.distanceTo(path[i].y), q.z.distanceTo(path[i].z))));
+    ok('una traslación no toca la base de la trayectoria', dBase < 1e-9, `máx ${dBase.toExponential(2)}`);
+    const dPos = movida[5].p.distanceTo(path[5].p.clone().add(new Vector3(1000, -400, 250)));
+    ok('y sí mueve la posición', dPos < 1e-9);
+    ok('la longitud desarrollada no se entera', movida[7].s === path[7].s);
+    /* Con una rotación, la base gira y sigue siendo unitaria. */
+    const R = new Matrix4().makeRotationZ(0.7);
+    const girada = E.placePath(R, path);
+    ok('con una rotación la base sigue siendo unitaria',
+       girada.every(q => Math.abs(q.x.length() - 1) < 1e-9));
+  }
+
+  /* --- sectionDrop: cuánto baja la barra bajo su eje -------------------- */
+  {
+    const sec = { width: 40, thickness: 12, chamfer: 0, endLen: 0 };
+    /* de plano: `y` (el espesor) apunta a plomo, así que manda el espesor */
+    const plano = { p: new Vector3(), x: new Vector3(1, 0, 0), y: new Vector3(0, 0, 1),
+                    z: new Vector3(0, 1, 0), s: 0 };
+    ok('de plano baja medio espesor', Math.abs(E.sectionDrop(plano, sec) - 6) < 1e-9);
+    /* de canto: el ancho es el que apunta a plomo */
+    const canto = { p: new Vector3(), x: new Vector3(1, 0, 0), y: new Vector3(0, 1, 0),
+                    z: new Vector3(0, 0, 1), s: 0 };
+    ok('de canto baja medio ancho', Math.abs(E.sectionDrop(canto, sec) - 20) < 1e-9);
+    /* A 45° se reparten y queda ENTRE los dos extremos, no por encima: el
+       rincón más bajo está a 45° del eje pero no apunta a plomo. */
+    const c = Math.SQRT1_2;
+    const sesgo = { p: new Vector3(), x: new Vector3(1, 0, 0), y: new Vector3(0, c, c),
+                    z: new Vector3(0, -c, c), s: 0 };
+    const d45 = E.sectionDrop(sesgo, sec);
+    ok('a 45° queda entre los dos extremos', d45 > 6 && d45 < 20, `${d45.toFixed(2)} mm`);
+    /* El peor giro NO es el de 45°: es atan(espesor/ancho), y ahí lo que baja
+       es la media diagonal de la sección. Vale la pena dejarlo escrito, porque
+       es la cota que un fixture tiene que respetar en el peor caso. */
+    let peor = 0;
+    for (let g = 0; g <= 360; g += 0.25) {
+      const a = g * Math.PI / 180;
+      const q = { p: new Vector3(), x: new Vector3(1, 0, 0),
+                  y: new Vector3(0, Math.cos(a), Math.sin(a)),
+                  z: new Vector3(0, -Math.sin(a), Math.cos(a)), s: 0 };
+      peor = Math.max(peor, E.sectionDrop(q, sec));
+    }
+    const diag = Math.hypot(sec.width / 2, sec.thickness / 2);
+    ok('el peor giro baja la media diagonal', Math.abs(peor - diag) < 1e-3,
+       `${peor.toFixed(3)} vs ${diag.toFixed(3)} mm`);
+  }
+
+  /* --- sembrar deja un fixture que ya apoya ----------------------------- */
+  {
+    const semilla = E.seedPedestals(path, M.section);
+    ok('siembra los 7 por defecto',
+       semilla.length === E.PEDESTALS_DEFAULT, `${semilla.length}`);
+    const peds = semilla.map((p, i) => ({ ...p, id: `pd${i + 1}`, name: `Ped ${i + 1}` }));
+    const fits = peds.map(p => E.pedestalFit(path, M.section, p));
+    /* Es la propiedad que hace útil el botón: lo sembrado apoya. Si tocara
+       corregir las siete filas a mano, sembrar no ahorraría nada. */
+    const peorGap = Math.max(...fits.map(f => Math.abs(f.gap)));
+    ok('lo sembrado apoya sin tocar nada', peorGap < 0.01, `peor hueco ${peorGap.toExponential(2)} mm`);
+    const peorTilt = Math.max(...fits.map(f => Math.abs(f.dTilt)));
+    ok('y con la inclinación que la barra pide', peorTilt < 0.01, `peor Δ ${peorTilt.toExponential(2)}°`);
+    ok('todos quedan debajo de la barra', fits.every(f => f.over));
+    ok('ninguno se sale de la pieza',
+       fits.every(f => f.s >= 0 && f.s <= E.buildPath(M).total + 1e-6));
+
+    /* Los vanos: ninguno vacío y la suma cubre casi toda la barra. */
+    const vanos = E.pedestalSpans(fits).filter(isFinite);
+    ok('seis vanos entre siete pedestales', vanos.length === E.PEDESTALS_DEFAULT - 1);
+    ok('ningún vano sale negativo ni cero', vanos.every(v => v > 1), `${vanos.map(v => v.toFixed(0))}`);
+  }
+
+  /* --- el hueco responde a la altura ------------------------------------ */
+  {
+    const s0 = E.seedPedestals(path, M.section, 1)[0];
+    /* La altura EXACTA que pide la barra ahí, sin pasar por el redondeo de la
+       semilla: lo que se prueba aquí es la fórmula del hueco, no lo que la
+       siembra escribe en la tabla. */
+    const cero = E.pedestalFit(path, M.section, ped(s0));
+    const exacta = { ...s0, h: cero.low - E.TABLE_Z };
+    ok('a la altura justa, hueco cero',
+       Math.abs(E.pedestalFit(path, M.section, ped(exacta)).gap) < 1e-9);
+    /* Cinco milímetros MÁS de pedestal levantan la barra: el hueco se hace
+       negativo, que es «el pedestal estorba». El signo importa: con el
+       contrario, el aviso mandaría a subir el que ya sobra. */
+    const alto = E.pedestalFit(path, M.section, ped({ ...exacta, h: exacta.h + 5 }));
+    ok('cinco mm de más dan hueco −5', Math.abs(alto.gap + 5) < 1e-9, `${alto.gap}`);
+    const bajo = E.pedestalFit(path, M.section, ped({ ...exacta, h: exacta.h - 5 }));
+    ok('cinco mm de menos dan hueco +5', Math.abs(bajo.gap - 5) < 1e-9, `${bajo.gap}`);
+    /* Y la siembra cumple lo que promete: dos decimales, o sea medio centésimo
+       de milímetro en el peor caso. Se redondea a propósito —son cotas que
+       alguien lee con un flexómetro— y aquí queda dicho cuánto cuesta. */
+    ok('la siembra redondea a 2 decimales y no más', Math.abs(cero.gap) < 0.005,
+       `${cero.gap.toExponential(2)} mm`);
+  }
+
+  /* --- un pedestal que no sostiene nada --------------------------------- */
+  {
+    const s0 = E.seedPedestals(path, M.section, 1)[0];
+    const lejos = E.pedestalFit(path, M.section, ped({ ...s0, y: s0.y + 500 }));
+    ok('medio metro al lado: la barra no le pasa por encima', !lejos.over);
+    ok('y se dice a cuánto quedó', lejos.plan > 400, `${lejos.plan.toFixed(0)} mm`);
+    /* Justo en el borde de la cuna sí sostiene: el criterio es media cuna más
+       medio ancho de sección, no el centro exacto. */
+    const borde = E.pedestalFit(path, M.section, ped({ ...s0, y: s0.y + 25 }));
+    ok('a 25 mm todavía apoya', borde.over, `${borde.plan.toFixed(1)} mm`);
+  }
+
+  /* --- el vano no depende del orden de la tabla ------------------------- */
+  {
+    const peds = E.seedPedestals(path, M.section, 5)
+      .map((p, i) => ({ ...p, id: `pd${i + 1}`, name: `Ped ${i + 1}` }));
+    const fits = peds.map(p => E.pedestalFit(path, M.section, p));
+    const enOrden = E.pedestalSpans(fits);
+    /* Al revés: cada pedestal tiene que conservar SU vano. Con la cuenta hecha
+       fila contra fila, mover uno en la lista cambiaba una geometría que no
+       se había tocado. */
+    const alReves = E.pedestalSpans(fits.slice().reverse()).reverse();
+    const dif = Math.max(...enOrden.map((v, i) =>
+      (isFinite(v) !== isFinite(alReves[i])) ? Infinity : (isFinite(v) ? Math.abs(v - alReves[i]) : 0)));
+    ok('dar la vuelta a la tabla no cambia ningún vano', dif < 1e-9, `${dif}`);
+    ok('el primero A LO LARGO DE LA BARRA es el que no tiene vano',
+       enOrden.filter(v => !isFinite(v)).length === 1);
+  }
+
+  /* --- el despegue: lo que hace comparable un Δ con una tolerancia ------ */
+  {
+    const s0 = E.seedPedestals(path, M.section, 1)[0];
+    /* Dos grados EXACTOS sobre lo que la barra pide, sin el redondeo de la
+       siembra por medio. */
+    const want = E.pedestalFit(path, M.section, ped(s0)).want;
+    const f = E.pedestalFit(path, M.section, ped({ ...s0, tilt: want + 2, pad: 100 }));
+    ok('2° de más se convierten en despegue', Math.abs(f.dTilt - 2) < 1e-9, `${f.dTilt}`);
+    ok('y el despegue es medio largo de cuna por la tangente',
+       Math.abs(f.lift - 50 * Math.tan(2 * Math.PI / 180)) < 1e-9, `${f.lift.toFixed(3)} mm`);
+    /* La misma inclinación en una cuna corta levanta menos: es exactamente el
+       motivo de que Δ solo no se pueda juzgar contra una tolerancia. */
+    const corta = E.pedestalFit(path, M.section, ped({ ...s0, tilt: want + 2, pad: 20 }));
+    ok('la misma desviación en una cuna corta levanta menos', corta.lift < f.lift / 4);
+    /* Y el despegue no tiene signo: una cuña de aire por delante o por detrás
+       despega lo mismo. El signo lo lleva Δ, que es el que dice hacia dónde. */
+    const menos = E.pedestalFit(path, M.section, ped({ ...s0, tilt: want - 2, pad: 100 }));
+    ok('despegar hacia el otro lado despega igual',
+       Math.abs(menos.lift - f.lift) < 1e-9 && menos.dTilt < 0);
+  }
+
+  /* --- casos degenerados: la guarda no puede reventar ------------------- */
+  {
+    ok('sin trayectoria no hay ajuste', E.pedestalFit([], M.section, ped({ x: 0, y: 0, h: 0 })) === null);
+    ok('sin trayectoria no se siembra nada', E.seedPedestals([], M.section).length === 0);
+    ok('sembrar cero pedestales devuelve la lista vacía', E.seedPedestals(path, M.section, 0).length === 0);
+    ok('sembrar uno lo pone a media barra', E.seedPedestals(path, M.section, 1).length === 1);
+    ok('los vanos de una lista vacía son una lista vacía', E.pedestalSpans([]).length === 0);
+  }
+
+  /* --- ida y vuelta por el documento ------------------------------------ */
+  {
+    const fixture = E.seedPedestals(path, M.section, 3)
+      .map((p, i) => ({ ...p, id: `pd${i + 1}`, name: `Apoyo ${i + 1}` }));
+    fixture[1].visible = false;
+    const doc = E.toDoc(M, null, null, null, [], [], null, 'start', { fixture });
+    const back = E.fromDoc(JSON.parse(JSON.stringify(doc)));
+    ok('el fixture viaja en el JSON', back.fixture.length === 3, `${back.fixture.length}`);
+    ok('con sus nombres', back.fixture[2].name === 'Apoyo 3', back.fixture[2].name);
+    ok('y con la casilla de visible', back.fixture[1].visible === false);
+    const peor = Math.max(...back.fixture.map((p, i) =>
+      Math.max(Math.abs(p.x - fixture[i].x), Math.abs(p.y - fixture[i].y),
+               Math.abs(p.h - fixture[i].h), Math.abs(p.tilt - fixture[i].tilt),
+               Math.abs(p.pad - fixture[i].pad))));
+    ok('sin perder un decimal', peor < 1e-9, `error máx ${peor}`);
+    /* El id NO se guarda: se reasigna al abrir, igual que en las cotas. */
+    ok('el id se reasigna al abrir', back.fixture.map(p => p.id).join() === 'pd1,pd2,pd3');
+    ok('un archivo sin fixture abre con la lista vacía',
+       E.fromDoc(JSON.parse(JSON.stringify({ ...doc, fixture: undefined }))).fixture.length === 0);
+  }
 }
 
 /* ======================================================================== */

@@ -39,6 +39,10 @@ const DELTA_SET = new Set<string>(E.DELTA_KEYS);
 const POINT_KEYS = new Set(['x', 'y', 'z']);
 const TWEAK_KEYS = new Set(['angle', 'rot', 'feed']);
 const MARK_KEYS = new Set(['name', 'x', 'y', 'z']);
+/* De PED_DEFAULT y no a mano: ver por qué en engine/fixture.ts. `visible` sale
+   porque es una casilla y no pasa por setNum(). */
+const PED_NUM = new Set(Object.keys(E.PED_DEFAULT).filter(k => k !== 'visible'));
+const PED_KEYS = new Set(['name', ...PED_NUM]);
 const ANCHORS = new Set(['start', 'end', 'best']);
 
 /** Un numero que se puede escribir en el modelo, o null.
@@ -80,7 +84,7 @@ function onChange(e: Event): void {
     return;
   }
   void (onScene(t, d) || onModelField(t, d) || onCell(t, d)
-        || onPlacement(t, d) || onMark(t, d) || onTweak(t, d));
+        || onPlacement(t, d) || onMark(t, d) || onPedestal(t, d) || onTweak(t, d));
 }
 
 /* --- capas, modelos y piezas: lo que se ve y de qué color ---------------- */
@@ -216,6 +220,26 @@ function onMark(t: HTMLInputElement, d: DOMStringMap): boolean {
   if (d.mc !== undefined) {
     const mk = ST.marks.find(x => x.id === d.mc);
     if (mk) { mk.color = safeColor(t.value, mk.color); renderRight(); rebuildScene(); }
+    return true;
+  }
+  return false;
+}
+
+/* --- el fixture: los pedestales ------------------------------------------ */
+function onPedestal(t: HTMLInputElement, d: DOMStringMap): boolean {
+  if (d.pd !== undefined) {
+    const p = ST.fixture.find(x => x.id === d.pd);
+    if (!p || !d.k || !PED_KEYS.has(d.k)) return true;
+    if (d.k === 'name') p.name = t.value;
+    else if (!setNum(p, PED_NUM, d.k, t.value)) return true;
+    /* La escena también: mover un pedestal cambia de color al que deja de
+       sostener la barra, y ese es el aviso que se ve sin leer la tabla. */
+    renderRight(); rebuildScene();
+    return true;
+  }
+  if (d.pv !== undefined) {
+    const p = ST.fixture.find(x => x.id === d.pv);
+    if (p) { p.visible = t.checked; rebuildScene(); }
     return true;
   }
   return false;

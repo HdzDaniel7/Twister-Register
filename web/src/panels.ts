@@ -20,5 +20,6 @@ export {
 export { renderShell } from './panels/shell.ts';
 export { renderLeft } from './panels/left.ts';
 export { cellKey, updateModelDerived, markRejected } from './panels/focus.ts';
+export { paneFixture } from './panels/fixture.ts';
 export { renderSide, renderRight, renderPanels } from './panels/render.ts';
 export { renderStatus } from './panels/status.ts';

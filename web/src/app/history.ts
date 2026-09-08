@@ -25,7 +25,7 @@
    gasta un paso de deshacer.
    ========================================================================= */
 import * as E from '../engine.ts';
-import { ST, loadModel, setMarks, syncTweak, addDataset } from '../state.ts';
+import { ST, loadModel, setMarks, setPedestals, syncTweak, addDataset } from '../state.ts';
 import type { Doc } from '../types.ts';
 
 /** 50 pasos: con ~20 KB por documento son 1 MB largo, y nadie deshace más de
@@ -52,7 +52,7 @@ function snapshot(): string {
   const hayAjuste = ST.tweak.some(t => t.angle || t.rot || t.feed);
   const doc = E.toDoc(ST.model, ST.command, ST.comp, ST.proc, ST.datasets,
                       ST.variants, ST.ref, ST.anchor,
-                      { place: ST.place, marks: ST.marks,
+                      { place: ST.place, marks: ST.marks, fixture: ST.fixture,
                         tweak: hayAjuste ? ST.tweak : [] });
   /* `saved` es la hora de guardado, y cambia en cada llamada: si se queda, dos
      documentos idénticos salen distintos, la comparación de commit() no sirve
@@ -119,6 +119,7 @@ function restore(text: string): void {
     Object.assign(ST.proc, d.proc);
     ST.place = { ...E.PLACE_DEFAULT, ...(d.place || {}) };
     setMarks(d.marks);
+    setPedestals(d.fixture);
     ST.tweak = d.tweak || [];
     syncTweak(ST.model!.bends.length);
     for (const x of d.datasets) {

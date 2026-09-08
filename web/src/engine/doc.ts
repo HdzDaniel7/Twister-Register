@@ -12,7 +12,8 @@
    ========================================================================= */
 import { Vector3 } from 'three';
 import type {
-  Bend, Model, Variant, AnchorMode, Place, Mark, Tweak, UiPrefs, Doc, LoadedDoc, Proc, Comp,
+  Bend, Model, Variant, AnchorMode, Place, Mark, Pedestal, Tweak, UiPrefs, Doc, LoadedDoc,
+  Proc, Comp,
 } from '../types.ts';
 import { D2R, eye, trans, rotX, rotY, rotZ, posOf } from './math.ts';
 import { bendFrom, normalizeModel } from './bend.ts';
@@ -58,6 +59,7 @@ type ToDocDataset = {
 type ToDocExtra = {
   place?: Partial<Place>;
   marks?: Mark[];
+  fixture?: Pedestal[];
   tweak?: Tweak[];
   ui?: { theme?: UiPrefs['theme']; lang?: UiPrefs['lang']; mode?: UiPrefs['mode'] };
 };
@@ -97,6 +99,14 @@ export function toDoc(
     marks: (extra.marks || []).map(m => ({
       name: m.name, color: m.color, visible: m.visible !== false,
       x: +m.x || 0, y: +m.y || 0, z: +m.z || 0,
+    })),
+    /* sin `id`, igual que las cotas: es un número de orden que se reasigna al
+       abrir, y guardarlo solo daría ocasión de que el archivo y el programa
+       discrepen */
+    fixture: (extra.fixture || []).map(f => ({
+      name: f.name, visible: f.visible !== false,
+      x: +f.x || 0, y: +f.y || 0, h: +f.h || 0,
+      tilt: +f.tilt || 0, pad: +f.pad || 0,
     })),
     tweak: (extra.tweak || []).map(t => ({
       angle: +t.angle || 0, rot: +t.rot || 0, feed: +t.feed || 0,
@@ -267,6 +277,13 @@ export function fromDoc(d: Doc): LoadedDoc {
       color: safeColor(m.color),
       visible: m.visible !== false,
       x: +m.x || 0, y: +m.y || 0, z: +m.z || 0,
+    })),
+    fixture: (d.fixture || []).map((f, i) => ({
+      id: `pd${i + 1}`,
+      name: f.name || `Ped ${i + 1}`,
+      visible: f.visible !== false,
+      x: +f.x || 0, y: +f.y || 0, h: +f.h || 0,
+      tilt: +f.tilt || 0, pad: +f.pad || 0,
     })),
     tweak: (d.tweak || []).map(t => ({
       angle: +t.angle || 0, rot: +t.rot || 0, feed: +t.feed || 0,

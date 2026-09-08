@@ -4,7 +4,7 @@
  */
 import type { Bend, Model, Variant, AnchorMode, DatumMode } from './model.ts';
 import type { Comp, Proc } from './process.ts';
-import type { Dataset, Place, Mark, Tweak, Mode } from './doc.ts';
+import type { Dataset, Place, Mark, Pedestal, Tweak, Mode } from './doc.ts';
 
 /* ------------------------------------------------------------ estado global */
 
@@ -71,6 +71,8 @@ export type State = {
   place: Place;
   /** puntos de referencia sueltos: cotas contra el fixture o un datum */
   marks: Mark[];
+  /** los pedestales sobre los que se apoya la barra. Ver engine/fixture.ts */
+  fixture: Pedestal[];
   /** ajuste manual sobre lo que calcula el lazo, por doblez */
   tweak: Tweak[];
 };

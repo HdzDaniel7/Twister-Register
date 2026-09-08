@@ -82,9 +82,12 @@ web/                        ← motor TypeScript + visor three.js
     engine/doc.ts              esquema barcomp/2.3, migración de archivos anteriores
     engine/csv.ts              la nube de PI: lectura tolerante (PI_MIN_MM,
                                SCALE_MIN_RATIO) y escritura
+    engine/fixture.ts          los pedestales: dónde apoyan, qué hueco dejan y
+                               qué vano queda entre uno y otro (TABLE_Z)
   src/i18n.ts               ← barril de i18n/: keys.ts (la unión de 239 claves) + es · en · de.
                               T() y LANG. La paridad es error de COMPILACIÓN, no solo de prueba.
-  src/state.ts              ← ST: variantes, referencia, anclaje, capas, piezas medidas.
+  src/state.ts              ← ST: variantes, referencia, anclaje, capas, piezas medidas,
+                              cotas y el fixture. placedPath() es la trayectoria colocada.
   src/types.ts              ← barril de types/: model (la pieza) · process (el lazo) ·
                               doc (el .json) · state (ST). En ese orden, sin ciclos.
   src/scene.ts              ← three.js, barril de scene/ (stage · geometry · layers · build · view).
@@ -298,6 +301,11 @@ Todas puras y todas en `web/src/engine.js`, que no toca el DOM. Los mismos nombr
 | `kabsch(P, Q)` | → `Matrix4` | ajuste rígido por cuaterniones (Horn) + Jacobi 4×4 |
 | `placeTransform(place,pivot)` | → `Matrix4` | colocación en el espacio; identidad si no se tocó |
 | `nearestPoint(pts,q)` | → `{i,d}` | PI más cercano a una cota suelta |
+| `placePath(M,samples)` | → `PathSample[]` | la trayectoria movida; la base solo con la ROTACIÓN |
+| `sectionDrop(q,sec)` | → `number` | cuánto baja la cara de abajo bajo el eje neutro, a plomo |
+| `pedestalFit(path,sec,ped)` | → `PedFit` | qué le pasa a un pedestal con la barra encima |
+| `pedestalSpans(fits)` | → `number[]` | el vano de cada uno, ordenando por la BARRA no por la tabla |
+| `seedPedestals(path,sec,n)` | → `Pedestal[]` | un fixture de partida que ya apoya |
 | `readPointsCsv(txt)` | → `Vector3[]` | las TRES ÚLTIMAS columnas numéricas de cada línea |
 | `piStep(pts)` | → `number` | paso medio entre PI consecutivos; media, no largo total |
 | `csvScaleOk(pts,nom)` | → `boolean` | ¿la nube está a la escala del nominal? caza columnas de desviación y unidades equivocadas |
@@ -1162,14 +1170,20 @@ con razón.
   `File.text()`+`allSettled` en `io.ts` (hoy un CSV ilegible cuelga el lote sin avisar),
   sacar `commit()` del bucle de importación, guarda de θ en `trimOf`, enseñar
   `machineFeeds`, banco de UI portable, fijar exacto esbuild y typescript.
-- **Fase 2 · Estructural** — ⏳ ARRANCADA 2026-09-08, y **casi toda bloqueada**: los datos
-  de `.auditoria/solicitud-datos.md` no han llegado. Lo hecho es lo que no dependía de
-  ninguna respuesta: los dos correos listos para enviar
-  (`.auditoria/correo-a-metrologia.md` y `correo-b-maquina.md`), la guarda de ESCALA del
-  CSV, y la carpeta `piezas/` apartada del repo público (M16/D4).
-  Sigue ⛔: mapeo de columnas por nombre (necesita A.1), prealineación al datum de ZEISS
-  (A.4), **exportación de comandos a la máquina** —hoy no existe ninguna— (B.1 y B.2), y
-  la medición de la flecha por gravedad (A.5, cero código).
+- **Fase 2 · Estructural** — ⏳ ARRANCADA 2026-09-08, y **recortada por decisión del
+  cliente del proyecto**: todo lo que dependa de los modelos CAD y de los archivos de
+  inspección se aplaza al final, como actualización posterior a la beta. No está
+  descartado, está esperando —llevaba semanas parado por una respuesta que no llega— y
+  en el plan queda escrito qué respuesta despierta cada punto.
+  Hecho: los dos correos listos para enviar (`.auditoria/correo-a-metrologia.md` y
+  `correo-b-maquina.md`), la guarda de ESCALA del CSV, **la herramienta de fixture**
+  (`engine/fixture.ts` + su pestaña) y la carpeta `piezas/` apartada del repo público.
+  Sigue ⛔ pero NO aplazado: la exportación de comandos a la máquina —hoy no existe
+  ninguna— porque depende del manual de la dobladora (B.1 y B.2) y no del escáner.
+  Sigue ⛔ y a medias: la flecha por gravedad (M6); su geometría ya está modelada, falta
+  el escaneo de barra recta o los datos del material.
+  **Aplazado:** mapeo de columnas por nombre (A.1), prealineación al datum (A.4), el
+  extractor RANSAC (A.3), cotejar el nominal contra el CAD (A.7).
   **No se inventa ninguno de esos formatos**: el error no se ve hasta que la barra está
   doblada.
 - **Fase 3 · Cierre de beta** — pruebas de `history.ts`, resorte con n≥5 y dos niveles de
