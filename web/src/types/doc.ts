@@ -1,0 +1,161 @@
+/**
+ * EL DOCUMENTO — lo que se guarda en el .json y lo que sale al leerlo, mas lo
+ * que cuelga de el: colocacion, cotas sueltas, piezas medidas, estadistica del
+ * resorte, ajuste manual y preferencias de pantalla.
+ *
+ * Unidades, siempre: milimetros y GRADOS. Los radianes viven solo dentro de
+ * las funciones del motor, nunca en estas estructuras ni en el JSON.
+ */
+import type { Vector3 } from 'three';
+import type { Bend, Model, Variant, AnchorMode } from './model.ts';
+import type { Comp, Proc, Deviations } from './process.ts';
+
+/* -------------------------------------------------------------- documento */
+
+/** Colocación en el espacio. SOLO presentación: no toca ningún parámetro. */
+export type Place = {
+  /** índice del PI que hace de origen del giro */
+  pivot: number;
+  x: number;
+  y: number;
+  z: number;
+  rx: number;
+  ry: number;
+  rz: number;
+};
+
+/** Cota suelta: se une con el PI más cercano del modelo activo. */
+export type Mark = {
+  id: string;
+  name: string;
+  color: string;
+  visible: boolean;
+  x: number;
+  y: number;
+  z: number;
+};
+
+/** Una pieza medida. `model` son sus parámetros; `dev`, su comparación. */
+export type Dataset = {
+  /** cadena, siempre: 'ds1', 'ds2'... */
+  id: string;
+  name: string;
+  color: string;
+  visible: boolean;
+  /** de dónde salió la pieza: 'sim', 'verify' o lo que dijera el archivo.
+   *  Viaja en el JSON (ver Doc.datasets) y hoy nadie lo enseña; es lo único
+   *  que distingue una pieza inventada por simulate() de una medida. */
+  src: string;
+  model: Model;
+  pis: Vector3[];
+  /** opcional a propósito: addDataset() crea la pieza sin `dev` y computeDev()
+   *  la rellena en la línea siguiente. Todo lo que la lee después usa `dev!`. */
+  dev?: Deviations | null;
+  /** EL COMANDO CON EL QUE SE FABRICÓ esta pieza, copiado al darla de alta.
+   *
+   *  Sin esto no se puede estimar el resorte: `sb = 1 − medido/comandado`, y el
+   *  comando de ahora ya no es el de entonces en cuanto se aplica una
+   *  compensación. Opcional: los archivos anteriores no lo traen y ahí solo
+   *  queda suponer el comando actual. */
+  cmd?: Bend[];
+};
+
+/** El resorte estimado de una orientación: la muestra resumida, más la recta
+ *  que dice si depende del ángulo comandado. `slope` en %/° y `r` la
+ *  correlación: con |r| alto, una constante única no describe el proceso. */
+export type SbFit = { stat: Stat; slope: number; r: number };
+
+/** El resorte medido, separado por orientación: de canto (W) y de plano (T)
+ *  tienen constantes elásticas distintas y no se pueden mezclar. */
+export type Springback = { W: SbFit; T: SbFit };
+
+/** Resumen robusto de una muestra: mediana, MAD y el MAD escalado a sigma.
+ *  Mediana y MAD porque un PI mal extraído produce un doblez absurdo y una
+ *  media se lo traga entero. */
+export type Stat = { med: number; mad: number; sigma: number; n: number };
+
+/** Lo que dispersan varias piezas medidas en un mismo doblez. `n` es cuántas
+ *  piezas llegaron a tener ese doblez: una pieza escaneada puede traer menos. */
+export type BendStat = { angle: Stat; rot: Stat; feed: Stat; n: number };
+
+/** Ajuste manual de la compensación, por doblez. Se guarda la DIFERENCIA. */
+export type Tweak = {
+  angle: number;
+  rot: number;
+  feed: number;
+};
+
+/** Tema e idioma. Sin localStorage, viajan en el JSON. */
+export type UiPrefs = {
+  theme: 'system' | 'light' | 'dark';
+  lang: 'es' | 'en' | 'de';
+  /** modo de trabajo; opcional, un archivo sin él abre en Modelar */
+  mode?: Mode;
+};
+
+/** Los tres trabajos del programa. No son pestañas de una tabla: cada uno se
+ *  queda la pantalla entera y deja de solo lectura lo que no le toca.
+ *
+ *  `comp` es además el modo taller: al no haber en pantalla nada que no sea
+ *  compensación, no hace falta un interruptor de bloqueo aparte. */
+export type Mode = 'model' | 'meas' | 'comp';
+
+/**
+ * Documento del esquema `barcomp/2.3`, tal como lo escribe `toDoc()`. Las
+ * claves marcadas opcionales son las que el README declara opcionales:
+ * `variants`, `ref`, `anchor`, `place`, `marks`, `tweak` y `ui`. Los archivos
+ * guardados con versiones anteriores siguen abriendo sin ellas — es
+ * `fromDoc()` quien decide el valor por defecto de cada una.
+ *
+ * `Recta`, `L` y `Σ L` no viven aquí: son derivadas de `feed`, `radius` y los
+ * ángulos, y no se guardan.
+ */
+export type Doc = {
+  schema: string;
+  saved: string;
+  model: Model;
+  /** lo que se manda a la máquina */
+  command: Bend[];
+  comp: Comp;
+  proc: Proc;
+  /** piezas medidas: solo lo que hace falta para reconstruirlas, sin `dev` */
+  datasets: { name: string; color: string; src: string; bends: Bend[]; tail: number;
+              cmd?: Bend[] }[];
+  ref?: string | null;
+  anchor?: AnchorMode;
+  variants?: Variant[];
+  place?: Place;
+  /** sin `id`: se reasigna al abrir, ver fromDoc() */
+  marks?: { name: string; color: string; visible: boolean; x: number; y: number; z: number }[];
+  tweak?: Tweak[];
+  ui?: UiPrefs;
+};
+
+/**
+ * Lo que devuelve `fromDoc()`: el documento ya normalizado a la convención
+ * vigente (esquema 2.1), listo para volcarse en el estado de la aplicación.
+ */
+export type LoadedDoc = {
+  model: Model;
+  /** el comando de máquina, ya convertido si el archivo era de un esquema anterior */
+  command: Bend[];
+  /** true si el archivo venía de una cinemática anterior y se CONVIRTIÓ */
+  legacy: boolean;
+  /** true si el archivo es `barcomp/2.2`: se lee tal cual, sin tocar un número,
+   *  pero pudo escribirse antes o después de que `ANG_DIR`/`ROT_DIR` pasaran a
+   *  −1, así que la pieza puede salir doblada al otro lado. No se convierte —
+   *  ver SCHEMA_AMBIGUOUS en engine/doc.ts— pero hay que avisarlo. */
+  ambiguous: boolean;
+  comp: Comp;
+  proc: Proc;
+  datasets: { name: string; color: string; src: string; bends: Bend[]; tail: number;
+              cmd?: Bend[] }[];
+  anchor: AnchorMode;
+  variants: Variant[];
+  ref: string | null;
+  place: Place;
+  marks: Mark[];
+  tweak: Tweak[];
+  /** null = el archivo no dijo nada: no se pisa la preferencia actual */
+  ui: { theme: string | null; lang: string | null; mode: string | null } | null;
+};

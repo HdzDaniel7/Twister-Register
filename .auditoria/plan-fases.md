@@ -179,17 +179,15 @@ Todo de esfuerzo S, sin dependencias externas, y casi todo delegable.
       dependencias sin `^`: `esbuild 0.28.2`, `typescript 7.0.2`, `three 0.185.1`,
       `@types/three 0.185.4`. Con el rango, dos `npm install` en fechas distintas daban dos
       artefactos distintos y el diff de `index.html` en el CI sería ruido permanente.
-- [~] **[M15] `LICENSE` y atribución de three.js · [S]** — la ATRIBUCIÓN, hecha 2026-09-08.
+- [x] **[M15] `LICENSE` y atribución de three.js · [S]** — hecho 2026-09-08.
       Era lo urgente y era un incumplimiento real: el build compilaba con
       `legalComments: 'none'`, o sea que borraba el aviso de copyright de three.js del
       artefacto — y cada copia del HTML, la de Pages y la del USB, es una redistribución de
       three.js, cuya licencia MIT pide que el aviso viaje con ella. Ahora es `'eof'`, hay
       `THIRD-PARTY.md` con el texto completo, y **el build FALLA** si el aviso no quedó
       dentro: volver a `'none'` para ahorrar bytes rompe la compilación en vez de publicar.
-      **LA LICENCIA DE BARCOMP SIGUE PENDIENTE, y a propósito:** elegir con qué licencia
-      publica su trabajo el dueño del proyecto no es una decisión que le toque a nadie más.
-      Sin `LICENSE` rige «todos los derechos reservados», que es un estado legítimo, no un
-      error — pero conviene que sea una elección y no un olvido.
+      La licencia de BARCOMP la decidió el dueño el 2026-09-08: **MIT**, la misma que
+      three.js, coherente con un repo público que ya redistribuye una dependencia MIT.
 - [x] **[B2] Un solo `$()` · [S]** — hecho 2026-09-08. Había CUATRO copias —app, panels,
       la cinta y el escenario— con la misma firma por casualidad y no por contrato. Una
       sola, en `src/dom.ts`.

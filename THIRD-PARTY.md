@@ -49,4 +49,4 @@ entra una sola línea suya en el artefacto, así que no hay nada que redistribui
 
 ## Licencia de BARCOMP
 
-Pendiente: la elige el dueño del proyecto. Ver M15 en `.auditoria/plan-fases.md`.
+MIT, igual que three.js. Ver [`LICENSE`](LICENSE).

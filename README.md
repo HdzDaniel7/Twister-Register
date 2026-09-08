@@ -211,8 +211,9 @@ web/
   src/report.ts     reporte imprimible · src/io.ts  archivos locales
   src/safe.ts       esc() y safeColor(): lo que entra de fuera y acaba en un innerHTML
   src/dom.ts        el atajo $(), una sola vez para las cuatro capas
-  src/i18n.ts       I18N.es / .en / .de — todo texto visible pasa por T('clave')
-  src/types.ts      los tipos del dominio, State y el documento
+  src/i18n.ts       barril de i18n/: keys.ts (la unión) + es.ts · en.ts · de.ts
+                    todo texto visible pasa por T('clave'); la paridad es error de tsc
+  src/types.ts      barril de types/: model · process · doc · state
   src/app.css       tokens de diseño y layout; la paleta de los DOS temas
   src/shell.html    esqueleto con los marcadores del build
   build.mjs         esbuild: src/ + three  ->  index.html
@@ -253,7 +254,8 @@ deshacer cuesta 6 µs y 5.3 KB.
 KB comprimido, que es lo que sirve Pages. Nunca se edita a mano: el siguiente
 build borra el cambio.** Se edita `web/src/`.
 
-`index.html` lleva three.js dentro, así que cada copia es una redistribución: el aviso de
+BARCOMP se publica bajo licencia **MIT** ([`LICENSE`](LICENSE)). `index.html` lleva three.js
+dentro —también MIT—, así que cada copia del HTML es una redistribución: el aviso de
 copyright viaja con ella y `build.mjs` **falla** si no está. Ver
 [`THIRD-PARTY.md`](THIRD-PARTY.md).
 

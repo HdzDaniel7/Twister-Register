@@ -2,7 +2,11 @@
 # Solo se publica el visor web (GitHub Pages sirve index.html desde la raíz).
 # El motor Python y el comparador ya no viven aquí: se mudaron a la carpeta
 # hermana «Twister Register Python». Las notas internas se quedan fuera.
-CONTEXTO_BARCOMP.md
+#
+# CONTEXTO_BARCOMP.md SÍ se versiona desde 2026-09-08: está escrito como
+# documento de traspaso —mapa de módulos, decisiones que no se revisitan,
+# estado de las fases— y es el «léeme primero». Estando aquí no llegaba nunca
+# a un clon nuevo, y solo existía en un disco.
 PROMPT_WEB_V2.md
 PROMPT_WEB_V3.md
 PROMPT_WEB_V4.md

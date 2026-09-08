@@ -1,6 +1,17 @@
 /* =========================================================================
    CINEMÁTICA — fk/ik, la convención LRA y las longitudes por doblez.
 
+   EXCEPCIÓN CONSCIENTE A LA REGLA DE LAS 400 LÍNEAS (decidida 2026-09-08).
+   Este archivo va en ~490 y se queda así. Los otros dos que pasaban del límite
+   —i18n.ts y types.ts— eran TABLAS DE DATOS y se partieron por el corte
+   natural, idioma y dominio, sin riesgo. Aquí no hay corte natural: fk, ik,
+   bendDecomp y las longitudes comparten la convención, y separarlos deja la
+   convención escrita en dos sitios, que es exactamente el fallo que
+   `SCHEMA_LEGACY` documenta tres veces. Un refactor aquí no gana nada
+   funcional y arriesga los números que van a la máquina. Si algún día se
+   parte, se parte por lo que YA salió solo: feasible.ts se llevó lo que la
+   máquina no puede hacer, y ese es el patrón a repetir.
+
    Convenciones cerradas (idénticas al motor Python):
      · milímetros y grados en el modelo; radianes solo aquí dentro
      · sistema derecho, regla de la mano derecha
