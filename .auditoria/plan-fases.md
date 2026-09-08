@@ -399,9 +399,28 @@ de ZEISS se juzga cuando se retome.
 
 Lo mínimo para que la beta se pueda usar sin supervisión.
 
-- [ ] **[M12] Pruebas de `history.ts` · [O]** — `snapshot(restore(s)) === s`, tope de 50
-      pasos, importar+deshacer. Es donde vivirán los datos reales y hoy no lo cubre nada
-      salvo el banco de Edge. Solo `history.ts`; `state.ts` puede esperar.
+- [x] **[M12] Pruebas de `history.ts` · [O]** — hecho 2026-09-08. 33 pruebas, sin
+      navegador: `history.ts` no toca el DOM —guarda documentos serializados y
+      los vuelve a cargar por el mismo camino que abrir un archivo— así que se
+      prueba en `test_motor.js` y no solo en el banco de Edge, que corre entero
+      o no corre.
+
+      La propiedad que sostiene todo lo demás es `snapshot(restore(s)) === s`, y
+      se comprueba por la puerta de delante: después de deshacer, un `commit()`
+      tiene que devolver `false`. Si restaurar produjera un documento aunque
+      fuera un decimal distinto, la pila se llenaría sola de estados que nadie
+      pidió.
+
+      Lo demás que ahora está vigilado y antes solo estaba escrito: la lista de
+      **«qué NO se deshace»** de la cabecera del archivo —vista, modo, cajón,
+      tema, idioma, datum, capas, exageración, doblez seleccionado—, que si
+      alguien mete en `toDoc()` hace que el primer Ctrl+Z se gaste en volver de
+      pantalla; el tope de 50 pasos y que se caigan por el FONDO y no por
+      arriba; que una acción nueva corte la rama de rehacer; que el ajuste todo
+      a cero sea «sin ajuste» y mirar la pestaña de compensación no gaste un
+      paso; que las cotas y los pedestales sobrevivan a la ida y vuelta con sus
+      cifras; y que el aviso de cambios sin guardar compare por CONTENIDO —
+      deshacer a mano hasta el estado guardado lo apaga.
 - [ ] **[M4] Resorte con n≥5 y dos niveles de ángulo · [O]** — hoy el aviso de dependencia
       dispara con `|r|>0.6` sin puerta de `n`, y con n=3 eso es ruido. Es la diferencia entre
       un `sbW` que significa algo y uno que no.

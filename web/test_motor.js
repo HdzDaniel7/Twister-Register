@@ -15,6 +15,11 @@ import { Matrix4, Euler, Vector3 } from 'three';
 import * as E from './src/engine.ts';
 import { I18N, LANGS, LANG, setLang, T } from './src/i18n.ts';
 import { esc, safeColor, COLOR_FALLBACK } from './src/safe.ts';
+/* history.ts no toca el DOM —guarda documentos y los vuelve a cargar por el
+   mismo camino que abrir un archivo— así que se prueba aquí y no solo en el
+   banco de Edge, que corre entero o no corre. */
+import { ST, loadModel, syncModel, syncTweak, addMark, addPedestal } from './src/state.ts';
+import * as H from './src/app/history.ts';
 
 let fails = 0;
 function ok(name, cond, detail = '') {
@@ -1544,6 +1549,130 @@ console.log('\n— el fixture: pedestales, apoyo y vanos —');
     ok('el id se reasigna al abrir', back.fixture.map(p => p.id).join() === 'pd1,pd2,pd3');
     ok('un archivo sin fixture abre con la lista vacía',
        E.fromDoc(JSON.parse(JSON.stringify({ ...doc, fixture: undefined }))).fixture.length === 0);
+  }
+}
+
+/* ======================================================================== */
+console.log('\n— deshacer y rehacer: la pila de documentos —');
+{
+  /* `history.ts` no toca el DOM: guarda DOCUMENTOS serializados y los vuelve a
+     cargar por el mismo camino que abrir un archivo. Eso lo hace probable sin
+     navegador, y hacía falta: es donde van a vivir los datos reales y hasta
+     ahora solo lo cubría el banco de Edge, que corre entero o no corre. */
+  const ang = () => ST.variants[0].base.bends[0].angle;
+  const mueve = (d) => { ST.variants[0].base.bends[0].angle += d; syncModel(); };
+
+  loadModel(E.demoModel());
+  H.initHistory();
+  ok('recién cargado no hay nada que deshacer', !H.canUndo() && H.undoDepth() === 0);
+  ok('ni nada que rehacer', !H.canRedo() && H.redoDepth() === 0);
+  ok('deshacer sin dónde volver no revienta, devuelve false', H.undo() === false);
+  ok('rehacer tampoco', H.redo() === false);
+
+  /* --- mirar no gasta un paso ------------------------------------------- */
+  ok('commit() sin haber tocado nada no apila', H.commit() === false);
+  ST.sel = 3; ST.mode = 'comp'; ST.tab = 'comp'; ST.drawer = 'file'; ST.solo = true;
+  ST.theme = 'dark'; ST.datum = 'best'; ST.view.exag = 40; ST.layers.fix.on = true;
+  setLang('de');
+  ok('la vista, el modo, el tema y el idioma NO gastan un paso de deshacer',
+     H.commit() === false);
+  /* Es la lista de «QUÉ NO se deshace» de la cabecera de history.ts, y estaba
+     escrita pero sin vigilar. Si alguien mete una de estas en toDoc(), el
+     primer Ctrl+Z se gasta en volver de pantalla en vez de deshacer. */
+  setLang('es'); ST.mode = 'model'; ST.tab = 'model'; ST.solo = false; ST.drawer = null;
+
+  /* --- un cambio de verdad ---------------------------------------------- */
+  const a0 = ang();
+  mueve(3);
+  ok('un cambio del modelo sí apila', H.commit() === true);
+  ok('y se puede deshacer', H.canUndo() && H.undoDepth() === 1);
+  ok('el mismo cambio otra vez no apila dos veces', H.commit() === false);
+
+  /* --- ida y vuelta exacta: snapshot(restore(s)) === s ------------------- */
+  ok('deshacer devuelve el ángulo de antes', H.undo() && Math.abs(ang() - a0) < 1e-12,
+     `${ang()} vs ${a0}`);
+  /* LA propiedad que sostiene todo lo demás: si restaurar produjera un
+     documento aunque fuera un decimal distinto, este commit() apilaría y la
+     pila se llenaría sola de estados que nadie pidió. */
+  ok('el estado restaurado serializa IGUAL que el guardado', H.commit() === false);
+  ok('rehacer vuelve a llevar el ángulo', H.redo() && Math.abs(ang() - (a0 + 3)) < 1e-12);
+  ok('y el rehecho también serializa igual', H.commit() === false);
+
+  /* --- una acción nueva corta la rama de rehacer ------------------------- */
+  H.undo();
+  ok('tras deshacer hay algo que rehacer', H.canRedo());
+  mueve(7); H.commit();
+  ok('una acción nueva corta la rama de rehacer', !H.canRedo() && H.redoDepth() === 0);
+
+  /* --- lo que viaja en el documento sobrevive al deshacer ---------------- */
+  {
+    const antesM = ST.marks.length, antesF = ST.fixture.length;
+    addMark(10, 20, 30, 'apoyo A');
+    addPedestal({ x: 100, y: 0, h: 240, tilt: 1.5, pad: 80 });
+    H.commit();
+    ok('una cota y un pedestal apilan un paso',
+       ST.marks.length === antesM + 1 && ST.fixture.length === antesF + 1);
+    H.undo();
+    ok('deshacer se lleva la cota', ST.marks.length === antesM);
+    ok('y el pedestal', ST.fixture.length === antesF);
+    H.redo();
+    ok('rehacer devuelve la cota con su nombre',
+       ST.marks.length === antesM + 1 && ST.marks[antesM].name === 'apoyo A');
+    ok('y el pedestal con sus cinco cifras',
+       ST.fixture.length === antesF + 1 && ST.fixture[antesF].h === 240
+       && ST.fixture[antesF].tilt === 1.5 && ST.fixture[antesF].pad === 80);
+    ok('la ida y vuelta del fixture no ensucia la pila', H.commit() === false);
+  }
+
+  /* --- el ajuste manual todo a cero ES «sin ajuste» ---------------------- */
+  {
+    /* Pintar la pestaña de compensación rellena `tweak` de ceros. Sin la
+       canonización, mirarla apilaba un paso que luego se comía el primer
+       Ctrl+Z: se deshacía «haber mirado». */
+    syncTweak(ST.model.bends.length);
+    ok('rellenar el ajuste de ceros no apila nada', H.commit() === false);
+    ST.tweak[0].angle = 0.4;
+    ok('un ajuste de verdad sí apila', H.commit() === true);
+    ST.tweak[0].angle = 0;
+    ok('y volverlo a cero también, porque es otro estado', H.commit() === true);
+  }
+
+  /* --- el tope de 50 pasos ---------------------------------------------- */
+  {
+    loadModel(E.demoModel());
+    H.initHistory();
+    for (let i = 0; i < 60; i++) { mueve(0.1); H.commit(); }
+    ok('la pila se corta en 50 pasos', H.undoDepth() === 50, `${H.undoDepth()}`);
+    /* Y se cae por el FONDO, no por arriba: los 50 que quedan tienen que ser
+       los últimos. Deshacerlos todos deja el ángulo 50 décimas por debajo del
+       final, no en el de partida. */
+    const fin = ang();
+    let n = 0;
+    while (H.undo()) n++;
+    ok('se deshacen los 50 y ni uno más', n === 50, `${n}`);
+    ok('los que se cayeron son los VIEJOS', Math.abs(ang() - (fin - 5)) < 1e-9,
+       `${ang().toFixed(3)} vs ${(fin - 5).toFixed(3)}`);
+    ok('y al fondo ya no se puede deshacer', !H.canUndo());
+  }
+
+  /* --- el aviso de cambios sin guardar ----------------------------------- */
+  {
+    loadModel(E.demoModel());
+    H.initHistory();
+    H.markSaved();
+    ok('recién guardado no hay nada que perder', !H.isDirty());
+    ST.sel = 5; ST.theme = 'light';
+    ok('mirar la pieza no la ensucia', !H.isDirty());
+    mueve(1);
+    ok('tocar el modelo sí', H.isDirty());
+    mueve(-1);
+    /* Vuelve al MISMO documento, así que deja de estar sucio: la comparación es
+       por contenido y no por «se tocó algo». Deshacer a mano hasta el estado
+       guardado tiene que apagar el aviso. */
+    ok('deshacer el cambio a mano apaga el aviso', !H.isDirty());
+    mueve(2);
+    H.markSaved();
+    ok('guardar otra vez mueve la marca', !H.isDirty());
   }
 }
 

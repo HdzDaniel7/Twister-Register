@@ -1186,8 +1186,11 @@ con razón.
   extractor RANSAC (A.3), cotejar el nominal contra el CAD (A.7).
   **No se inventa ninguno de esos formatos**: el error no se ve hasta que la barra está
   doblada.
-- **Fase 3 · Cierre de beta** — pruebas de `history.ts`, resorte con n≥5 y dos niveles de
-  ángulo, glifo de fuera de tolerancia.
+- **Fase 3 · Cierre de beta** — ⏳ EN CURSO. Hecho: las pruebas de `history.ts` (M12,
+  33 pruebas sin navegador; la propiedad que sostiene todo es `snapshot(restore(s)) === s`,
+  y de paso queda vigilada la lista de «qué NO se deshace»). Quedan: resorte con n≥5 y dos
+  niveles de ángulo, glifo de fuera de tolerancia además del color, `rebuildGroup(k)` solo
+  si hace falta medir, e invertir la dependencia `panels/left.ts` → `app/history.ts`.
 
 ### Diferido a después de beta 1.0
 
