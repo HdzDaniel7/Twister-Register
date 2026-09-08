@@ -1,0 +1,92 @@
+# CI de BARCOMP.
+#
+# Cuatro redes, las mismas que en local: tipos, motor, build y banco de
+# interfaz. Solo pudo existir después de A10 (el banco ya no lleva la ruta de
+# una máquina escrita a mano) y M14 (las cuatro dependencias fijas, o dos
+# instalaciones en fechas distintas darían dos artefactos distintos).
+#
+# Se prueba en Node 22.18 —el suelo declarado en `engines`— y en 24. Probar
+# solo lo que ya corre en el portátil no verifica nada de lo que promete el
+# package.json.
+#
+# REGLA DE FLUJO que este workflow da por supuesta: los dos commits de un
+# cambio —la fuente y el «build: regenerar index.html»— se empujan JUNTOS. El
+# disparador de push evalúa la punta, así que ve el commit del artefacto; si se
+# empuja el de fuente solo, la comprobación del artefacto falla con razón,
+# porque en ese commit el index.html es viejo de verdad.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# Un empujón nuevo cancela el anterior: nadie mira el resultado de un commit
+# que ya quedó atrás.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        node: ['22.18', '24']
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      # `npm ci` y no `npm install`: instala EXACTAMENTE lo que dice el lock, y
+      # falla si el lock y el package.json no coinciden. Es la mitad de M14.
+      - run: npm ci
+        working-directory: web
+
+      # El banco necesita un navegador. `tools/edge.mjs` encuentra solo el
+      # Chrome que trae el runner; esto solo deja dicho en el registro CUÁL
+      # eligió, que es lo primero que se quiere saber si el banco falla.
+      - name: navegador del banco
+        run: node -e "import('./tools/edge.mjs').then(m => console.log(m.edgeBinary()))"
+        working-directory: web
+
+      # Guardamos el artefacto COMMITEADO antes de que `build` lo pise.
+      - name: guardar el artefacto commiteado
+        run: cp index.html /tmp/committed.html
+
+      # typecheck -> pruebas de motor -> build -> banco de interfaz
+      - run: npm run check
+        working-directory: web
+
+      # ¿El index.html del repo corresponde a web/src/?
+      #
+      # Se comparan SIN el sello de versión. No es una concesión: el sello es
+      # `git rev-parse --short HEAD` en el momento de compilar, o sea el commit
+      # ANTERIOR al que lleva el artefacto — no puede coincidir nunca, por
+      # construcción. Lo que sí tiene que coincidir es todo lo demás, y eso
+      # pilla los dos fallos reales: que alguien edite index.html a mano, y que
+      # se commitee fuente sin recompilar.
+      #
+      # `sucio` sí se compara: un artefacto commiteado con «+sucio» se compiló
+      # sobre cambios sin confirmar, y eso es exactamente lo que no debe
+      # publicarse.
+      - name: el artefacto corresponde a la fuente
+        run: |
+          strip() { sed -E 's/"sha":"[^"]*"/"sha":"-"/g; s/"fecha":"[^"]*"/"fecha":"-"/g' "$1"; }
+          if ! diff <(strip /tmp/committed.html) <(strip index.html) > /tmp/artefacto.diff; then
+            echo '::error::index.html no corresponde a web/src/.'
+            echo 'Corre `cd web && npm run build` y commitea el artefacto regenerado.'
+            head -40 /tmp/artefacto.diff
+            exit 1
+          fi
+          echo 'index.html corresponde a la fuente (salvo el sello, que no puede).'
+
+      # Redundante con el guardia de build.mjs, y a propósito: si alguien
+      # ablanda el guardia, esto sigue en pie. Ver THIRD-PARTY.md.
+      - name: el artefacto lleva la atribución de three.js
+        run: grep -q 'Three.js Authors' index.html

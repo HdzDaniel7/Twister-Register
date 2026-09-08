@@ -97,8 +97,13 @@ export function makeProfile(prefix) {
 }
 
 /** Los conmutadores que necesita cualquiera de los tres navegadores para
- *  correr sin pantalla y sin GPU. */
+ *  correr sin pantalla y sin GPU.
+ *
+ *  `--no-sandbox` SOLO bajo CI, y no por comodidad: el sandbox de Chrome no
+ *  levanta en un runner en contenedor, y sin esto el banco no arranca. En una
+ *  maquina de verdad se deja puesto, que es donde protege de algo. */
 export const HEADLESS_FLAGS = [
   '--headless=new', '--disable-gpu', '--enable-unsafe-swiftshader', '--no-first-run',
   '--no-default-browser-check', '--disable-extensions',
+  ...(process.env.CI ? ['--no-sandbox', '--disable-dev-shm-usage'] : []),
 ];

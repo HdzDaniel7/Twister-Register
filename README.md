@@ -244,6 +244,16 @@ Cuatro redes, y ninguna fase cierra con una en rojo: los tipos, las pruebas del
 motor, el banco de interfaz y —si se tocó el motor— `compare_engines.py` contra
 la implementación de Python (100 pruebas de su lado).
 
+Las mismas cuatro corren en **CI** ([`.github/workflows/ci.yml`](.github/workflows/ci.yml))
+sobre Node 22.18 —el suelo declarado en `engines`— y 24, más dos comprobaciones que
+solo tienen sentido allí: que `index.html` corresponde de verdad a `web/src/` (comparado
+sin el sello de versión, que por construcción no puede coincidir) y que el artefacto
+lleva la atribución de three.js.
+
+**Regla de flujo:** los dos commits de un cambio —la fuente y el `build: regenerar
+index.html`— se empujan JUNTOS. El CI evalúa la punta; si se empuja el de fuente solo, la
+comprobación del artefacto falla, y falla con razón.
+
 Hay dos sondas de medición, que no son pruebas: `tools/probe_perf.js` mide el
 coste de la escena dentro del navegador y `tools/bundle_report.mjs` dice de qué
 está hecho el bundle. Hoy: `rebuildScene()` 2.8 ms con 15 dobleces y 9.6 ms con
