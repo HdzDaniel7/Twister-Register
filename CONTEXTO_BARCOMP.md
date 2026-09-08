@@ -1138,6 +1138,21 @@ está separando solo.
 Redes al cerrar: `tsc` limpio, **261** pruebas de motor, **162** pasos de interfaz, build
 reproducible con las cuatro dependencias fijadas.
 
+### CI — montado el 2026-09-08 (A9 + A11, D3 resuelto)
+
+`.github/workflows/ci.yml` corre lo mismo que `npm run check` sobre Node **22.18** —el
+suelo declarado en `engines`— y sobre 24, más dos comprobaciones propias del CI.
+
+**D3 resuelto: `index.html` se sigue versionando**, y el CI lo compara SIN el sello. El
+sello es `git rev-parse --short HEAD` al compilar, o sea el commit ANTERIOR al que lleva el
+artefacto: no puede coincidir, por construcción. Todo lo demás sí, y con eso se pillan los
+dos fallos reales —editar `index.html` a mano, y commitear fuente sin recompilar. `sucio`
+sí se compara.
+
+**Regla de flujo:** los dos commits de un cambio —la fuente y el «build: regenerar»— se
+empujan JUNTOS. El disparador evalúa la punta; empujar el de fuente solo deja el CI en rojo
+con razón.
+
 ### Fases siguientes (resumen)
 
 - **Fase 1 · Ganancias rápidas** — 20 arreglos de esfuerzo S, casi todos [S]. Destacan:

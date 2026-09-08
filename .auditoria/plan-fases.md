@@ -247,10 +247,30 @@ Cada punto dice de qué respuesta depende. Hasta entonces, no se empieza.
       Hoy no existe ninguna y los números se pasan a mano. Si la máquina lee CSV, es una
       función de 30 líneas junto a `expts`; lo caro no es escribirla, es acertar con las
       unidades y los signos. **Alto valor por poco esfuerzo en cuanto llegue el formato.**
-- [ ] **[A9 + A11] CI que verifica el artefacto · [S con revisión de O]** — workflow con
-      `npm ci && typecheck && test && build && git diff --exit-code -- index.html`. Depende
-      de M14 (Fase 1) y de decidir **D3** (¿`index.html` se versiona o se genera al
-      desplegar?). El fixture congelado de C3 es lo que le da sentido.
+- [x] **[A9 + A11] CI que verifica el artefacto · [S con revisión de O]** — hecho
+      2026-09-08, adelantado a la Fase 1 porque sus dos prerrequisitos (A10 y M14) cayeron
+      allí. `.github/workflows/ci.yml` corre lo mismo que `npm run check` —tipos, motor,
+      build, banco de interfaz— sobre Node **22.18**, el suelo declarado en `engines`, y
+      sobre 24: probar solo lo que ya corre en el portátil no verifica nada de lo que
+      promete el `package.json`. Añade dos comprobaciones que solo tienen sentido en CI:
+      que el artefacto corresponde a la fuente, y que lleva la atribución de three.js
+      —redundante con el guardia de `build.mjs`, y a propósito.
+
+      **D3 RESUELTO:** `index.html` **se sigue versionando**, y el CI lo compara SIN el
+      sello de versión. No es una concesión: el sello es `git rev-parse --short HEAD` en el
+      momento de compilar, o sea el commit ANTERIOR al que lleva el artefacto, y no puede
+      coincidir nunca por construcción. Lo que sí tiene que coincidir es todo lo demás, y
+      con eso se pillan los dos fallos reales: que alguien edite `index.html` a mano y que
+      se commitee fuente sin recompilar. `sucio` **sí** se compara, porque un artefacto
+      publicado con «+sucio» se compiló sobre cambios sin confirmar.
+
+      Se descartaron las otras dos: sellar con hash del contenido hace el build
+      determinista pero pierde la trazabilidad a un commit, que era el motivo entero de C7;
+      y sacar `index.html` del repo deja al taller sin un HTML listo para copiar a un USB.
+
+      **Regla de flujo que esto impone**, escrita en el workflow y en el README: los dos
+      commits de un cambio —la fuente y el «build: regenerar»— se empujan JUNTOS. El
+      disparador de push evalúa la punta.
 - [ ] **[M6] Medir la flecha por gravedad · [—]** — ⛔ depende de **A.5** (un escaneo de
       barra recta en el fixture). **Cero código**: es una medición que se mete como offset
       del nominal. Probablemente explica el estancamiento a ~5 mm en la punta.
