@@ -22,11 +22,27 @@ import { ik } from './kinematics.ts';
 import { PROC_DEFAULT, COMP_DEFAULT } from './compensate.ts';
 import { PLACE_DEFAULT } from './fitting.ts';
 
-export const SCHEMA = 'barcomp/2.2';
+export const SCHEMA = 'barcomp/2.3';
 /** Esquemas anteriores, cada uno con su cinemática. Se convierten al abrirlos.
  *  · 1.0  `rot` era un doblez de canto y `angle` tenía el signo contrario
- *  · 2.0  `rot` rodaba la barra de verdad y la sección salía girada */
+ *  · 2.0  `rot` rodaba la barra de verdad y la sección salía girada
+ *  · 2.1  `rot` era el eje ABSOLUTO, no el incremento */
 export const SCHEMA_LEGACY: string[] = ['barcomp/1.0', 'barcomp/2.0', 'barcomp/2.1'];
+
+/** Esquemas que se leen TAL CUAL, sin tocar un número, pero cuya etiqueta no
+ *  basta para saber con qué sentido se escribieron.
+ *
+ *  `barcomp/2.2` es el único caso. Después de fijarlo, `ANG_DIR` y `ROT_DIR`
+ *  pasaron a −1: los mismos valores describen la pieza doblada al otro lado.
+ *  Fue deliberado —los datos del taller ya venían con ese sentido y lo que se
+ *  cambió fue el motor, no los archivos— así que **convertirlos deshría el
+ *  cambio y aquí no se convierte nada**.
+ *
+ *  Lo que sí hace falta es que se note: un `2.2` puede haberse escrito antes o
+ *  después del cambio, y el motor de Python puede seguir leyéndolo con la forma
+ *  contraria. Se abre con la convención de hoy y se avisa. Los archivos que
+ *  escribe esta versión salen ya como 2.3 y no son ambiguos. */
+export const SCHEMA_AMBIGUOUS: string[] = ['barcomp/2.2'];
 
 /* ---------------------------------------------------------------------- E/S */
 /** Una pieza medida, tal como la ve `toDoc()`: solo lo que hace falta para
@@ -155,17 +171,45 @@ export function migrateModel(model: RawModel, schema = 'barcomp/1.0'): Model {
   return normalizeModel({ ...m, bends: out.bends, tail: out.tail });
 }
 
-/** ¿El documento viene con una convención anterior? */
-export const isLegacyDoc = (d: Doc | null | undefined): boolean => !!d && d.schema !== SCHEMA;
+/** Esquema declarado por el archivo. Sin `schema` es de los primeros: 1.0. */
+const schemaOf = (d: Doc | null | undefined): string => (d && d.schema) || 'barcomp/1.0';
+
+/** ¿El documento trae una cinemática anterior que hay que CONVERTIR? */
+export const isLegacyDoc = (d: Doc | null | undefined): boolean =>
+  !!d && SCHEMA_LEGACY.includes(schemaOf(d));
+
+/** ¿El documento se lee tal cual pero su sentido de giro no es verificable? */
+export const isAmbiguousDoc = (d: Doc | null | undefined): boolean =>
+  !!d && SCHEMA_AMBIGUOUS.includes(schemaOf(d));
+
+/** Se lanza al abrir un archivo cuyo esquema no conocemos. Antes caía al `else`
+ *  de fkLegacy() y se reinterpretaba como cinemática 1.0 —o sea, un archivo del
+ *  futuro, o del motor de Python desincronizado, se abría con la convención más
+ *  vieja de todas y sin decir nada. */
+export class UnknownSchemaError extends Error {
+  readonly schema: string;
+  constructor(schema: string) {
+    super(`esquema desconocido: ${schema}`);
+    this.name = 'UnknownSchemaError';
+    this.schema = schema;
+  }
+}
 
 /** Normaliza un documento leído de JSON. Gemelo de load_json() de core.py. */
 export function fromDoc(d: Doc): LoadedDoc {
   /* Un archivo anterior a barcomp/2.0 describe la misma pieza con otra
      convención: se convierte antes de tocar nada, o se abriría con la forma
      equivocada y en silencio. Quien llama se entera por `legacy`. */
+  const from = schemaOf(d);
+  /* Un esquema que no conocemos NO se adivina. Antes caía a la cinemática 1.0
+     y abría la pieza con la forma equivocada, en silencio. */
+  if (from !== SCHEMA && !SCHEMA_LEGACY.includes(from) && !SCHEMA_AMBIGUOUS.includes(from)) {
+    throw new UnknownSchemaError(from);
+  }
+  if (!d || !d.model || !Array.isArray(d.model.bends)) {
+    throw new Error('el archivo no tiene `model.bends`: no es un documento barcomp');
+  }
   const legacy = isLegacyDoc(d);
-  /* un archivo sin `schema` es de los primeros: 1.0 */
-  const from = (d && d.schema) || 'barcomp/1.0';
   const conv = (m: RawModel): Model => (legacy ? migrateModel(m, from) : normalizeModel(m));
   const model = conv(d.model);
   const variants = (d.variants || []).map((v, i) => syncDeltas({
@@ -186,6 +230,7 @@ export function fromDoc(d: Doc): LoadedDoc {
       ? migrateModel({ ...d.model, bends: d.command || d.model.bends }, from).bends
       : (d.command || model.bends).map(bendFrom),
     legacy,
+    ambiguous: isAmbiguousDoc(d),
     comp: { ...COMP_DEFAULT, ...(d.comp || {}) },
     proc: { ...PROC_DEFAULT, ...(d.proc || {}) },
     /* En un archivo anterior el `cmd` no existía, y si existiera estaría en la
@@ -226,19 +271,90 @@ export function fromDoc(d: Doc): LoadedDoc {
  *
  *  Lo que NO hace: adivinar el separador decimal. Un `1,5` europeo son dos
  *  columnas, no un numero y medio. */
-export function readPointsCsv(txt: string): Vector3[] {
-  const out: Vector3[] = [];
-  for (const line of String(txt).split(/\r?\n/)) {
-    const nums = line.trim().split(/[,;\t ]+/)
-      .filter(t => t !== '' && isFinite(Number(t)))
-      .map(Number);
-    if (nums.length >= 3) {
-      const xyz = nums.slice(-3);
-      out.push(new Vector3(xyz[0], xyz[1], xyz[2]));
-    }
+export type CsvReason =
+  /** entraron puntos */
+  | 'ok'
+  /** ninguna línea tenía tres números */
+  | 'empty'
+  /** decimales con coma: `1,5` son dos columnas, no un número y medio */
+  | 'decimalComma'
+  /** más de cuatro columnas numéricas: no se sabe cuáles son las coordenadas */
+  | 'tooManyColumns';
+
+export type CsvParse = {
+  pts: Vector3[];
+  reason: CsvReason;
+  /** columnas numéricas que tenía la mayoría de las líneas de datos */
+  cols: number;
+  /** líneas con tres números o más que NO encajaban y se descartaron */
+  skipped: number;
+};
+
+/** Lee puntos de un CSV, y dice qué encontró.
+ *
+ *  La regla anterior era «de cada línea, las TRES ÚLTIMAS columnas numéricas»,
+ *  y se descartaba sola la línea que no tuviera tres. Suena laxo y era
+ *  deliberado: así entraba un volcado con encabezado, con columna de índice o
+ *  con cualquier separador, sin pedirle a nadie que limpiara el archivo.
+ *
+ *  El problema es que un informe de inspección de ZEISS/GOM **no termina en las
+ *  coordenadas**: lleva el nominal, o la desviación, o las dos. Con la regla de
+ *  «las tres últimas» ese archivo entraba entero e importaba desviaciones de
+ *  0-5 mm creyéndolas coordenadas, y una nube de desviaciones parece una barra
+ *  perfecta. Nada avisaba.
+ *
+ *  Ahora el archivo tiene que ser COHERENTE: se mira cuántas columnas numéricas
+ *  tiene la mayoría de sus líneas de datos y solo se aceptan 3 (x,y,z) o 4
+ *  (índice o nombre + x,y,z). Con más, no se adivina: se rechaza y se dice por
+ *  qué. Las líneas que no encajan con la mayoría se cuentan aparte, porque una
+ *  sola línea corrupta desplazaba las columnas del resto en silencio.
+ *
+ *  Sigue sin adivinar el separador decimal, pero ahora lo DETECTA y lo dice.
+ *
+ *  NOTA: `read_points_csv()` del motor de Python es el gemelo de esta función y
+ *  todavía tiene la regla vieja. Hay que llevarle el mismo cambio.
+ */
+export function parsePointsCsv(txt: string): CsvParse {
+  const lines = String(txt).split(/\r?\n/);
+  const numsOf = (line: string): number[] => line.trim().split(/[,;\t ]+/)
+    .filter(t => t !== '' && isFinite(Number(t)))
+    .map(Number);
+
+  /* Solo las líneas con tres números o más pueden ser puntos; el encabezado y
+     las de unidades caen aquí sin hacer ruido, como siempre. */
+  const datos = lines.map(numsOf).filter(n => n.length >= 3);
+  if (!datos.length) return { pts: [], reason: 'empty', cols: 0, skipped: 0 };
+
+  /* Cuántas columnas tiene la MAYORÍA. La moda, no el máximo: una línea
+     corrupta no debe decidir cómo se lee el archivo entero. */
+  const cuenta = new Map<number, number>();
+  for (const n of datos) cuenta.set(n.length, (cuenta.get(n.length) || 0) + 1);
+  let cols = 0, mejor = -1;
+  for (const [c, k] of cuenta) if (k > mejor || (k === mejor && c < cols)) { cols = c; mejor = k; }
+
+  if (cols > 4) {
+    /* Un `1,5;2,5;3,5` europeo se parte en seis números y cae justo aquí. Vale
+       la pena distinguirlo, porque la causa y el arreglo son otros. */
+    const coma = lines.some(l => /\d[,]\d/.test(l) && /[;\t]/.test(l));
+    return { pts: [], reason: coma ? 'decimalComma' : 'tooManyColumns', cols, skipped: datos.length };
   }
-  return out;
+
+  const pts: Vector3[] = [];
+  let skipped = 0;
+  for (const n of datos) {
+    /* Una línea con otro número de columnas no se recorta por la derecha: se
+       descarta y se cuenta. Recortarla era lo que desplazaba las coordenadas
+       cuando una columna traía `NaN` o venía vacía. */
+    if (n.length !== cols) { skipped++; continue; }
+    const xyz = n.slice(-3);
+    pts.push(new Vector3(xyz[0], xyz[1], xyz[2]));
+  }
+  return { pts, reason: pts.length ? 'ok' : 'empty', cols, skipped };
 }
+
+/** Solo los puntos. Se mantiene porque es lo que consumen los sitios a los que
+ *  no les toca decidir qué hacer con un archivo malo. */
+export const readPointsCsv = (txt: string): Vector3[] => parsePointsCsv(txt).pts;
 
 export const writePointsCsv = (pts: Vector3[]): string =>
   'idx,x,y,z\n' + pts.map((p, i) =>

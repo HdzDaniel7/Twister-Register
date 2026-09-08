@@ -10,6 +10,7 @@
  *
  * Correr esto DESPUÉS de cada cambio en src/ y ANTES de `node build.mjs`.
  */
+import { readFileSync } from 'node:fs';
 import { Matrix4, Euler, Vector3 } from 'three';
 import * as E from './src/engine.ts';
 import { I18N, LANGS, LANG, setLang, T } from './src/i18n.ts';
@@ -568,6 +569,40 @@ console.log('\n— importar una pieza medida —');
   ok('un archivo vacío da cero puntos y no revienta',
      E.readPointsCsv('').length === 0 && E.readPointsCsv('   \n\n').length === 0);
 
+  /* --- El caso que motivó el cambio: un informe de inspección de ZEISS/GOM.
+     Con la regla vieja («las tres últimas columnas numéricas») este archivo
+     entraba entero e importaba la DESVIACIÓN como si fueran coordenadas: una
+     nube de ~0 mm que parece una barra perfecta. */
+  const gom = 'Punto,X,Y,Z,NomX,NomY,NomZ,Dev\n'
+            + 'P1,10.1,20.2,30.3,10,20,30,0.37\n'
+            + 'P2,110.4,21.1,29.8,110,21,30,0.45\n'
+            + 'P3,210.9,20.7,30.2,211,21,30,0.31\n';
+  const g = E.parsePointsCsv(gom);
+  ok('un informe de inspección con nominal y desviación se RECHAZA',
+     g.reason === 'tooManyColumns' && g.pts.length === 0, `${g.reason}, ${g.cols} columnas`);
+  /* 7, no 8: `P1` no es un número y no cuenta como columna numérica. */
+  ok('y dice cuántas columnas numéricas encontró', g.cols === 7, `${g.cols}`);
+
+  /* Decimales con coma: `1,5` son dos columnas, no un número y medio. Antes
+     `1,5;2,5;3,5` devolvía el punto (5, 3, 5), que parece perfectamente sano. */
+  const euro = E.parsePointsCsv('1,5;2,5;3,5\n10,5;20,5;30,5');
+  ok('los decimales con coma se detectan y se rechazan',
+     euro.reason === 'decimalComma' && euro.pts.length === 0, `${euro.reason}`);
+
+  /* Una línea corrupta ya no desplaza las columnas del resto: se descarta y se
+     cuenta. Antes `0,NaN,20,30` devolvía el punto (0, 20, 30). */
+  const roto = E.parsePointsCsv('1,10,20,30\n2,NaN,20,30\n3,10,20,30\n4,10,20,30');
+  ok('una línea corrupta se descarta en vez de recortarse',
+     roto.pts.length === 3 && roto.skipped === 1, `${roto.pts.length} pts, ${roto.skipped} descartadas`);
+  ok('y las que sí entraron conservan sus coordenadas',
+     roto.pts[0].x === 10 && roto.pts[0].y === 20 && roto.pts[0].z === 30);
+
+  /* Un archivo limpio de 3 columnas y otro de 4 siguen entrando sin ruido. */
+  ok('tres columnas limpias entran sin descartes',
+     E.parsePointsCsv('1,2,3\n4,5,6').skipped === 0);
+  ok('cuatro columnas (índice + xyz) entran sin descartes',
+     E.parsePointsCsv('0,1,2,3\n1,4,5,6').skipped === 0);
+
   /* measuredModel: los puntos traen la forma; radio y torsión se arrastran del
      nominal por índice, porque no viven en los puntos. */
   const same = E.measuredModel(M, P);
@@ -840,7 +875,8 @@ ok('un modelo de 1 doblez funciona',
   };
   const doc = E.toDoc(M, M.bends, { ...E.COMP_DEFAULT }, { ...E.PROC_DEFAULT }, [],
                       [V, W], 'v1', 'end', extra);
-  ok('el documento lleva el esquema compartido', doc.schema === 'barcomp/2.2');
+  ok('el documento lleva el esquema compartido', doc.schema === E.SCHEMA);
+  ok('y el esquema vigente es 2.3', E.SCHEMA === 'barcomp/2.3');
 
   /* MIGRACIÓN 2.1 -> 2.2. En 2.1 cada fila declaraba el eje ABSOLUTO; ahora
      declara cuánto gira. Un archivo anterior tiene que abrir con la MISMA
@@ -936,6 +972,269 @@ console.log('\n— idiomas —');
   setLang('zz');
   ok('un idioma desconocido cae en español', LANG.cur === 'es');
   setLang(antes);
+}
+
+/* ======================================================================== */
+console.log('\n— guardas del lazo: banda muerta, tope y ganancia —');
+{
+  const M = E.demoModel();
+  const nom = M.bends;
+  const ori = E.orientations(M);
+
+  /* 1. BANDA MUERTA. Una diferencia por debajo del ruido de medición no es
+        proceso: corregirla es perseguir ruido, y es lo que hacía que con
+        σ=1.0° el lazo EMPEORARA la pieza (0.38° -> 0.80° en la auditoría). */
+  const casiIgual = nom.map(b => E.newBend({ ...b, angle: b.angle + 0.02 }));
+  const sinTocar = E.compensate(nom, nom, casiIgual, { ...E.COMP_DEFAULT }, ori);
+  ok('una diferencia por debajo de la banda muerta no mueve el comando',
+     sinTocar.every((b, i) => Math.abs(b.angle - nom[i].angle) < 1e-12));
+
+  /* Pero una diferencia real sí se corrige: la banda no debe tapar señal. */
+  const desviado = nom.map(b => E.newBend({ ...b, angle: b.angle + 2 }));
+  const corregido = E.compensate(nom, nom, desviado, { ...E.COMP_DEFAULT }, ori);
+  const mov = corregido.reduce((m, b, i) => Math.max(m, Math.abs(b.angle - nom[i].angle)), 0);
+  ok('una desviación real sí se corrige', mov > 1, `mayor corrección ${mov.toFixed(3)}°`);
+
+  /* 2. TOPE POR CICLO. Un salto enorme no es proceso: es un dato malo. Se
+        recorta en vez de mandarlo a la máquina. */
+  const absurdo = nom.map(b => E.newBend({ ...b, angle: b.angle + 90 }));
+  const topado = E.compensate(nom, nom, absurdo, { ...E.COMP_DEFAULT }, ori);
+  const salto = topado.reduce((m, b, i) => Math.max(m, Math.abs(b.angle - nom[i].angle)), 0);
+  ok('una corrección absurda se recorta al tope',
+     salto <= E.COMP_DEFAULT.maxStep + 1e-9, `mayor salto ${salto.toFixed(2)}° (tope ${E.COMP_DEFAULT.maxStep})`);
+
+  /* 3. GANANCIA. Al 100 % el lazo oscila con el ruido: el motor no debe dejar
+        pasar más, aunque el campo traiga un número mayor. */
+  const g2 = E.compensate(nom, nom, desviado, { ...E.COMP_DEFAULT, gainW: 1.5, gainT: 1.5 }, ori);
+  const g1 = E.compensate(nom, nom, desviado, { ...E.COMP_DEFAULT, gainW: 1.0, gainT: 1.0 }, ori);
+  ok('una ganancia mayor que 1.0 se limita a 1.0',
+     g2.every((b, i) => Math.abs(b.angle - g1[i].angle) < 1e-12));
+  ok('GAIN_MAX es 1.0', E.GAIN_MAX === 1.0);
+
+  /* 4. El rodado ya NO se corrige entero, y el avance ya no usa la constante
+        del resorte. Son ganancias propias. */
+  const rotado = nom.map(b => E.newBend({ ...b, rot: b.rot + 4 }));
+  const cr = E.compensate(nom, nom, rotado, { ...E.COMP_DEFAULT, doRot: true }, ori);
+  const dRot = Math.abs(E.wrap180(cr[0].rot - nom[0].rot));
+  ok('el rodado se corrige a media ganancia, no entero',
+     Math.abs(dRot - 4 * E.COMP_DEFAULT.gainR) < 1e-9, `${dRot.toFixed(3)}° de 4°`);
+  ok('gainR y gainF existen y no son la ganancia del resorte',
+     E.COMP_DEFAULT.gainR === .5 && E.COMP_DEFAULT.gainF === .5);
+
+  /* 5. Un archivo anterior no trae las claves nuevas: tiene que abrir igual. */
+  const viejo = { gainW: .75, gainT: .75, doAngle: true, doRot: false, doFeed: false };
+  const conViejo = E.compensate(nom, nom, desviado, viejo, ori);
+  ok('un Comp sin las claves nuevas usa los valores por defecto',
+     conViejo.every((b, i) => Math.abs(b.angle - corregido[i].angle) < 1e-12));
+}
+
+/* ======================================================================== */
+console.log('\n— frontera ±90: la rama del nominal —');
+{
+  /* El hallazgo más grave de la auditoría. Las estaciones de canto tienen eje
+     absoluto exactamente 90, justo en la frontera de canonRot(). Con el sesgo
+     de eje C que el propio simulador modela (+0.35), la forma canónica escribe
+     -89.65 con el ángulo negado: MISMA geometría, otra rama. deviations()
+     comparaba fila contra fila y leía 180 de desviación donde había 0.35, y
+     compensate() respondía con un comando destructivo. */
+  const M = E.demoModel();
+  const nom = M.bends;
+
+  /* Una pieza "medida" idéntica al nominal salvo un sesgo de eje pequeño. */
+  const sesgo = 0.35;
+  const medCrudo = nom.map(b => E.newBend({ ...b, rot: b.rot + (b.rot !== 0 ? sesgo : 0) }));
+
+  /* Sin alinear, el eje absoluto de las estaciones de canto cruza la frontera
+     al pasar por ik(). Se reconstruye por PI, que es el camino real. */
+  const pisMed = E.fk({ ...M, bends: medCrudo }).pis;
+  const crudo = E.ik(pisMed, medCrudo.map(b => b.radius)).bends;
+
+  const alineado = E.alignBranch(crudo, nom);
+
+  /* 1. Alinear NO mueve la pieza: los PI son los mismos. */
+  let ePi = 0;
+  const pa = E.fk({ ...M, bends: alineado }).pis;
+  const pc = E.fk({ ...M, bends: crudo }).pis;
+  pa.forEach((p, i) => { ePi = Math.max(ePi, p.distanceTo(pc[i])); });
+  ok('alignBranch no mueve la pieza', ePi < 1e-9, `error máx ${ePi.toExponential(2)} mm`);
+
+  /* 2. Y deja cada eje absoluto del mismo lado que el nominal. */
+  const aN = E.axisAnglesOf(nom), aA = E.axisAnglesOf(alineado);
+  const peor = aA.reduce((m, a, i) => Math.max(m, Math.abs(E.wrap180(a - aN[i]))), 0);
+  ok('cada eje queda en la rama del nominal', peor <= 90 + 1e-9, `peor ${peor.toFixed(2)}°`);
+
+  /* 3. Lo que importa: las desviaciones dejan de ser un abismo. */
+  const dev = E.deviations(M, { ...M, bends: crudo }, 'start');
+  const maxRot = dev.rot.reduce((m, x) => Math.max(m, Math.abs(x)), 0);
+  const maxAng = dev.angle.reduce((m, x) => Math.max(m, Math.abs(x)), 0);
+  ok('dev.rot ya no salta a 180', maxRot < 1, `máx ${maxRot.toFixed(3)}°`);
+  ok('dev.angle ya no salta a decenas de grados', maxAng < 1, `máx ${maxAng.toFixed(3)}°`);
+
+  /* 4. Y por lo tanto el comando compensado se queda cerca del nominal, en vez
+        de irse a 62 donde el nominal pide 25. */
+  const ori = E.orientations({ ...M, bends: nom });
+  const cmd = E.compensate(nom, nom, dev ? E.alignBranch(crudo, nom) : crudo,
+                           { ...E.COMP_DEFAULT, doRot: true }, ori);
+  const salto = cmd.reduce((m, b, i) => Math.max(m, Math.abs(b.angle - nom[i].angle)), 0);
+  ok('el comando compensado no se dispara', salto < 1, `mayor cambio ${salto.toFixed(3)}°`);
+
+  /* 5. Alinear algo ya alineado no cambia nada (idempotente): deviations() lo
+        llama defensivamente sobre piezas que ya pasaron por addDataset(). */
+  const otraVez = E.alignBranch(alineado, nom);
+  const eId = otraVez.reduce((m, b, i) => Math.max(m,
+    Math.abs(b.angle - alineado[i].angle), Math.abs(E.wrap180(b.rot - alineado[i].rot))), 0);
+  ok('alignBranch es idempotente', eId < 1e-12);
+
+  /* 6. Una pieza con MENOS dobleces que el nominal no revienta. */
+  const corta = E.alignBranch(crudo.slice(0, 3), nom);
+  ok('acepta una pieza más corta que el nominal', corta.length === 3);
+  /* Y una con más: los que sobran se dejan como están, sin nominal contra el
+     que compararlos. */
+  const larga = E.alignBranch([...crudo, E.newBend({ feed: 50, rot: 0, angle: 10 })], nom);
+  ok('acepta una pieza más larga que el nominal', larga.length === crudo.length + 1);
+}
+
+/* ======================================================================== */
+console.log('\n— eje no observable en dobleces casi rectos —');
+{
+  /* Un doblez de medio grado con ruido de medición no tiene eje: la dirección
+     lateral es toda ruido. La guarda anterior era `lat < 1e-12`, que con datos
+     reales no se cumple nunca. Y como lo que se guarda es el GIRO respecto de
+     la estación anterior, un eje inventado envenena TAMBIÉN la fila siguiente. */
+  const M = E.demoModel();
+  const casi = [
+    E.newBend({ feed: 120, rot: 0, angle: 25, radius: 30 }),
+    E.newBend({ feed: 100, rot: 0, angle: 0.3, radius: 30 }),   // casi recto
+    E.newBend({ feed: 110, rot: 0, angle: 30, radius: 30 }),
+  ];
+  const base = { ...M, bends: casi, tail: 100 };
+  const pis = E.fk(base).pis;
+
+  /* Se mete ruido de medición del orden de lo que da un escaneo. */
+  const rnd = E.mulberry32(11);
+  const sucios = pis.map(p => p.clone().set(
+    p.x + E.gauss(rnd) * 0.5, p.y + E.gauss(rnd) * 0.5, p.z + E.gauss(rnd) * 0.5));
+
+  const sinUmbral = E.ik(sucios, casi.map(b => b.radius), 0);
+  const conUmbral = E.ik(sucios, casi.map(b => b.radius), E.AXIS_MIN_DEG);
+
+  ok('el doblez casi recto se marca como no observable',
+     conUmbral.unobservable.includes(1), `${conUmbral.unobservable}`);
+  ok('y sin umbral no se marcaba nada', sinUmbral.unobservable.length === 0);
+
+  /* El eje heredado deja el giro de esa fila en cero: «no toques el eje», que
+     es lo honesto cuando no se puede leer. */
+  ok('el doblez no observable hereda el eje anterior',
+     Math.abs(conUmbral.bends[1].rot) < 1e-9, `rot = ${conUmbral.bends[1].rot.toFixed(4)}`);
+
+  /* Lo que de verdad importa: el giro GUARDADO deja de ser basura, y con él la
+     fila siguiente, que se calcula como diferencia contra el eje anterior.
+     Se mide sobre muchas realizaciones de ruido, no sobre una: con una sola el
+     resultado depende del seed y la prueba no diría nada.
+
+     OJO: el umbral que se usa aquí (6°) está calibrado al ruido de ESTA prueba.
+     `AXIS_MIN_DEG` sigue siendo provisional hasta que se mida la σ real del
+     escaneo — ver A.6 en .auditoria/solicitud-datos.md. */
+  const salvaje = bs => bs.slice(1, 3).some(b => Math.abs(b.rot) > 10);
+  let malSin = 0, malCon = 0;
+  for (let seed = 1; seed <= 200; seed++) {
+    const r = E.mulberry32(seed);
+    const q = pis.map(p => p.clone().set(
+      p.x + E.gauss(r) * 0.5, p.y + E.gauss(r) * 0.5, p.z + E.gauss(r) * 0.5));
+    if (salvaje(E.ik(q, casi.map(b => b.radius), 0).bends)) malSin++;
+    if (salvaje(E.ik(q, casi.map(b => b.radius), 6).bends)) malCon++;
+  }
+  ok('el umbral quita la mayoría de los ejes inventados',
+     malCon * 4 < malSin, `${malSin}/200 sin umbral -> ${malCon}/200 con umbral`);
+
+  /* El umbral es SOLO del camino medido: un modelo tecleado con un doblez de
+     0.3° es deliberado y su eje es exacto. */
+  const limpio = E.ik(pis, casi.map(b => b.radius), 0);
+  ok('sin ruido y sin umbral, la ida y vuelta sigue siendo exacta',
+     limpio.bends.every((b, i) => Math.abs(b.angle - casi[i].angle) < 1e-9));
+}
+
+/* ======================================================================== */
+console.log('\n— candado de convención (fixture congelado) —');
+{
+  /* El sentido de giro no vive en los datos, vive en dos constantes. Cambiar
+     una voltea la pieza entera sin romper ninguna otra prueba. Este bloque
+     compara contra PI escritos en disco: si el motor deja de producir la forma
+     que produce hoy, falla aquí y no en la máquina.
+     Ver test/fixtures/README.md antes de regenerar el archivo. */
+  const FX = JSON.parse(readFileSync(new URL('./test/fixtures/demo-2.3.json', import.meta.url), 'utf8'));
+
+  ok('el fixture es del esquema vigente', FX.schema === E.SCHEMA, `${FX.schema}`);
+  ok('ANG_DIR no ha cambiado', E.ANG_DIR === FX.ANG_DIR, `${E.ANG_DIR}`);
+  ok('ROT_DIR no ha cambiado', E.ROT_DIR === FX.ROT_DIR, `${E.ROT_DIR}`);
+
+  /* Los dobleces del demo son la ENTRADA: si cambian, el fixture ya no compara
+     lo mismo y hay que regenerarlo a propósito. */
+  const dm = E.demoModel();
+  const mismosBends = dm.bends.length === FX.bends.length && dm.bends.every((b, i) => {
+    const f = FX.bends[i];
+    return b.feed === f.feed && b.rot === f.rot && b.angle === f.angle && b.radius === f.radius;
+  });
+  ok('demoModel() sigue siendo el mismo modelo', mismosBends && dm.tail === FX.tail);
+
+  /* Y esta es la comprobación que importa: las COORDENADAS. */
+  const pis = E.fk(dm).pis;
+  let ePi = 0;
+  ok('fk() devuelve tantos PI como el fixture', pis.length === FX.pis.length,
+     `${pis.length} vs ${FX.pis.length}`);
+  pis.forEach((p, i) => {
+    const f = FX.pis[i];
+    if (f) ePi = Math.max(ePi, Math.abs(p.x - f[0]), Math.abs(p.y - f[1]), Math.abs(p.z - f[2]));
+  });
+  ok('los PI son los congelados: la pieza NO se ha volteado', ePi < 1e-6,
+     `error máx ${ePi.toExponential(2)} mm`);
+
+  let acc = 0;
+  const ejes = dm.bends.map(b => +(acc += b.rot).toFixed(6));
+  ok('los ejes absolutos son los congelados',
+     ejes.every((a, i) => Math.abs(a - FX.ejesAbsolutos[i]) < 1e-9), `${ejes.join(',')}`);
+}
+
+/* ======================================================================== */
+console.log('\n— esquemas: qué se convierte, qué se avisa y qué se rechaza —');
+{
+  const M = E.demoModel();
+  const base = E.toDoc(M, M.bends, { ...E.COMP_DEFAULT }, { ...E.PROC_DEFAULT }, []);
+
+  /* 2.3: el de hoy. Ni convierte ni avisa. */
+  const hoy = E.fromDoc(JSON.parse(JSON.stringify(base)));
+  ok('un archivo 2.3 no es legacy ni ambiguo', !hoy.legacy && !hoy.ambiguous);
+
+  /* 2.2: MISMOS números, sentido no verificable. Se lee tal cual —convertirlo
+     desharía el cambio de bb76bde, que fue deliberado— pero se marca. */
+  const doc22 = { ...JSON.parse(JSON.stringify(base)), schema: 'barcomp/2.2' };
+  const d22 = E.fromDoc(doc22);
+  ok('un archivo 2.2 se marca ambiguo', d22.ambiguous === true);
+  ok('y NO se convierte: no es legacy', d22.legacy === false);
+  let e22 = 0;
+  d22.model.bends.forEach((b, i) => {
+    e22 = Math.max(e22, Math.abs(b.angle - M.bends[i].angle), Math.abs(b.feed - M.bends[i].feed),
+                   Math.abs(E.wrap180(b.rot - M.bends[i].rot)));
+  });
+  ok('y sus números llegan intactos', e22 < 1e-9, `error máx ${e22.toExponential(2)}`);
+
+  /* 2.1 y anteriores: cinemática distinta de verdad. Sí se convierten. */
+  const d21 = E.fromDoc({ ...JSON.parse(JSON.stringify(base)), schema: 'barcomp/2.1' });
+  ok('un archivo 2.1 sigue siendo legacy', d21.legacy === true && d21.ambiguous === false);
+
+  /* Un esquema que no conocemos NO se adivina. Antes caía a cinemática 1.0. */
+  let lanzo = null;
+  try {
+    E.fromDoc({ ...JSON.parse(JSON.stringify(base)), schema: 'barcomp/9.9' });
+  } catch (err) { lanzo = err; }
+  ok('un esquema desconocido se rechaza', lanzo instanceof E.UnknownSchemaError);
+  ok('y el mensaje dice cuál era', !!lanzo && lanzo.schema === 'barcomp/9.9', `${lanzo && lanzo.schema}`);
+
+  /* Un JSON que no es un documento da un mensaje, no un TypeError críptico. */
+  let vacio = null;
+  try { E.fromDoc({ schema: E.SCHEMA }); } catch (err) { vacio = err; }
+  ok('un documento sin model.bends se rechaza con mensaje',
+     !!vacio && /model\.bends/.test(vacio.message), `${vacio && vacio.message}`);
 }
 
 console.log(`\n${fails ? fails + ' PRUEBA(S) FALLARON' : 'todas las pruebas pasaron'}\n`);

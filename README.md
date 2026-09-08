@@ -198,7 +198,7 @@ web/
     engine/expr.ts        la celda de compensación (parser propio, sin eval)
     engine/doc.ts         esquema barcomp/2.2, migración, CSV de puntos
   src/app.ts        arranque y cableado; el resto en app/
-    app/render.ts · app/theme.ts · app/actions.ts · app/history.ts
+    app/render.ts · app/theme.ts · app/actions.ts · app/files.ts · app/history.ts
     app/events/{click,change,keyboard,grips}.ts
   src/scene.ts      three.js, barril de scene/
     scene/stage.ts · geometry.ts · layers.ts · build.ts · view.ts

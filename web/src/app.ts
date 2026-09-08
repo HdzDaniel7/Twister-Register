@@ -39,8 +39,8 @@ import {
 } from './scene.ts';
 import { drawRibbon, bindRibbon, setOnRibbonSelect } from './ribbon.ts';
 import { renderAll, refresh, selectBend } from './app/render.ts';
-import { importCsvText } from './app/actions.ts';
-import { initHistory } from './app/history.ts';
+import { importCsvText, importCsvBatch } from './app/files.ts';
+import { initHistory, markSaved, isDirty } from './app/history.ts';
 import { useTheme, bindScheme } from './app/theme.ts';
 import { bindClick } from './app/events/click.ts';
 import { bindChange } from './app/events/change.ts';
@@ -77,6 +77,27 @@ function boot(): void {
   /* la pila arranca con el estado inicial: sin esto el primer deshacer no
      tendría a dónde volver */
   initHistory();
+  /* El estado de arranque es el modelo de demostración: no hay nada que
+     perder todavía, así que cuenta como guardado. */
+  markSaved();
+  guardUnload();
+}
+
+/* Cerrar la pestaña con piezas medidas sin guardar las borra sin dejar rastro:
+   no hay localStorage por regla dura y todo sale por «Guardar JSON». Una
+   medición de GOM no se repite sin volver a montar la barra en el fixture.
+
+   El navegador enseña su propio texto, no el nuestro —es así desde hace años,
+   para que nadie use este aviso como cepo— pero el diálogo aparece, que es lo
+   que hace falta. */
+function guardUnload(): void {
+  window.addEventListener('beforeunload', e => {
+    if (!isDirty()) return;
+    e.preventDefault();
+    /* Chrome todavía mira el returnValue heredado; con los dos, funciona en
+       todos los navegadores que este proyecto declara soportar. */
+    e.returnValue = '';
+  });
 }
 document.addEventListener('DOMContentLoaded', boot);
 
@@ -95,10 +116,12 @@ type DebugExports = {
   /* el banco no puede abrir un diálogo de archivo: entra por aquí, que es el
      mismo camino que recorre un CSV de verdad menos el diálogo. */
   importCsvText: typeof importCsvText;
+  importCsvBatch: typeof importCsvBatch;
 };
 /* `renderer` se lee por getter porque initScene() lo asigna DESPUÉS de que
    este módulo se evalúe: copiarlo aquí guardaría el undefined de arranque. */
 if (typeof window !== 'undefined') (window as unknown as { BARCOMP: DebugExports }).BARCOMP = {
   ST, E, I18N, LANG, renderAll, refresh, REF, drawGizmo, drawLabels, groupHost,
-  rebuildScene, markDirty, importCsvText, get renderer() { return renderer; },
+  rebuildScene, markDirty, importCsvText, importCsvBatch,
+  get renderer() { return renderer; },
 };

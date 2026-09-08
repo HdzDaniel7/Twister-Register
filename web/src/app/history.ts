@@ -83,6 +83,24 @@ export function commit(): boolean {
   return true;
 }
 
+/* ------------------------------------------------------ cambios sin guardar
+   El programa no usa localStorage por regla dura y todo sale por «Guardar
+   JSON»: cerrar la pestaña con media hora de piezas medidas encima las borra
+   sin dejar rastro, y una medición de GOM no se repite sin volver a montar la
+   barra. `snapshot()` ya es la comparación exacta que hace falta —el mismo
+   texto que decide si un cambio gasta un paso de deshacer— así que basta con
+   recordar cuál era al guardar.                                             */
+let savedMark = '';
+
+/** Marca el estado de ahora como guardado. La llama quien escribe el archivo. */
+export const markSaved = (): void => { savedMark = snapshot(); };
+
+/** ¿Hay algo que se perdería al cerrar? */
+export const isDirty = (): boolean => {
+  const s = snapshot();
+  return !!s && s !== savedMark;
+};
+
 export const canUndo = (): boolean => past.length > 1;
 export const canRedo = (): boolean => future.length > 0;
 export const undoDepth = (): number => Math.max(0, past.length - 1);

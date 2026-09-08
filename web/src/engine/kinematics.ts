@@ -73,8 +73,8 @@
    ========================================================================= */
 import { Matrix4, Vector3 } from 'three';
 import type { Bend, Model, Orientation, RowLength, PathSample } from '../types.ts';
-import { D2R, R2D, clamp, wrapTurn, eye, trans, rotX, rotAxis, posOf, basisOf } from './math.ts';
-import { newBend } from './bend.ts';
+import { D2R, R2D, clamp, wrapTurn, wrap180, eye, trans, rotX, rotAxis, posOf, basisOf } from './math.ts';
+import { newBend, bendFrom } from './bend.ts';
 
 /* --------------------------------------------------------------- cinemática */
 /** Ángulo ABSOLUTO del eje de doblado en cada estación, en grados.
@@ -114,6 +114,61 @@ export function axisAngles(model: Model): number[] {
   return model.bends.map(b => (a = wrapTurn(a + (b.rot || 0))));
 }
 
+/** Los mismos ejes absolutos, a partir de una lista de dobleces suelta. */
+export function axisAnglesOf(bends: Bend[]): number[] {
+  let a = 0;
+  return bends.map(b => (a = wrapTurn(a + (b.rot || 0))));
+}
+
+/** Reescribe una pieza MEDIDA en la misma rama que el nominal, sin moverla.
+ *
+ *  El problema que resuelve: un eje absoluto de 90 —una estación de canto, que
+ *  es la mitad de las de esta pieza— está justo en la frontera de canonRot().
+ *  Con 90.35 medidos, la forma canónica devuelve -89.65 con el ángulo negado.
+ *  Es la MISMA geometría: `Rot(-n, θ) = Rot(n, -θ)`. Pero deviations() compara
+ *  fila contra fila, así que lee un abismo donde no hay nada:
+ *
+ *      dev.rot = -179.65    dev.angle = -49.60      (con 0.35 de sesgo real)
+ *
+ *  y compensate() responde a ese abismo con un comando destructivo — medido en
+ *  la auditoría: 62.20 donde el nominal pide 25, y 170.8 donde pedía 68.4.
+ *
+ *  La corrección es elegir, de las dos escrituras equivalentes, la que cae del
+ *  mismo lado que el nominal. Se trabaja sobre el eje ABSOLUTO porque ahí vive
+ *  la ambigüedad; los giros relativos se recomponen al final, y por eso voltear
+ *  un doblez no descoloca al siguiente.
+ *
+ *  No mueve la pieza: `fk()` del resultado da los mismos PI. Es un cambio de
+ *  escritura, no de geometría.
+ */
+export function alignBranch(meas: Bend[], nom: Bend[]): Bend[] {
+  if (!meas.length) return meas.map(b => bendFrom(b));
+  const aN = axisAnglesOf(nom);
+  const aM = axisAnglesOf(meas);
+  const out = meas.map(b => bendFrom(b));
+  for (let i = 0; i < out.length; i++) {
+    /* Más allá del nominal no hay contra qué comparar: se deja como está. */
+    if (i >= aN.length) continue;
+    if (Math.abs(wrap180(aM[i] - aN[i])) > 90) {
+      aM[i] = wrapTurn(aM[i] + 180);
+      out[i].angle = -out[i].angle;
+    }
+  }
+  /* Los giros relativos se recomponen desde los ejes absolutos ya corregidos:
+     el eje arranca en 0 y cada fila guarda CUÁNTO GIRA, no dónde está. */
+  let prev = 0;
+  for (let i = 0; i < out.length; i++) {
+    out[i].rot = wrapTurn(aM[i] - prev);
+    prev = aM[i];
+  }
+  return out;
+}
+
+/** `alignBranch` sobre un modelo entero. */
+export function alignModelBranch(meas: Model, nom: Model): Model {
+  return { ...meas, bends: alignBranch(meas.bends, nom.bends) };
+}
+
 /** Cinemática directa -> n+2 puntos PI y los marcos de cada doblez. */
 export function fk(model: Model): { pis: Vector3[]; frames: Matrix4[]; end: Matrix4 } {
   let T = eye();
@@ -143,8 +198,35 @@ export function fk(model: Model): { pis: Vector3[]; frames: Matrix4[]; end: Matr
  *
  *  de donde  angle = asin(d_y)  y  rot = atan2(-d_z, d_x).
  */
-export function ik(points: Vector3[], radii: (number | undefined)[] | null | undefined): { bends: Bend[]; tail: number } {
+/** Por debajo de este desvío, el eje de un doblez medido no se puede leer: la
+ *  dirección lateral es toda ruido. Es un umbral FÍSICO, no numérico — el
+ *  1e-12 de antes no se cumplía nunca con datos reales.
+ *
+ *  Con 0.5 mm de ruido de medición y avances de ~100 mm, un doblez de medio
+ *  grado hace que el eje recorra [-89, +90] entero. Y como lo que se guarda es
+ *  el GIRO (`rot - prevRot`), ese eje inventado envenena también la fila
+ *  siguiente.
+ *
+ *  VALOR PROVISIONAL. La regla es `atan(3σ/avance)`, y **σ todavía no se ha
+ *  medido**: hace falta la repetibilidad real del escaneo (ver
+ *  `.auditoria/solicitud-datos.md`, punto A.6). Con 1.0° se atrapan los casos
+ *  más groseros, pero el ruido puede inflar el ángulo APARENTE de un doblez
+ *  casi recto por encima del umbral y entonces la guarda no dispara. Cuando se
+ *  conozca σ, este número se recalcula — es el único sitio donde vive.
+ *
+ *  Solo se aplica al camino MEDIDO. En un modelo tecleado un doblez de 0.2° es
+ *  deliberado y su eje es exacto, así que ahí el umbral se queda en 0. */
+export const AXIS_MIN_DEG = 1.0;
+
+export function ik(
+  points: Vector3[],
+  radii: (number | undefined)[] | null | undefined,
+  /** desvío mínimo (grados) para creerle al eje; 0 = confiar siempre */
+  minBendDeg = 0,
+): { bends: Bend[]; tail: number; unobservable: number[] } {
   const P = points, n = P.length - 2, bends: Bend[] = [];
+  /** índices cuyo eje no se pudo leer y heredó el de la estación anterior */
+  const unobservable: number[] = [];
   /* `prevRot` es el eje ABSOLUTO de la estación anterior: lo que se guarda en
      cada doblez es la DIFERENCIA, porque el eje se queda donde está. */
   let F = eye(), prevRot = 0;
@@ -164,9 +246,11 @@ export function ik(points: Vector3[], radii: (number | undefined)[] | null | und
        que se guarda va en la del modelo, que puede tener el sentido cambiado
        (ROT_DIR). Sin desvío el eje no se puede leer, y lo que corresponde es
        no moverlo: se repite el anterior, ya en convención de modelo. */
-    const crudo = lat < 1e-12
-      ? prevRot
-      : ROT_DIR * Math.atan2(-d.z, -d.y) * R2D;
+    const legible = lat >= 1e-12 && ang >= minBendDeg;
+    if (!legible) unobservable.push(i - 1);
+    const crudo = legible
+      ? ROT_DIR * Math.atan2(-d.z, -d.y) * R2D
+      : prevRot;
     /* forma canónica: el eje al plano (-90, 90] y el signo del doblez al
        ángulo, para no escribir la dirección dos veces. El ángulo sale con el
        SENTIDO del modelo (ANG_DIR), que es el que bendDecomp() va a leer. */
@@ -180,7 +264,7 @@ export function ik(points: Vector3[], radii: (number | undefined)[] | null | und
     F = F.multiply(rotAxis(nx.axis, nx.theta));
     prevRot = rot;
   }
-  return { bends, tail: P[n + 1].distanceTo(P[n]) };
+  return { bends, tail: P[n + 1].distanceTo(P[n]), unobservable };
 }
 
 /** Componente DOMINANTE de cada doblez: 'T' plano · 'W' de canto.

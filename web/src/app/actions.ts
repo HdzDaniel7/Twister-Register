@@ -4,12 +4,12 @@
    al lado solo traducen un clic o un `change` a una de estas llamadas; aqui
    no se escucha nada del DOM.                                              */
 import * as E from '../engine.ts';
-import { T, LANG, setLang } from '../i18n.ts';
+import { T } from '../i18n.ts';
 import type { DeltaKey, Model, Variant } from '../types.ts';
 import {
   ST, V, VAR_COLORS, syncModel, newVid, loadModel, refModel,
   activeDataset, addDataset, syncCommand, resetCommand,
-  addMark, setMarks, syncTweak, zeroTweak, compensatedCommand, loopMeasured,
+  addMark, syncTweak, zeroTweak, compensatedCommand, loopMeasured,
   measuredSpringback,
 } from '../state.ts';
 import { rebuildScene, fitView } from '../scene.ts';
@@ -18,10 +18,11 @@ import {
   renderLeft, renderSide, renderRight, renderStatus, renderPanels,
 } from '../panels.ts';
 import { makeReport } from '../report.ts';
-import { download, pickFile, pickFiles, safeName } from '../io.ts';
 import { renderAll, refresh, refreshTable, toggleSolo } from './render.ts';
-import { useTheme } from './theme.ts';
-import { undo, redo, commit } from './history.ts';
+import { undo, redo } from './history.ts';
+import {
+  saveJson, openJson, importPieces, exportPoints,
+} from './files.ts';
 
 const clamp = E.clamp;
 
@@ -198,91 +199,6 @@ function loadFresh(model: Model): void {
   renderAll(); fitView();
 }
 
-function saveJson(): void {
-  const doc = E.toDoc(ST.model!, ST.command, ST.comp, ST.proc, ST.datasets,
-                      ST.variants, ST.ref, ST.anchor,
-                      { place: ST.place, marks: ST.marks, tweak: ST.tweak,
-                        ui: { theme: ST.theme, lang: LANG.cur, mode: ST.mode } });
-  download(safeName(ST.model!.name) + '.json', JSON.stringify(doc, null, 1));
-}
-function openJson(): void {
-  pickFile('.json', txt => {
-    try {
-      const d = E.fromDoc(JSON.parse(txt));
-      loadModel(d.model, d.variants, d.ref, d.anchor);
-      ST.command = d.command;
-      Object.assign(ST.comp, d.comp);
-      Object.assign(ST.proc, d.proc);
-      ST.place = { ...E.PLACE_DEFAULT, ...(d.place || {}) };
-      setMarks(d.marks);
-      ST.tweak = d.tweak || [];
-      syncTweak(ST.model!.bends.length);
-      /* un archivo sin `ui` no pisa el tema ni el idioma que ya haya puestos */
-      if (d.ui) {
-        if (d.ui.lang) setLang(d.ui.lang);
-        if (d.ui.theme) useTheme(d.ui.theme);
-        if (d.ui.mode === 'model' || d.ui.mode === 'meas' || d.ui.mode === 'comp') {
-          ST.mode = d.ui.mode;
-        }
-      }
-      for (const x of d.datasets) {
-        const ds = addDataset(
-          { ...d.model, bends: (x.bends || []).map(E.bendFrom), tail: x.tail ?? d.model.tail },
-          x.name || '?', x.src || '', x.cmd);
-        ds.color = x.color || ds.color;
-      }
-      renderAll(); fitView();
-      /* mismo caso que el CSV: el diálogo es asíncrono. Abrir un archivo es un
-         paso más del historial, así que se puede deshacer y volver a lo que
-         había antes de abrirlo. */
-      commit();
-    } catch (err) { alert('JSON: ' + (err as Error).message); }
-  });
-}
-/** Mete una pieza MEDIDA desde el texto de un CSV.
- *
- *  Va separada del dialogo de archivo a proposito: asi el banco de interfaz
- *  puede ejercitar el camino entero sin abrir un dialogo, que es lo unico que
- *  un navegador headless no puede hacer.
- *
- *  Los puntos traen la forma real; el radio del herramental y la torsion se
- *  arrastran del nominal, porque no estan en la nube de puntos. Devuelve
- *  cuantos puntos entraron, 0 si el archivo no servia.
- */
-export function importCsvText(txt: string, name: string): number {
-  const M = ST.model!;
-  const pts = E.readPointsCsv(txt);
-  /* con menos de tres puntos no hay ni un doblez que medir */
-  if (pts.length < 3) return 0;
-  const ds = addDataset(E.measuredModel(M, pts), name, 'csv');
-  /* Apilar AQUÍ y no en el clic: entre el botón y este punto está el diálogo
-     de archivo, que es asíncrono, así que el commit() del clic ya pasó. Sin
-     esto la pieza importada no entraba en el historial y un deshacer se
-     saltaba la importación entera. */
-  commit();
-  return ds.model.bends.length + 2;
-}
-
-/** Importa un LOTE de CSV: un archivo por pieza. Se repinta una sola vez al
- *  final, y lo que no se pudo leer se cuenta y se dice de una vez, en lugar de
- *  soltar un aviso por archivo. */
-function importPieces(): void {
-  pickFiles('.csv', files => {
-    const malos: string[] = [];
-    for (const f of files) {
-      const base = f.name.replace(/\.[^.]*$/, '');
-      if (!importCsvText(f.text, base)) malos.push(f.name);
-    }
-    renderPanels(); rebuildScene(); drawRibbon();
-    commit();
-    if (malos.length) alert(T('csvBad') + '\n' + malos.join('\n'));
-  });
-}
-
-function exportPoints(): void {
-  download('puntos_' + safeName(ST.model!.name) + '.csv',
-           E.writePointsCsv(E.fk(ST.model!).pis), 'text/csv');
-}
 
 export function action(a: string): void {
   const M = ST.model!, v = V();

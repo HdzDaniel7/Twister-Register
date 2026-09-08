@@ -8,7 +8,7 @@ import type {
 } from '../types.ts';
 import { clamp, mulberry32, gauss, wrap180, applyMat } from './math.ts';
 import { bendFrom, newBend } from './bend.ts';
-import { fk, bendTheta } from './kinematics.ts';
+import { fk, bendTheta, alignModelBranch } from './kinematics.ts';
 import { kabsch } from './fitting.ts';
 
 /* ---------------------------------------------------------- proceso simulado */
@@ -169,7 +169,36 @@ export function springback(
 export const COMP_DEFAULT: Comp = Object.freeze({
   gainW: .75, gainT: .75, doAngle: true, doRot: false, doFeed: false,
   batch: false,
+  /* El rodado no tiene resorte, pero corregirlo entero es deadbeat y oscila
+     igual que una ganancia de 1.0 en el ángulo. El avance tampoco se corrige
+     con la constante elástica: el deslizamiento es otro fenómeno. */
+  gainR: .5, gainF: .5,
+  /* Banda muerta y tope, en grados y mm. Los valores son PROVISIONALES: la
+     banda debería ser ~1σ de medición y σ todavía no se ha medido (ver A.6 en
+     .auditoria/solicitud-datos.md). Mientras tanto se elige por debajo de la
+     tolerancia típica de ángulo (0.3°), para no tapar nada que importe. */
+  dead: .05, deadFeed: .1,
+  maxStep: 5, maxStepFeed: 10,
 });
+
+/** Ganancia máxima admisible. Al 100 % el lazo oscila con el ruido de medición
+ *  —está medido y escrito en el README— así que el campo no debe dejar pasar
+ *  más. No es una preferencia: es el límite de estabilidad. */
+export const GAIN_MAX = 1.0;
+
+/** Piezas mínimas para que compensar signifique algo. Con una sola se persigue
+ *  la dispersión de esa pieza y la siguiente puede salir peor. */
+export const LOOP_MIN_N = 3;
+
+/** Aplica banda muerta y tope a una corrección. El orden importa: primero se
+ *  descarta lo que es ruido, después se recorta lo que es demasiado grande para
+ *  ser proceso. */
+function guard(delta: number, dead: number, max: number): number {
+  if (!isFinite(delta)) return 0;
+  if (dead > 0 && Math.abs(delta) < dead) return 0;
+  if (max > 0 && Math.abs(delta) > max) return Math.sign(delta) * max;
+  return delta;
+}
 
 /** nuevo_comando = comando_actual + ganancia × (nominal − medido).
  *
@@ -184,10 +213,22 @@ export function compensate(cmd: Bend[], nom: Bend[], meas: Bend[], comp: Comp, o
        `angle` es el doblez: la ganancia depende del plano en que se dio, que
        es lo que dice `ori`. `rot` es el rodado, un giro del eje C que no tiene
        resorte; se corrige uno a uno y hay que envolverlo a ±180. */
-    const g = (i < ori.length && ori[i] === 'W') ? comp.gainW : comp.gainT;
-    if (comp.doAngle) o.angle = b.angle + g * (nom[i].angle - meas[i].angle);
-    if (comp.doRot) o.rot = wrap180(b.rot + wrap180(nom[i].rot - meas[i].rot));
-    if (comp.doFeed) o.feed = b.feed + g * (nom[i].feed - meas[i].feed);
+    const g = Math.min((i < ori.length && ori[i] === 'W') ? comp.gainW : comp.gainT, GAIN_MAX);
+    const gR = Math.min(comp.gainR ?? COMP_DEFAULT.gainR!, GAIN_MAX);
+    const gF = Math.min(comp.gainF ?? COMP_DEFAULT.gainF!, GAIN_MAX);
+    const dA = comp.dead ?? COMP_DEFAULT.dead!;
+    const dF = comp.deadFeed ?? COMP_DEFAULT.deadFeed!;
+    const mA = comp.maxStep ?? COMP_DEFAULT.maxStep!;
+    const mF = comp.maxStepFeed ?? COMP_DEFAULT.maxStepFeed!;
+    /* La banda muerta se aplica al ERROR, no a la corrección: lo que se decide
+       es si la diferencia contra el nominal es señal o ruido. El tope, en
+       cambio, va sobre la corrección ya escalada, que es lo que sale hacia la
+       máquina. */
+    if (comp.doAngle) o.angle = b.angle + guard(g * guard(nom[i].angle - meas[i].angle, dA, 0), 0, mA);
+    if (comp.doRot) {
+      o.rot = wrap180(b.rot + guard(gR * guard(wrap180(nom[i].rot - meas[i].rot), dA, 0), 0, mA));
+    }
+    if (comp.doFeed) o.feed = b.feed + guard(gF * guard(nom[i].feed - meas[i].feed, dF, 0), 0, mF);
     return o;
   });
 }
@@ -195,6 +236,12 @@ export function compensate(cmd: Bend[], nom: Bend[], meas: Bend[], comp: Comp, o
 /* ------------------------------------------------------------ desviaciones */
 /** Compara una pieza medida contra el nominal. datum: 'start' | 'best'. */
 export function deviations(model: Model, measModel: Model, datum: DatumMode = 'start'): Deviations {
+  /* La comparación es fila contra fila, así que las dos piezas tienen que estar
+     escritas en la misma rama o un doblez de canto perfecto se lee como 180 de
+     desviación. addDataset() ya lo impone al entrar; esto cubre lo que venga
+     por otro camino —un archivo guardado antes de este arreglo— y no cuesta
+     nada porque alinear lo ya alineado no cambia nada. Ver alignBranch(). */
+  measModel = alignModelBranch(measModel, model);
   const nom = fk(model).pis;
   let P = fk(measModel).pis.map(p => p.clone());
   if (datum === 'best') P = applyMat(kabsch(P, nom), P);

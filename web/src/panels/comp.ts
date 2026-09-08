@@ -7,7 +7,7 @@ import * as E from '../engine.ts';
 import { T } from '../i18n.ts';
 import type { Model } from '../types.ts';
 import { ST, activeDataset, syncTweak, loopPieces, loopMeasured } from '../state.ts';
-import { fx, cls, nfield, oriTag, sgn } from './fmt.ts';
+import { fx, cls, nfield, oriTag, sgn, srcTag } from './fmt.ts';
 import type { I18nKey } from './fmt.ts';
 
 /* --- pestaña COMPENSACIÓN ----------------------------------------------- */
@@ -40,10 +40,44 @@ export function paneComp(M: Model): string {
   const head = cols.map(c => `<th>${c.lab} ${T('cNow')}</th>
     <th>${T('cCalc')}</th><th class="dcol">${T('cAdj')}</th><th>${T('cNew')} ${c.u}</th>`).join('');
 
+  /* Hasta dónde llega la MEDIDA. Más allá, `compensate()` devuelve el comando
+     sin tocar, y la tabla lo pintaba como «+0.000» — que se lee igual que un
+     doblez que salió perfecto. Un CSV con 12 puntos sobre un modelo de 15
+     dejaba B13, B14 y B15 dando por buenos unos dobleces que nadie midió. */
+  const medidos = meas.length;
+
+  /* DE DÓNDE SALEN ESTOS NÚMEROS.
+     La insignia SIM/MED existía, pero solo se veía en el lateral `#rt` y en el
+     cajón de piezas — y el modo Compensar oculta `#rt` a propósito («modo
+     taller»). O sea que el único sitio donde se decide sobre material era el
+     único donde no se veía si el medido era una pieza escaneada o una que
+     inventó simulate(). */
+  const usadas = C.batch && piezas.length > 1 ? piezas : [D];
+  const simuladas = usadas.filter(d => d.src === 'sim' || d.src === 'verify');
+  const fuente = C.batch && piezas.length > 1
+    ? `<span class="srcbadge meas" title="${T('batchTip')}">${T('batchUse')} ${piezas.length}</span>`
+      + (simuladas.length ? srcTag('sim') : srcTag(usadas[0].src))
+    : srcTag(D.src);
+  const avisoSim = simuladas.length
+    ? `<div class="warnbox mb6">${T('compSim').replace('{n}', String(simuladas.length))}</div>` : '';
+  /* Y cuántos dobleces sostienen de verdad la cuenta. */
+  const avisoCorto = medidos < M.bends.length
+    ? `<div class="warnbox mb6">${T('compShort')
+        .replace('{a}', String(medidos)).replace('{b}', String(M.bends.length))}</div>` : '';
+
   const rows: string[] = [];
   for (let i = 0; i < n; i++) {
+    const sinMedir = i >= medidos;
     const cells = cols.map(c => {
       const now = cmd[i][c.k];
+      if (sinMedir) {
+        /* Guion, no cero: no hay número que enseñar, y la celda de ajuste no se
+           puede editar porque no hay cálculo sobre el que operar. */
+        return `<td class="v-dim">${fx(now, c.d)}</td>
+          <td class="v-dim nomeas">—</td>
+          <td class="dcol v-dim nomeas">—</td>
+          <td class="v-dim">${fx(now, c.d)}</td>`;
+      }
       const dCalc = calc[i][c.k] - now;
       const tw = ST.tweak[i][c.k];
       const dApp = dCalc + tw;
@@ -54,16 +88,16 @@ export function paneComp(M: Model): string {
         <td class="${Math.abs(dApp) > 1e-4 ? 'v-warn' : 'v-dim'}">${fx(now + dApp, c.d)}</td>`;
     }).join('');
     const dirty = ST.tweak[i].angle || ST.tweak[i].rot || ST.tweak[i].feed;
-    rows.push(`<tr class="clk ${i === ST.sel ? 'sel' : ''} ${dirty ? 'hasd' : ''}"
-      ${dirty ? `title="${T('tweakOn')}"` : ''} data-r="${i}">
+    rows.push(`<tr class="clk ${i === ST.sel ? 'sel' : ''} ${dirty ? 'hasd' : ''} ${sinMedir ? 'nomeas' : ''}"
+      title="${sinMedir ? T('rowNoMeas') : (dirty ? T('tweakOn') : '')}" data-r="${i}">
       <td>B${i + 1}</td><td>${oriTag(ori[i])}</td>${cells}</tr>`);
   }
 
   return `<div class="pane on"><div class="grp"><div class="eyebrow">${T('gains')}</div><div class="body">
     <div class="fgrid"><label>${T('gainW')} ${oriTag('W')}</label>
-      ${nfield('.05', 'min="0" max="1.5" data-c="gainW"', C.gainW)}
+      ${nfield('.05', 'min="0" max="1" data-c="gainW"', C.gainW)}
       <label>${T('gainT')} ${oriTag('T')}</label>
-      ${nfield('.05', 'min="0" max="1.5" data-c="gainT"', C.gainT)}</div>
+      ${nfield('.05', 'min="0" max="1" data-c="gainT"', C.gainT)}</div>
     <div class="eyebrow" style="padding-left:0">${T('what')}</div>
     <div class="row wrap">
       ${[['doAngle', 'cAng'], ['doRot', 'cRot'], ['doFeed', 'cFeed']].map(([k, l]) =>
@@ -79,7 +113,8 @@ export function paneComp(M: Model): string {
     <div class="row mt6"><button class="btn pri grow" data-a="apply">${T('apply')}</button>
       <button class="btn" data-a="resetcmd">${T('reset')}</button></div>
   </div></div>
-  <div class="grp"><div class="eyebrow">${T('cmdTbl')}</div><div class="body">
+  <div class="grp"><div class="eyebrow">${T('cmdTbl')} ${fuente}</div><div class="body">
+    ${avisoSim}${avisoCorto}
     ${cols.length ? `<div class="tw"><table class="cmd"
       style="min-width:${106 + cols.length * 174}px"><thead><tr>
       <th>${T('nBend')}</th><th>${T('ori')}</th>${head}</tr></thead>

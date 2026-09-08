@@ -153,6 +153,23 @@ export type Comp = {
   doAngle: boolean;
   doRot: boolean;
   doFeed: boolean;
+  /** Ganancias propias del rodado y del avance. Antes el rodado se corregía
+   *  entero (ganancia 1.0, justo lo que se prohíbe para el ángulo) y el avance
+   *  usaba `gainW`/`gainT`, que son constantes de recuperación elástica y no
+   *  tienen nada que ver con el deslizamiento. Opcionales: un archivo anterior
+   *  abre con los valores por defecto. */
+  gainR?: number;
+  gainF?: number;
+  /** BANDA MUERTA, en grados y mm. Por debajo de esto la diferencia contra el
+   *  nominal es ruido de medición, y corregirla es perseguirlo. 0 = apagada. */
+  dead?: number;
+  deadFeed?: number;
+  /** Tope de corrección por ciclo, en grados y mm. Un salto mayor que esto no
+   *  es una desviación de proceso: es un dato malo o un doblez que cruzó de
+   *  rama. Se recorta y se sigue, en vez de mandarlo a la máquina. 0 = sin
+   *  tope. */
+  maxStep?: number;
+  maxStepFeed?: number;
 };
 
 /** Lo que devuelve `deviations()`: una pieza medida contra su nominal. */
@@ -303,8 +320,13 @@ export type LoadedDoc = {
   model: Model;
   /** el comando de máquina, ya convertido si el archivo era de un esquema anterior */
   command: Bend[];
-  /** true si el archivo venía de un esquema anterior a 2.1 y se convirtió */
+  /** true si el archivo venía de una cinemática anterior y se CONVIRTIÓ */
   legacy: boolean;
+  /** true si el archivo es `barcomp/2.2`: se lee tal cual, sin tocar un número,
+   *  pero pudo escribirse antes o después de que `ANG_DIR`/`ROT_DIR` pasaran a
+   *  −1, así que la pieza puede salir doblada al otro lado. No se convierte —
+   *  ver SCHEMA_AMBIGUOUS en engine/doc.ts— pero hay que avisarlo. */
+  ambiguous: boolean;
   comp: Comp;
   proc: Proc;
   datasets: { name: string; color: string; src: string; bends: Bend[]; tail: number;

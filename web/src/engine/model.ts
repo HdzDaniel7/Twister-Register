@@ -12,7 +12,7 @@ import type { Bend, Model, Variant, DeltaKey, Delta } from '../types.ts';
 import { clamp, wrapTurn, mulberry32 } from './math.ts';
 import { BEND_DEFAULT, newBend, bendFrom, normalizeModel, cloneModel } from './bend.ts';
 import type { RawModel } from './bend.ts';
-import { fk, ik, canonRot } from './kinematics.ts';
+import { fk, ik, canonRot, AXIS_MIN_DEG } from './kinematics.ts';
 
 /* ------------------------------------------------------------------ modelo */
 export function emptyModel(): Model {
@@ -132,8 +132,8 @@ export const hasDeltas = (v: Variant): boolean =>
  *  torsión no viven en los puntos: hay que arrastrarlos de `keep`, la lista de
  *  dobleces que corresponde uno a uno con los PI nuevos.
  */
-function modelFromPoints(model: Model, P: Vector3[], keep: Bend[]): Model {
-  const r = ik(P, keep.map(b => b.radius));
+function modelFromPoints(model: Model, P: Vector3[], keep: Bend[], minBendDeg = 0): Model {
+  const r = ik(P, keep.map(b => b.radius), minBendDeg);
   const bends = r.bends.map((b, j) => {
     const src = keep[j] || BEND_DEFAULT;
     const nb = bendFrom(b);
@@ -162,7 +162,9 @@ function modelFromPoints(model: Model, P: Vector3[], keep: Bend[]): Model {
 export function measuredModel(nominal: Model, pts: Vector3[]): Model {
   const n = Math.max(0, pts.length - 2);
   const keep = nominal.bends.slice(0, n);
-  return modelFromPoints(nominal, pts.map(p => p.clone()), keep);
+  /* Camino MEDIDO: los puntos traen ruido, así que un doblez casi recto no
+     tiene eje legible y heredarlo es mejor que inventarlo. Ver AXIS_MIN_DEG. */
+  return modelFromPoints(nominal, pts.map(p => p.clone()), keep, AXIS_MIN_DEG);
 }
 
 /** Mueve el PI `i` y regenera la cadena entera desde los puntos.

@@ -12,7 +12,7 @@
    en alemán significa fecha, así que el datum de medición es Bezug.        */
 type Lang = 'es' | 'en' | 'de';
 
-/** Las 169 claves que deben existir en LOS TRES diccionarios. Que falte una
+/** Las 227 claves que deben existir en LOS TRES diccionarios. Que falte una
  *  en alguno es, con esto, un error de compilación — ya no solo de prueba. */
 type I18nKey =
   | 'sub' | 'bNew' | 'bOpen' | 'bSave' | 'bRep' | 'bDemo' | 'layers' | 'datasets'
@@ -27,6 +27,8 @@ type I18nKey =
   | 'kbdNote' | 'twnote' | 'proc' | 'sbW' | 'sbT' | 'slip' | 'biasR' | 'noise'
   | 'seed' | 'simulate' | 'dNone' | 'deltas' | 'dA' | 'dR' | 'dF' | 'dP'
   | 'srcSim' | 'srcVerify' | 'srcMeas' | 'srcUnk' | 'impCsv' | 'impTip' | 'csvBad'
+  | 'csvComma' | 'csvCols' | 'csvFew' | 'csvShort' | 'fileUnread'
+  | 'compSim' | 'compShort' | 'rowNoMeas'
   | 'batchUse' | 'batchTip' | 'batchOn' | 'batchHint' | 'spread' | 'spreadTip'
   | 'sbMeas' | 'sbUse' | 'sbNote' | 'sbCircular' | 'sbSpreadTip'
   | 'sbTrend' | 'sbTrendTip'
@@ -39,7 +41,9 @@ type I18nKey =
   | 'statMaxA' | 'statRms' | 'statTip' | 'statOut' | 'gains' | 'gainW' | 'gainT' | 'what'
   | 'cAng' | 'cRot' | 'cFeed' | 'apply' | 'reset' | 'cmdTbl' | 'cNow' | 'cNew'
   | 'cDelta' | 'predict' | 'verify' | 'noMeas' | 'stLen' | 'stBends' | 'stDatum' | 'stMax'
-  | 'stUnits' | 'engine' | 'dStart' | 'dBest' | 'formula' | 'note' | 'repTitle' | 'repDate'
+  | 'stUnits' | 'stVer' | 'stVerTip'
+  | 'schemaAmbiguous' | 'schemaMigrated' | 'schemaUnknown' | 'jsonBad'
+  | 'engine' | 'dStart' | 'dBest' | 'formula' | 'note' | 'repTitle' | 'repDate'
   | 'repPiece' | 'ok' | 'bad' | 'piece' | 'orW' | 'orT' | 'confirmNew' | 'pts'
   | 'x' | 'y' | 'z' | 'variants' | 'addVar' | 'dupVar' | 'setRef' | 'isRef'
   | 'anchor' | 'aStart' | 'aEnd' | 'aBest' | 'insPt' | 'delPt' | 'ptNote' | 'bake'
@@ -95,6 +99,12 @@ es: {
  noMeas: 'Necesita una pieza medida para calcular la compensación.',
  stLen: 'Longitud desarrollada', stBends: 'Dobleces', stDatum: 'Datum',
  stMax: 'Desv. máx.', stUnits: 'Unidades', engine: 'Motor',
+ stVer: 'Versión',
+ stVerTip: 'Compilación que está corriendo. Cítala al reportar un número raro: con una copia en el taller y otra publicada, es lo único que las distingue. «+sucio» = compilada sobre cambios sin confirmar.',
+ schemaAmbiguous: 'Este archivo es barcomp/2.2 y no dice con qué sentido de giro se escribió.\n\nSe abrió tal cual, sin cambiar ningún número. Pero si se guardó antes del cambio de sentido, la pieza aparece doblada al otro lado.\n\nCOMPRUEBA LA FORMA en el 3D antes de compensar. Al guardar sale como 2.3 y deja de ser ambiguo.',
+ schemaMigrated: 'Archivo de una versión anterior: se convirtió a la convención actual sin mover la pieza.\n\nLos ajustes manuales y el comando de las piezas medidas no se convierten, así que llegan en cero.',
+ schemaUnknown: 'Esquema desconocido: {s}\n\nEste programa no sabe con qué convención se escribió, así que no lo abre en vez de arriesgarse a interpretarlo mal.',
+ jsonBad: 'No se pudo leer el archivo: no parece un documento barcomp.',
  dStart: 'Extremo inicial', dBest: 'Mejor ajuste global',
  formula: 'nuevo comando = comando actual + ganancia × (nominal − medido)',
  note: 'La cadena completa se regenera tras cada corrección: el arrastre entre dobleces ya está contenido en el modelo.',
@@ -112,6 +122,14 @@ es: {
  impTip: 'Piezas medidas: un CSV por pieza, con los PI en columnas x,y,z. '
    + 'Se pueden elegir varios archivos a la vez.',
  csvBad: 'Estos archivos no traían al menos tres puntos con coordenadas y no se importaron:',
+ csvComma: 'los decimales van con coma; hacen falta con punto',
+ csvCols: '{n} columnas numéricas por línea: no se sabe cuáles son x,y,z. Exporta solo las coordenadas, o índice + coordenadas',
+ csvFew: 'menos de tres puntos con coordenadas',
+ fileUnread: 'el sistema no dejó leer el archivo (¿se movió, o lo tiene abierto otro programa?)',
+ csvShort: 'Estas piezas traen MENOS puntos que el modelo. Los dobleces que faltan quedan SIN MEDIR y no se compensan:',
+ compSim: 'CUIDADO: {n} de las piezas que alimentan este cálculo son SIMULADAS, no medidas. Lo que salga de aquí no describe ninguna barra real.',
+ compShort: 'Solo {a} de {b} dobleces están medidos. Los que faltan salen marcados con — y NO se compensan.',
+ rowNoMeas: 'Este doblez no está medido: la pieza traía menos puntos que el modelo. El comando se deja como está.',
  /* Compensar desde una sola pieza persigue la dispersión de esa pieza. Con
     varias, la mediana separa lo sistemático de la mala puntería. */
  batchUse: 'Usar la mediana de las piezas visibles ·',
@@ -230,6 +248,12 @@ en: {
  noMeas: 'A measured part is required to compute compensation.',
  stLen: 'Developed length', stBends: 'Bends', stDatum: 'Datum',
  stMax: 'Max dev.', stUnits: 'Units', engine: 'Engine',
+ stVer: 'Version',
+ stVerTip: 'Build currently running. Quote it when reporting an odd number: with one copy in the shop and another published, this is the only thing that tells them apart. «+sucio» = built on uncommitted changes.',
+ schemaAmbiguous: 'This file is barcomp/2.2 and does not record which bend direction it was written with.\n\nIt was opened as-is, without changing any number. But if it was saved before the direction change, the part appears bent to the other side.\n\nCHECK THE SHAPE in the 3D view before compensating. Saving makes it 2.3 and no longer ambiguous.',
+ schemaMigrated: 'File from an older version: converted to the current convention without moving the part.\n\nManual adjustments and the command of measured parts are not converted, so they arrive at zero.',
+ schemaUnknown: 'Unknown schema: {s}\n\nThis program does not know which convention it was written with, so it refuses to open it rather than risk misreading it.',
+ jsonBad: 'Could not read the file: it does not look like a barcomp document.',
  dStart: 'Start end', dBest: 'Global best fit',
  formula: 'new command = current command + gain × (nominal − measured)',
  note: 'The whole chain is regenerated after each correction: downstream carry-over is already in the model.',
@@ -245,6 +269,14 @@ en: {
  impTip: 'Measured parts: one CSV per part, with the PIs in x,y,z columns. '
    + 'Several files can be picked at once.',
  csvBad: 'These files did not carry at least three points with coordinates and were not imported:',
+ csvComma: 'decimals use a comma; they must use a period',
+ csvCols: '{n} numeric columns per line: cannot tell which are x,y,z. Export only the coordinates, or index + coordinates',
+ csvFew: 'fewer than three points with coordinates',
+ fileUnread: 'the system would not read the file (was it moved, or is another program holding it open?)',
+ csvShort: 'These parts carry FEWER points than the model. The missing bends stay UNMEASURED and are not compensated:',
+ compSim: 'WARNING: {n} of the parts feeding this calculation are SIMULATED, not measured. What comes out of here does not describe any real bar.',
+ compShort: 'Only {a} of {b} bends are measured. The rest are marked with — and are NOT compensated.',
+ rowNoMeas: 'This bend is not measured: the part carried fewer points than the model. The command is left as is.',
  batchUse: 'Use the median of the visible parts ·',
  batchTip: 'With a single part the loop also corrects what was scatter in that part, '
    + 'and the next one can come out worse. With several, the median only lets '
@@ -356,6 +388,12 @@ de: {
  noMeas: 'Für die Kompensation wird ein gemessenes Teil benötigt.',
  stLen: 'Abwicklungslänge', stBends: 'Biegungen', stDatum: 'Bezug',
  stMax: 'Max. Abw.', stUnits: 'Einheiten', engine: 'Rechenkern',
+ stVer: 'Version',
+ stVerTip: 'Laufender Build. Bei einer auffälligen Zahl mit angeben: Mit einer Kopie in der Werkstatt und einer veröffentlichten ist dies das Einzige, was sie unterscheidet. «+sucio» = auf nicht committeten Änderungen gebaut.',
+ schemaAmbiguous: 'Diese Datei ist barcomp/2.2 und gibt die verwendete Biegerichtung nicht an.\n\nSie wurde unverändert geöffnet, ohne eine Zahl zu ändern. Wurde sie vor der Richtungsänderung gespeichert, erscheint das Teil zur anderen Seite gebogen.\n\nPRÜFE DIE FORM in der 3D-Ansicht vor dem Kompensieren. Beim Speichern wird sie 2.3 und ist nicht mehr mehrdeutig.',
+ schemaMigrated: 'Datei einer älteren Version: auf die aktuelle Konvention umgestellt, ohne das Teil zu bewegen.\n\nManuelle Korrekturen und der Befehl gemessener Teile werden nicht umgestellt und kommen als Null an.',
+ schemaUnknown: 'Unbekanntes Schema: {s}\n\nDieses Programm kennt die verwendete Konvention nicht und öffnet die Datei daher nicht, statt sie falsch auszulegen.',
+ jsonBad: 'Datei nicht lesbar: sie sieht nicht wie ein barcomp-Dokument aus.',
  dStart: 'Anfangsende', dBest: 'Globale beste Anpassung',
  formula: 'neuer Befehl = aktueller Befehl + Verstärkung × (Nennwert − Messwert)',
  note: 'Nach jeder Korrektur wird die ganze Kette neu erzeugt: die Fortpflanzung zwischen den Biegungen steckt bereits im Modell.',
@@ -371,6 +409,14 @@ de: {
  impTip: 'Gemessene Teile: eine CSV je Teil, mit den Schnittpunkten in den '
    + 'Spalten x,y,z. Es können mehrere Dateien auf einmal gewählt werden.',
  csvBad: 'Diese Dateien enthielten keine drei Punkte mit Koordinaten und wurden nicht importiert:',
+ csvComma: 'Dezimaltrennzeichen ist ein Komma; es muss ein Punkt sein',
+ csvCols: '{n} numerische Spalten je Zeile: x,y,z nicht erkennbar. Exportiere nur die Koordinaten oder Index + Koordinaten',
+ csvFew: 'weniger als drei Punkte mit Koordinaten',
+ fileUnread: 'Datei vom System nicht lesbar (verschoben, oder von einem anderen Programm geöffnet?)',
+ csvShort: 'Diese Teile enthalten WENIGER Punkte als das Modell. Die fehlenden Biegungen bleiben UNGEMESSEN und werden nicht kompensiert:',
+ compSim: 'ACHTUNG: {n} der Teile in dieser Rechnung sind SIMULIERT, nicht gemessen. Das Ergebnis beschreibt keine reale Stange.',
+ compShort: 'Nur {a} von {b} Biegungen sind gemessen. Die übrigen sind mit — markiert und werden NICHT kompensiert.',
+ rowNoMeas: 'Diese Biegung ist nicht gemessen: das Teil hatte weniger Punkte als das Modell. Der Befehl bleibt unverändert.',
  batchUse: 'Median der sichtbaren Teile verwenden ·',
  batchTip: 'Mit nur einem Teil korrigiert der Regelkreis auch dessen Streuung, und das '
    + 'nächste Teil kann schlechter ausfallen. Mit mehreren lässt der Median nur '

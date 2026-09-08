@@ -219,10 +219,16 @@ step('la tabla dice Rodado y Angulo, no canto ni plano', () => {
   if (th[4] !== 'Rodado') throw new Error('columna 5 = ' + th[4]);
   if (th[6] !== 'Ángulo') throw new Error('columna 7 = ' + th[6]);
 });
-step('el esquema guardado es barcomp/2.2', () => {
+/* El esquema NO se fija a mano aquí: se compara contra el motor. Que este paso
+   fallara al subir la versión era ruido —siempre hay que editarlo— y el paso
+   que de verdad importa (que la CINEMÁTICA no se haya volteado) vive en
+   test_motor.js contra test/fixtures/. Aquí solo se comprueba que lo que se
+   guarda lleva el esquema vigente y no uno inventado. */
+step('el esquema guardado es el vigente del motor', () => {
   const doc = Eg().toDoc(S().model, S().command, S().comp, S().proc, [], S().variants,
                          S().ref, S().anchor, {});
-  if (doc.schema !== 'barcomp/2.2') throw new Error(doc.schema);
+  if (doc.schema !== Eg().SCHEMA) throw new Error(doc.schema + ' != ' + Eg().SCHEMA);
+  if (!/^barcomp\/\d+\.\d+$/.test(doc.schema)) throw new Error('esquema raro: ' + doc.schema);
 });
 /* Importar CSV existió, se fue con el cambio de convención LRA (4cc9b7e) y
    volvió como `impts`, ya sobre measuredModel(). Lo que este paso vigila es
@@ -722,6 +728,58 @@ step('la pieza importada se marca como medida, no como SIM', () => {
   const ds = S().datasets[S().datasets.length - 1];
   const b = q(`#lf [data-dv="${ds.id}"]`).closest('.ds').querySelector('.srcbadge');
   if (!b.classList.contains('meas')) throw new Error('distintivo equivocado: ' + b.className);
+});
+/* Un LOTE de piezas. El diálogo de varios archivos tampoco se puede abrir
+   headless, así que se entra por importCsvBatch(), que es lo que pickFiles()
+   llama con lo que leyó. Lo que se comprueba aquí es lo que dolía al importar
+   de verdad: 20 archivos no pueden costar 20 pasos de deshacer, y un archivo
+   que el sistema no dejó leer no puede colgar el lote en silencio. */
+function csvDePieza(desvia) {
+  const pis = window.BARCOMP.E.fk(S().model).pis;
+  return 'idx;x;y;z\n' + pis.map((p, i) =>
+    `${i};${p.x.toFixed(3)};${p.y.toFixed(3)};${(p.z + (i === 5 ? desvia : 0)).toFixed(3)}`).join('\n');
+}
+step('un lote de tres CSV cuesta UN solo paso de deshacer', () => {
+  const B = window.BARCOMP;
+  const antesDs = S().datasets.length;
+  B.importCsvBatch([1, 2, 3].map(k => ({ text: csvDePieza(k * 2), name: `lote_B_p${k}.csv` })));
+  if (S().datasets.length !== antesDs + 3) {
+    throw new Error('no entraron las tres: ' + (S().datasets.length - antesDs));
+  }
+  /* La cuenta de `undoDepth()` no sirve de testigo: a esta altura del banco la
+     pila ya está en su tope de 50 y el contador no sube aunque se apile. Lo
+     que sí distingue un commit del lote de tres commits es el COMPORTAMIENTO:
+     con el commit() dentro del bucle, un Ctrl+Z se llevaba solo la última
+     pieza y dejaba las otras dos puestas. */
+  hotkey('z', { ctrlKey: true });
+  const quedan = S().datasets.length - antesDs;
+  if (quedan !== 0) throw new Error(`un Ctrl+Z dejó ${quedan} piezas del lote puestas`);
+  hotkey('y', { ctrlKey: true });
+  if (S().datasets.length !== antesDs + 3) throw new Error('un Ctrl+Y no repuso el lote entero');
+  hotkey('z', { ctrlKey: true });
+});
+step('un archivo ilegible no cuelga el lote: se dice cuál y siguen los demás', () => {
+  const B = window.BARCOMP;
+  const antesDs = S().datasets.length;
+  /* `ilegibles` es lo que pickFiles() aparta cuando File.text() rechaza: el
+     archivo se movió, o lo tiene abierto otro programa. Antes el contador de
+     FileReader nunca llegaba a cero y el callback no se llamaba NUNCA. */
+  const r = B.importCsvBatch(
+    [{ text: csvDePieza(3), name: 'lote_C_ok.csv' }],
+    [{ name: 'lote_C_roto.csv' }]);
+  if (S().datasets.length !== antesDs + 1) throw new Error('la pieza buena no entró');
+  if (r.malos.length !== 1) throw new Error('no informó del ilegible: ' + JSON.stringify(r.malos));
+  if (!r.malos[0].includes('lote_C_roto.csv')) throw new Error('no dice cuál falló: ' + r.malos[0]);
+  if (r.malos[0] === 'lote_C_roto.csv') throw new Error('no dice por qué falló');
+  hotkey('z', { ctrlKey: true });
+});
+step('un CSV corto entra pero se cuenta como incompleto', () => {
+  const B = window.BARCOMP;
+  const lineas = csvDePieza(4).split('\n');
+  const corto = lineas.slice(0, lineas.length - 2).join('\n');
+  const r = B.importCsvBatch([{ text: corto, name: 'lote_D_corto.csv' }]);
+  if (r.cortos.length !== 1) throw new Error('no avisó del corto: ' + JSON.stringify(r.cortos));
+  hotkey('z', { ctrlKey: true });
 });
 step('un CSV sin coordenadas no crea ninguna pieza', () => {
   const antes = S().datasets.length;

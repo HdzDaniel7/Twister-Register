@@ -26,6 +26,10 @@
     <div id="btgrip" title="Alto de la tabla"></div></div>
   <section id="bt"><nav id="tabs"></nav><div id="panes"></div></section>
   <footer id="st"></footer>
+  <!-- Sello de compilación. Lo sustituye build.mjs y lo lee renderStatus():
+       con una copia en el taller y otra en Pages, es la única forma de saber
+       qué versión produjo un número. -->
+  <script id="ver" type="application/json">/*__VER__*/</script>
 </div>
 <!-- three.js + todo el código de src/ empotrados por build.mjs en un solo
      bloque: el archivo abre con doble clic bajo file://, sin servidor. -->

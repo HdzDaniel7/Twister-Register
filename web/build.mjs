@@ -13,6 +13,7 @@
  * Requiere `npm install` una sola vez (three + esbuild quedan en node_modules).
  */
 import { build } from 'esbuild';
+import { execSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -49,8 +50,27 @@ if (/<\/script/i.test(css)) {
   process.exit(1);
 }
 
+/* Sello de compilación. Sin esto, una copia en el taller y otra en Pages son
+   indistinguibles, y un número calculado con una versión vieja del motor es
+   indepurable. `sucio` avisa de un build hecho sobre cambios sin commitear. */
+const git = (cmd, fallback) => {
+  try {
+    return execSync(cmd, { cwd: ROOT, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim();
+  } catch {
+    return fallback;
+  }
+};
+const ver = {
+  sha: git('git rev-parse --short HEAD', 'sin-git'),
+  fecha: new Date().toISOString().slice(0, 16).replace('T', ' '),
+  sucio: git('git status --porcelain', '') !== '',
+};
+
 let html = fs.readFileSync(path.join(SRC, 'shell.html'), 'utf8');
-html = html.replace('/*__CSS__*/', () => css).replace('/*__APP__*/', () => js);
+html = html
+  .replace('/*__CSS__*/', () => css)
+  .replace('/*__VER__*/', () => JSON.stringify(ver))
+  .replace('/*__APP__*/', () => js);
 if (html.includes('/*__')) {
   console.error('Quedaron marcadores sin sustituir en shell.html.');
   process.exit(1);
@@ -60,3 +80,4 @@ fs.writeFileSync(PAGE, html, 'utf8');
 fs.writeFileSync(LOCAL, html, 'utf8');
 console.log(`${(html.length / 1024).toFixed(0)} KB  ->  ${PAGE}`);
 console.log(`${(html.length / 1024).toFixed(0)} KB  ->  ${LOCAL}`);
+console.log(`versión ${ver.sha}${ver.sucio ? '+sucio' : ''}  ${ver.fecha}`);

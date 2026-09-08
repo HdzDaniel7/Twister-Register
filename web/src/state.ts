@@ -203,6 +203,12 @@ export const recomputeAll = (): void => { ST.datasets.forEach(computeDev); };
 
 export function addDataset(model: Model, name: string, src: string, cmd?: Bend[]): Dataset {
   dsSeq += 1;
+  /* Toda pieza medida pasa por aquí —importada, simulada o leída de un archivo—
+     así que es el sitio donde se impone la RAMA del nominal. Sin esto, una
+     estación de canto medida a 90.35 se escribe como -89.65 con el ángulo
+     negado: la misma geometría, pero deviations() compara fila contra fila y
+     lee una desviación de 180 donde hay 0.35. Ver alignBranch(). */
+  if (ST.model) model = E.alignModelBranch(model, ST.model);
   /* `dev` lo rellena computeDev() en la línea de abajo, y por eso el tipo lo
      declara opcional: aquí no hay ningún null que el runtime llegue a ver. */
   const ds: Dataset = {
