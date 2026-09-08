@@ -12,7 +12,7 @@
    en alemán significa fecha, así que el datum de medición es Bezug.        */
 type Lang = 'es' | 'en' | 'de';
 
-/** Las 233 claves que deben existir en LOS TRES diccionarios. Que falte una
+/** Las 236 claves que deben existir en LOS TRES diccionarios. Que falte una
  *  en alguno es, con esto, un error de compilación — ya no solo de prueba. */
 type I18nKey =
   | 'sub' | 'bNew' | 'bOpen' | 'bSave' | 'bRep' | 'bDemo' | 'layers' | 'datasets'
@@ -43,7 +43,8 @@ type I18nKey =
   | 'cAng' | 'cRot' | 'cFeed' | 'apply' | 'reset' | 'cmdTbl' | 'cNow' | 'cNew'
   | 'cDelta' | 'predict' | 'verify' | 'noMeas' | 'stLen' | 'stBends' | 'stDatum' | 'stMax'
   | 'stUnits' | 'stVer' | 'stVerTip'
-  | 'schemaAmbiguous' | 'schemaMigrated' | 'schemaUnknown' | 'jsonBad'
+  | 'schemaAmbiguous' | 'schemaMigrated' | 'schemaUnknown'
+  | 'jsonNotJson' | 'jsonNotDoc' | 'jsonBroken' | 'cellBad'
   | 'engine' | 'dStart' | 'dBest' | 'formula' | 'note' | 'repTitle' | 'repDate'
   | 'repPiece' | 'ok' | 'bad' | 'piece' | 'orW' | 'orT' | 'confirmNew' | 'pts'
   | 'x' | 'y' | 'z' | 'variants' | 'addVar' | 'dupVar' | 'setRef' | 'isRef'
@@ -105,7 +106,9 @@ es: {
  schemaAmbiguous: 'Este archivo es barcomp/2.2 y no dice con qué sentido de giro se escribió.\n\nSe abrió tal cual, sin cambiar ningún número. Pero si se guardó antes del cambio de sentido, la pieza aparece doblada al otro lado.\n\nCOMPRUEBA LA FORMA en el 3D antes de compensar. Al guardar sale como 2.3 y deja de ser ambiguo.',
  schemaMigrated: 'Archivo de una versión anterior: se convirtió a la convención actual sin mover la pieza.\n\nLos ajustes manuales y el comando de las piezas medidas no se convierten, así que llegan en cero.',
  schemaUnknown: 'Esquema desconocido: {s}\n\nEste programa no sabe con qué convención se escribió, así que no lo abre en vez de arriesgarse a interpretarlo mal.',
- jsonBad: 'No se pudo leer el archivo: no parece un documento barcomp.',
+ jsonNotJson: 'Este archivo no es JSON: no hay ni por dónde empezar a leerlo.\n\nSuele pasar al elegir el CSV de puntos o el informe del escáner. Lo que se abre aquí es el .json que guarda este programa.',
+ jsonNotDoc: 'Es un JSON válido, pero no describe una pieza: no tiene «model.bends».\n\nAbre el .json que guardó BARCOMP. Para meter una pieza MEDIDA desde una nube de puntos está «Importar piezas», no «Abrir».',
+ jsonBroken: 'El archivo es un documento barcomp, pero algo de dentro está roto y no se pudo abrir entero.\n\nNo se cargó nada: lo que tenías sigue como estaba. La línea de abajo es para quien mantenga el programa.',
  dStart: 'Extremo inicial', dBest: 'Mejor ajuste global',
  formula: 'nuevo comando = comando actual + ganancia × (nominal − medido)',
  note: 'La cadena completa se regenera tras cada corrección: el arrastre entre dobleces ya está contenido en el modelo.',
@@ -206,7 +209,8 @@ es: {
  addMark: '+ Punto', nearPi: 'PI', distPi: 'Dist.',
  markNote: 'Cotas sueltas en el espacio: el punto se une con el PI más cercano del modelo activo y la cifra dice a cuánto quedó. Sirve para acotar contra el fixture o un datum de taller. «+ Punto» lo crea sobre el doblez seleccionado.',
  cCalc: 'Δ calc.', cAdj: 'Δ aplicada', zeroTw: 'Δ manual a cero',
- cellNote: 'La celda Δ aplicada acepta cuentas sobre lo que calculó el lazo, que se escribe c: «+2» o «c+2» le suma 2, «c*1.1» le pone un 10 % más, y un número suelto la reemplaza. El resto de la tabla es de solo lectura.',
+ cellNote: 'La celda Δ aplicada se escribe como en una hoja de cálculo, y hay tres formas. RELATIVO A LO QUE VES: un operador al principio opera sobre lo que muestra la celda — «+2» le suma 2, «-0.3» le quita tres décimas, «*1.1» le pone un 10 % más. RELATIVO AL LAZO: lo que calculó se llama c — «c», «c+2», «(c+1)/2». ABSOLUTO: un número suelto reemplaza, y «=» lo fuerza, que es como se escribe un negativo suelto — «=-3». El resto de la tabla es de solo lectura.',
+ cellBad: 'No se entendió lo que escribiste, así que no se guardó nada.\n\nSe admite un número suelto (2), una cuenta sobre lo que ves (+2, -0.3, *1.1), una cuenta sobre lo que calculó el lazo (c+2) o un absoluto con = (=-3).',
  tweakOn: 'con ajuste manual',
 },
 en: {
@@ -260,7 +264,9 @@ en: {
  schemaAmbiguous: 'This file is barcomp/2.2 and does not record which bend direction it was written with.\n\nIt was opened as-is, without changing any number. But if it was saved before the direction change, the part appears bent to the other side.\n\nCHECK THE SHAPE in the 3D view before compensating. Saving makes it 2.3 and no longer ambiguous.',
  schemaMigrated: 'File from an older version: converted to the current convention without moving the part.\n\nManual adjustments and the command of measured parts are not converted, so they arrive at zero.',
  schemaUnknown: 'Unknown schema: {s}\n\nThis program does not know which convention it was written with, so it refuses to open it rather than risk misreading it.',
- jsonBad: 'Could not read the file: it does not look like a barcomp document.',
+ jsonNotJson: 'This file is not JSON: there is no way even to start reading it.\n\nUsually this means the points CSV or the scanner report was picked. What opens here is the .json this program saves.',
+ jsonNotDoc: 'Valid JSON, but it does not describe a part: it has no "model.bends".\n\nOpen the .json BARCOMP saved. To bring in a MEASURED part from a point cloud use "Import pieces", not "Open".',
+ jsonBroken: 'The file is a barcomp document, but something inside it is broken and it could not be opened whole.\n\nNothing was loaded: what you had is still there. The line below is for whoever maintains the program.',
  dStart: 'Start end', dBest: 'Global best fit',
  formula: 'new command = current command + gain × (nominal − measured)',
  note: 'The whole chain is regenerated after each correction: downstream carry-over is already in the model.',
@@ -348,7 +354,8 @@ en: {
  addMark: '+ Point', nearPi: 'PI', distPi: 'Dist.',
  markNote: 'Loose dimensions in space: each point is joined to the nearest PI of the active model and the figure says how far it landed. Use it to dimension against the fixture or a shop datum. "+ Point" creates it on the selected bend.',
  cCalc: 'Δ calc', cAdj: 'Δ applied', zeroTw: 'Zero manual Δ',
- cellNote: 'The Δ applied cell takes arithmetic on what the loop computed, written as c: "+2" or "c+2" adds 2, "c*1.1" gives it 10 % more, and a bare number replaces it. The rest of the table is read-only.',
+ cellNote: 'The Δ applied cell works like a spreadsheet, and there are three forms. RELATIVE TO WHAT YOU SEE: a leading operator works on what the cell shows — "+2" adds 2, "-0.3" takes three tenths off, "*1.1" gives it 10 % more. RELATIVE TO THE LOOP: what it computed is called c — "c", "c+2", "(c+1)/2". ABSOLUTE: a bare number replaces, and "=" forces it, which is how a lone negative is written — "=-3". The rest of the table is read-only.',
+ cellBad: 'What you typed was not understood, so nothing was saved.\n\nAccepted: a bare number (2), arithmetic on what you see (+2, -0.3, *1.1), arithmetic on what the loop computed (c+2), or an absolute with = (=-3).',
  tweakOn: 'manually adjusted',
 },
 de: {
@@ -406,7 +413,9 @@ de: {
  schemaAmbiguous: 'Diese Datei ist barcomp/2.2 und gibt die verwendete Biegerichtung nicht an.\n\nSie wurde unverändert geöffnet, ohne eine Zahl zu ändern. Wurde sie vor der Richtungsänderung gespeichert, erscheint das Teil zur anderen Seite gebogen.\n\nPRÜFE DIE FORM in der 3D-Ansicht vor dem Kompensieren. Beim Speichern wird sie 2.3 und ist nicht mehr mehrdeutig.',
  schemaMigrated: 'Datei einer älteren Version: auf die aktuelle Konvention umgestellt, ohne das Teil zu bewegen.\n\nManuelle Korrekturen und der Befehl gemessener Teile werden nicht umgestellt und kommen als Null an.',
  schemaUnknown: 'Unbekanntes Schema: {s}\n\nDieses Programm kennt die verwendete Konvention nicht und öffnet die Datei daher nicht, statt sie falsch auszulegen.',
- jsonBad: 'Datei nicht lesbar: sie sieht nicht wie ein barcomp-Dokument aus.',
+ jsonNotJson: 'Diese Datei ist kein JSON: es gibt nicht einmal einen Anfang zum Lesen.\n\nMeist wurde die Punkt-CSV oder der Messbericht gewählt. Hier wird die .json geöffnet, die dieses Programm speichert.',
+ jsonNotDoc: 'Gültiges JSON, beschreibt aber kein Teil: es fehlt »model.bends«.\n\nÖffne die von BARCOMP gespeicherte .json. Ein GEMESSENES Teil aus einer Punktwolke kommt über »Teile importieren« herein, nicht über »Öffnen«.',
+ jsonBroken: 'Die Datei ist ein barcomp-Dokument, aber etwas darin ist beschädigt und sie ließ sich nicht ganz öffnen.\n\nEs wurde nichts geladen: der bisherige Stand bleibt. Die Zeile unten ist für die Programmbetreuung.',
  dStart: 'Anfangsende', dBest: 'Globale beste Anpassung',
  formula: 'neuer Befehl = aktueller Befehl + Verstärkung × (Nennwert − Messwert)',
  note: 'Nach jeder Korrektur wird die ganze Kette neu erzeugt: die Fortpflanzung zwischen den Biegungen steckt bereits im Modell.',
@@ -498,7 +507,8 @@ de: {
  addMark: '+ Punkt', nearPi: 'SP', distPi: 'Abst.',
  markNote: 'Freie Maße im Raum: jeder Punkt wird mit dem nächstgelegenen Schnittpunkt des aktiven Modells verbunden und die Zahl sagt, wie weit er entfernt liegt. Damit lässt sich gegen die Vorrichtung oder einen Werkstattbezug bemaßen. »+ Punkt« legt ihn auf der ausgewählten Biegung an.',
  cCalc: 'Δ ber.', cAdj: 'Δ angewandt', zeroTw: 'Manuelles Δ auf null',
- cellNote: 'Die Zelle Δ angewandt nimmt Rechnungen auf das an, was der Regelkreis berechnet hat, geschrieben als c: »+2« oder »c+2« addiert 2, »c*1.1« gibt 10 % mehr, und eine blanke Zahl ersetzt den Wert. Der Rest der Tabelle ist schreibgeschützt.',
+ cellNote: 'Die Zelle Δ angewandt verhält sich wie in einer Tabellenkalkulation, in drei Formen. RELATIV ZUM ANGEZEIGTEN: ein Operator am Anfang rechnet auf dem, was die Zelle zeigt — »+2« addiert 2, »-0.3« nimmt drei Zehntel weg, »*1.1« gibt 10 % mehr. RELATIV ZUM REGELKREIS: sein Ergebnis heißt c — »c«, »c+2«, »(c+1)/2«. ABSOLUT: eine blanke Zahl ersetzt, und »=« erzwingt das, so schreibt man eine einzelne negative Zahl — »=-3«. Der Rest der Tabelle ist schreibgeschützt.',
+ cellBad: 'Die Eingabe wurde nicht verstanden, es wurde nichts gespeichert.\n\nErlaubt: eine blanke Zahl (2), eine Rechnung auf dem Angezeigten (+2, -0.3, *1.1), eine Rechnung auf dem Ergebnis des Regelkreises (c+2) oder ein Absolutwert mit = (=-3).',
  tweakOn: 'manuell angepasst',
 }} satisfies Record<Lang, Record<I18nKey, string>>;
 

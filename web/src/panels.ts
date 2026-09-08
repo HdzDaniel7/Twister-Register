@@ -19,6 +19,6 @@ export {
 } from './panels/fmt.ts';
 export { renderShell } from './panels/shell.ts';
 export { renderLeft } from './panels/left.ts';
-export { cellKey, updateModelDerived } from './panels/focus.ts';
+export { cellKey, updateModelDerived, markRejected } from './panels/focus.ts';
 export { renderSide, renderRight, renderPanels } from './panels/render.ts';
 export { renderStatus } from './panels/status.ts';

@@ -1,7 +1,10 @@
 /* =========================================================================
    PESTAÑA COMPENSACIÓN — ganancias del lazo, qué parámetros corregir, y la
-   tabla de comando donde lo ÚNICO editable es la Δ aplicada (acepta cuentas
-   sobre lo que calculó el lazo, ver evalCell en engine.js).
+   tabla de comando donde lo ÚNICO editable es la Δ aplicada. Esa celda va como
+   la de una hoja de cálculo y admite tres cosas: un operador al principio
+   opera sobre LO QUE MUESTRA (`+2`), `c` nombra lo que calculó el lazo
+   (`c+2`), y un número suelto —o `=` delante— es ABSOLUTO. El parser está en
+   engine/expr.ts, no en el motor de cinemática.
    ========================================================================= */
 import * as E from '../engine.ts';
 import { T } from '../i18n.ts';
@@ -11,8 +14,8 @@ import { fx, cls, nfield, oriTag, sgn, srcTag } from './fmt.ts';
 import type { I18nKey } from './fmt.ts';
 
 /* --- pestaña COMPENSACIÓN ----------------------------------------------- */
-/* Las medidas son fijas: en esta tabla lo ÚNICO editable es la Δ aplicada, y
-   acepta cuentas sobre lo que calculó el lazo (ver evalCell en engine.js).   */
+/* Las medidas son fijas: en esta tabla lo ÚNICO editable es la Δ aplicada. Lo
+   que se escribe ahí lo interpreta evalCell(), en engine/expr.ts.           */
 export function paneComp(M: Model): string {
   const D = activeDataset(), C = ST.comp, ori = E.orientations(M);
   if (!D) return `<div class="pane on"><div class="grp"><div class="body">

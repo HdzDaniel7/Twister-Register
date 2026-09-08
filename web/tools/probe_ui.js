@@ -534,6 +534,28 @@ step('tema oscuro explícito', () => {
   }
 });
 
+/* --dim2 lo llevan la ayuda de las celdas, los rótulos de sección y las
+   columnas de solo lectura de las tablas: son DATOS, a 10 px, y estaban por
+   debajo del 4.5:1 que pide WCAG 1.4.3 en los dos temas. Se mide contra
+   --panel2, el fondo más apretado en el que aparecen. */
+step('--dim2 se lee en los dos temas (WCAG 1.4.3)', () => {
+  const rel = h => {
+    const c = [1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16) / 255)
+      .map(v => v <= .03928 ? v / 12.92 : Math.pow((v + .055) / 1.055, 2.4));
+    return .2126 * c[0] + .7152 * c[1] + .0722 * c[2];
+  };
+  const ratio = (a, b) => {
+    const [x, y] = [rel(a), rel(b)].sort((p, r) => r - p);
+    return (x + .05) / (y + .05);
+  };
+  for (const t of ['dark', 'light']) {
+    click(`[data-th="${t}"]`);
+    const r = ratio(tok('--dim2'), tok('--panel2'));
+    if (r < 4.5) throw new Error(`${t}: ${r.toFixed(2)}:1 con ${tok('--dim2')}`);
+  }
+  click('[data-th="dark"]');
+});
+
 step('tema del sistema quita el atributo', () => {
   click('[data-th="system"]');
   if (document.documentElement.hasAttribute('data-theme')) throw new Error('quedó el atributo');
@@ -817,6 +839,32 @@ step('un CSV sin coordenadas no crea ninguna pieza', () => {
   const antes = S().datasets.length;
   if (window.BARCOMP.importCsvText('nombre;unidad\nx;y\n', 'vacio')) throw new Error('aceptó basura');
   if (S().datasets.length !== antes) throw new Error('creó una pieza igualmente');
+});
+/* Abrir el archivo equivocado soltaba un «TypeError: Cannot read properties of
+   undefined»: cierto, pero no dice ni qué se abrió ni qué hacía falta abrir.
+   Cada causa tiene ahora su frase, y ninguna repite a otra. */
+step('abrir un archivo malo dice la causa y qué hacer, no un TypeError', () => {
+  const B = window.BARCOMP;
+  const msgs = [
+    B.openError(new B.E.UnknownSchemaError('barcomp/9.9')),
+    B.openError(new SyntaxError('Unexpected token N in JSON at position 0')),
+    B.openError(new B.E.NotADocError()),
+    B.openError(new TypeError('Cannot read properties of undefined')),
+  ];
+  if (new Set(msgs).size !== 4) throw new Error('dos causas dan el mismo texto');
+  if (msgs.some(m => /TypeError|SyntaxError|undefined/.test(m.split('\n')[0]))) {
+    throw new Error('la primera línea sigue siendo jerga: ' + msgs.join(' | '));
+  }
+  /* la línea técnica NO se tira: es lo único que sirve para arreglarlo, pero va
+     detrás de la frase que dice qué pasó */
+  if (!msgs[3].includes('Cannot read properties')) throw new Error('se perdió el detalle técnico');
+  if (!msgs[0].includes('barcomp/9.9')) throw new Error('no dice cuál era el esquema');
+});
+step('y lo dice en los tres idiomas', () => {
+  const B = window.BARCOMP;
+  const por = ['es', 'en', 'de'].map(l => { click(`[data-l="${l}"]`); return B.openError(new SyntaxError('x')); });
+  click('[data-l="es"]');
+  if (new Set(por).size !== 3) throw new Error('algún idioma cae al de al lado');
 });
 step('el botón de importar está en el panel de piezas', () => {
   drawer('pieces');
@@ -1123,6 +1171,21 @@ step('ajuste manual: texto inválido se descarta', () => {
   const prev = JSON.stringify(S().tweak[3]);
   setval('input[data-tw="3"][data-k="angle"]', 'hola');
   if (JSON.stringify(S().tweak[3]) !== prev) throw new Error('cambió con texto inválido');
+});
+/* Y se NOTA. Descartarlo en silencio dejaba la celda igual que cuando el ajuste
+   sí se acepta y no mueve nada: dos resultados opuestos con la misma pinta. */
+step('y el texto rechazado se queda a la vista, marcado', () => {
+  const el = q('input[data-tw="3"][data-k="angle"]');
+  if (el.value !== 'hola') throw new Error('la celda volvió al valor de antes: ' + el.value);
+  if (!el.classList.contains('badcell')) throw new Error('sin marca de rechazo');
+  if (!el.title) throw new Error('sin explicación de qué se admite');
+});
+step('y una cuenta válida lo limpia', () => {
+  setval('input[data-tw="3"][data-k="angle"]', '=0.25');
+  const el = q('input[data-tw="3"][data-k="angle"]');
+  if (el.classList.contains('badcell')) throw new Error('sigue marcada de rojo');
+  /* `=` fuerza absoluto: la celda tiene que enseñar exactamente 0.25 */
+  if (Math.abs(parseFloat(el.value) - 0.25) > 1e-6) throw new Error('enseña ' + el.value);
 });
 step('el comando final incluye el ajuste', () => {
   const fila = document.querySelectorAll('table.cmd tbody tr')[0];

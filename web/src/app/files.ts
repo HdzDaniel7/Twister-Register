@@ -68,12 +68,30 @@ export function openJson(): void {
       if (d.ambiguous) alert(T('schemaAmbiguous'));
       else if (d.legacy) alert(T('schemaMigrated'));
     } catch (err) {
-      alert(err instanceof E.UnknownSchemaError
-        ? T('schemaUnknown').replace('{s}', err.schema)
-        : T('jsonBad') + '\n\n' + (err as Error).message);
+      alert(openError(err));
     }
   }, (name, err) => alert(`${name} — ${T('fileUnread')}\n\n${err.message}`));
 }
+/** Traduce lo que sea que se rompió al abrir un archivo a una frase con CAUSA
+ *  y con lo que hay que hacer. Antes había un único texto genérico con el
+ *  `message` crudo pegado detrás, así que a quien abría el archivo equivocado
+ *  le salía un `TypeError: Cannot read properties of undefined` —cierto, pero
+ *  no le dice ni qué archivo abrió ni cuál tenía que abrir.
+ *
+ *  Se exporta para que el banco de interfaz compruebe la clasificación sin
+ *  tener que interceptar el alert(). */
+export function openError(err: unknown): string {
+  if (err instanceof E.UnknownSchemaError) return T('schemaUnknown').replace('{s}', err.schema);
+  /* JSON.parse solo lanza SyntaxError, y solo por una razón: lo que se eligió
+     no es JSON. Casi siempre es el CSV de puntos o el informe del escáner. */
+  if (err instanceof SyntaxError) return T('jsonNotJson');
+  if (err instanceof E.NotADocError) return T('jsonNotDoc');
+  /* El resto: es un documento, pero algo de dentro está roto. La línea técnica
+     se conserva —es lo único que sirve para arreglarlo— pero va detrás de la
+     frase que dice qué hacer, no en su lugar. */
+  return T('jsonBroken') + '\n\n' + (err instanceof Error ? err.message : String(err));
+}
+
 /** Mete una pieza MEDIDA desde el texto de un CSV.
  *
  *  Va separada del dialogo de archivo a proposito: asi el banco de interfaz

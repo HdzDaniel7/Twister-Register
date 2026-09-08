@@ -39,7 +39,7 @@ import {
 } from './scene.ts';
 import { drawRibbon, bindRibbon, setOnRibbonSelect } from './ribbon.ts';
 import { renderAll, refresh, selectBend } from './app/render.ts';
-import { importCsvText, importCsvBatch } from './app/files.ts';
+import { importCsvText, importCsvBatch, openError } from './app/files.ts';
 import { initHistory, markSaved, isDirty } from './app/history.ts';
 import { useTheme, bindScheme } from './app/theme.ts';
 import { bindClick } from './app/events/click.ts';
@@ -117,11 +117,14 @@ type DebugExports = {
      mismo camino que recorre un CSV de verdad menos el diálogo. */
   importCsvText: typeof importCsvText;
   importCsvBatch: typeof importCsvBatch;
+  /* tampoco puede provocar un archivo roto desde el disco: la clasificacion
+     del fallo al abrir se ejercita llamando aqui con el error ya construido. */
+  openError: typeof openError;
 };
 /* `renderer` se lee por getter porque initScene() lo asigna DESPUÉS de que
    este módulo se evalúe: copiarlo aquí guardaría el undefined de arranque. */
 if (typeof window !== 'undefined') (window as unknown as { BARCOMP: DebugExports }).BARCOMP = {
   ST, E, I18N, LANG, renderAll, refresh, REF, drawGizmo, drawLabels, groupHost,
-  rebuildScene, markDirty, importCsvText, importCsvBatch,
+  rebuildScene, markDirty, importCsvText, importCsvBatch, openError,
   get renderer() { return renderer; },
 };

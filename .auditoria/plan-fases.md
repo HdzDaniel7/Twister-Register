@@ -109,13 +109,32 @@ Todo de esfuerzo S, sin dependencias externas, y casi todo delegable.
       por un estado intermedio raro, pero un archivo con dos PI a décimas de milímetro
       está mal extraído y no hay nada que salvar. `PI_MIN_MM = 1.0` provisional,
       `reason: 'coincident'` y los índices en `near`, que el aviso del lote nombra.
-- [ ] **[A12] Feedback de celda inválida · [S]** — hoy el texto malo se descarta sin decir
-      nada, indistinguible de "se aceptó".
-- [ ] **[A14] Reescribir `cellNote` en es/en/de · [S]** — el texto de ayuda contradice al
-      parser: separar *relativo a lo que ves* / *relativo al lazo* / *absoluto*.
-- [ ] **[A13] Tokenizar `.warnbox` y subir `--dim2` · [S]** — el aviso "necesita una pieza
-      medida" queda a 1.7:1 en tema claro, ilegible.
-- [ ] **[M1] Mensajes de error con causa y acción · [S]** — hoy sale un `TypeError` crudo.
+- [x] **[A12] Feedback de celda inválida · [S]** — hecho 2026-09-08. El texto rechazado se
+      queda A LA VISTA en rojo (`.badcell`) con el tooltip de qué se admite, en vez de
+      volver al valor de antes: eso último es exactamente lo que se ve cuando el ajuste
+      SÍ se acepta y no mueve nada. `markRejected()` vive en `panels/focus.ts`, que ya es
+      el dueño de los retoques dirigidos posteriores al repintado. No roba el foco: el
+      `change` salta al SALIR del campo, o sea que el cursor ya está en otro sitio.
+- [x] **[A14] Reescribir `cellNote` en es/en/de · [S]** — hecho 2026-09-08. Decía que `+2`
+      operaba sobre lo que calculó el lazo; desde el cambio del parser opera sobre lo
+      MOSTRADO. Reescrito en los tres idiomas con los tres grupos separados y nombrados:
+      relativo a lo que ves / relativo al lazo (`c`) / absoluto (`=`). De paso, los dos
+      comentarios de `panels/comp.ts` que repetían la versión vieja y apuntaban a un
+      `engine.js` que no existe (el parser está en `engine/expr.ts`).
+- [x] **[A13] Tokenizar `.warnbox` y subir `--dim2` · [S]** — hecho 2026-09-08. El
+      `.warnbox` ya estaba tokenizado; faltaba `--dim2`, que estaba a 3.1:1 en oscuro y
+      3.2:1 en claro, bajo el 4.5:1 de WCAG 1.4.3, y no es decorativo: lo llevan la ayuda
+      de las celdas, los rótulos de sección y las columnas de solo lectura de las tablas,
+      que son datos, a 10 px. Sube en los dos temas medido contra `--panel2`, el fondo más
+      apretado donde aparece. Consecuencia asumida: queda muy cerca de `--dim`, así que la
+      jerarquía entre los dos la lleva ya el tamaño y la caja, no el color. El banco mide
+      el contraste de verdad con `getComputedStyle`, así que el umbral no se puede perder
+      sin que salte una prueba.
+- [x] **[M1] Mensajes de error con causa y acción · [S]** — hecho 2026-09-08. Cuatro causas
+      de fallo al abrir, cada una con su frase y con qué hacer: no es JSON (casi siempre
+      es el CSV o el informe del escáner), es JSON pero no una pieza (`NotADocError`, tipo
+      propio para que el motor no redacte texto de usuario), esquema desconocido, y roto
+      por dentro —esta conserva la línea técnica, pero DETRÁS de la frase, no en su lugar.
 - [ ] **[A2] `gainR` y `gainF` propios · [O]** — el rodado se corrige a ganancia 1.0 y el
       avance con la constante del resorte.
 - [ ] **[M8] `esc()` en las etiquetas 3D y validar colores al cargar · [S]**

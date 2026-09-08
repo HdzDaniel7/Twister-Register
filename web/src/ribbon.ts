@@ -79,7 +79,7 @@ export function drawRibbon(): void {
         g.strokeRect(x - bw / 2 - 1.5, mid - hh - 1.5, bw + 3, hh + 3);
       }
     }
-    g.fillStyle = i === ST.sel ? cssVar('--txt', '#D8DFE9') : cssVar('--dim2', '#5A6576');
+    g.fillStyle = i === ST.sel ? cssVar('--txt', '#D8DFE9') : cssVar('--dim2', '#78849A');
     g.textAlign = 'center'; g.font = '9px ui-monospace,monospace';
     g.fillText(String(i + 1), x, h - 6);
     g.fillStyle = ori[i] === 'W' ? cssVar('--oriWbd', '#6B4B9E') : cssVar('--oriTbd', '#3B7A6C');

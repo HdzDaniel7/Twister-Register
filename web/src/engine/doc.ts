@@ -195,6 +195,17 @@ export class UnknownSchemaError extends Error {
   }
 }
 
+/** Se lanza cuando el archivo es JSON válido pero no describe una pieza: le
+ *  falta `model.bends`. Es una clase y no un `Error` suelto para que la capa de
+ *  interfaz pueda distinguirla del resto y decir qué archivo hacía falta, en el
+ *  idioma que toque. El motor no redacta mensajes para el usuario. */
+export class NotADocError extends Error {
+  constructor() {
+    super('el archivo no tiene `model.bends`');
+    this.name = 'NotADocError';
+  }
+}
+
 /** Normaliza un documento leído de JSON. Gemelo de load_json() de core.py. */
 export function fromDoc(d: Doc): LoadedDoc {
   /* Un archivo anterior a barcomp/2.0 describe la misma pieza con otra
@@ -206,9 +217,7 @@ export function fromDoc(d: Doc): LoadedDoc {
   if (from !== SCHEMA && !SCHEMA_LEGACY.includes(from) && !SCHEMA_AMBIGUOUS.includes(from)) {
     throw new UnknownSchemaError(from);
   }
-  if (!d || !d.model || !Array.isArray(d.model.bends)) {
-    throw new Error('el archivo no tiene `model.bends`: no es un documento barcomp');
-  }
+  if (!d || !d.model || !Array.isArray(d.model.bends)) throw new NotADocError();
   const legacy = isLegacyDoc(d);
   const conv = (m: RawModel): Model => (legacy ? migrateModel(m, from) : normalizeModel(m));
   const model = conv(d.model);

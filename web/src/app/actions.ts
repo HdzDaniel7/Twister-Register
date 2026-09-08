@@ -15,7 +15,7 @@ import {
 import { rebuildScene, fitView } from '../scene.ts';
 import { drawRibbon } from '../ribbon.ts';
 import {
-  renderLeft, renderSide, renderRight, renderStatus, renderPanels,
+  renderLeft, renderSide, renderRight, renderStatus, renderPanels, markRejected,
 } from '../panels.ts';
 import { makeReport } from '../report.ts';
 import { renderAll, refresh, refreshTable, toggleSolo } from './render.ts';
@@ -133,7 +133,15 @@ export function editTweak(i: number, key: 'angle' | 'rot' | 'feed', text: string
      eso es `v`, y es sobre lo que opera un `+` o un `-` al principio */
   const mostrado = dCalc + (ST.tweak[i][key] || 0);
   const v = E.evalCell(text, dCalc, mostrado);
-  if (v === null) { renderRight(); return; }     // texto inválido: se descarta
+  /* Texto que no se entiende: NO se guarda, pero tampoco se esfuma. Volver al
+     valor de antes sin decir nada es indistinguible de haberlo aceptado —un
+     ajuste válido que no mueve la celda se ve igual—, así que el texto se
+     queda a la vista en rojo y el tooltip dice qué se admite. */
+  if (v === null) {
+    renderRight();
+    markRejected(`[data-tw="${i}"][data-k="${key}"]`, text, T('cellBad'));
+    return;
+  }
   ST.tweak[i][key] = v - dCalc;
   renderRight(); renderSide(); renderStatus();
 }

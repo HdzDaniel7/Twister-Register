@@ -54,6 +54,24 @@ export function restoreFocus(f: ReturnType<typeof saveFocus>): void {
   }
 }
 
+/** Deja a la vista, en rojo, el texto que una celda NO entendió.
+ *
+ *  Se llama DESPUÉS de repintar: el panel se reconstruye entero, así que el
+ *  texto rechazado ya no está en ninguna parte y hay que volver a escribirlo.
+ *  Antes se descartaba en silencio y la celda volvía a su valor de siempre,
+ *  que es exactamente lo que se ve cuando el ajuste SÍ se acepta y resulta que
+ *  no cambia nada. Dos resultados opuestos con la misma pinta.
+ *
+ *  No roba el foco: el `change` salta al salir del campo, o sea que el usuario
+ *  ya está en otro sitio y devolverle el cursor a la fuerza es peor. */
+export function markRejected(key: string, text: string, why: string): void {
+  const el = $<HTMLInputElement>('#panes ' + key);
+  if (!el) return;
+  el.value = text;
+  el.classList.add('badcell');
+  el.title = why;
+}
+
 /** Reescribe SOLO las celdas derivadas de la tabla de modelo, sin tocar el
  *  innerHTML del panel ni el campo que tenga el foco. Devuelve false si la
  *  tabla no está montada y hace falta un renderRight() de verdad. */

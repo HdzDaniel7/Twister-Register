@@ -1,7 +1,14 @@
 :root{
   --bg:#0B0E13; --panel:#12161D; --panel2:#171C25; --panel3:#1D2430;
   --line:#242C39; --line2:#303A4A;
-  --txt:#D8DFE9; --dim:#7E8A9C; --dim2:#5A6576;
+  /* --dim2 NO es decorativo: lo llevan la ayuda de las celdas, los rótulos de
+     sección y las columnas de solo lectura de las tablas, que son datos. Estaba
+     a 3.1:1 en oscuro y 3.2:1 en claro, bajo el 4.5:1 que pide WCAG 1.4.3 para
+     texto normal, y estas tipografías son de 10 px. Los dos temas suben hasta
+     pasar ese umbral medido contra --panel2, el fondo más apretado en el que
+     aparece. Queda muy cerca de --dim: al exigir legibilidad a los dos, la
+     jerarquía entre ellos ya no la lleva el color sino el tamaño y la caja. */
+  --txt:#D8DFE9; --dim:#7E8A9C; --dim2:#78849A;
   --nominal:#3FA9F5; --measured:#F0A02E; --corrected:#3FD68C;
   --ok:#3FD68C; --warn:#FFC53D; --bad:#FF4D5E;
   --warnTxt:#F0D48A; --warnBd:#8A6A24; --warnBg:#FFC53D14;
@@ -39,7 +46,7 @@
 :root[data-theme="light"]{
   --bg:#F4F6F9; --panel:#FFFFFF; --panel2:#F0F3F7; --panel3:#E7ECF2;
   --line:#D7DDE6; --line2:#BFC8D4;
-  --txt:#18202C; --dim:#5B6778; --dim2:#8391A3;
+  --txt:#18202C; --dim:#5B6778; --dim2:#5F6E85;
   --nominal:#0D6FC4; --measured:#A96400; --corrected:#0F7A52;
   --ok:#0F7A52; --warn:#9A6B00; --bad:#C42133; --synthetic:#7A3FB0;
   --warnTxt:#6B4A00; --warnBd:#C79A2E; --warnBg:#FFC53D24;
@@ -57,7 +64,7 @@
   :root:not([data-theme="dark"]){
     --bg:#F4F6F9; --panel:#FFFFFF; --panel2:#F0F3F7; --panel3:#E7ECF2;
     --line:#D7DDE6; --line2:#BFC8D4;
-    --txt:#18202C; --dim:#5B6778; --dim2:#8391A3;
+    --txt:#18202C; --dim:#5B6778; --dim2:#5F6E85;
     --nominal:#0D6FC4; --measured:#A96400; --corrected:#0F7A52;
     --ok:#0F7A52; --warn:#9A6B00; --bad:#C42133; --synthetic:#7A3FB0;
     --warnTxt:#6B4A00; --warnBd:#C79A2E; --warnBg:#FFC53D24;
@@ -463,6 +470,11 @@ td.dcol input[type=text]{text-align:right}
 td.dcol,th.dcol{background:var(--dcolbg)}
 td.dcol input{color:var(--corrected);min-width:56px}
 td.dcol input.z{color:var(--dim2)}
+/* Una celda que NO se entendió. El texto rechazado se queda a la vista en rojo
+   en vez de esfumarse: antes volvía al valor de antes, que es lo mismo que se
+   ve cuando el ajuste sí se acepta y no mueve nada. Va después de `.z` a
+   propósito, misma especificidad, para ganar cuando la celda estaba en cero. */
+td.dcol input.badcell,input.badcell{color:var(--bad);border-color:var(--bad)}
 th.dcol{color:var(--corrected);opacity:.75}
 tbody tr.hasd td:first-child{box-shadow:inset 2px 0 0 var(--corrected)}
 .dv{color:var(--corrected)}

@@ -1354,6 +1354,20 @@ console.log('\n— esquemas: qué se convierte, qué se avisa y qué se rechaza 
   try { E.fromDoc({ schema: E.SCHEMA }); } catch (err) { vacio = err; }
   ok('un documento sin model.bends se rechaza con mensaje',
      !!vacio && /model\.bends/.test(vacio.message), `${vacio && vacio.message}`);
+  /* Y con un TIPO propio, no con un Error suelto: la interfaz lo distingue del
+     JSON roto para poder decir cuál era el archivo que hacía falta. El motor
+     no redacta el texto que ve el usuario. */
+  ok('y con un tipo que la interfaz puede distinguir', vacio instanceof E.NotADocError);
+
+  /* Las tres causas de fallo al abrir son DISTINTAS entre sí: si dos cayeran en
+     la misma rama, el mensaje volvería a ser el genérico de antes. */
+  const clases = [new E.UnknownSchemaError('barcomp/9.9'), new SyntaxError('x'),
+                  new E.NotADocError(), new TypeError('y')]
+    .map(e => e instanceof E.UnknownSchemaError ? 'schema'
+            : e instanceof SyntaxError ? 'nojson'
+            : e instanceof E.NotADocError ? 'nodoc' : 'roto');
+  ok('cada fallo al abrir cae en su propia rama',
+     clases.join(',') === 'schema,nojson,nodoc,roto', clases.join(','));
 }
 
 console.log(`\n${fails ? fails + ' PRUEBA(S) FALLARON' : 'todas las pruebas pasaron'}\n`);
