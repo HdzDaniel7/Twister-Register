@@ -590,8 +590,11 @@ console.log('\n— importar una pieza medida —');
      euro.reason === 'decimalComma' && euro.pts.length === 0, `${euro.reason}`);
 
   /* Una línea corrupta ya no desplaza las columnas del resto: se descarta y se
-     cuenta. Antes `0,NaN,20,30` devolvía el punto (0, 20, 30). */
-  const roto = E.parsePointsCsv('1,10,20,30\n2,NaN,20,30\n3,10,20,30\n4,10,20,30');
+     cuenta. Antes `0,NaN,20,30` devolvía el punto (0, 20, 30).
+     Los puntos van separados 100 mm porque lo que se prueba aquí son las
+     COLUMNAS, y tres PI idénticos los rechaza ahora la guarda de coincidencia
+     (PI_MIN_MM) antes de llegar a la aserción. */
+  const roto = E.parsePointsCsv('1,10,20,30\n2,NaN,20,30\n3,110,20,30\n4,210,20,30');
   ok('una línea corrupta se descarta en vez de recortarse',
      roto.pts.length === 3 && roto.skipped === 1, `${roto.pts.length} pts, ${roto.skipped} descartadas`);
   ok('y las que sí entraron conservan sus coordenadas',
@@ -1152,6 +1155,122 @@ console.log('\n— eje no observable en dobleces casi rectos —');
   const limpio = E.ik(pis, casi.map(b => b.radius), 0);
   ok('sin ruido y sin umbral, la ida y vuelta sigue siendo exacta',
      limpio.bends.every((b, i) => Math.abs(b.angle - casi[i].angle) < 1e-9));
+}
+
+/* ======================================================================== */
+console.log('\n— el ángulo se envuelve y el trim no explota a 180° —');
+{
+  /* `trim = radio · tan(θ/2)` tiene una asíntota en θ = 180. Sin envolver ni
+     topar, 180 clavados daba 4.9e17 y 181 daba trim NEGATIVO —la recta crecía
+     al doblar más—, y todo eso se colaba en developedLength sin un solo NaN
+     que delatara nada. */
+  const con = a => E.newBend({ rot: 0, angle: a, radius: 30 });
+
+  /* Envolver es exacto, no es un recorte: girar 200° alrededor de un eje es
+     girar 160° alrededor del contrario, o sea la MISMA pieza. */
+  ok('el ángulo se envuelve a (-180, 180]',
+     Math.abs(E.bendTheta(con(200)) - 160) < 1e-9 &&
+     Math.abs(E.bendTheta(con(-200)) - 160) < 1e-9 &&
+     Math.abs(E.bendTheta(con(360))) < 1e-9 &&
+     Math.abs(E.bendTheta(con(540)) - 180) < 1e-9,
+     `200->${E.bendTheta(con(200)).toFixed(1)}  360->${E.bendTheta(con(360)).toFixed(1)}`);
+  {
+    const a200 = E.fk({ ...E.demoModel(), bends: [con(200)], tail: 100 }).pis;
+    const b160 = E.fk({ ...E.demoModel(), bends: [con(-160)], tail: 100 }).pis;
+    ok('envolver NO mueve la pieza: 200° y -160° son la misma vuelta',
+       a200.every((p, i) => p.distanceTo(b160[i]) < 1e-9));
+  }
+
+  ok('el trim se topa en BEND_MAX_DEG y sigue siendo finito',
+     isFinite(E.trimOf(con(180))) &&
+     Math.abs(E.trimOf(con(180)) - 30 * Math.tan(E.BEND_MAX_DEG * E.D2R / 2)) < 1e-9,
+     `${E.trimOf(con(180)).toFixed(2)} mm`);
+  ok('el trim nunca sale negativo, doble lo que doble',
+     [90, 170, 179, 180, 181, 200, 359, -180, -200].every(a => E.trimOf(con(a)) >= 0));
+
+  const M = E.demoModel();
+  M.bends[1].angle = 180;
+  ok('developedLength con un doblez de 180° sigue siendo un largo real',
+     isFinite(E.developedLength(M)) && E.developedLength(M) > 0,
+     `${E.developedLength(M).toFixed(2)} mm`);
+  ok('y el doblez imposible sale LISTADO, no disimulado',
+     E.overBent(M).length === 1 && E.overBent(M)[0] === 1, `${E.overBent(M)}`);
+  ok('un modelo sano no lista ninguno', !E.overBent(E.demoModel()).length);
+
+  /* El tope no puede haberle movido el trim a una pieza normal. */
+  ok('por debajo del tope el trim es el de siempre',
+     Math.abs(E.trimOf(con(40)) - 30 * Math.tan(40 * E.D2R / 2)) < 1e-12);
+}
+
+/* ======================================================================== */
+console.log('\n— fabricabilidad: rectas que no caben y dobleces imposibles —');
+{
+  /* `fk()` acepta un modelo con rectas negativas sin rechistar: multiplica las
+     matrices igual y devuelve una trayectoria "válida" que se cruza a sí misma.
+     El caso del informe: avance 40 con radio 60. */
+  const M = E.demoModel();
+  const malo = E.normalizeModel({ ...M, tail: 40, bends: [
+    E.newBend({ feed: 40, rot: 0, angle: 90, radius: 60 }),
+    E.newBend({ feed: 40, rot: 0, angle: 90, radius: 60 }),
+  ] });
+
+  ok('las rectas de máquina salen negativas y se puede comprobar',
+     E.machineFeeds(malo).every(s => s < 0),
+     E.machineFeeds(malo).map(s => s.toFixed(1)).join(', '));
+
+  const f = E.feasibility(malo);
+  ok('la pieza se declara no fabricable', !f.ok);
+  ok('y dice QUÉ dobleces tienen la recta negativa',
+     f.negative.length === 2 && f.negative[0] === 0 && f.negative[1] === 1, `${f.negative}`);
+  ok('la recta de salida también se revisa', f.tailShort);
+
+  ok('un modelo sano no dispara nada', E.feasibility(E.demoModel()).ok);
+
+  /* Corto pero no negativo: es el caso del umbral, y va listado aparte del
+     cruce de herramentales porque el umbral se puede discutir y el cruce no. */
+  const justo = E.normalizeModel({ ...M, tail: 400, bends: [
+    E.newBend({ feed: 200, rot: 0, angle: 20, radius: 30 }),
+    E.newBend({ feed: 20 + 2 * E.trimOf(E.newBend({ angle: 20, radius: 30 })), rot: 0, angle: 20, radius: 30 }),
+  ] });
+  const g = E.feasibility(justo);
+  ok('una recta corta pero positiva se lista como corta, no como negativa',
+     g.short.includes(1) && !g.negative.includes(1),
+     `short ${g.short} · negative ${g.negative}`);
+
+  /* El doblez por encima del tope entra por la misma puerta. */
+  const doblado = E.demoModel();
+  doblado.bends[1].angle = 180;
+  ok('un doblez de 180° también hace la pieza no fabricable',
+     !E.feasibility(doblado).ok && E.feasibility(doblado).overBent[0] === 1);
+}
+
+/* ======================================================================== */
+console.log('\n— PI coincidentes: dos puntos pegados inventan un doblez —');
+{
+  /* `ik()` normaliza P[i+1]-P[i] y solo se protegía del cero exacto. Dos PI a
+     0.3 mm pasan esa guarda y dan una dirección de puro ruido: de ahí sale un
+     doblez que no existe, y como se guarda el GIRO respecto de la anterior, la
+     fila siguiente hereda la basura. Se ataja en la frontera, al leer. */
+  const linea = pts => 'idx,x,y,z\n' +
+    pts.map((p, i) => `${i},${p[0]},${p[1]},${p[2]}`).join('\n');
+
+  const sano = E.parsePointsCsv(linea([[0, 0, 0], [100, 0, 0], [200, 30, 0], [300, 60, 0]]));
+  ok('un archivo con PI separados entra como siempre',
+     sano.reason === 'ok' && sano.pts.length === 4 && !sano.near.length);
+
+  const pegado = E.parsePointsCsv(linea([[0, 0, 0], [100, 0, 0], [100.3, 0, 0], [300, 60, 0]]));
+  ok('dos PI a 0.3 mm rechazan el archivo', pegado.reason === 'coincident');
+  ok('y dice CUÁL punto, no solo que algo falla',
+     pegado.near.length === 1 && pegado.near[0] === 2, `${pegado.near}`);
+  ok('un archivo rechazado no deja puntos a medias', !pegado.pts.length);
+
+  /* El umbral es provisional pero no puede rechazar geometría sana: entre dos
+     PI de verdad hay la recta más los dos trims, decenas de milímetros. */
+  const demo = E.fk(E.demoModel()).pis;
+  const minDemo = demo.slice(1).reduce(
+    (m, p, i) => Math.min(m, p.distanceTo(demo[i])), Infinity);
+  ok('la demo está muy lejos del umbral', minDemo > 10 * E.PI_MIN_MM,
+     `PI más juntos: ${minDemo.toFixed(1)} mm vs ${E.PI_MIN_MM} mm`);
 }
 
 /* ======================================================================== */

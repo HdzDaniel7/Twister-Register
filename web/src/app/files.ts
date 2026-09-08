@@ -141,6 +141,11 @@ export function importCsvBatch(files: { text: string; name: string }[],
       const p = E.parsePointsCsv(f.text);
       const causa = p.reason === 'decimalComma' ? T('csvComma')
         : p.reason === 'tooManyColumns' ? T('csvCols').replace('{n}', String(p.cols))
+        /* los índices se dicen tal cual salen del archivo, empezando en 1, que
+           es como los numera el informe de inspección */
+        : p.reason === 'coincident' ? T('csvNear')
+            .replace('{i}', p.near.map(i => i + 1).join(', '))
+            .replace('{d}', String(E.PI_MIN_MM))
         : T('csvFew');
       malos.push(`${f.name} — ${causa}`);
     } else if (n !== esperados) {

@@ -90,10 +90,25 @@ Todo de esfuerzo S, sin dependencias externas, y casi todo delegable.
       se lleva las tres piezas y **un** Ctrl+Y las repone.
       De paso: `actions.ts` pasaba de 400 líneas, así que el grupo que toca disco salió a
       `app/files.ts` (293 + 169).
-- [ ] **[A3] Guarda de θ en `trimOf` · [O]** — θ=180° da `developedLength` de −9.8e17.
-- [ ] **[M2] Enseñar `machineFeeds` · [O]** — la función existe y solo la mira una prueba;
-      hoy una recta negativa (herramentales que chocan) pasa en silencio.
-- [ ] **[M3] Rechazar PI coincidentes · [O]** — dos puntos a 0.3 mm inventan un doblez.
+- [x] **[A3] Guarda de θ en `trimOf` · [O]** — hecho 2026-09-08. Dos capas, y la
+      distinción importa: `bendDecomp` **envuelve** el ángulo a (-180, 180], que es
+      exacto y no un recorte —girar 200° alrededor de un eje es girar 160° alrededor
+      del contrario, la misma pieza—; y `trimOf` **topa** θ en `BEND_MAX_DEG = 170`,
+      que sí es una decisión: por encima el trim se calcula con el tope y el doblez
+      sale listado por `overBent()` en vez de devolver 4.9e17.
+- [x] **[M2] Enseñar `machineFeeds` · [O]** — hecho 2026-09-08. La celda en rojo ya
+      existía (`straight < 25` en `model.ts` y `focus.ts`, el número escrito a mano en
+      los dos), pero el rojo no es un aviso: hay que estar mirando esa columna.
+      `engine/feasible.ts` nuevo con `STRAIGHT_MIN_MM` y `feasibility()`, y un
+      `.warnbox` que nombra los dobleces y separa la recta CORTA (umbral discutible)
+      de la NEGATIVA (dos herramentales en el mismo sitio, no hay umbral que valga).
+      Se recalcula también en `updateModelDerived()`, porque teclear una recta no
+      reconstruye el panel y es tecleando cuando se vuelve imposible.
+- [x] **[M3] Rechazar PI coincidentes · [O]** — hecho 2026-09-08. Se ataja al LEER,
+      en `parsePointsCsv`, y no dentro de `ik()`: editar un punto a mano puede pasar
+      por un estado intermedio raro, pero un archivo con dos PI a décimas de milímetro
+      está mal extraído y no hay nada que salvar. `PI_MIN_MM = 1.0` provisional,
+      `reason: 'coincident'` y los índices en `near`, que el aviso del lote nombra.
 - [ ] **[A12] Feedback de celda inválida · [S]** — hoy el texto malo se descarta sin decir
       nada, indistinguible de "se aceptó".
 - [ ] **[A14] Reescribir `cellNote` en es/en/de · [S]** — el texto de ayuda contradice al

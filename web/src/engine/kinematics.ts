@@ -306,7 +306,15 @@ export function bendDecomp(b: BendAngle): { axis: Vector3; theta: number; psi: n
      que decide hacia dónde se dobla un ángulo positivo. Está en -1 porque el
      taller teclea sus ángulos con el signo contrario al que usaba el motor:
      los datos no se tocan y la pieza sale al lado bueno. */
-  const a = ANG_DIR * (b.angle || 0) * D2R;
+  /* Se ENVUELVE a (-180, 180]. No es un recorte: el doblez es un giro alrededor
+     de un eje fijo, y girar 200° es girar -160° — la MISMA pieza. Sin envolver,
+     un ángulo de 181° daba theta = 181, tan(90.5°) sale NEGATIVO y el trim se
+     volvía negativo: la recta crecía al doblar más. Un 200° daba trim negativo
+     también, y era indistinguible de un modelo sano.
+     `wrapTurn` y no `wrap180` porque media vuelta es 180, no -180: da igual
+     para theta —se toma el valor absoluto— pero deja el eje del lado que le
+     corresponde en vez de invertirlo. */
+  const a = wrapTurn(ANG_DIR * (b.angle || 0)) * D2R;
   /* Rz(-angle): un `angle` positivo desvía hacia -y, así que el eje del arco
      parte de -z. Con el ángulo negativo se invierte y theta vuelve a ser >= 0. */
   const axis = new Vector3(0, 0, a < 0 ? 1 : -1)
@@ -318,7 +326,23 @@ export function bendDecomp(b: BendAngle): { axis: Vector3; theta: number; psi: n
  *  con una sola componente coincide con |angle| o con |rot|. */
 export const bendTheta = (b: BendAngle): number => bendDecomp(b).theta * R2D;
 
-export const trimOf = (b: Bend): number => (b.radius || 0) * Math.tan(bendDecomp(b).theta / 2);
+/** Tope de desvío por doblez. `trim = radio · tan(θ/2)` tiene una ASÍNTOTA en
+ *  θ = 180: a 179° un radio de 30 ya pide 3438 mm de trim, y a 180 clavados
+ *  sale 4.9e17, que se propaga a `developedLength` como -9.8e17 y de ahí a la
+ *  cinta y a la escena. Ningún aviso, ningún NaN: un número enorme con signo.
+ *
+ *  Y no es un caso inventado — `ik()` produce `angle = -180` con una poligonal
+ *  doblada sobre sí misma, que es exactamente lo que devuelve una nube de
+ *  puntos con dos PI intercambiados o un escaneo que se saltó un tramo.
+ *
+ *  170° es el tope FÍSICO, no el numérico: doblar más de eso cierra la pieza
+ *  sobre el herramental. Por encima, el trim se calcula CON el tope y el
+ *  doblez sale listado por `overBent()`, para que se vea que el número está
+ *  topado en vez de creerse una geometría imposible. */
+export const BEND_MAX_DEG = 170;
+
+export const trimOf = (b: Bend): number =>
+  (b.radius || 0) * Math.tan(Math.min(bendDecomp(b).theta, BEND_MAX_DEG * D2R) / 2);
 
 /* ------------------------------------------------- longitudes por doblez ---
    UN SOLO SITIO PARA LA CUENTA DE LA RECTA. Antes vivía copiada en cuatro

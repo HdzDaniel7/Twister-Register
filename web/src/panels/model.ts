@@ -9,6 +9,37 @@ import type { DeltaKey, Model } from '../types.ts';
 import { ST, V } from '../state.ts';
 import { fx, esc, nfield, oriTag } from './fmt.ts';
 
+/** Lo que impide fabricar la pieza, dicho con palabras y con los dobleces
+ *  nombrados. Cadena vacía si no hay nada que decir, que es el caso normal.
+ *
+ *  Los índices salen del motor en base 0 y aquí se suman uno: en la tabla y en
+ *  el taller el primer doblez es B1.
+ *
+ *  La exporta `focus.ts`: editar una recta NO reconstruye el panel —ese es el
+ *  camino dirigido que hace que teclear no vaya a tirones— así que el aviso se
+ *  reescribe también desde allí, o solo aparecería al repintar por otro
+ *  motivo. Por eso el hueco `#fabnote` se pinta siempre, aunque vaya vacío. */
+export function feasNote(M: Model): string {
+  const f = E.feasibility(M);
+  if (f.ok) return '';
+  const bs = (ix: number[]): string => ix.map(i => `B${i + 1}`).join(', ');
+  const partes: string[] = [];
+  /* La recta negativa va primero y aparte: no es un umbral que se pueda
+     discutir, son dos herramentales en el mismo sitio. */
+  if (f.negative.length) partes.push(T('fabNeg').replace('{b}', bs(f.negative)));
+  const cortos = f.short.filter(i => !f.negative.includes(i));
+  if (cortos.length) {
+    partes.push(T('fabShort').replace('{b}', bs(cortos))
+                             .replace('{n}', String(E.STRAIGHT_MIN_MM)));
+  }
+  if (f.tailShort) partes.push(T('fabTail').replace('{n}', String(E.STRAIGHT_MIN_MM)));
+  if (f.overBent.length) {
+    partes.push(T('fabOver').replace('{b}', bs(f.overBent))
+                            .replace('{n}', String(E.BEND_MAX_DEG)));
+  }
+  return `<div class="warnbox mb6">${T('fabHead')} ${partes.join(' ')}</div>`;
+}
+
 /* --- pestaña MODELO ----------------------------------------------------- */
 export function paneModel(M: Model): string {
   const v = V();
@@ -22,6 +53,10 @@ export function paneModel(M: Model): string {
      cero» sino «no lo muevas»: la celda lleva el resultado en su tooltip. */
   const ejes = E.axisAngles(M);
   const LEN = E.rowLengths(M), BASE = E.rowLengths(v.base);
+  /* La celda en rojo ya estaba, pero el rojo NO es un aviso: hay que estar
+     mirando esa columna, y en una tabla de quince filas con desplazamiento
+     lateral no se está. Esto lo dice con palabras y nombra los dobleces. */
+  const fab = feasNote(M);
   /* la cabecera del pie ocupa las 10 columnas de parámetros; la recta de salida
      va bajo L y la longitud desarrollada bajo Σ L */
   const num = (attr: string, i: number, k: DeltaKey, val: number, step: string): string =>
@@ -39,7 +74,7 @@ export function paneModel(M: Model): string {
     const bb = base[i];
     return `<tr class="clk ${i === ST.sel ? 'sel' : ''} ${hasD ? 'hasd' : ''}" data-r="${i}">
       <td>B${i + 1}</td><td>${oriTag(ori[i])}</td>
-      <td>${nfield('.5', `data-st="${i}" class="${BASE[i].straight < 25 ? 'v-bad' : ''}"`,
+      <td>${nfield('.5', `data-st="${i}" class="${BASE[i].straight < E.STRAIGHT_MIN_MM ? 'v-bad' : ''}"`,
                    BASE[i].straight)}</td>
       <td class="dcol">${dnum(i, 'feed', '.1')}</td>
       <td>${nfield('.1', `data-b="${i}" data-k="rot"
@@ -75,6 +110,7 @@ export function paneModel(M: Model): string {
       <label>${T('tolP')} (mm)</label>${nfield('.05', 'data-t="point"', M.tol.point)}</div></div>
   </div></div>
   <div class="grp"><div class="eyebrow">${T('bends')}<span class="n">${M.bends.length}</span></div><div class="body">
+    <div id="fabnote">${fab}</div>
     <div class="tw"><table class="lra"><thead><tr>
       <th>${T('nBend')}</th><th>${T('ori')}</th>
       <th>${T('straight')}</th><th class="dcol">${d}</th>

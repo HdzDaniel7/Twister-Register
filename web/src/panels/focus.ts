@@ -12,6 +12,7 @@
 import * as E from '../engine.ts';
 import { ST, V } from '../state.ts';
 import { $, fx, nx } from './fmt.ts';
+import { feasNote } from './model.ts';
 
 const CELL_ATTRS = ['b', 'bd', 'st', 'p', 'mk', 'tw', 'm', 's', 't', 'c', 'pr', 'pl', 'plp'];
 
@@ -85,7 +86,7 @@ export function updateModelDerived(): boolean {
     const st = row.querySelector<HTMLInputElement>('input[data-st]');
     if (st) {
       if (st !== act) st.value = nx(BASE[i].straight);
-      st.classList.toggle('v-bad', BASE[i].straight < 25);
+      st.classList.toggle('v-bad', BASE[i].straight < E.STRAIGHT_MIN_MM);
     }
 
     put(row, 'arc', fx(LEN[i].arc, 2));
@@ -113,6 +114,15 @@ export function updateModelDerived(): boolean {
   if (foot) {
     put(foot, 'tstr', fx(E.tailStraight(M), 2));
     put(foot, 'dev', fx(E.developedLength(M), 2));
+  }
+  /* El aviso de fabricabilidad se recalcula aquí y no solo al reconstruir el
+     panel: teclear una recta pasa SIEMPRE por este camino dirigido, y es justo
+     tecleando cuando una recta se vuelve imposible. El hueco lo pinta
+     paneModel() aunque vaya vacío, así que siempre hay dónde escribir. */
+  const fab = $('#fabnote');
+  if (fab) {
+    const html = feasNote(M);
+    if (fab.innerHTML !== html) fab.innerHTML = html;
   }
   return true;
 }

@@ -193,6 +193,7 @@ web/
     engine/bend.ts        el doblez y su normalización
     engine/kinematics.ts  fk · ik · bendDecomp · buildPath · rowLengths
     engine/model.ts       variantes, deltas, edición de puntos PI
+    engine/feasible.ts    lo que la máquina NO puede hacer aunque cierre la geometría
     engine/fitting.ts     Kabsch, anclaje entre modelos, colocación
     engine/compensate.ts  pieza simulada, lazo, desviaciones, lote, resorte
     engine/expr.ts        la celda de compensación (parser propio, sin eval)

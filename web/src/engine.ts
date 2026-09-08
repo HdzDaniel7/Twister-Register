@@ -16,6 +16,7 @@ export * from './engine/math.ts';
 export * from './engine/bend.ts';
 export * from './engine/kinematics.ts';
 export * from './engine/model.ts';
+export * from './engine/feasible.ts';
 export * from './engine/fitting.ts';
 export * from './engine/compensate.ts';
 export * from './engine/expr.ts';

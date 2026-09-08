@@ -12,7 +12,7 @@
    en alemán significa fecha, así que el datum de medición es Bezug.        */
 type Lang = 'es' | 'en' | 'de';
 
-/** Las 227 claves que deben existir en LOS TRES diccionarios. Que falte una
+/** Las 233 claves que deben existir en LOS TRES diccionarios. Que falte una
  *  en alguno es, con esto, un error de compilación — ya no solo de prueba. */
 type I18nKey =
   | 'sub' | 'bNew' | 'bOpen' | 'bSave' | 'bRep' | 'bDemo' | 'layers' | 'datasets'
@@ -27,7 +27,8 @@ type I18nKey =
   | 'kbdNote' | 'twnote' | 'proc' | 'sbW' | 'sbT' | 'slip' | 'biasR' | 'noise'
   | 'seed' | 'simulate' | 'dNone' | 'deltas' | 'dA' | 'dR' | 'dF' | 'dP'
   | 'srcSim' | 'srcVerify' | 'srcMeas' | 'srcUnk' | 'impCsv' | 'impTip' | 'csvBad'
-  | 'csvComma' | 'csvCols' | 'csvFew' | 'csvShort' | 'fileUnread'
+  | 'csvComma' | 'csvCols' | 'csvFew' | 'csvShort' | 'fileUnread' | 'csvNear'
+  | 'fabHead' | 'fabNeg' | 'fabShort' | 'fabTail' | 'fabOver'
   | 'compSim' | 'compShort' | 'rowNoMeas'
   | 'batchUse' | 'batchTip' | 'batchOn' | 'batchHint' | 'spread' | 'spreadTip'
   | 'sbMeas' | 'sbUse' | 'sbNote' | 'sbCircular' | 'sbSpreadTip'
@@ -125,6 +126,12 @@ es: {
  csvComma: 'los decimales van con coma; hacen falta con punto',
  csvCols: '{n} columnas numéricas por línea: no se sabe cuáles son x,y,z. Exporta solo las coordenadas, o índice + coordenadas',
  csvFew: 'menos de tres puntos con coordenadas',
+ csvNear: 'los puntos {i} están a menos de {d} mm del anterior: dos PI pegados inventan un doblez. Revisa la extracción de la nube',
+ fabHead: 'Esta pieza no se puede fabricar como está:',
+ fabNeg: 'la recta que entra a {b} es NEGATIVA: los herramentales se cruzan.',
+ fabShort: 'la recta que entra a {b} no llega a {n} mm, que es lo que necesita el herramental.',
+ fabTail: 'la recta de salida no llega a {n} mm.',
+ fabOver: '{b} pide más de {n}° de desvío: los largos de esa fila salen topados.',
  fileUnread: 'el sistema no dejó leer el archivo (¿se movió, o lo tiene abierto otro programa?)',
  csvShort: 'Estas piezas traen MENOS puntos que el modelo. Los dobleces que faltan quedan SIN MEDIR y no se compensan:',
  compSim: 'CUIDADO: {n} de las piezas que alimentan este cálculo son SIMULADAS, no medidas. Lo que salga de aquí no describe ninguna barra real.',
@@ -272,6 +279,12 @@ en: {
  csvComma: 'decimals use a comma; they must use a period',
  csvCols: '{n} numeric columns per line: cannot tell which are x,y,z. Export only the coordinates, or index + coordinates',
  csvFew: 'fewer than three points with coordinates',
+ csvNear: 'points {i} sit less than {d} mm from the previous one: two PI on top of each other invent a bend. Check the point extraction',
+ fabHead: 'This part cannot be made as it stands:',
+ fabNeg: 'the straight feeding {b} is NEGATIVE: the tools would collide.',
+ fabShort: 'the straight feeding {b} falls short of the {n} mm the tooling needs.',
+ fabTail: 'the exit straight falls short of {n} mm.',
+ fabOver: '{b} asks for more than {n}° of deflection: the lengths on that row come out capped.',
  fileUnread: 'the system would not read the file (was it moved, or is another program holding it open?)',
  csvShort: 'These parts carry FEWER points than the model. The missing bends stay UNMEASURED and are not compensated:',
  compSim: 'WARNING: {n} of the parts feeding this calculation are SIMULATED, not measured. What comes out of here does not describe any real bar.',
@@ -412,6 +425,12 @@ de: {
  csvComma: 'Dezimaltrennzeichen ist ein Komma; es muss ein Punkt sein',
  csvCols: '{n} numerische Spalten je Zeile: x,y,z nicht erkennbar. Exportiere nur die Koordinaten oder Index + Koordinaten',
  csvFew: 'weniger als drei Punkte mit Koordinaten',
+ csvNear: 'die Punkte {i} liegen weniger als {d} mm vom vorherigen entfernt: zwei Schnittpunkte aufeinander erfinden eine Biegung. Punktextraktion prüfen',
+ fabHead: 'Dieses Teil lässt sich so nicht fertigen:',
+ fabNeg: 'die Gerade vor {b} ist NEGATIV: die Werkzeuge kollidieren.',
+ fabShort: 'die Gerade vor {b} erreicht die vom Werkzeug benötigten {n} mm nicht.',
+ fabTail: 'die Auslaufgerade erreicht {n} mm nicht.',
+ fabOver: '{b} verlangt mehr als {n}° Auslenkung: die Längen dieser Zeile sind gekappt.',
  fileUnread: 'Datei vom System nicht lesbar (verschoben, oder von einem anderen Programm geöffnet?)',
  csvShort: 'Diese Teile enthalten WENIGER Punkte als das Modell. Die fehlenden Biegungen bleiben UNGEMESSEN und werden nicht kompensiert:',
  compSim: 'ACHTUNG: {n} der Teile in dieser Rechnung sind SIMULIERT, nicht gemessen. Das Ergebnis beschreibt keine reale Stange.',

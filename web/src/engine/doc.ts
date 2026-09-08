@@ -279,7 +279,9 @@ export type CsvReason =
   /** decimales con coma: `1,5` son dos columnas, no un número y medio */
   | 'decimalComma'
   /** más de cuatro columnas numéricas: no se sabe cuáles son las coordenadas */
-  | 'tooManyColumns';
+  | 'tooManyColumns'
+  /** dos PI consecutivos prácticamente en el mismo sitio: ver PI_MIN_MM */
+  | 'coincident';
 
 export type CsvParse = {
   pts: Vector3[];
@@ -288,7 +290,30 @@ export type CsvParse = {
   cols: number;
   /** líneas con tres números o más que NO encajaban y se descartaron */
   skipped: number;
+  /** índices del SEGUNDO punto de cada pareja demasiado junta. Vacío si no las
+   *  hay; con algo dentro, `pts` viene vacío y `reason` es 'coincident'. */
+  near: number[];
 };
+
+/** Distancia mínima entre dos PI consecutivos para creerle la dirección al
+ *  segmento que los une.
+ *
+ *  `ik()` normaliza `w = P[i+1] - P[i]` y solo se protege de que el largo sea
+ *  CERO exacto. Dos puntos a 0.3 mm pasan esa guarda y dan una dirección que es
+ *  casi todo ruido de medición: de ahí sale un doblez inventado, y como lo que
+ *  se guarda es el GIRO respecto de la estación anterior, la fila siguiente
+ *  hereda la basura. Es el mismo mecanismo que AXIS_MIN_DEG, un escalón antes.
+ *
+ *  VALOR PROVISIONAL, por el mismo motivo que AXIS_MIN_DEG: la regla es `5σ` y
+ *  σ no está medida (`.auditoria/solicitud-datos.md`, punto A.6). 1.0 mm es
+ *  conservador y no puede rechazar una pieza sana: entre dos PI de verdad hay
+ *  la recta más los dos trims —decenas de milímetros— y un PI a 1 mm del
+ *  anterior implicaría una recta muy negativa, que es geometría imposible.
+ *
+ *  Se rechaza el archivo ENTERO en vez de fusionar los puntos: dos PI pegados
+ *  significan que la extracción de la nube salió mal, y una pieza importada a
+ *  medias es peor que ninguna —se compensa contra ella sin que nadie lo note. */
+export const PI_MIN_MM = 1.0;
 
 /** Lee puntos de un CSV, y dice qué encontró.
  *
@@ -323,7 +348,7 @@ export function parsePointsCsv(txt: string): CsvParse {
   /* Solo las líneas con tres números o más pueden ser puntos; el encabezado y
      las de unidades caen aquí sin hacer ruido, como siempre. */
   const datos = lines.map(numsOf).filter(n => n.length >= 3);
-  if (!datos.length) return { pts: [], reason: 'empty', cols: 0, skipped: 0 };
+  if (!datos.length) return { pts: [], reason: 'empty', cols: 0, skipped: 0, near: [] };
 
   /* Cuántas columnas tiene la MAYORÍA. La moda, no el máximo: una línea
      corrupta no debe decidir cómo se lee el archivo entero. */
@@ -336,7 +361,8 @@ export function parsePointsCsv(txt: string): CsvParse {
     /* Un `1,5;2,5;3,5` europeo se parte en seis números y cae justo aquí. Vale
        la pena distinguirlo, porque la causa y el arreglo son otros. */
     const coma = lines.some(l => /\d[,]\d/.test(l) && /[;\t]/.test(l));
-    return { pts: [], reason: coma ? 'decimalComma' : 'tooManyColumns', cols, skipped: datos.length };
+    return { pts: [], reason: coma ? 'decimalComma' : 'tooManyColumns',
+             cols, skipped: datos.length, near: [] };
   }
 
   const pts: Vector3[] = [];
@@ -349,7 +375,17 @@ export function parsePointsCsv(txt: string): CsvParse {
     const xyz = n.slice(-3);
     pts.push(new Vector3(xyz[0], xyz[1], xyz[2]));
   }
-  return { pts, reason: pts.length ? 'ok' : 'empty', cols, skipped };
+  /* Dos PI pegados dan una dirección de puro ruido y de ahí un doblez que no
+     existe. Se mira aquí, en la frontera, y no dentro de ik(): editar un punto
+     a mano puede pasar por un estado intermedio raro, pero un ARCHIVO con dos
+     PI a décimas de milímetro está mal extraído y no hay nada que salvar. */
+  const near: number[] = [];
+  for (let i = 1; i < pts.length; i++) {
+    if (pts[i].distanceTo(pts[i - 1]) < PI_MIN_MM) near.push(i);
+  }
+  if (near.length) return { pts: [], reason: 'coincident', cols, skipped, near };
+
+  return { pts, reason: pts.length ? 'ok' : 'empty', cols, skipped, near };
 }
 
 /** Solo los puntos. Se mantiene porque es lo que consumen los sitios a los que

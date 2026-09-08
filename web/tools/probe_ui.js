@@ -310,6 +310,23 @@ step('vaciar una celda y salirse NO escribe un cero', () => {
   near(+q('input[data-st="7"]').value, antes, 0.006, 'el campo no se restauro');
 });
 
+/* Una recta negativa son dos herramentales en el mismo sitio, y hasta ahora
+   solo se veía como una celda en rojo: había que estar mirando esa columna. */
+step('una recta imposible saca un aviso que nombra el doblez', () => {
+  click('[data-md="model"]');
+  click('#tabs [data-t="model"]');
+  const aviso = () => document.querySelector('#fabnote .warnbox');
+  if (aviso()) throw new Error('la demo ya venía con un aviso');
+  const antes = recta(3);
+  setval('input[data-st="3"]', '-40');
+  const w = aviso();
+  if (!w) throw new Error('recta de -40 mm y ningún aviso');
+  if (!/B4/.test(w.textContent)) throw new Error('no dice qué doblez: ' + w.textContent);
+  if (!/NEGATIVA/.test(w.textContent)) throw new Error('no distingue el cruce: ' + w.textContent);
+  setval('input[data-st="3"]', String(antes));
+  if (aviso()) throw new Error('el aviso no se fue al arreglarlo');
+});
+
 step('entrar en una celda deja su valor seleccionado', () => {
   /* <input type=number> no expone selectionStart, así que se prueba por
      conducta: al enfocar y teclear, lo escrito REEMPLAZA en vez de añadirse. */
@@ -772,6 +789,21 @@ step('un archivo ilegible no cuelga el lote: se dice cuál y siguen los demás',
   if (!r.malos[0].includes('lote_C_roto.csv')) throw new Error('no dice cuál falló: ' + r.malos[0]);
   if (r.malos[0] === 'lote_C_roto.csv') throw new Error('no dice por qué falló');
   hotkey('z', { ctrlKey: true });
+});
+step('un CSV con dos PI pegados se rechaza diciendo cuál', () => {
+  const B = window.BARCOMP;
+  const antes = S().datasets.length;
+  /* el PI 2 a tres décimas del 1: la extracción de la nube salió mal, y la
+     dirección de ese segmento sería puro ruido de medición */
+  const pis = B.E.fk(S().model).pis;
+  const csv = 'idx;x;y;z\n' + pis.map((p, i) => {
+    const q = i === 2 ? pis[1] : p;
+    return `${i};${(q.x + (i === 2 ? 0.3 : 0)).toFixed(3)};${q.y.toFixed(3)};${q.z.toFixed(3)}`;
+  }).join('\n');
+  const r = B.importCsvBatch([{ text: csv, name: 'lote_E_pegado.csv' }]);
+  if (S().datasets.length !== antes) throw new Error('creó la pieza igualmente');
+  if (r.malos.length !== 1) throw new Error('no informó: ' + JSON.stringify(r.malos));
+  if (!/\b3\b/.test(r.malos[0])) throw new Error('no dice qué punto: ' + r.malos[0]);
 });
 step('un CSV corto entra pero se cuenta como incompleto', () => {
   const B = window.BARCOMP;
