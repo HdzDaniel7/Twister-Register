@@ -876,6 +876,35 @@ step('un CSV con dos PI pegados se rechaza diciendo cuál', () => {
   if (r.malos.length !== 1) throw new Error('no informó: ' + JSON.stringify(r.malos));
   if (!/\b3\b/.test(r.malos[0])) throw new Error('no dice qué punto: ' + r.malos[0]);
 });
+step('un CSV de DESVIACIONES no entra como si fuera una barra perfecta', () => {
+  const B = window.BARCOMP;
+  const antes = S().datasets.length;
+  /* Cómo se cuela: un informe de inspección exporta idx + la desviación en
+     x,y,z en vez de la coordenada. Tres columnas numéricas, decimales con
+     punto: pasa las guardas anteriores. Y una nube de desviaciones es,
+     geométricamente, una barra rectísima de unos milímetros de largo — o sea
+     una pieza sin ninguna desviación.
+
+     Las desviaciones van de VARIOS milímetros a propósito, que es lo que da una
+     pieza fuera de tolerancia. Con décimas de milímetro esto lo caza antes el
+     guardia de PI pegados; el hueco que quedaba abierto está justo encima de
+     PI_MIN_MM y muy por debajo del paso nominal, y es el que se prueba aquí. */
+  const pis = B.E.fk(S().model).pis;
+  const csv = 'idx;dx;dy;dz\n' + pis.map((_, i) =>
+    `${i};${(((i % 3) - 1) * 4).toFixed(3)}`
+    + `;${(i % 2 ? 3 : -3).toFixed(3)}`
+    + `;${(((i % 4) - 1.5) * 2.5).toFixed(3)}`).join('\n');
+  const r = B.importCsvBatch([{ text: csv, name: 'lote_F_desviacion.csv' }]);
+  if (S().datasets.length !== antes) throw new Error('creó la pieza igualmente');
+  if (r.malos.length !== 1) throw new Error('no informó: ' + JSON.stringify(r.malos));
+  /* Y el aviso nombra el problema en vez de decir «no se importó»: tiene que
+     traer el paso que debería tener la pieza, que es lo que le dice a quien
+     exportó el archivo qué columna se equivocó. */
+  const nominal = B.E.piStep(pis).toFixed(1);
+  if (!r.malos[0].includes(nominal)) {
+    throw new Error(`el aviso no dice el paso nominal (${nominal}): ` + r.malos[0]);
+  }
+});
 step('un CSV corto entra pero se cuenta como incompleto', () => {
   const B = window.BARCOMP;
   const lineas = csvDePieza(4).split('\n');

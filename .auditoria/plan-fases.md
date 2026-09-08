@@ -232,17 +232,62 @@ espera anotada: `AXIS_MIN_DEG` y `COMP_DEFAULT.dead` (A.6), `PI_MIN_MM = 1.0` (A
 
 ## Fase 2 · Estructural — cuando lleguen los datos
 
-Cada punto dice de qué respuesta depende. Hasta entonces, no se empieza.
+**ARRANCADA 2026-09-08.** Los datos externos NO han llegado: no hay ningún export
+de ZEISS ni ningún programa de máquina en el repo ni en `.auditoria/`. Los tres
+puntos 🔴 siguen sin poder empezar, y no se empiezan: inventar el formato es
+peor que esperarlo, porque el error no se ve hasta que la barra está doblada.
 
-- [ ] **[C2 completo] Mapeo de columnas por cabecera · [O]** — ⛔ depende de **A.1** (un
-      export real). Con el archivo delante: leer encabezado, mapear por nombre, y un diálogo
-      que muestre las columnas detectadas, los tres primeros puntos y el conteo antes de
-      crear el dataset.
+Lo que sí se hizo, que es todo lo que no dependía de una respuesta:
+
+- **Los dos correos, listos para enviar** — `.auditoria/correo-a-metrologia.md`
+  y `.auditoria/correo-b-maquina.md`. El documento largo sigue siendo la fuente;
+  esto es lo que se manda, cada uno a su destinatario, con la petición delante y
+  el porqué detrás. A.1 y A.3 encabezan el de metrología; B.1 y B.2 el de la
+  máquina. **Es el único trabajo que desbloquea el resto de la fase, y no es
+  trabajo de software.**
+- **La mitad de C2 que no dependía de A.1** — ver abajo.
+- **M16 / D4 resuelto** — ver abajo.
+
+Cada punto pendiente dice de qué respuesta depende.
+
+- [~] **[C2] Mapeo de columnas por cabecera · [O]** — partido en dos.
+
+      **Hecho, sin necesitar A.1:** la guarda de ESCALA (`csvScaleOk`,
+      `SCALE_MIN_RATIO = 0.25`). Tapa el agujero que quedaba después de la Fase 0
+      y que era el motivo entero de pedir A.1: un export cuyas tres últimas
+      columnas son la DESVIACIÓN y no la coordenada pasa todas las guardas
+      anteriores —tres columnas numéricas, decimales con punto, ningún PI
+      pegado— y entra como una pieza perfecta, porque una nube de desviaciones
+      es geométricamente una barra rectísima y diminuta. Ahora se compara el
+      paso medio entre PI contra el del nominal, que el visor ya tiene cargado:
+      no hace falta saber nada del formato del archivo.
+
+      El hueco real estaba entre `PI_MIN_MM` y el paso nominal. Con desviaciones
+      de décimas de milímetro la nube ya la cazaba el guardia de PI pegados;
+      con las de varios milímetros de una pieza FUERA de tolerancia, no la
+      cazaba nadie. Son dos órdenes de magnitud donde no miraba ninguna guarda.
+      De paso caza las unidades equivocadas —metros, pulgadas, centímetros—,
+      que es el mismo error con otra cara.
+
+      La comprobación es de UN SOLO LADO a propósito: a un escaneo al que le
+      faltan puntos intermedios se le funden dos tramos y su paso medio SUBE.
+      Eso no es un archivo malo, es una pieza medida a medias, y ya lo dice
+      `csvShort`. El aviso trae las dos medias, la del archivo y la del nominal,
+      porque «escala rara» manda a mirar el archivo a ojo y «avanzan 9.1 mm y
+      deberían 117.9» nombra la columna equivocada.
+
+      **Pendiente, ⛔ depende de A.1:** leer el encabezado y mapear por nombre, y
+      el diálogo que muestre las columnas detectadas, los tres primeros puntos y
+      el conteo antes de crear el dataset. Sin un archivo real, los nombres de
+      columna que se mapearían serían inventados.
 - [ ] **[C4] Prealineación de la nube al nominal · [O]** — ⛔ depende de **A.4** (qué
       alineación y qué datum). Si el export ya viene alineado al CAD, esto se reduce a
       verificar el residual; si viene en coordenadas de escáner, hay que llamar al
       `kabsch()` que ya existe y resolver el giro sobre x. Añadir `'end'` a `DatumMode`
       reutilizando `anchorTransform`.
+
+      No se adelanta nada: cuál de los dos caminos es decide la forma entera del
+      código, y construir los dos para tirar uno cuesta más que esperar.
 - [ ] **[B1/B2] Exportación de comandos a la máquina · [O]** — ⛔ depende de **B.1 y B.2**.
       Hoy no existe ninguna y los números se pasan a mano. Si la máquina lee CSV, es una
       función de 30 líneas junto a `expts`; lo caro no es escribirla, es acertar con las
@@ -274,8 +319,19 @@ Cada punto dice de qué respuesta depende. Hasta entonces, no se empieza.
 - [ ] **[M6] Medir la flecha por gravedad · [—]** — ⛔ depende de **A.5** (un escaneo de
       barra recta en el fixture). **Cero código**: es una medición que se mete como offset
       del nominal. Probablemente explica el estancamiento a ~5 mm en la punta.
-- [ ] **[M16 / D4] Dónde viven los JSON de piezas reales · [—]** — el repo es público. No
-      es decisión técnica.
+- [x] **[M16 / D4] Dónde viven los JSON de piezas reales · [—]** — resuelto
+      2026-09-08. El repo es público y sirve `index.html` por Pages; un `.json`
+      de BARCOMP lleva la geometría del cliente y las nubes medidas, y publicarlo
+      por descuido no se deshace —queda en el historial y en los clones que ya
+      se hicieran. `piezas/` existe para tener un sitio obvio donde dejarlos
+      mientras se trabaja, y `.gitignore` aparta todo lo que caiga dentro salvo
+      su `README.md`, que explica la convención de nombres y dice dónde viven de
+      verdad: la unidad de red del taller, no el repo.
+
+      Se eligió apartar la carpeta en vez de no crearla: sin un sitio obvio, los
+      archivos acaban en la raíz, y ahí el `.gitignore` no los ve. Publicar una
+      pieza de ejemplo sigue siendo posible con `git add -f`, que es un gesto
+      deliberado y no un descuido.
 
 **Criterio de cierre:** un export real de ZEISS entra al visor sin retoque manual y las
 desviaciones que muestra coinciden con las que calcula el informe de inspección; el comando

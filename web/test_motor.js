@@ -1287,6 +1287,74 @@ console.log('\n— PI coincidentes: dos puntos pegados inventan un doblez —');
 }
 
 /* ======================================================================== */
+console.log('\n— escala de la nube: una columna de desviación no es una barra —');
+{
+  /* El agujero que quedaba abierto después de la Fase 0. Un export de
+     inspección cuyas tres últimas columnas son la DESVIACIÓN pasa todas las
+     guardas anteriores —tres columnas, decimales con punto, ningún par de PI
+     pegado— y entra como una pieza perfecta, porque una nube de desviaciones
+     de décimas de milímetro alrededor del cero es una barra rectísima y
+     diminuta. Esta guarda no necesita saber el formato del archivo: compara
+     contra el nominal, que el visor ya tiene cargado. */
+  const nom = E.fk(E.demoModel()).pis;
+  const paso = E.piStep(nom);
+
+  ok('el nominal de la demo avanza decenas de mm por PI', paso > 20,
+     `${paso.toFixed(1)} mm`);
+
+  ok('la propia nube nominal pasa la guarda', E.csvScaleOk(nom, nom));
+
+  /* Una pieza medida de verdad: el nominal movido unos milímetros. */
+  const medida = nom.map(p => p.clone().add(new Vector3(0.4, -0.7, 0.2)));
+  ok('una pieza medida real pasa la guarda', E.csvScaleOk(medida, nom));
+
+  /* Lo que hay que cazar: la columna de desviación, ±0.5 mm sobre el cero. */
+  const desv = nom.map((_, i) => new Vector3(
+    Math.sin(i * 1.7) * 0.5, Math.cos(i * 2.3) * 0.5, Math.sin(i * 0.9) * 0.5));
+  ok('una nube de desviaciones se rechaza', !E.csvScaleOk(desv, nom),
+     `paso ${E.piStep(desv).toFixed(2)} mm vs ${paso.toFixed(1)} mm`);
+
+  /* El mismo error con otra cara: unidades. La peor de las tres es el
+     centímetro, y aun así queda a un factor 2.5 del umbral. */
+  for (const [nombre, k] of [['metros', 1 / 1000], ['pulgadas', 1 / 25.4], ['centímetros', 1 / 10]]) {
+    ok(`una nube en ${nombre} leída como mm se rechaza`,
+       !E.csvScaleOk(nom.map(p => p.clone().multiplyScalar(k)), nom));
+  }
+
+  /* De un solo lado, a propósito: a un escaneo al que le faltan puntos
+     intermedios se le funden dos tramos en uno y su paso medio SUBE. Eso no es
+     un archivo malo, es una pieza medida a medias, y ya lo dice csvShort. */
+  const huecos = nom.filter((_, i) => i % 2 === 0);
+  ok('una pieza con puntos de menos NO se rechaza por escala',
+     E.csvScaleOk(huecos, nom),
+     `paso ${E.piStep(huecos).toFixed(1)} mm vs ${paso.toFixed(1)} mm`);
+
+  /* Sin nada contra qué comparar, esta guarda no opina. */
+  ok('con un nominal degenerado la guarda se calla',
+     E.csvScaleOk(desv, []) && E.csvScaleOk(desv, [nom[0]]));
+
+  /* El hueco de verdad, y el motivo de que esta guarda exista: con décimas de
+     milímetro la nube de desviaciones ya la cazaba PI_MIN_MM, porque sus
+     puntos caen unos encima de otros. Pero una pieza FUERA de tolerancia da
+     desviaciones de varios milímetros, y esa nube pasa el guardia de PI
+     pegados con holgura. Entre PI_MIN_MM y el paso nominal había una franja de
+     dos órdenes de magnitud donde no miraba nadie. */
+  const fuera = nom.map((_, i) => new Vector3(
+    ((i % 3) - 1) * 4, i % 2 ? 3 : -3, ((i % 4) - 1.5) * 2.5));
+  const minFuera = fuera.slice(1).reduce(
+    (m, p, i) => Math.min(m, p.distanceTo(fuera[i])), Infinity);
+  ok('una desviación de varios mm pasa el guardia de PI pegados',
+     minFuera > E.PI_MIN_MM, `${minFuera.toFixed(1)} mm vs ${E.PI_MIN_MM} mm`);
+  ok('y aun así se rechaza por escala', !E.csvScaleOk(fuera, nom),
+     `paso ${E.piStep(fuera).toFixed(1)} mm vs ${paso.toFixed(1)} mm`);
+
+  /* El umbral tiene que dejar sitio de sobra por arriba y por abajo. */
+  ok('el umbral deja un factor 2.5 hasta el peor error de unidades real',
+     E.SCALE_MIN_RATIO > 0.1 * 2 && E.SCALE_MIN_RATIO < 0.5,
+     `${E.SCALE_MIN_RATIO}`);
+}
+
+/* ======================================================================== */
 console.log('\n— candado de convención (fixture congelado) —');
 {
   /* El sentido de giro no vive en los datos, vive en dos constantes. Cambiar

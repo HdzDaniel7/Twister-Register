@@ -38,6 +38,13 @@ desktop.ini
 .idea/
 *.swp
 
+# --------------------------------------------------------------- datos reales
+# El repo es PÚBLICO. Un .json de BARCOMP lleva la geometría del cliente y las
+# nubes medidas; subirlo por descuido no se deshace. Sube solo el README que
+# explica la convención (M16/D4 del plan de fases).
+piezas/*
+!piezas/README.md
+
 # ------------------------------------------------------------------- trabajo
 *.log
 tmp/

@@ -122,6 +122,9 @@ function addCsvPiece(txt: string, name: string): number {
   const pts = E.readPointsCsv(txt);
   /* con menos de tres puntos no hay ni un doblez que medir */
   if (pts.length < 3) return 0;
+  /* Ni con puntos a la escala equivocada: una columna de desviación entra por
+     aquí como una barra perfecta y se compensa contra ella. Ver csvScaleOk. */
+  if (!E.csvScaleOk(pts, E.fk(M).pis)) return 0;
   const ds = addDataset(E.measuredModel(M, pts), name, 'csv');
   return ds.model.bends.length + 2;
 }
@@ -164,6 +167,11 @@ export function importCsvBatch(files: { text: string; name: string }[],
         : p.reason === 'coincident' ? T('csvNear')
             .replace('{i}', p.near.map(i => i + 1).join(', '))
             .replace('{d}', String(E.PI_MIN_MM))
+        /* Si el archivo se leyó bien y aun así no entró, lo que queda es la
+           escala: el único rechazo que no decide parsePointsCsv. */
+        : p.pts.length >= 3 ? T('csvScale')
+            .replace('{n}', E.piStep(p.pts).toFixed(1))
+            .replace('{m}', E.piStep(E.fk(ST.model!).pis).toFixed(1))
         : T('csvFew');
       malos.push(`${f.name} — ${causa}`);
     } else if (n !== esperados) {

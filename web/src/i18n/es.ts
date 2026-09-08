@@ -81,6 +81,7 @@ export const es: Record<I18nKey, string> = {
  csvComma: 'los decimales van con coma; hacen falta con punto',
  csvCols: '{n} columnas numéricas por línea: no se sabe cuáles son x,y,z. Exporta solo las coordenadas, o índice + coordenadas',
  csvFew: 'menos de tres puntos con coordenadas',
+ csvScale: 'los puntos avanzan {n} mm de media y los del modelo {m} mm: esto no son coordenadas de la barra. Suele ser una columna de desviación exportada en lugar de la coordenada, o unidades que no son milímetros',
  csvNear: 'los puntos {i} están a menos de {d} mm del anterior: dos PI pegados inventan un doblez. Revisa la extracción de la nube',
  fabHead: 'Esta pieza no se puede fabricar como está:',
  fabNeg: 'la recta que entra a {b} es NEGATIVA: los herramentales se cruzan.',

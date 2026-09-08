@@ -80,7 +80,8 @@ web/                        ← motor TypeScript + visor three.js
     engine/compensate.ts       simulate · compensate · deviations · lote · springback
     engine/expr.ts             la celda de compensación (parser propio, sin eval)
     engine/doc.ts              esquema barcomp/2.3, migración de archivos anteriores
-    engine/csv.ts              la nube de PI: lectura tolerante (PI_MIN_MM) y escritura
+    engine/csv.ts              la nube de PI: lectura tolerante (PI_MIN_MM,
+                               SCALE_MIN_RATIO) y escritura
   src/i18n.ts               ← barril de i18n/: keys.ts (la unión de 239 claves) + es · en · de.
                               T() y LANG. La paridad es error de COMPILACIÓN, no solo de prueba.
   src/state.ts              ← ST: variantes, referencia, anclaje, capas, piezas medidas.
@@ -298,6 +299,8 @@ Todas puras y todas en `web/src/engine.js`, que no toca el DOM. Los mismos nombr
 | `placeTransform(place,pivot)` | → `Matrix4` | colocación en el espacio; identidad si no se tocó |
 | `nearestPoint(pts,q)` | → `{i,d}` | PI más cercano a una cota suelta |
 | `readPointsCsv(txt)` | → `Vector3[]` | las TRES ÚLTIMAS columnas numéricas de cada línea |
+| `piStep(pts)` | → `number` | paso medio entre PI consecutivos; media, no largo total |
+| `csvScaleOk(pts,nom)` | → `boolean` | ¿la nube está a la escala del nominal? caza columnas de desviación y unidades equivocadas |
 | `measuredModel(nom,pts)` | → `model` | pieza medida desde sus PI; radio y torsión del nominal |
 | `statOf(v)` | → `{med,mad,sigma,n}` | mediana y MAD; un PI mal extraído no mueve la mediana |
 | `bendStats(piezas)` | → `[{angle,rot,feed,n}]` | dispersión por doblez; llega hasta la pieza más LARGA |
@@ -1159,10 +1162,16 @@ con razón.
   `File.text()`+`allSettled` en `io.ts` (hoy un CSV ilegible cuelga el lote sin avisar),
   sacar `commit()` del bucle de importación, guarda de θ en `trimOf`, enseñar
   `machineFeeds`, banco de UI portable, fijar exacto esbuild y typescript.
-- **Fase 2 · Estructural** — ⛔ bloqueada hasta que lleguen los datos de
-  `.auditoria/solicitud-datos.md`: mapeo de columnas del export real, prealineación al
-  datum de ZEISS, **exportación de comandos a la máquina** (hoy no existe ninguna), CI que
-  verifica el artefacto, medición de la flecha por gravedad.
+- **Fase 2 · Estructural** — ⏳ ARRANCADA 2026-09-08, y **casi toda bloqueada**: los datos
+  de `.auditoria/solicitud-datos.md` no han llegado. Lo hecho es lo que no dependía de
+  ninguna respuesta: los dos correos listos para enviar
+  (`.auditoria/correo-a-metrologia.md` y `correo-b-maquina.md`), la guarda de ESCALA del
+  CSV, y la carpeta `piezas/` apartada del repo público (M16/D4).
+  Sigue ⛔: mapeo de columnas por nombre (necesita A.1), prealineación al datum de ZEISS
+  (A.4), **exportación de comandos a la máquina** —hoy no existe ninguna— (B.1 y B.2), y
+  la medición de la flecha por gravedad (A.5, cero código).
+  **No se inventa ninguno de esos formatos**: el error no se ve hasta que la barra está
+  doblada.
 - **Fase 3 · Cierre de beta** — pruebas de `history.ts`, resorte con n≥5 y dos niveles de
   ángulo, glifo de fuera de tolerancia.
 

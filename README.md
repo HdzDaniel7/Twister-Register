@@ -438,15 +438,20 @@ confirmar una celda no se reconstruye el panel, así que el foco nunca salta.
 
 ## Formato de archivo
 
-Esquema `barcomp/2.2`, un JSON con el modelo, los comandos de máquina, las
+Esquema `barcomp/2.3`, un JSON con el modelo, los comandos de máquina, las
 ganancias, los parámetros del simulador, las piezas medidas y los modelos
 comparados. Las claves `variants`, `ref` y `anchor` son opcionales: los archivos
 viejos siguen abriendo.
 
+Los archivos de piezas reales **no se versionan**: el repo es público y un
+`.json` lleva la geometría del cliente. La carpeta `piezas/` está apartada en
+`.gitignore` para tener dónde dejarlos sin que se cuelen en un commit; su
+`README.md` explica la convención.
+
 ### Archivos de versiones anteriores
 
-Han existido tres cinemáticas, y los mismos números describen otra pieza en cada
-una:
+Han existido cuatro esquemas, y los mismos números describen otra pieza en
+cada uno:
 
 | esquema | qué era `rot` |
 |---|---|
@@ -454,6 +459,14 @@ una:
 | `barcomp/2.0` | un rodado de verdad: la sección salía girada del doblez |
 | `barcomp/2.1` | la posición ABSOLUTA del eje del arco, declarada en cada fila |
 | `barcomp/2.2` | **cuánto GIRA** ese eje; el eje se sostiene entre estaciones |
+| `barcomp/2.3` | igual que 2.2, pero el ángulo y el rodado doblan al otro lado |
+
+Un `barcomp/2.2` **no se convierte**: se lee tal cual y se avisa. Del 2.2 al 2.3
+no cambió ningún número, cambió el motor —`ANG_DIR` y `ROT_DIR` pasaron a −1
+porque los datos del taller ya venían con ese sentido—, así que convertirlo
+deshacía el cambio. Lo que no se puede saber mirando la etiqueta es si ese
+archivo se escribió antes o después, y por eso se abre con la convención de hoy
+y se dice. Los que escribe esta versión salen ya como 2.3.
 
 Al abrir un archivo anterior se convierte solo, y la conversión no aproxima
 nada: del modelo viejo se sacan sus PI en el espacio (la forma real) y de ahí se
@@ -468,7 +481,7 @@ teclea.
 
 ```jsonc
 {
-  "schema": "barcomp/2.2",
+  "schema": "barcomp/2.3",
   "model": {
     "name": "...",
     "section": { "width": 40, "thickness": 12, "chamfer": 1.2, "endLen": 20 },

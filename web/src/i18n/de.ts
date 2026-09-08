@@ -87,6 +87,7 @@ export const de: Record<I18nKey, string> = {
  csvComma: 'Dezimaltrennzeichen ist ein Komma; es muss ein Punkt sein',
  csvCols: '{n} numerische Spalten je Zeile: x,y,z nicht erkennbar. Exportiere nur die Koordinaten oder Index + Koordinaten',
  csvFew: 'weniger als drei Punkte mit Koordinaten',
+ csvScale: 'die Punkte schreiten im Mittel {n} mm fort, die des Modells {m} mm: das sind keine Koordinaten der Stange. Meist wurde eine Abweichungsspalte statt der Koordinate exportiert, oder die Einheit ist nicht Millimeter',
  csvNear: 'die Punkte {i} liegen weniger als {d} mm vom vorherigen entfernt: zwei Schnittpunkte aufeinander erfinden eine Biegung. Punktextraktion prüfen',
  fabHead: 'Dieses Teil lässt sich so nicht fertigen:',
  fabNeg: 'die Gerade vor {b} ist NEGATIV: die Werkzeuge kollidieren.',

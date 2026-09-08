@@ -79,6 +79,7 @@ export const en: Record<I18nKey, string> = {
  csvComma: 'decimals use a comma; they must use a period',
  csvCols: '{n} numeric columns per line: cannot tell which are x,y,z. Export only the coordinates, or index + coordinates',
  csvFew: 'fewer than three points with coordinates',
+ csvScale: 'the points advance {n} mm on average and the model {m} mm: these are not coordinates of the bar. Usually a deviation column exported instead of the coordinate, or units that are not millimetres',
  csvNear: 'points {i} sit less than {d} mm from the previous one: two PI on top of each other invent a bend. Check the point extraction',
  fabHead: 'This part cannot be made as it stands:',
  fabNeg: 'the straight feeding {b} is NEGATIVE: the tools would collide.',

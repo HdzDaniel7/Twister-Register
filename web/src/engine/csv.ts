@@ -144,3 +144,54 @@ export const readPointsCsv = (txt: string): Vector3[] => parsePointsCsv(txt).pts
 export const writePointsCsv = (pts: Vector3[]): string =>
   'idx,x,y,z\n' + pts.map((p, i) =>
     `${i},${p.x.toFixed(4)},${p.y.toFixed(4)},${p.z.toFixed(4)}`).join('\n');
+
+/** Cuánto puede encogerse la nube importada respecto del nominal antes de que
+ *  deje de ser creíble que sean la misma pieza.
+ *
+ *  NO es una tolerancia. La tolerancia de la pieza se mide en otro sitio y en
+ *  milímetros; esto es un detector de error grosero, y por eso el margen es
+ *  enorme a propósito: tiene que ser imposible que salte con un archivo bueno.
+ *
+ *  Lo que caza, que es justo el agujero que quedaba abierto: un export de
+ *  ZEISS/GOM cuyas tres columnas finales son la DESVIACIÓN y no la coordenada.
+ *  Ese archivo pasa todas las guardas anteriores —tres columnas numéricas,
+ *  decimales con punto, ningún par de puntos pegado— y entra como una pieza
+ *  perfecta, porque una nube de desviaciones de ±0.5 mm alrededor del cero es
+ *  geométricamente una barra rectísima y diminuta. Nada avisaba.
+ *
+ *  De paso caza las unidades equivocadas, que es el mismo error con otra cara:
+ *  metros (nube 1000× menor), pulgadas leídas como mm (25.4×), centímetros
+ *  (10×). La peor de las tres, el centímetro, queda todavía a un factor 2.5 del
+ *  umbral.
+ *
+ *  La comprobación es de UN SOLO LADO, y eso también es deliberado: un escaneo
+ *  al que le faltan puntos intermedios funde dos tramos en uno y da un paso
+ *  medio MAYOR que el nominal. Eso no es un archivo malo —es una pieza medida a
+ *  medias, y ya lo dice el informe del lote— así que por arriba no se rechaza
+ *  nada. */
+export const SCALE_MIN_RATIO = 0.25;
+
+/** El paso medio entre PI consecutivos. Media y no largo total: si al escaneo
+ *  le faltan puntos, el largo total cae en proporción a lo que falta, pero la
+ *  media apenas se mueve.
+ *
+ *  Exportada porque el aviso al operario dice las DOS medias, la del archivo y
+ *  la del nominal. Un rechazo que solo dice «escala rara» manda a alguien a
+ *  mirar el archivo a ojo; uno que dice «avanzan 0.4 mm y deberían 112 mm»
+ *  nombra el problema. */
+export const piStep = (p: Vector3[]): number => {
+  if (p.length < 2) return 0;
+  let d = 0;
+  for (let i = 1; i < p.length; i++) d += p[i].distanceTo(p[i - 1]);
+  return d / (p.length - 1);
+};
+
+/** ¿La nube importada está a la escala del nominal?
+ *
+ *  Con un nominal degenerado (sin dos puntos, o de largo cero) devuelve `true`:
+ *  sin nada contra qué comparar, esta guarda no opina, y las otras siguen. */
+export function csvScaleOk(pts: Vector3[], nominal: Vector3[]): boolean {
+  const nom = piStep(nominal);
+  if (!(nom > 0)) return true;
+  return piStep(pts) >= nom * SCALE_MIN_RATIO;
+}

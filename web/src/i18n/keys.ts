@@ -21,6 +21,7 @@ export type I18nKey =
   | 'seed' | 'simulate' | 'dNone' | 'deltas' | 'dA' | 'dR' | 'dF' | 'dP'
   | 'srcSim' | 'srcVerify' | 'srcMeas' | 'srcUnk' | 'impCsv' | 'impTip' | 'csvBad'
   | 'csvComma' | 'csvCols' | 'csvFew' | 'csvShort' | 'fileUnread' | 'csvNear'
+  | 'csvScale'
   | 'fabHead' | 'fabNeg' | 'fabShort' | 'fabTail' | 'fabOver'
   | 'compSim' | 'compShort' | 'rowNoMeas'
   | 'batchUse' | 'batchTip' | 'batchOn' | 'batchHint' | 'spread' | 'spreadTip'
