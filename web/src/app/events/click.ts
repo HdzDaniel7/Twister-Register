@@ -8,7 +8,7 @@ import { drawRibbon } from '../../ribbon.ts';
 import { renderShell, renderLeft, renderRight, renderPanels } from '../../panels.ts';
 import type { DatumMode, Mode } from '../../types.ts';
 import type { ViewName } from '../../scene.ts';
-import { $ } from '../dom.ts';
+import { $ } from '../../dom.ts';
 import { refresh, renderAll, selectBend, setMode, openDrawer } from '../render.ts';
 import { setTheme } from '../theme.ts';
 import { action, variantById, varActivate, varDuplicate, varDelete } from '../actions.ts';

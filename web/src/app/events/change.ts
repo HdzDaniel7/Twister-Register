@@ -18,7 +18,7 @@ import { rebuildScene } from '../../scene.ts';
 import { renderShell, renderLeft, renderRight, renderStatus } from '../../panels.ts';
 import type { AnchorMode, DeltaKey } from '../../types.ts';
 import { safeColor } from '../../safe.ts';
-import { $ } from '../dom.ts';
+import { $ } from '../../dom.ts';
 import { refresh } from '../render.ts';
 import { commit } from '../history.ts';
 import {

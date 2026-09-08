@@ -6,22 +6,21 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import { edgeBinary, pageUrl, makeProfile, HEADLESS_FLAGS } from './edge.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
-const EDGE = 'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe';
+const EDGE = edgeBinary();
 /* puerto único por proceso: Edge deja un navegador vivo aunque se mate el
    lanzador, y un puerto reutilizado devuelve el target del zombi. */
 const PORT = 9411 + (process.pid % 400);
-const PAGE = process.argv[2]
-  || 'file:///C:/Users/dany_/Desktop/Programas/Twister Register/index.html';
+const PAGE = pageUrl(process.argv[2]);
 const PROBE = process.argv[3] || path.join(HERE, 'probe_ui.js');
-const PROFILE_DIR = path.join(HERE, 'ep_' + process.pid);
+const PROFILE_DIR = makeProfile('ep_');
 
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 
 const child = spawn(EDGE, [
-  '--headless=new', '--disable-gpu', '--enable-unsafe-swiftshader', '--no-first-run',
-  '--no-default-browser-check', '--disable-extensions',
+  ...HEADLESS_FLAGS,
   `--remote-debugging-port=${PORT}`,
   '--user-data-dir=' + PROFILE_DIR,
   '--window-size=1680,960',

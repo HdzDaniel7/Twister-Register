@@ -8,7 +8,7 @@
 import * as E from '../../engine.ts';
 import { onResize } from '../../scene.ts';
 import { ST } from '../../state.ts';
-import { $ } from '../dom.ts';
+import { $ } from '../../dom.ts';
 
 const clamp = E.clamp;
 

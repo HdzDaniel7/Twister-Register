@@ -5,7 +5,7 @@
    al salir del campo), no `input`.
 
    Los controles se cablean por delegación con atributos data-* (ver bind()
-   en app.js). Para agregar un botón basta con darle el atributo correcto.   */
+   en app.ts). Para agregar un botón basta con darle el atributo correcto.   */
 /* Este archivo es solo un barril: reexporta `panels/*.ts`, partido por
    responsabilidad (formato y atajos compartidos, armazón, panel izquierdo,
    el foco a través del render, y un archivo por pestaña/bloque del lateral

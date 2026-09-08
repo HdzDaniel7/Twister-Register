@@ -12,7 +12,7 @@
    en alemán significa fecha, así que el datum de medición es Bezug.        */
 type Lang = 'es' | 'en' | 'de';
 
-/** Las 236 claves que deben existir en LOS TRES diccionarios. Que falte una
+/** Las 239 claves que deben existir en LOS TRES diccionarios. Que falte una
  *  en alguno es, con esto, un error de compilación — ya no solo de prueba. */
 type I18nKey =
   | 'sub' | 'bNew' | 'bOpen' | 'bSave' | 'bRep' | 'bDemo' | 'layers' | 'datasets'
@@ -39,7 +39,7 @@ type I18nKey =
   | 'soloOn' | 'soloOff' | 'soloTip' | 'rotAxisTip' | 'rotHeadTip'
   | 'history' | 'undo' | 'redo' | 'histNote'
   | 'srcSimTip' | 'srcVerifyTip' | 'srcMeasTip' | 'srcUnkTip'
-  | 'statMaxA' | 'statRms' | 'statTip' | 'statOut' | 'gains' | 'gainW' | 'gainT' | 'what'
+  | 'statMaxA' | 'statRms' | 'statTip' | 'statOut' | 'gains' | 'gainW' | 'gainT' | 'gainR' | 'gainF' | 'gainNote' | 'what'
   | 'cAng' | 'cRot' | 'cFeed' | 'apply' | 'reset' | 'cmdTbl' | 'cNow' | 'cNew'
   | 'cDelta' | 'predict' | 'verify' | 'noMeas' | 'stLen' | 'stBends' | 'stDatum' | 'stMax'
   | 'stUnits' | 'stVer' | 'stVerTip'
@@ -94,6 +94,8 @@ es: {
  statMaxA: 'Δ desvío máx.', statRms: 'RMS desvío', statTip: 'Desv. punta libre',
  statOut: 'Fuera de tol.',
  gains: 'Ganancias de corrección', gainW: 'Ganancia canto', gainT: 'Ganancia plano',
+ gainR: 'Ganancia rodado', gainF: 'Ganancia avance',
+ gainNote: 'El rodado y el avance llevan ganancia propia porque no son la misma magnitud que el doblez. «Canto» y «plano» son constantes de recuperación elástica: cuánto se abre la barra al soltarla. El rodado no tiene resorte —se corregía entero, o sea a ganancia 1.0, que es justo lo que se prohíbe para el ángulo porque oscila con el ruido de medición— y al avance lo desvía el deslizamiento, que es otro fenómeno.',
  what: 'Qué corregir', cAng: 'Ángulos de doblez', cRot: 'Rodado', cFeed: 'Avances',
  apply: 'Aplicar compensación', reset: 'Restablecer comandos',
  cmdTbl: 'Comandos de máquina', cNow: 'Actual', cNew: 'Nuevo', cDelta: 'Δ',
@@ -252,6 +254,8 @@ en: {
  statMaxA: 'Max Δ deflection', statRms: 'Deflection RMS', statTip: 'Free-end deviation',
  statOut: 'Out of tol.',
  gains: 'Correction gains', gainW: 'Hard-way gain', gainT: 'Easy-way gain',
+ gainR: 'Roll gain', gainF: 'Feed gain',
+ gainNote: 'Roll and feed carry their own gain because they are not the same quantity as the bend. "Hard way" and "easy way" are springback constants: how far the bar opens when released. Roll has no spring — it was corrected in full, that is at gain 1.0, exactly what is forbidden for the angle because it oscillates with measurement noise — and feed is thrown off by slip, which is a different phenomenon.',
  what: 'What to correct', cAng: 'Bend angles', cRot: 'Roll', cFeed: 'Feeds',
  apply: 'Apply compensation', reset: 'Reset commands',
  cmdTbl: 'Machine commands', cNow: 'Current', cNew: 'New', cDelta: 'Δ',
@@ -401,6 +405,8 @@ de: {
  statOut: 'Außer Toleranz',
  gains: 'Korrekturverstärkungen', gainW: 'Verstärkung hochkant',
  gainT: 'Verstärkung flach',
+ gainR: 'Verstärkung Rollung', gainF: 'Verstärkung Vorschub',
+ gainNote: 'Rollung und Vorschub haben eigene Verstärkungen, weil sie nicht dieselbe Größe sind wie die Biegung. »Hochkant« und »flach« sind Rückfederungskonstanten: wie weit sich der Stab beim Loslassen öffnet. Die Rollung hat keine Feder — sie wurde ganz korrigiert, also mit Verstärkung 1,0, genau das, was beim Winkel verboten ist, weil es mit dem Messrauschen schwingt — und den Vorschub verschiebt der Schlupf, ein anderes Phänomen.',
  what: 'Was korrigieren', cAng: 'Biegewinkel', cRot: 'Rollung', cFeed: 'Vorschübe',
  apply: 'Kompensation anwenden', reset: 'Befehle zurücksetzen',
  cmdTbl: 'Maschinenbefehle', cNow: 'Aktuell', cNew: 'Neu', cDelta: 'Δ',

@@ -4,6 +4,9 @@
   "private": true,
   "description": "BARCOMP — motor JavaScript + visor Three.js. Se compila a un solo HTML offline.",
   "type": "module",
+  "engines": {
+    "node": ">=22.18"
+  },
   "scripts": {
     "build": "node build.mjs",
     "test": "node test_motor.js",
@@ -12,11 +15,11 @@
     "check": "npm run typecheck && npm test && npm run build && npm run test:ui"
   },
   "devDependencies": {
-    "@types/three": "^0.185.4",
-    "esbuild": "^0.28.2",
-    "typescript": "^7.0.2"
+    "@types/three": "0.185.4",
+    "esbuild": "0.28.2",
+    "typescript": "7.0.2"
   },
   "dependencies": {
-    "three": "^0.185.1"
+    "three": "0.185.1"
   }
 }

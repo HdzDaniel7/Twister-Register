@@ -21,7 +21,7 @@
   /* MODELAR: ancho de la tabla a la derecha. COMPENSAR: alto de la banda 3D. */
   --btW:760px; --compVP:250px;
 
-  /* Todo lo que antes iba en crudo dentro del CSS, de scene.js y de ribbon.js.
+  /* Todo lo que antes iba en crudo dentro del CSS, de scene/ y de ribbon.ts.
      El 3D y la cinta LEEN estos tokens en tiempo de ejecución, así que aquí
      está el color de la aplicación entera, tema por tema. */
   --vpbg:#080A0E; --grid1:#2A3546; --grid2:#1A212C; --fixture:#3A4658;

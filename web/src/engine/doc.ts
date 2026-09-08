@@ -1,5 +1,5 @@
 /* =========================================================================
-   ESQUEMA Y DOCUMENTO — el esquema `barcomp/2.2`, la lectura/escritura del
+   ESQUEMA Y DOCUMENTO — el esquema `barcomp/2.3`, la lectura/escritura del
    JSON y la migración de archivos de versiones anteriores.
 
    Es el MISMO esquema JSON que usa python/barcomp/core.py, así que los

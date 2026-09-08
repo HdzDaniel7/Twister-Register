@@ -17,6 +17,7 @@ import * as E from '../engine.ts';
 import { ST, refModel, placeMatrix } from '../state.ts';
 import { T } from '../i18n.ts';
 import { esc, safeColor } from '../safe.ts';
+import { $ } from '../dom.ts';
 import type { ExtraLabel, PickHandler, Disposable, GizmoArm } from './types.ts';
 
 export let renderer: WebGLRenderer, scene: Scene, camera: PerspectiveCamera, controls: OrbitControls;
@@ -43,7 +44,7 @@ let onPick: PickHandler = () => {};
 export const setOnPick = (fn: PickHandler): void => { onPick = fn; };
 export const markDirty = (): void => { dirty = true; };
 
-const $ = <T extends Element = HTMLElement>(s: string): T | null => document.querySelector<T>(s);
+
 export const V3 = (x?: number, y?: number, z?: number): Vector3 => new Vector3(x, y, z);
 /** Lee un token de color de :root. Ni el 3D ni la cinta llevan colores
  *  propios: los toman del CSS en tiempo de ejecución, así que el tema claro se

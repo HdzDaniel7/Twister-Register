@@ -29,6 +29,9 @@
    motor de cinemática.
    ========================================================================= */
 const PREC: Record<string, number> = { '+': 1, '-': 1, '*': 2, '/': 2 };
+/** Un numero completo: digitos con un punto opcional, o un punto y digitos.
+ *  Sin signo: el menos lo trae el tokenizador como operador unario. */
+const NUM = /^(?:\d+(?:\.\d*)?|\.\d+)$/;
 
 /** Un token de la expresión: un número, la variable `c`, un paréntesis o un
  *  operador. */
@@ -49,7 +52,13 @@ function tokenize(src: string): Tok[] | null {
     if ((ch >= '0' && ch <= '9') || ch === '.') {
       let j = i;
       while (j < src.length && ((src[j] >= '0' && src[j] <= '9') || src[j] === '.')) j++;
-      const v = parseFloat(src.slice(i, j));
+      /* El trozo entero tiene que SER un numero, no empezar por uno. parseFloat
+         se para en el segundo punto y devuelve 1.2 para «1.2.3»: la celda se
+         quedaba con un valor que nadie escribio, y sin decirlo. Ahora no se
+         entiende, y con eso la celda lo marca en rojo en vez de tragarselo. */
+      const raw = src.slice(i, j);
+      if (!NUM.test(raw)) return null;
+      const v = parseFloat(raw);
       if (!isFinite(v)) return null;
       out.push({ t: 'num', v });
       i = j;

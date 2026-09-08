@@ -12,7 +12,7 @@
 
    DOS DOBLECES POR ESTACIÓN, NO UN GIRO Y UN DOBLEZ
    -------------------------------------------------
-   Convención LRA, la de las dobladoras (esquema barcomp/2.2):
+   Convención LRA, la de las dobladoras (esquema barcomp/2.3):
 
        T  <-  T · Trans(feed,0,0) · Rot(n(rot), angle) · Rx(twist)
 

@@ -863,6 +863,18 @@ console.log('\n— expresiones en la celda de compensación —');
      malos.filter(t => E.evalCell(t, 1) !== null).join(' ') || 'todos rechazados');
   ok('un número suelto ignora el valor calculado',
      E.evalCell('7', 999) === 7);
+
+  /* parseFloat se para en el segundo punto: «1.2.3» daba 1.2, o sea la celda se
+     quedaba con un valor que nadie escribió y sin decirlo. El trozo entero
+     tiene que SER un número, no empezar por uno. */
+  const dobles = ['1.2.3', '..5', '1..2', '3.4.', 'c+1.2.3'];
+  ok('un número con dos puntos no se acepta a medias',
+     dobles.every(t => E.evalCell(t, 1) === null),
+     dobles.filter(t => E.evalCell(t, 1) !== null)
+           .map(t => `${t} -> ${E.evalCell(t, 1)}`).join(' ') || 'todos rechazados');
+  /* Y lo que SÍ es un número sigue entrando en sus tres formas. */
+  ok('y las tres formas legítimas siguen entrando',
+     E.evalCell('1.5', 0) === 1.5 && E.evalCell('.5', 0) === .5 && E.evalCell('2.', 0) === 2);
 }
 
 /* ---------------------------------------------------------------------- */

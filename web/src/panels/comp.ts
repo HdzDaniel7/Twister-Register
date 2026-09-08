@@ -10,8 +10,41 @@ import * as E from '../engine.ts';
 import { T } from '../i18n.ts';
 import type { Model } from '../types.ts';
 import { ST, activeDataset, syncTweak, loopPieces, loopMeasured } from '../state.ts';
-import { fx, cls, nfield, oriTag, sgn, srcTag } from './fmt.ts';
+import { fx, cls, esc, nfield, oriTag, sgn, srcTag } from './fmt.ts';
 import type { I18nKey } from './fmt.ts';
+
+/** Las ganancias del RODADO y del AVANCE, cada una solo cuando su corrección
+ *  está encendida: dos mandos que no hacen nada son ruido en un panel que ya
+ *  está lleno.
+ *
+ *  Van aparte de gainW/gainT porque no son la misma magnitud. `gainW` y
+ *  `gainT` son constantes de recuperación elástica —cuánto se abre la barra al
+ *  soltarla, y eso depende del plano en que se dobló—. El rodado no tiene
+ *  resorte: se corregía entero, o sea a ganancia 1.0, que es justo lo que se
+ *  prohíbe para el ángulo porque oscila con el ruido de medición. Y el avance
+ *  se corregía con la constante elástica, cuando lo que lo desvía es el
+ *  deslizamiento, que es otro fenómeno.
+ *
+ *  La rejilla de las ganancias es `fgrid pair` —dos pares etiqueta/campo por
+ *  renglón— justamente por esto: con las cuatro encendidas, un par por renglón
+ *  empujaba la tabla de comandos hacia abajo y se dejaba de ver la mitad de las
+ *  filas. En COMPENSAR manda la tabla. */
+function gainExtra(C: typeof ST.comp): string {
+  /* El porqué va en el tooltip y no en una línea de ayuda: el modo Compensar
+     es el «modo taller», donde la tabla de comandos manda, y cada línea de
+     texto que se añade arriba son filas de comando que se dejan de ver. */
+  const tip = ` title="${esc(T('gainNote'))}"`;
+  const out: string[] = [];
+  if (C.doRot) {
+    out.push(`<label${tip}>${T('gainR')}</label>`
+      + nfield('.05', `min="0" max="1" data-c="gainR"${tip}`, C.gainR ?? E.COMP_DEFAULT.gainR));
+  }
+  if (C.doFeed) {
+    out.push(`<label${tip}>${T('gainF')}</label>`
+      + nfield('.05', `min="0" max="1" data-c="gainF"${tip}`, C.gainF ?? E.COMP_DEFAULT.gainF));
+  }
+  return out.join('');
+}
 
 /* --- pestaña COMPENSACIÓN ----------------------------------------------- */
 /* Las medidas son fijas: en esta tabla lo ÚNICO editable es la Δ aplicada. Lo
@@ -97,10 +130,11 @@ export function paneComp(M: Model): string {
   }
 
   return `<div class="pane on"><div class="grp"><div class="eyebrow">${T('gains')}</div><div class="body">
-    <div class="fgrid"><label>${T('gainW')} ${oriTag('W')}</label>
+    <div class="fgrid pair"><label>${T('gainW')} ${oriTag('W')}</label>
       ${nfield('.05', 'min="0" max="1" data-c="gainW"', C.gainW)}
       <label>${T('gainT')} ${oriTag('T')}</label>
-      ${nfield('.05', 'min="0" max="1" data-c="gainT"', C.gainT)}</div>
+      ${nfield('.05', 'min="0" max="1" data-c="gainT"', C.gainT)}
+      ${gainExtra(C)}</div>
     <div class="eyebrow" style="padding-left:0">${T('what')}</div>
     <div class="row wrap">
       ${[['doAngle', 'cAng'], ['doRot', 'cRot'], ['doFeed', 'cFeed']].map(([k, l]) =>

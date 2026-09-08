@@ -210,12 +210,13 @@ web/
   src/ribbon.ts     la cinta inferior (canvas 2D)
   src/report.ts     reporte imprimible · src/io.ts  archivos locales
   src/safe.ts       esc() y safeColor(): lo que entra de fuera y acaba en un innerHTML
+  src/dom.ts        el atajo $(), una sola vez para las cuatro capas
   src/i18n.ts       I18N.es / .en / .de — todo texto visible pasa por T('clave')
   src/types.ts      los tipos del dominio, State y el documento
   src/app.css       tokens de diseño y layout; la paleta de los DOS temas
   src/shell.html    esqueleto con los marcadores del build
   build.mjs         esbuild: src/ + three  ->  index.html
-  test_motor.js     259 pruebas del motor y del i18n, en Node y sin navegador
+  test_motor.js     261 pruebas del motor y del i18n, en Node y sin navegador
   tools/            banco de interfaz por CDP y las sondas de medición
 index.html          SALIDA GENERADA — no se edita a mano
 ```
@@ -233,9 +234,9 @@ cd web
 npm install          # una sola vez: three + esbuild
 npm run check        # typecheck -> pruebas -> build -> banco de interfaz
 npm run typecheck    # tsc --noEmit, con strict
-npm test             # 163 pruebas del motor y del i18n
+npm test             # 261 pruebas del motor y del i18n
 npm run build        # regenera index.html (y web/barcomp_viewer.html en local)
-npm run test:ui      # 140 pasos de interfaz en Edge headless, por CDP
+npm run test:ui      # 162 pasos de interfaz en Edge headless, por CDP
 ```
 
 Cuatro redes, y ninguna fase cierra con una en rojo: los tipos, las pruebas del
@@ -248,9 +249,13 @@ está hecho el bundle. Hoy: `rebuildScene()` 2.8 ms con 15 dobleces y 9.6 ms con
 60, sin fugas de geometría, cero cuadros dibujados en reposo, y un paso de
 deshacer cuesta 6 µs y 5.3 KB.
 
-**`index.html` es un artefacto compilado de ~672 KB con three.js empotrado —186
+**`index.html` es un artefacto compilado de ~692 KB con three.js empotrado —192
 KB comprimido, que es lo que sirve Pages. Nunca se edita a mano: el siguiente
 build borra el cambio.** Se edita `web/src/`.
+
+`index.html` lleva three.js dentro, así que cada copia es una redistribución: el aviso de
+copyright viaja con ella y `build.mjs` **falla** si no está. Ver
+[`THIRD-PARTY.md`](THIRD-PARTY.md).
 
 El empaquetador es **esbuild**: resuelve todos los `import` (three y
 `OrbitControls` incluidos) y emite un IIFE que se empotra en un único `<script>`

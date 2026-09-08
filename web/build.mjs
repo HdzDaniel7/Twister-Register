@@ -32,7 +32,12 @@ const result = await build({
   format: 'iife',
   target: ['chrome110', 'firefox110', 'safari16'],
   minify: true,
-  legalComments: 'none',
+  /* 'eof' y no 'none': el artefacto REDISTRIBUYE three.js, y su licencia MIT
+     pide que el aviso de copyright viaje con la copia. Con 'none' se borraba,
+     y el HTML que se publica en Pages y se copia por USB al taller incumplia
+     la licencia de su unica dependencia. Con 'eof' el aviso baja al final del
+     bundle y se mantiene solo si manana entra otra libreria. */
+  legalComments: 'eof',
   charset: 'utf8',
   write: false,
   logLevel: 'info',
@@ -73,6 +78,16 @@ html = html
   .replace('/*__APP__*/', () => js);
 if (html.includes('/*__')) {
   console.error('Quedaron marcadores sin sustituir en shell.html.');
+  process.exit(1);
+}
+
+/* El artefacto REDISTRIBUYE three.js: su aviso de copyright tiene que ir
+   dentro. Esto no es un recordatorio, es una condicion de la compilacion —
+   volver a `legalComments: 'none'` la rompe aqui en vez de publicar un HTML
+   que incumple la licencia de su unica dependencia. Ver THIRD-PARTY.md. */
+if (!/Three\.js Authors/i.test(html)) {
+  console.error('El artefacto no lleva el aviso de licencia de three.js.');
+  console.error('Revisa `legalComments` en este mismo archivo. Ver THIRD-PARTY.md.');
   process.exit(1);
 }
 

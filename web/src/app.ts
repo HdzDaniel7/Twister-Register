@@ -5,7 +5,6 @@
    grupos de eventos y pinta la primera vez. Lo que hacen esos eventos está al
    lado, en app/:
 
-     app/dom.ts            el atajo $()
      app/render.ts         renderAll · refresh · refreshTable · selectBend
      app/theme.ts          useTheme · setTheme · el matchMedia del sistema
      app/actions.ts        editores, variantes, archivos y action()

@@ -135,8 +135,13 @@ Todo de esfuerzo S, sin dependencias externas, y casi todo delegable.
       es el CSV o el informe del escáner), es JSON pero no una pieza (`NotADocError`, tipo
       propio para que el motor no redacte texto de usuario), esquema desconocido, y roto
       por dentro —esta conserva la línea técnica, pero DETRÁS de la frase, no en su lugar.
-- [ ] **[A2] `gainR` y `gainF` propios · [O]** — el rodado se corrige a ganancia 1.0 y el
-      avance con la constante del resorte.
+- [x] **[A2] `gainR` y `gainF` propios · [O]** — hecho 2026-09-08. En el motor ya existían;
+      lo que faltaba era DÓNDE tocarlas: el panel solo enseñaba «canto» y «plano», así que
+      el 0.5 que nadie eligió era intocable desde el taller. Cada una aparece solo con su
+      corrección encendida —dos mandos que no hacen nada son ruido— y el porqué va en el
+      tooltip, no en una línea de ayuda: en COMPENSAR cada línea de texto arriba son filas
+      de comando que se dejan de ver. La rejilla pasa a `fgrid pair` por lo mismo, y con eso
+      el bloque ocupa MENOS que antes aun con las cuatro ganancias.
 - [x] **[M8] `esc()` en las etiquetas 3D y validar colores al cargar · [S]** — hecho
       2026-09-08. Las etiquetas del 3D eran el único innerHTML por donde entraba texto que
       no escribe el programa: el nombre de una cota, que llega de un `.json`. El color iba
@@ -156,19 +161,74 @@ Todo de esfuerzo S, sin dependencias externas, y casi todo delegable.
       `*_DEFAULT` congelados, así que no pueden quedarse atrás cuando alguien agregue un
       campo. De paso, `onChange()` iba en 88 líneas, sobre el límite de 60: repartido en
       seis grupos que devuelven si el evento era suyo.
-- [ ] **[M10] Leer los tokens CSS una vez fuera del bucle de la cinta · [S]**
-- [ ] **[A10] Banco de UI portable · [S]** — `EDGE` por variable de entorno, ruta relativa,
-      `engines: node >=22.18`. Prerrequisito del CI.
-- [ ] **[M14] Fijar exacto esbuild y typescript · [S]** — prerrequisito del CI, o el diff
-      del artefacto da falsos positivos.
-- [ ] **[M15] `LICENSE` y atribución de three.js · [S]**
-- [ ] **[B2] Un solo `$()` · [S]** · **[B3] Validar el slice de `tokenize` · [S]** ·
-      **[B4] Corregir los comentarios que contradicen al código · [O]** ·
-      **[B5] Barrer los perfiles de Edge huérfanos · [S]**
+- [x] **[M10] Leer los tokens CSS una vez fuera del bucle de la cinta · [S]** — hecho
+      2026-09-08. `cssVar()` llama a `getComputedStyle()` sobre `:root`, que fuerza
+      recálculo de estilo; eran hasta cinco por doblez —setenta y cinco en una pieza de
+      quince— y la cinta se repinta con cada tecla de la tabla. Se leen una vez por
+      repintado. El color sigue viniendo del CSS, que es la regla; cambia CUÁNTAS VECES se
+      pregunta. De paso `drawRibbon()` iba en 80 líneas, sobre el límite de 60: partido en
+      `drawFrame()` (el armazón, que no depende de ningún doblez) y `drawColumns()`.
+- [x] **[A10] Banco de UI portable · [S]** — hecho 2026-09-08. Los dos bancos tenían la
+      ruta de UNA máquina escrita a mano, la del navegador y la de la página: solo corrían
+      en el portátil donde se escribieron, y el CI no habría podido ejecutarlos nunca.
+      Nuevo `tools/edge.mjs`: `EDGE` manda sobre todo, y si no está se busca Edge, Chrome o
+      Chromium en las rutas de las tres plataformas y en el PATH; la página sale de la raíz
+      del repo. Si no hay ninguno, el mensaje dice qué variable poner. `engines:
+      node >=22.18` en `package.json`.
+- [x] **[M14] Fijar exacto esbuild y typescript · [S]** — hecho 2026-09-08. Las cuatro
+      dependencias sin `^`: `esbuild 0.28.2`, `typescript 7.0.2`, `three 0.185.1`,
+      `@types/three 0.185.4`. Con el rango, dos `npm install` en fechas distintas daban dos
+      artefactos distintos y el diff de `index.html` en el CI sería ruido permanente.
+- [~] **[M15] `LICENSE` y atribución de three.js · [S]** — la ATRIBUCIÓN, hecha 2026-09-08.
+      Era lo urgente y era un incumplimiento real: el build compilaba con
+      `legalComments: 'none'`, o sea que borraba el aviso de copyright de three.js del
+      artefacto — y cada copia del HTML, la de Pages y la del USB, es una redistribución de
+      three.js, cuya licencia MIT pide que el aviso viaje con ella. Ahora es `'eof'`, hay
+      `THIRD-PARTY.md` con el texto completo, y **el build FALLA** si el aviso no quedó
+      dentro: volver a `'none'` para ahorrar bytes rompe la compilación en vez de publicar.
+      **LA LICENCIA DE BARCOMP SIGUE PENDIENTE, y a propósito:** elegir con qué licencia
+      publica su trabajo el dueño del proyecto no es una decisión que le toque a nadie más.
+      Sin `LICENSE` rige «todos los derechos reservados», que es un estado legítimo, no un
+      error — pero conviene que sea una elección y no un olvido.
+- [x] **[B2] Un solo `$()` · [S]** — hecho 2026-09-08. Había CUATRO copias —app, panels,
+      la cinta y el escenario— con la misma firma por casualidad y no por contrato. Una
+      sola, en `src/dom.ts`.
+- [x] **[B3] Validar el slice de `tokenize` · [S]** — hecho 2026-09-08. `parseFloat` se para
+      en el segundo punto: «1.2.3» daba 1.2 y la celda se quedaba con un valor que nadie
+      escribió, sin decirlo. El trozo entero tiene que SER un número, no empezar por uno.
+      Con A12, ahora además se ve en rojo en vez de tragárselo.
+- [x] **[B4] Corregir los comentarios que contradicen al código · [O]** — hecho 2026-09-08.
+      `stepField() en app.js` (está en `app/events/keyboard.ts`), `bind() en app.js` (en
+      `app.ts`), `scene.js`/`ribbon.js` en el CSS, el esquema `2.2` en las cabeceras de
+      `doc.ts`, `types.ts` y `kinematics.ts` cuando `SCHEMA` es 2.3, la cuenta de claves de
+      i18n (decía 169, son 239) y las cifras del README (pruebas, pasos y tamaño).
+- [x] **[B5] Barrer los perfiles de Edge huérfanos · [S]** — hecho 2026-09-08. El borrado
+      del final falla cuando Edge todavía tiene un archivo tomado, así que quedaban
+      directorios de cada corrida: había SEIS. Se barren al EMPEZAR, cuando ya no hay
+      ningún Edge del banco vivo, en vez de insistir al terminar.
 
 **Criterio de cierre:** un lote con un archivo ilegible dice cuál falló y sigue con el
 resto; deshacer una importación cuesta un Ctrl+Z; ningún error visible es una excepción de
 JavaScript; `npm run check` corre en otra máquina.
+
+**FASE 1 CERRADA — 2026-09-08.** Los 20 arreglos hechos. Redes en verde: `tsc` limpio,
+**261** pruebas de motor (eran 225 al abrir la fase), **162** pasos de interfaz (eran 145),
+build reproducible con las cuatro dependencias fijadas.
+
+Lo único que queda abierto de la fase es **la licencia de BARCOMP** (M15), y no es trabajo
+pendiente: es una decisión del dueño del proyecto. La atribución de three.js, que era la
+parte que se estaba incumpliendo, sí está hecha y con guardia en el build.
+
+**Deuda estructural heredada, anterior a esta fase:** `i18n.ts` (518 líneas),
+`kinematics.ts` (490) y `types.ts` (411) pasan del límite de 400 de la regla. Durante la
+fase se sacaron `engine/feasible.ts`, `engine/csv.ts`, `app/files.ts`, `src/safe.ts` y
+`src/dom.ts` para no engordar lo que ya estaba lleno, pero esos tres no se han tocado.
+`i18n.ts` y `types.ts` son tablas de datos y se parten barato; la cinemática no. **No está
+en ninguna fase: decidir si entra.**
+
+**Valores PROVISIONALES en circulación**, cada uno en un solo sitio y con la respuesta que
+espera anotada: `AXIS_MIN_DEG` y `COMP_DEFAULT.dead` (A.6), `PI_MIN_MM = 1.0` (A.6),
+`STRAIGHT_MIN_MM = 25` (B.2).
 
 ---
 

@@ -9,13 +9,13 @@ import { T } from '../i18n.ts';
 import type { Mode, Orientation } from '../types.ts';
 
 /** i18n.ts no exporta `I18nKey`: se deriva aquí del propio parámetro de T()
- *  para no duplicar la lista de 236 claves y para que tsc siga comprobando
+ *  para no duplicar la lista de 239 claves y para que tsc siga comprobando
  *  contra la misma unión si esa lista cambia. */
 export type I18nKey = Parameters<typeof T>[0];
 
-/** Selector con el tipo del elemento esperado; por defecto HTMLElement, que
- *  es lo que necesitan .innerHTML/.textContent/.scrollTop/.title/.focus. */
-export const $ = <T extends Element = HTMLElement>(s: string): T | null => document.querySelector<T>(s);
+/* El atajo se define en src/dom.ts y se reexporta: los paneles lo piden a fmt
+   como siempre, pero la firma es UNA. */
+export { $ } from '../dom.ts';
 
 /* Las pestañas de abajo. La MEDICIÓN ya no es una pestaña: sus estadísticas y
    su tabla de desviación viven fijas en el lateral derecho, porque son lo que
@@ -48,7 +48,7 @@ export const nx = (v: number | null | undefined, min: number = 2, max: number = 
  *  `step="any"` a propósito: con un paso declarado el navegador marca inválido
  *  todo lo que no cae en la rejilla —con step=".1" un 17.905 es un error— y
  *  redondea al usar las flechas. El paso vive en `data-step`, que es lo que
- *  leen la rueda del ratón y Ctrl+flecha (ver stepField() en app.js). */
+ *  leen la rueda del ratón y Ctrl+flecha (ver stepField() en app/events/keyboard.ts). */
 export const nfield = (
   step: string, attrs: string, val: number | null | undefined, extra: string = '',
 ): string =>

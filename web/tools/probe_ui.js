@@ -1250,6 +1250,23 @@ step('activar canto y avance añade columnas', () => {
   const th = document.querySelectorAll('table.cmd thead th').length;
   if (th !== 14) throw new Error('columnas: ' + th);
 });
+/* El rodado no tiene resorte y el avance no se desvía por elasticidad: cada uno
+   lleva su ganancia. Existían en el motor desde el principio, pero no había
+   dónde tocarlas, así que el taller no podía cambiar un 0.5 que nadie eligió. */
+step('con rodado y avance encendidos aparecen sus dos ganancias', () => {
+  if (!document.querySelector('input[data-c="gainR"]')) throw new Error('sin ganancia de rodado');
+  if (!document.querySelector('input[data-c="gainF"]')) throw new Error('sin ganancia de avance');
+});
+step('y se guardan donde el lazo las lee', () => {
+  setval('input[data-c="gainR"]', '0.3');
+  if (Math.abs(S().comp.gainR - 0.3) > 1e-9) throw new Error('gainR = ' + S().comp.gainR);
+  setval('input[data-c="gainR"]', '0.5');
+});
+step('apagar el rodado se lleva su ganancia', () => {
+  check('input[data-c="doRot"]', false);
+  if (document.querySelector('input[data-c="gainR"]')) throw new Error('quedó un mando que no hace nada');
+  check('input[data-c="doRot"]', true);
+});
 step('aplicar compensación', () => click('[data-a="apply"]'));
 step('el ajuste se consume al aplicar', () => {
   if (S().tweak.some(t => t.angle || t.rot || t.feed)) throw new Error('el ajuste sigue puesto');

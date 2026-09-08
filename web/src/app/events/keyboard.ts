@@ -4,7 +4,7 @@
    solas—; aqui van los movimientos verticales, el descarte con Escape, la
    seleccion al enfocar y el incremento que las flechas cedieron al navegar. */
 import { cellKey, nx } from '../../panels.ts';
-import { $ } from '../dom.ts';
+import { $ } from '../../dom.ts';
 import { ST } from '../../state.ts';
 import { openDrawer, toggleSolo } from '../render.ts';
 import { action } from '../actions.ts';
