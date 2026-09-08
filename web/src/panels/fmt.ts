@@ -9,7 +9,7 @@ import { T } from '../i18n.ts';
 import type { Mode, Orientation } from '../types.ts';
 
 /** i18n.ts no exporta `I18nKey`: se deriva aquí del propio parámetro de T()
- *  para no duplicar la lista de 169 claves y para que tsc siga comprobando
+ *  para no duplicar la lista de 236 claves y para que tsc siga comprobando
  *  contra la misma unión si esa lista cambia. */
 export type I18nKey = Parameters<typeof T>[0];
 
@@ -55,8 +55,10 @@ export const nfield = (
   `<input type="number" step="any" data-step="${step}" ${attrs}
     value="${nx(val)}" ${extra}>`;
 
-export const esc = (s: string): string => String(s).replace(/[&<>"]/g,
-  c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' } as Record<string, string>)[c]);
+/* `esc` se define en safe.ts y se reexporta aquí: los paneles lo piden a fmt
+   como siempre, pero la definición es UNA, la misma que usa el 3D. Dos copias
+   era la vía corta a que una se quedara sin una comilla. */
+export { esc, safeColor } from '../safe.ts';
 export const cls = (v: number, t: number): string => Math.abs(v) <= t ? 'v-ok' : Math.abs(v) <= 2 * t ? 'v-warn' : 'v-bad';
 /** Insignia W/T. La letra sola no dice nada a quien llega nuevo: el tooltip
  *  lleva la explicación larga, que ya estaba traducida en los tres idiomas. */

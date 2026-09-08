@@ -137,8 +137,25 @@ Todo de esfuerzo S, sin dependencias externas, y casi todo delegable.
       por dentro —esta conserva la línea técnica, pero DETRÁS de la frase, no en su lugar.
 - [ ] **[A2] `gainR` y `gainF` propios · [O]** — el rodado se corrige a ganancia 1.0 y el
       avance con la constante del resorte.
-- [ ] **[M8] `esc()` en las etiquetas 3D y validar colores al cargar · [S]**
-- [ ] **[M9] Guardas y lista blanca en `change.ts` · [S]**
+- [x] **[M8] `esc()` en las etiquetas 3D y validar colores al cargar · [S]** — hecho
+      2026-09-08. Las etiquetas del 3D eran el único innerHTML por donde entraba texto que
+      no escribe el programa: el nombre de una cota, que llega de un `.json`. El color iba
+      además dentro de un `style="background:…"`, o sea que una comilla se salía del
+      atributo. Nuevo `src/safe.ts` —módulo hoja, sin dependencias, para que las tres capas
+      lo usen sin arrastrarse entre ellas— con `esc()` (la definición ahora es UNA,
+      `panels/fmt.ts` la reexporta) y `safeColor()`, lista blanca de hexadecimal, que es lo
+      único que este programa escribe: todos los colores salen de un `<input type="color">`.
+      El filtro de carga está en `fromDoc()`, el único sitio por donde pasan todos los
+      documentos que se abren. Bajo `file://` esto no es paranoia de servidor: un
+      `<img onerror>` corre con acceso al disco del taller, y el `.json` va y viene por USB.
+- [x] **[M9] Guardas y lista blanca en `change.ts` · [S]** — hecho 2026-09-08. Las claves
+      de `data-*` las escribe este mismo programa, así que en marcha son buenas — pero eso
+      era una SUPOSICIÓN, y el precio de equivocarse es una clave que nadie declaró dentro
+      de `ST.comp` o un NaN dentro de la geometría, que se propaga a todos los números de
+      la pantalla sin un solo error en la consola. Las listas blancas se derivan de los
+      `*_DEFAULT` congelados, así que no pueden quedarse atrás cuando alguien agregue un
+      campo. De paso, `onChange()` iba en 88 líneas, sobre el límite de 60: repartido en
+      seis grupos que devuelven si el evento era suyo.
 - [ ] **[M10] Leer los tokens CSS una vez fuera del bucle de la cinta · [S]**
 - [ ] **[A10] Banco de UI portable · [S]** — `EDGE` por variable de entorno, ruta relativa,
       `engines: node >=22.18`. Prerrequisito del CI.

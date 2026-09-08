@@ -725,6 +725,55 @@ step('ocultar y mostrar el punto', () => {
   check('input[data-mv="mk1"]', true);
 });
 
+/* Bajo file:// un `<img onerror>` corre con acceso al disco del taller, y el
+   nombre de una cota llega de un .json que va y viene por USB. La etiqueta del
+   3D es el único sitio donde ese texto entra en un innerHTML. */
+step('el nombre de una cota no se puede volver etiqueta en el 3D', () => {
+  setval('input[data-mk="mk1"][data-k="name"]', '<img src=x onerror="window.__pwn=1">');
+  window.BARCOMP.rebuildScene();
+  window.BARCOMP.drawLabels();
+  const host = q('#labels');
+  if (host.querySelector('img')) throw new Error('la etiqueta se pintó como HTML');
+  if (window.__pwn) throw new Error('se ejecutó');
+  if (!host.innerHTML.includes('&lt;img')) throw new Error('no se escapó: ' + host.innerHTML.slice(0, 120));
+  setval('input[data-mk="mk1"][data-k="name"]', 'apoyo A');
+});
+step('y un color inventado no se sale de su atributo', () => {
+  const mk = S().marks[0];
+  mk.color = '#0f0" onmouseover="window.__pwn=1';
+  window.BARCOMP.rebuildScene();
+  window.BARCOMP.drawLabels();
+  const sw = q('#labels .swatch');
+  if (sw.getAttribute('onmouseover')) throw new Error('el color abrió un atributo nuevo');
+  mk.color = '#57C8D6';
+});
+
+/* Las claves de `data-*` las escribe este mismo programa, así que en marcha
+   son buenas. La lista blanca está para que dejen de ser una SUPOSICIÓN: una
+   clave que nadie declaró no debe poder aterrizar dentro de ST.comp. */
+step('una clave que nadie declaró no entra en las tolerancias', () => {
+  click('[data-md="model"]'); click('#tabs [data-t="model"]');
+  const el = q('#panes input[data-t="angle"]');
+  el.dataset.t = 'noExiste';
+  el.value = '0.4';
+  el.dispatchEvent(new Event('change', { bubbles: true }));
+  el.dataset.t = 'angle';
+  const base = S().variants.find(v => v.id === S().active).base;
+  if ('noExiste' in base.tol) throw new Error('se escribió una clave inventada');
+});
+step('y un texto que no es número no mete un NaN en la geometría', () => {
+  const el = q('#panes input[data-s="width"]');
+  const antes = S().model.section.width;
+  /* el campo es de tipo number y el navegador ya filtra ahí; se pasa a texto
+     a propósito para llegar al guardia de verdad, que es el del código */
+  el.type = 'text';
+  el.value = 'ancho';
+  el.dispatchEvent(new Event('change', { bubbles: true }));
+  el.type = 'number';
+  if (!isFinite(S().model.section.width)) throw new Error('entró un NaN');
+  if (S().model.section.width !== antes) throw new Error('cambió el ancho: ' + S().model.section.width);
+});
+
 /* ------------------------------------------------------- compensación --- */
 step('simular desde el lateral de desviación', () => { drawer('pieces'); click('[data-a="sim"]'); });
 /* Una pieza inventada por el simulador y una medida se veían igual: el

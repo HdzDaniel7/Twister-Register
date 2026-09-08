@@ -14,6 +14,7 @@ import { readFileSync } from 'node:fs';
 import { Matrix4, Euler, Vector3 } from 'three';
 import * as E from './src/engine.ts';
 import { I18N, LANGS, LANG, setLang, T } from './src/i18n.ts';
+import { esc, safeColor, COLOR_FALLBACK } from './src/safe.ts';
 
 let fails = 0;
 function ok(name, cond, detail = '') {
@@ -1358,6 +1359,47 @@ console.log('\n— esquemas: qué se convierte, qué se avisa y qué se rechaza 
      JSON roto para poder decir cuál era el archivo que hacía falta. El motor
      no redacta el texto que ve el usuario. */
   ok('y con un tipo que la interfaz puede distinguir', vacio instanceof E.NotADocError);
+
+  /* --- lo que entra de fuera y acaba dentro de un innerHTML ------------- */
+  /* El .json va y viene por correo y por USB, y el programa corre bajo file://,
+     donde un `<img onerror>` colado por el nombre de una cota se ejecuta con
+     acceso al disco. Que lo escriba un compañero no lo hace de fiar. */
+  ok('esc() cierra las etiquetas y las comillas',
+     esc('<img src=x onerror="alert(1)">') === '&lt;img src=x onerror=&quot;alert(1)&quot;&gt;',
+     esc('<img src=x onerror="alert(1)">'));
+  ok('un color de verdad pasa tal cual', safeColor('#3FA9F5') === '#3FA9F5');
+  ok('y en las cuatro formas de hexadecimal',
+     ['#fff', '#ffff', '#3FA9F5', '#3FA9F580'].every(c => safeColor(c) === c));
+  /* Lo que se cuela por un atributo `style="background:..."` o por un
+     `value="..."`: la comilla es la que rompe, y `url()` la que llama fuera. */
+  ok('una comilla que se sale del atributo NO pasa',
+     safeColor('#fff" onmouseover="alert(1)') === COLOR_FALLBACK);
+  ok('una url() tampoco', safeColor('url(http://x/a.png)') === COLOR_FALLBACK);
+  ok('ni una expresión de CSS', safeColor('rgb(1,2,3);position:fixed') === COLOR_FALLBACK);
+  /* `red` es un color legítimo de CSS, pero este programa NUNCA lo escribe:
+     todos salen de un <input type="color">, que siempre da #rrggbb. La lista
+     blanca estrecha se comprueba de un vistazo; el precio es este. */
+  ok('un nombre de color se cambia por el de reserva, y se dice',
+     safeColor('red') === COLOR_FALLBACK);
+  ok('y algo que no es texto tampoco pasa',
+     [null, undefined, 42, {}].every(c => safeColor(c) === COLOR_FALLBACK));
+
+  /* El filtro está en fromDoc(), que es el ÚNICO sitio por donde pasan todos
+     los documentos que se abren. */
+  const sucio = E.fromDoc({
+    ...JSON.parse(JSON.stringify(base)),
+    variants: [{ id: 'v1', name: 'M', color: '#fff" onload="x', base: base.model }],
+    datasets: [{ name: 'p1', color: 'javascript:alert(1)', bends: base.model.bends }],
+    marks: [{ name: '<b>x</b>', color: '#0f0" onerror="y', x: 1, y: 2, z: 3 }],
+  });
+  ok('abrir un archivo limpia el color de un modelo',
+     !sucio.variants[0].color.includes('"'), sucio.variants[0].color);
+  ok('el de una pieza medida', !sucio.datasets[0].color.includes(':'), sucio.datasets[0].color);
+  ok('y el de una cota', sucio.marks[0].color === COLOR_FALLBACK, sucio.marks[0].color);
+  /* El NOMBRE sí se conserva tal cual: es texto del usuario y ahí no hay nada
+     que decidir. Lo que no puede es llegar crudo a un innerHTML, y de eso se
+     encarga esc() en el sitio donde se pinta. */
+  ok('el nombre de la cota se conserva entero', sucio.marks[0].name === '<b>x</b>');
 
   /* Las tres causas de fallo al abrir son DISTINTAS entre sí: si dos cayeran en
      la misma rama, el mensaje volvería a ser el genérico de antes. */

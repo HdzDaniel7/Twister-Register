@@ -16,6 +16,7 @@ import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import * as E from '../engine.ts';
 import { ST, refModel, placeMatrix } from '../state.ts';
 import { T } from '../i18n.ts';
+import { esc, safeColor } from '../safe.ts';
 import type { ExtraLabel, PickHandler, Disposable, GizmoArm } from './types.ts';
 
 export let renderer: WebGLRenderer, scene: Scene, camera: PerspectiveCamera, controls: OrbitControls;
@@ -229,8 +230,14 @@ export function drawLabels() {
       put(P[i], `B${i}`, i - 1 === ST.sel ? 'sel' : '');
     }
   }
+  /* Lo único de aquí que NO lo escribe el programa: el texto sale del nombre
+     que alguien le puso a una cota y el color del que traía el archivo. Los dos
+     acaban en un innerHTML —el texto como HTML y el color dentro de un atributo
+     entrecomillado—, así que los dos pasan por el filtro. Bajo file:// un
+     `<img onerror>` colado por el nombre de una cota corre con acceso al disco
+     del taller, y el .json va y viene por USB. */
   for (const l of extraLabels) {
-    put(l.p, `<span class="swatch" style="background:${l.color}"></span>${l.txt}`);
+    put(l.p, `<span class="swatch" style="background:${safeColor(l.color)}"></span>${esc(l.txt)}`);
   }
   labelHost.innerHTML = out.join('');
 }

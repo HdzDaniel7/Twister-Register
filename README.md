@@ -197,7 +197,8 @@ web/
     engine/fitting.ts     Kabsch, anclaje entre modelos, colocación
     engine/compensate.ts  pieza simulada, lazo, desviaciones, lote, resorte
     engine/expr.ts        la celda de compensación (parser propio, sin eval)
-    engine/doc.ts         esquema barcomp/2.2, migración, CSV de puntos
+    engine/doc.ts         esquema barcomp/2.3, migración de archivos anteriores
+    engine/csv.ts         la nube de PI: lectura tolerante y escritura
   src/app.ts        arranque y cableado; el resto en app/
     app/render.ts · app/theme.ts · app/actions.ts · app/files.ts · app/history.ts
     app/events/{click,change,keyboard,grips}.ts
@@ -208,12 +209,13 @@ web/
   src/state.ts      ST: modelos, referencia, anclaje, capas, piezas medidas
   src/ribbon.ts     la cinta inferior (canvas 2D)
   src/report.ts     reporte imprimible · src/io.ts  archivos locales
+  src/safe.ts       esc() y safeColor(): lo que entra de fuera y acaba en un innerHTML
   src/i18n.ts       I18N.es / .en / .de — todo texto visible pasa por T('clave')
   src/types.ts      los tipos del dominio, State y el documento
   src/app.css       tokens de diseño y layout; la paleta de los DOS temas
   src/shell.html    esqueleto con los marcadores del build
   build.mjs         esbuild: src/ + three  ->  index.html
-  test_motor.js     163 pruebas del motor y del i18n, en Node y sin navegador
+  test_motor.js     259 pruebas del motor y del i18n, en Node y sin navegador
   tools/            banco de interfaz por CDP y las sondas de medición
 index.html          SALIDA GENERADA — no se edita a mano
 ```
