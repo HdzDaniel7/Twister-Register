@@ -33,7 +33,7 @@ import * as E from './engine.ts';
 import { I18N, LANG } from './i18n.ts';
 import { ST, REF, loadModel } from './state.ts';
 import {
-  initScene, fitView, setOnPick, setOnResize, markDirty, rebuildScene, renderer,
+  initScene, fitView, setOnPick, setOnResize, markDirty, rebuildScene, renderer, scene,
   drawGizmo, drawLabels, groupHost,
 } from './scene.ts';
 import { drawRibbon, bindRibbon, setOnRibbonSelect } from './ribbon.ts';
@@ -112,6 +112,10 @@ type DebugExports = {
   drawGizmo: typeof drawGizmo; drawLabels: typeof drawLabels; groupHost: typeof groupHost;
   rebuildScene: typeof rebuildScene; markDirty: typeof markDirty;
   get renderer(): typeof renderer;
+  /* la escena entera, para poder CONTAR lo que cuelga de ella. renderer.info
+     no sirve para eso desde una prueba síncrona: cuenta lo subido a la GPU y
+     ahí no se ha dibujado ningún fotograma todavía. */
+  get scene(): typeof scene;
   /* el banco no puede abrir un diálogo de archivo: entra por aquí, que es el
      mismo camino que recorre un CSV de verdad menos el diálogo. */
   importCsvText: typeof importCsvText;
@@ -126,4 +130,5 @@ if (typeof window !== 'undefined') (window as unknown as { BARCOMP: DebugExports
   ST, E, I18N, LANG, renderAll, refresh, REF, drawGizmo, drawLabels, groupHost,
   rebuildScene, markDirty, importCsvText, importCsvBatch, openError,
   get renderer() { return renderer; },
+  get scene() { return scene; },
 };

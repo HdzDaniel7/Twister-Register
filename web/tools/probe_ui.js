@@ -1483,6 +1483,11 @@ step('subir un pedestal 5 mm abre un hueco de 5 mm y lo pinta en rojo', () => {
   const rojo = fila.querySelector('.v-bad');
   if (!rojo) throw new Error('el pedestal que estorba no se marca');
   if (!/-5/.test(rojo.textContent)) throw new Error('el hueco no dice −5: ' + rojo.textContent);
+  /* WCAG 1.4.1: fuera de tolerancia no puede decirse SOLO con el color. Una de
+     cada doce personas no distingue el rojo del verde, y la tabla se fotocopia
+     en blanco y negro para llevarla a la máquina. */
+  const signo = getComputedStyle(rojo, '::after').content;
+  if (!/!!/.test(signo)) throw new Error('la celda fuera de tolerancia solo se marca con color: ' + signo);
   setval(`#panes [data-pd="${p.id}"][data-k="h"]`, antes.toFixed(2));
 });
 step('apartarlo medio metro lo deja sin barra encima, y se dice', () => {
@@ -1544,6 +1549,58 @@ step('añadir uno suelto nace apoyando, no en el origen a cero', () => {
   const malas = document.querySelectorAll('#panes table.marks tbody .v-bad').length;
   if (malas) throw new Error('el pedestal recién creado ya sale en rojo');
   click('#panes [data-a="clearped"]');
+});
+
+/* --- A8: medir antes de optimizar --------------------------------------- */
+/* El plan pedía `rebuildGroup(k)` —reconstruir una sola capa en vez de la
+   escena entera— «solo si con el número real de piezas la escena va a
+   tirones». Eso es una medición, y hasta ahora nadie la había hecho: app.ts
+   expone `rebuildScene` y `renderer` justo para esto.
+
+   La beta va a ver ~13 barras (la secuencia de puesta en marcha del plan), así
+   que se mide con 13 piezas medidas encima y todas visibles, que es el caso
+   peor real. rebuildScene() corre en CADA edición confirmada, así que lo que
+   decide si «va a tirones» es si tecleando en una celda se nota. */
+step('coste de reconstruir la escena con 13 piezas medidas', () => {
+  const B = window.BARCOMP;
+  drawer('file'); click('[data-a="demo"]');
+  const pis = B.E.fk(S().model).pis;
+  const csv = (k) => 'idx;x;y;z\n' + pis.map((p, i) =>
+    `${i};${p.x.toFixed(3)};${p.y.toFixed(3)};${(p.z + (i > 2 ? k * 0.7 : 0)).toFixed(3)}`).join('\n');
+  B.importCsvBatch([...Array(13)].map((_, k) => ({ text: csv(k + 1), name: `perf_${k}.csv` })));
+  if (S().datasets.length !== 13) throw new Error('no entraron las 13: ' + S().datasets.length);
+  for (const d of S().datasets) d.visible = true;
+
+  /* Mediana de siete, no media: la primera reconstrucción paga la compilación
+     del shader y el primer reparto de memoria, y una media se la traga. */
+  const t = [];
+  for (let i = 0; i < 7; i++) {
+    const t0 = performance.now();
+    B.rebuildScene();
+    t.push(performance.now() - t0);
+  }
+  t.sort((a, b) => a - b);
+  const med = t[3];
+  /* Cuántos objetos cuelgan de la escena. NO se usa renderer.info: ese cuenta
+     lo SUBIDO a la GPU, y en un paso síncrono no se ha dibujado ni un
+     fotograma, así que da cero y parecería que se está midiendo algo. */
+  const nObj = () => { let n = 0; B.scene.traverse(() => n++); return n; };
+  const nota = `${med.toFixed(1)} ms · ${nObj()} objetos en la escena · 13 piezas`;
+  log.push('     ' + nota);
+  /* El presupuesto: 250 ms. Por encima de eso, teclear una celda se siente
+     pegajoso y `rebuildGroup(k)` deja de ser una optimización prematura.
+     El margen es amplio a propósito —esto corre en un headless con SwiftShader,
+     que es más lento que cualquier portátil con GPU— así que un fallo aquí
+     significa de verdad que hay que partir la reconstrucción por capas. */
+  if (!(med < 250)) throw new Error('la escena va a tirones: ' + nota);
+  /* Y que la escena no CREZCA al reconstruirla: rebuildScene() destruye y
+     rehace todo, y si el vaciado de un grupo se dejara algo, cada edición
+     añadiría objetos —y sus geometrías— hasta agotar la memoria. Nueve pasadas
+     tienen que dejar exactamente los mismos objetos que siete. */
+  const o1 = nObj();
+  B.rebuildScene(); B.rebuildScene();
+  const o2 = nObj();
+  if (o2 !== o1) throw new Error(`la escena crece al reconstruirla: ${o1} -> ${o2}`);
 });
 
 step('modelo nuevo y demo', () => {

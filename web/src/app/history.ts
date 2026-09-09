@@ -62,6 +62,18 @@ function snapshot(): string {
   return JSON.stringify(doc2);
 }
 
+/** Deja en ST la profundidad de las dos pilas, para que el panel la enseñe sin
+ *  tener que importar este archivo.
+ *
+ *  Se llama al final de TODO lo que toca `past` o `future`. Con una sola
+ *  llamada olvidada, el botón se queda con el número de antes y dice que no hay
+ *  nada que deshacer cuando sí lo hay — que es peor que no enseñar el número.
+ *  Ver types/state.ts para por qué vive en ST y no se importa. */
+function sync(): void {
+  ST.hist.undo = undoDepth();
+  ST.hist.redo = redoDepth();
+}
+
 /** Arranca la pila con el estado inicial. Sin esto, el primer deshacer no
  *  tendría a dónde volver. */
 export function initHistory(): void {
@@ -69,6 +81,7 @@ export function initHistory(): void {
   future.length = 0;
   const s = snapshot();
   if (s) past.push(s);
+  sync();
 }
 
 /** Apila el estado de AHORA si cambió algo. Devuelve true si apiló. */
@@ -80,6 +93,7 @@ export function commit(): boolean {
   if (past.length > MAX + 1) past.shift();
   /* una acción nueva corta la rama de rehacer, como en cualquier editor */
   future.length = 0;
+  sync();
   return true;
 }
 
@@ -139,6 +153,7 @@ export function undo(): boolean {
   const actual = past.pop()!;
   future.push(actual);
   restore(past[past.length - 1]);
+  sync();
   return true;
 }
 
@@ -148,5 +163,6 @@ export function redo(): boolean {
   const s = future.pop()!;
   past.push(s);
   restore(s);
+  sync();
   return true;
 }

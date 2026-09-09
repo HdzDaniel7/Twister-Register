@@ -4,7 +4,7 @@
    ========================================================================= */
 import type {
   Bend, Proc, Orientation, Comp, Model, DatumMode, Deviations, Stat, BendStat,
-  SbFit, Springback,
+  SbFit, SbTrend, Springback,
 } from '../types.ts';
 import { clamp, mulberry32, gauss, wrap180, applyMat } from './math.ts';
 import { bendFrom, newBend } from './bend.ts';
@@ -128,6 +128,33 @@ export function medianPart(pieces: Bend[][]): Bend[] {
  *  Se descartan los dobleces casi rectos (|ángulo| < 1°): ahí la división
  *  amplifica el ruido de medición hasta convertirlo en un resorte inventado.
  */
+/** Piezas mínimas para creerse la TENDENCIA del resorte con el ángulo.
+ *
+ *  No es la mínima para estimar el resorte —para eso vale la mediana con las
+ *  que haya— sino para decir que DEPENDE del ángulo. Con n=3 y el umbral de
+ *  |r| > 0.6 que usa la pantalla, una muestra de puro ruido dispara el aviso
+ *  cerca de un tercio de las veces: el aviso deja de significar nada y quien
+ *  lo ve deja de hacerle caso. Con n=5 baja a algo razonable.
+ *
+ *  El número saldrá de A.6 cuando se mida el ruido real; 5 es el mínimo con el
+ *  que la pregunta se puede plantear. */
+export const SB_MIN_N = 5;
+
+/** Cuánto tienen que separarse los ángulos comandados, en grados, para poder
+ *  hablar de pendiente.
+ *
+ *  Una pendiente se mide entre dos puntos: si todas las piezas se doblaron a
+ *  30° no hay nada que medir, y r sale de dividir ruido entre ruido. */
+export const SB_MIN_SPAN_DEG = 10;
+
+/** Cuántas muestras hacen falta a CADA lado del rango de ángulos.
+ *
+ *  Es la guarda contra el punto de palanca: cuatro piezas a 30° y una a 45°
+ *  cumplen n≥5 y separación≥10, y sin embargo la recta la decide esa única
+ *  pieza. Si esa pieza salió mal, el programa anuncia una dependencia que no
+ *  existe. Dos a cada lado es lo mínimo para que ninguna mande sola. */
+export const SB_MIN_PER_SIDE = 2;
+
 export function springback(
   samples: { cmd: Bend[]; meas: Bend[] }[], ori: Orientation[],
 ): Springback {
@@ -150,7 +177,7 @@ export function springback(
     /* mínimos cuadrados sobre (ángulo, sb): la pendiente dice cuánto cambia el
        resorte por grado, y r si esa dependencia es real o es dispersión */
     const n = b.sb.length;
-    if (n < 3) return { stat, slope: 0, r: 0 };
+    if (n < 3) return { stat, slope: 0, r: 0, trend: 'few' };
     const mx = b.ang.reduce((p, q) => p + q, 0) / n;
     const my = b.sb.reduce((p, q) => p + q, 0) / n;
     let sxy = 0, sxx = 0, syy = 0;
@@ -160,10 +187,31 @@ export function springback(
     }
     const slope = sxx > 1e-12 ? sxy / sxx : 0;
     const r = sxx > 1e-12 && syy > 1e-12 ? sxy / Math.sqrt(sxx * syy) : 0;
-    return { stat, slope, r };
+    return { stat, slope, r, trend: trendOf(b.ang) };
   };
   return { W: fit(bag.W), T: fit(bag.T) };
 }
+
+/** ¿Se puede creer la recta que sale de estos ángulos comandados?
+ *
+ *  Las tres puertas, y ninguna sobra: bastantes piezas, bastante separación
+ *  entre los ángulos a los que se doblaron, y bastantes a CADA lado para que
+ *  ninguna decida la pendiente ella sola. Cada una tapa una forma distinta de
+ *  anunciar una dependencia que no existe.
+ *
+ *  El corte entre «un lado» y «el otro» es el punto medio del rango, no la
+ *  mediana: lo que se está midiendo es la palanca, y la palanca la da la
+ *  distancia en el eje x, no cuántas muestras caen a cada parte. */
+function trendOf(ang: number[]): SbTrend {
+  if (ang.length < SB_MIN_N) return 'few';
+  const lo = Math.min(...ang), hi = Math.max(...ang);
+  if (hi - lo < SB_MIN_SPAN_DEG) return 'flat';
+  const mid = (lo + hi) / 2;
+  const bajos = ang.filter(a => a <= mid).length;
+  if (bajos < SB_MIN_PER_SIDE || ang.length - bajos < SB_MIN_PER_SIDE) return 'flat';
+  return 'ok';
+}
+
 
 /* ------------------------------------------------------------- compensación */
 export const COMP_DEFAULT: Comp = Object.freeze({

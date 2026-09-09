@@ -8,7 +8,6 @@ import { T } from '../i18n.ts';
 import type { Place, Variant } from '../types.ts';
 import { ST, LAYER_DEF, refModel } from '../state.ts';
 import { $, fx, esc, cls, nfield, srcTag } from './fmt.ts';
-import { canUndo, canRedo, undoDepth, redoDepth } from '../app/history.ts';
 import type { I18nKey } from './fmt.ts';
 
 /* ---------------------------------------------------------------- ayudas -- */
@@ -79,10 +78,10 @@ const DRAWERS: Record<string, () => string> = {
      </div>
      <div class="eyebrow" style="padding-left:0;margin-top:8px">${T('history')}</div>
      <div class="row">
-       <button class="btn sm grow" data-a="undo" ${canUndo() ? '' : 'disabled'}
-         title="Ctrl+Z">${T('undo')} <b>${undoDepth()}</b></button>
-       <button class="btn sm grow" data-a="redo" ${canRedo() ? '' : 'disabled'}
-         title="Ctrl+Y">${T('redo')} <b>${redoDepth()}</b></button>
+       <button class="btn sm grow" data-a="undo" ${ST.hist.undo ? '' : 'disabled'}
+         title="Ctrl+Z">${T('undo')} <b>${ST.hist.undo}</b></button>
+       <button class="btn sm grow" data-a="redo" ${ST.hist.redo ? '' : 'disabled'}
+         title="Ctrl+Y">${T('redo')} <b>${ST.hist.redo}</b></button>
      </div>
      <div class="hintline">${T('histNote')}</div>
      <div class="eyebrow" style="padding-left:0;margin-top:8px">CSV</div>

@@ -29,14 +29,28 @@ export function paneMeas(M: Model): string {
     const f = sb ? sb[k] : null;
     if (!f || !f.stat.n) return `<div class="sbrow"><span class="k">${lab}</span><span class="v-dim">—</span></div>`;
     /* |r| alto = el resorte cambia con el ángulo comandado, y entonces una
-       constante única no describe el proceso por bien medida que esté */
-    const dep = Math.abs(f.r) > .6;
+       constante única no describe el proceso por bien medida que esté.
+       Pero SOLO si la recta se puede creer: el umbral de 0.6 sobre tres puntos
+       lo dispara una muestra de puro ruido una de cada tres veces, y un aviso
+       que salta sin motivo se deja de mirar. `trend` es la puerta (M4). */
+    const dep = f.trend === 'ok' && Math.abs(f.r) > .6;
+    /* Y cuando no se puede creer, se dice QUÉ FALTA en vez de callarse: la
+       diferencia entre «no hay dependencia» y «no se puede saber todavía» es
+       la que decide si alguien va a doblar cinco cupones más. */
+    const falta = f.trend === 'few'
+      ? { txt: T('sbFew'), tip: T('sbFewTip').replace('%n', String(E.SB_MIN_N)) }
+      : f.trend === 'flat'
+        ? { txt: T('sbFlat'), tip: T('sbFlatTip')
+            .replace('%p', String(E.SB_MIN_PER_SIDE))
+            .replace('%s', String(E.SB_MIN_SPAN_DEG)) }
+        : null;
     return `<div class="sbrow"><span class="k">${lab}</span>
       <span class="v">${fx(f.stat.med, 2)}<span class="u">%</span></span>
       <span class="pm" title="${T('sbSpreadTip')}">±${fx(f.stat.sigma, 2)}</span>
       <span class="n">n=${f.stat.n}</span>
       ${dep ? `<span class="warn" title="${T('sbTrendTip')}">${T('sbTrend')
-        .replace('%s', fx(f.slope, 3)).replace('%r', fx(f.r, 2))}</span>` : ''}</div>`;
+        .replace('%s', fx(f.slope, 3)).replace('%r', fx(f.r, 2))}</span>` : ''}
+      ${falta ? `<span class="n" title="${esc(falta.tip)}">${falta.txt}</span>` : ''}</div>`;
   };
   const sbBlock = `<div class="grp"><div class="eyebrow">${T('sbMeas')}</div><div class="body">
     ${sbLine('W', T('sbW'))}${sbLine('T', T('sbT'))}

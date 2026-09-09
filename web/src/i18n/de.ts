@@ -185,4 +185,10 @@ export const de: Record<I18nKey, string> = {
  clearPed: 'Leeren',
  fixEmpty: 'Keine Böcke. "Setzen" verteilt einige unter dem Teil mit der Höhe und Neigung, die es an der jeweiligen Stelle verlangt; danach werden sie mit den Maßen der echten Vorrichtung korrigiert.',
  fixNote: 'Die Vorrichtung ist auf dem Tisch verschraubt: X, Y, Höhe und Auflage gehören der Werkstatt und wandern nicht mit, wenn das Teil neu gesetzt wird. "Verlangt" ist die Neigung, die die Stange direkt darüber hat; Δ ist der Überschuss des Bocks und wird rot, wenn er die Stange stärker anhebt als die Punkttoleranz. "Spalt" ist die Luft zwischen Auflage und Unterseite: positiv schwebt die Stange, negativ steht der Bock im Weg. "Stützweite" ist der Abstand zum vorherigen Bock entlang der Stange und bestimmt die Durchbiegung.',
+
+ /* --- el resorte: cuándo se puede creer la tendencia (M4) --- */
+ sbFew: 'Trend: zu wenige Teile',
+ sbFewTip: 'Mit weniger als %n Teilen lässt sich nicht sagen, ob die Rückfederung vom Winkel abhängt: eine Stichprobe aus reinem Rauschen löst die Warnung in einem von drei Fällen aus. Der Median oben gilt weiterhin; es fehlt nur die Berechtigung, die Abhängigkeit zu behaupten.',
+ sbFlat: 'Trend: nur eine Winkelstufe',
+ sbFlatTip: 'Die gemessenen Teile wurden nahezu auf denselben Winkel gebogen, oder ein einzelnes liegt weit entfernt und bestimmt die Gerade allein. Eine Steigung misst man zwischen zwei Stufen: mindestens %p Teile je Seite, %s° oder mehr auseinander.',
 };

@@ -186,4 +186,10 @@ export const es: Record<I18nKey, string> = {
  clearPed: 'Vaciar',
  fixEmpty: 'Sin pedestales. «Sembrar» reparte unos cuantos bajo la pieza con la altura y la inclinación que pide en cada sitio; a partir de ahí se corrigen con las medidas del fixture real.',
  fixNote: 'El fixture está atornillado a la mesa: X, Y, alto y cuna son del taller y no se mueven cuando la pieza se recoloca. «Pide» es la inclinación que la barra tiene justo encima; Δ es lo que le sobra al pedestal, y se pinta en rojo cuando levanta la barra más que la tolerancia de punto. «Hueco» es el aire entre la cuna y la cara de abajo: positivo la barra vuela, negativo el pedestal estorba. «Vano» es la distancia al pedestal anterior a lo largo de la barra, que es lo que decide la flecha por gravedad.',
+
+ /* --- el resorte: cuándo se puede creer la tendencia (M4) --- */
+ sbFew: 'tendencia: faltan piezas',
+ sbFewTip: 'Con menos de %n piezas no se puede decir si el resorte depende del ángulo: una muestra de puro ruido dispara el aviso una de cada tres veces. La mediana de arriba sí vale; lo que falta es poder afirmar la dependencia.',
+ sbFlat: 'tendencia: un solo nivel de ángulo',
+ sbFlatTip: 'Las piezas medidas se doblaron casi al mismo ángulo, o hay una sola lejos del resto arrastrando la recta ella sola. Una pendiente se mide entre dos niveles: hacen falta al menos %p piezas a cada lado, separadas %s° o más.',
 };

@@ -1186,11 +1186,15 @@ con razón.
   extractor RANSAC (A.3), cotejar el nominal contra el CAD (A.7).
   **No se inventa ninguno de esos formatos**: el error no se ve hasta que la barra está
   doblada.
-- **Fase 3 · Cierre de beta** — ⏳ EN CURSO. Hecho: las pruebas de `history.ts` (M12,
-  33 pruebas sin navegador; la propiedad que sostiene todo es `snapshot(restore(s)) === s`,
-  y de paso queda vigilada la lista de «qué NO se deshace»). Quedan: resorte con n≥5 y dos
-  niveles de ángulo, glifo de fuera de tolerancia además del color, `rebuildGroup(k)` solo
-  si hace falta medir, e invertir la dependencia `panels/left.ts` → `app/history.ts`.
+- **Fase 3 · Cierre de beta** — ✔ CERRADA 2026-09-08, los cinco puntos. Pruebas de
+  `history.ts` (M12, 33 sin navegador; la propiedad que lo sostiene es
+  `snapshot(restore(s)) === s`). Puertas del resorte (M4): `SB_MIN_N = 5`,
+  `SB_MIN_SPAN_DEG = 10` y `SB_MIN_PER_SIDE = 2` contra el punto de palanca; el
+  resultado va en `SbFit.trend` y la pantalla dice qué FALTA en vez de callarse.
+  Tolerancia no solo por color (M13): `!` y `!!` por CSS, que cubre de una vez todos
+  los sitios donde se usa `cls()`. `rebuildGroup(k)` (A8) **medido y descartado**: ~18 ms
+  con 13 piezas contra un presupuesto de 250, y la medición queda como paso de banco.
+  Y `panels/` ya no importa de `app/` (B1): los contadores de deshacer viven en `ST.hist`.
 
 ### Diferido a después de beta 1.0
 

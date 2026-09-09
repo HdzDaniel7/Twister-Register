@@ -1655,6 +1655,41 @@ console.log('\n— deshacer y rehacer: la pila de documentos —');
     ok('y al fondo ya no se puede deshacer', !H.canUndo());
   }
 
+
+  /* --- los contadores que lee el panel ----------------------------------- */
+  {
+    /* El panel ya no importa `app/history.ts` —eso invertía las capas: los
+       paneles están por debajo de app/— y lee `ST.hist`. El riesgo del cambio
+       es una llamada a sync() olvidada: el botón se quedaría con el número de
+       antes y diría que no hay nada que deshacer cuando sí lo hay. */
+    const cuadra = () => ST.hist.undo === H.undoDepth() && ST.hist.redo === H.redoDepth();
+    loadModel(E.demoModel());
+    H.initHistory();
+    ok('al arrancar la pila, los contadores del panel están a cero',
+       cuadra() && ST.hist.undo === 0 && ST.hist.redo === 0);
+    mueve(1); H.commit();
+    ok('apilar los actualiza', cuadra() && ST.hist.undo === 1);
+    mueve(1); H.commit();
+    mueve(1); H.commit();
+    ok('y siguen cuadrando con tres pasos', cuadra() && ST.hist.undo === 3);
+    H.undo();
+    ok('deshacer los actualiza', cuadra() && ST.hist.undo === 2 && ST.hist.redo === 1);
+    H.redo();
+    ok('rehacer también', cuadra() && ST.hist.undo === 3 && ST.hist.redo === 0);
+    H.undo(); mueve(9); H.commit();
+    ok('cortar la rama de rehacer también', cuadra() && ST.hist.redo === 0);
+    /* Y un commit() que no apila nada no puede moverlos. */
+    const antes = { ...ST.hist };
+    H.commit();
+    ok('un commit que no apila no los toca',
+       ST.hist.undo === antes.undo && ST.hist.redo === antes.redo);
+    /* Lo que NO puede pasar: que los contadores entren en el documento. Si
+       entraran, deshacer restauraría un contador y la pila se perseguiría la
+       cola. */
+    ST.hist.undo = 999;
+    ok('los contadores NO viajan en el documento', H.commit() === false);
+  }
+
   /* --- el aviso de cambios sin guardar ----------------------------------- */
   {
     loadModel(E.demoModel());
@@ -1673,6 +1708,91 @@ console.log('\n— deshacer y rehacer: la pila de documentos —');
     mueve(2);
     H.markSaved();
     ok('guardar otra vez mueve la marca', !H.isDirty());
+  }
+}
+
+/* ======================================================================== */
+console.log('\n— el resorte: cuándo se puede creer la tendencia (M4) —');
+{
+  /* El aviso de «el resorte depende del ángulo» disparaba con |r| > 0.6 y tres
+     muestras. Con tres puntos, una muestra de PURO RUIDO cruza ese umbral cerca
+     de una de cada tres veces: el aviso salta sin motivo y quien lo ve deja de
+     hacerle caso. Tres puertas, y cada una tapa una forma distinta de anunciar
+     una dependencia que no existe. */
+  const b = (a) => ({ feed: 100, rot: 0, angle: a, radius: 30, twist: 0, twistLen: 0 });
+  /* Una pieza: los ángulos comandados, y los medidos con el resorte que se le
+     pida. `sb` puede ser una constante o una función del ángulo. */
+  const pieza = (angs, sb) => ({
+    cmd: angs.map(b),
+    meas: angs.map(a => b(a * (1 - (typeof sb === 'function' ? sb(a) : sb) / 100))),
+  });
+  const fit = (angs, sb) => E.springback([pieza(angs, sb)], angs.map(() => 'W')).W;
+
+  ok('las tres puertas tienen nombre y no son números sueltos',
+     E.SB_MIN_N === 5 && E.SB_MIN_SPAN_DEG === 10 && E.SB_MIN_PER_SIDE === 2,
+     `n≥${E.SB_MIN_N}, ${E.SB_MIN_SPAN_DEG}°, ${E.SB_MIN_PER_SIDE}/lado`);
+
+  /* --- puerta 1: bastantes piezas --------------------------------------- */
+  {
+    const f = fit([20, 40, 60], 1.5);
+    ok('con tres muestras la tendencia no se puede creer', f.trend === 'few', f.trend);
+    /* Y la mediana SÍ vale: son dos preguntas distintas y la puerta es solo de
+       la segunda. Estimar el resorte con lo que haya está bien; afirmar que
+       depende del ángulo, no. */
+    ok('pero la mediana del resorte sigue valiendo',
+       Math.abs(f.stat.med - 1.5) < 1e-9 && f.stat.n === 3, `${f.stat.med}`);
+  }
+
+  /* --- puerta 2: los ángulos tienen que separarse ------------------------ */
+  {
+    const f = fit([30, 30, 30, 30, 30, 30], 1.5);
+    ok('seis piezas al MISMO ángulo tampoco dan tendencia', f.trend === 'flat', f.trend);
+    const casi = fit([30, 31, 32, 33, 34, 35], 1.5);
+    ok('ni seis repartidas en cinco grados', casi.trend === 'flat',
+       `${casi.trend}`);
+    const justo = fit([30, 31, 32, 43, 44, 45], 1.5);
+    ok('quince grados de separación sí bastan', justo.trend === 'ok', justo.trend);
+  }
+
+  /* --- puerta 3: el punto de palanca ------------------------------------ */
+  {
+    /* Cuatro piezas a 30° y una a 60° cumplen n≥5 y separación≥10, y sin
+       embargo la recta la decide esa única pieza. Si esa pieza salió mal, el
+       programa anuncia una dependencia que no existe. */
+    const palanca = fit([30, 30, 30, 30, 60], 1.5);
+    ok('cuatro juntas y una lejos NO dan tendencia', palanca.trend === 'flat',
+       palanca.trend);
+    const dos = fit([30, 30, 30, 60, 60], 1.5);
+    ok('con dos a cada lado ya se puede', dos.trend === 'ok', dos.trend);
+  }
+
+  /* --- lo que la puerta deja pasar tiene que seguir funcionando ---------- */
+  {
+    /* Una dependencia de verdad: el resorte sube medio punto por cada diez
+       grados. Con muestra suficiente, se ve. */
+    const f = fit([20, 25, 30, 50, 55, 60], a => 1 + 0.05 * a);
+    ok('una dependencia real se detecta', f.trend === 'ok' && Math.abs(f.r) > .9,
+       `r=${f.r.toFixed(3)}`);
+    ok('y la pendiente sale en %/° con el valor bueno',
+       Math.abs(f.slope - 0.05) < 1e-6, `${f.slope.toFixed(4)} %/°`);
+    /* Un resorte constante bien medido NO puede dar tendencia por mucha
+       muestra que haya: es el falso positivo que el aviso tiene que evitar. */
+    const plano = fit([20, 25, 30, 50, 55, 60], 1.5);
+    ok('un resorte constante no inventa una tendencia',
+       plano.trend === 'ok' && Math.abs(plano.r) < 1e-6, `r=${plano.r}`);
+  }
+
+  /* --- sin muestra no hay nada que decir --------------------------------- */
+  {
+    const vacio = E.springback([], []);
+    ok('sin piezas medidas, las dos orientaciones vienen vacías',
+       vacio.W.stat.n === 0 && vacio.T.stat.n === 0);
+    ok('y la tendencia dice que faltan piezas, no que no la haya',
+       vacio.W.trend === 'few' && vacio.T.trend === 'few');
+    /* Los dobleces casi rectos se descartan antes de todo esto: ahí la
+       división amplifica el ruido hasta inventar un resorte. */
+    const rectos = fit([0.5, 0.2, 0.9], 1.5);
+    ok('los dobleces por debajo de 1° no entran en la muestra', rectos.stat.n === 0);
   }
 }
 

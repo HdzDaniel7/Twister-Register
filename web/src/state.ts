@@ -36,6 +36,8 @@ export const ST: State = {
     [k, { on: !OFF_BY_DEFAULT.includes(k), color: c }])) as State['layers'],
   view: { exag: 25, cmode: 'dev' },
   datum: 'start', mode: 'model', tab: 'model', drawer: null, solo: false, pred: null,
+  /* lo escribe history.ts; ver por qué en types/state.ts */
+  hist: { undo: 0, redo: 0 },
   /* 'system' | 'light' | 'dark'. Sin localStorage: viaja en el JSON. */
   theme: 'system',
   /* colocación: dónde y en qué ángulo se para la pieza. Solo presentación. */

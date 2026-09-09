@@ -84,10 +84,24 @@ export type Dataset = {
   cmd?: Bend[];
 };
 
+/** Por qué se puede o no creer la recta de tendencia del resorte.
+ *
+ *  `'few'`   faltan piezas: con pocas, |r| alto es ruido y no dependencia.
+ *  `'flat'`  todas se doblaron casi al mismo ángulo, o hay un solo punto
+ *            lejos arrastrando la recta él solo. Sin dos niveles de ángulo
+ *            poblados, la pendiente no se puede medir por definición.
+ *  `'ok'`    hay con qué: la pendiente y r significan algo. */
+export type SbTrend = 'ok' | 'few' | 'flat';
+
 /** El resorte estimado de una orientación: la muestra resumida, más la recta
  *  que dice si depende del ángulo comandado. `slope` en %/° y `r` la
- *  correlación: con |r| alto, una constante única no describe el proceso. */
-export type SbFit = { stat: Stat; slope: number; r: number };
+ *  correlación: con |r| alto, una constante única no describe el proceso.
+ *
+ *  `trend` es la puerta: `slope` y `r` SIEMPRE vienen calculados, pero solo
+ *  se pueden creer con `trend === 'ok'`. Se separan a propósito en vez de
+ *  poner ceros — así la pantalla puede decir qué FALTA para poder creerlos,
+ *  que es lo accionable, en vez de callarse. */
+export type SbFit = { stat: Stat; slope: number; r: number; trend: SbTrend };
 
 /** El resorte medido, separado por orientación: de canto (W) y de plano (T)
  *  tienen constantes elásticas distintas y no se pueden mezclar. */

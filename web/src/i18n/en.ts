@@ -173,4 +173,10 @@ export const en: Record<I18nKey, string> = {
  clearPed: 'Clear',
  fixEmpty: 'No pedestals. "Seed" spreads a few under the part with the height and tilt it asks for at each place; from there they are corrected with the real fixture measurements.',
  fixNote: 'The fixture is bolted to the table: X, Y, height and saddle belong to the shop and do not move when the part is repositioned. "Wants" is the tilt the bar has right above; Δ is the pedestal\'s excess, shown red when it lifts the bar more than the point tolerance. "Gap" is the air between saddle and underside: positive the bar floats, negative the pedestal is in the way. "Span" is the distance to the previous pedestal along the bar, which is what drives the gravity sag.',
+
+ /* --- el resorte: cuándo se puede creer la tendencia (M4) --- */
+ sbFew: 'trend: not enough parts',
+ sbFewTip: 'With fewer than %n parts there is no telling whether springback depends on the angle: a sample of pure noise trips the warning one time in three. The median above still holds; what is missing is the right to claim the dependence.',
+ sbFlat: 'trend: a single angle level',
+ sbFlatTip: 'The measured parts were bent at nearly the same angle, or a single one sits far from the rest and drives the line on its own. A slope is measured between two levels: at least %p parts on each side, %s° apart or more.',
 };

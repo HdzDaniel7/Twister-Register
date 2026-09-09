@@ -421,14 +421,89 @@ Lo mínimo para que la beta se pueda usar sin supervisión.
       paso; que las cotas y los pedestales sobrevivan a la ida y vuelta con sus
       cifras; y que el aviso de cambios sin guardar compare por CONTENIDO —
       deshacer a mano hasta el estado guardado lo apaga.
-- [ ] **[M4] Resorte con n≥5 y dos niveles de ángulo · [O]** — hoy el aviso de dependencia
-      dispara con `|r|>0.6` sin puerta de `n`, y con n=3 eso es ruido. Es la diferencia entre
-      un `sbW` que significa algo y uno que no.
-- [ ] **[M13 recortado] Tolerancia no solo por color · [S]** — un glifo o fondo en las
-      celdas fuera de tolerancia. **Solo esto**: el resto de accesibilidad se difiere.
-- [ ] **[A8 recortado] `rebuildGroup(k)` · [O]** — solo si con el número real de piezas la
-      escena va a tirones. Medir antes de optimizar.
-- [ ] **[B1] Invertir la dependencia `panels/left.ts` → `app/history.ts` · [S]**
+- [x] **[M4] Resorte con n≥5 y dos niveles de ángulo · [O]** — hecho 2026-09-08.
+      El aviso de «el resorte depende del ángulo» disparaba con `|r| > 0.6` y
+      tres muestras. Con tres puntos, una muestra de PURO RUIDO cruza ese umbral
+      cerca de una de cada tres veces: el aviso salta sin motivo y quien lo ve
+      deja de hacerle caso.
+
+      Tres puertas con nombre, y ninguna sobra porque cada una tapa una forma
+      distinta de anunciar una dependencia que no existe:
+      `SB_MIN_N = 5` (bastantes piezas), `SB_MIN_SPAN_DEG = 10` (los ángulos
+      comandados tienen que separarse: una pendiente se mide entre dos puntos, y
+      si todo se dobló a 30° r sale de dividir ruido entre ruido) y
+      `SB_MIN_PER_SIDE = 2` (**el punto de palanca**: cuatro piezas a 30° y una
+      a 60° cumplen las dos primeras y sin embargo la recta la decide esa única
+      pieza; si salió mal, el programa anuncia una dependencia inventada).
+
+      El resultado va en `SbFit.trend` —`'ok' | 'few' | 'flat'`— y **no** se
+      apaga poniendo ceros: `slope` y `r` se siguen calculando, y la pantalla
+      dice QUÉ FALTA en vez de callarse. La diferencia entre «no hay
+      dependencia» y «no se puede saber todavía» es la que decide si alguien va
+      a doblar cinco cupones más.
+
+      La mediana del resorte **no** pasa por la puerta: estimarlo con lo que
+      haya está bien, afirmar que depende del ángulo no. Son dos preguntas.
+- [x] **[M13 recortado] Tolerancia no solo por color · [S]** — hecho 2026-09-08.
+      Un signo detrás de la cifra: `!` pasada de tolerancia, `!!` más del doble.
+      Es la MISMA escala que reparte `cls()`, así que no hay un criterio nuevo
+      que mantener.
+
+      WCAG 1.4.1, y aquí no es un trámite: una de cada doce personas no
+      distingue el rojo del verde, y estas tablas además se fotocopian en blanco
+      y negro para llevarlas a la máquina. Va por CSS (`::after` sobre las
+      clases) y no por HTML, así que cubre de una vez todos los sitios donde se
+      usa `cls()` —tabla de desviación, cotas, fixture, tarjetas de pieza,
+      barra de estado— sin tocar ni un `<td>`.
+
+      Dos exclusiones a propósito: el sello de versión, que usa `v-bad` para
+      decir «compilado sobre cambios sin confirmar» y ya lo dice con la palabra
+      «+sucio»; y los `<input>`, que no admiten `::after` porque son elementos
+      reemplazados, y donde el canal que no es color pasa a ser el TRAZO del
+      borde (discontinuo). Lo demás de accesibilidad sigue diferido.
+- [x] **[A8 recortado] `rebuildGroup(k)` · [O]** — **medido y descartado**,
+      2026-09-08. El plan decía «solo si con el número real de piezas la escena
+      va a tirones. Medir antes de optimizar», y la medición no se había hecho
+      nunca, aunque `app.ts` expone `rebuildScene` y `renderer` justo para eso.
+
+      Con **13 piezas medidas visibles** —la secuencia de puesta en marcha del
+      plan— la mediana de siete reconstrucciones da **~18 ms**, sobre 270
+      objetos en la escena, y eso corriendo en un headless con SwiftShader, que
+      es más lento que cualquier portátil con GPU. El presupuesto para que
+      teclear una celda no se sienta pegajoso es 250 ms: hay un factor 14 de
+      margen. Partir la reconstrucción por capas sería optimizar lo que no
+      duele, y encima añadiría un camino donde una capa puede quedarse vieja.
+
+      La medición **queda como paso de banco**, no como una nota: si algún día
+      deja de cumplirse, el banco lo dice en vez de que alguien lo note
+      tecleando. De paso vigila que la escena no CREZCA al reconstruirla —si el
+      vaciado de un grupo se dejara algo, cada edición añadiría objetos hasta
+      agotar la memoria.
+
+      Se corrigió al escribirla: la primera versión leía `renderer.info.memory`,
+      que cuenta lo SUBIDO a la GPU y en un paso síncrono da cero. Parecía que
+      medía algo y no medía nada. Ahora cuenta los objetos de la escena, que es
+      lo que sí se puede observar sin dibujar un fotograma.
+- [x] **[B1] Invertir la dependencia `panels/left.ts` → `app/history.ts` · [S]**
+      — hecho 2026-09-08. Los paneles están por DEBAJO de `app/`, y un panel que
+      importa de `app/` invierte las capas. Los dos contadores pasan a
+      `ST.hist`, que es donde `history.ts` y el panel se encuentran sin que
+      ninguno dependa del otro: los dos ya conocían `ST`.
+
+      Es derivado y de pantalla, así que no entra en `toDoc()` y no gasta un
+      paso de deshacer —hay una prueba que lo comprueba, porque si entrara,
+      deshacer restauraría un contador y la pila se perseguiría la cola. El
+      riesgo del cambio es una llamada a `sync()` olvidada en alguna de las
+      cuatro funciones que tocan las pilas: el botón se quedaría con el número
+      de antes y diría que no hay nada que deshacer cuando sí lo hay. También
+      hay prueba.
+
+      Ya no queda ningún archivo de `panels/` ni de `scene/` que importe de
+      `app/`.
+
+**FASE 3 CERRADA — 2026-09-08.** Los cinco puntos hechos. `npm run check` en
+verde: 367 pruebas de motor, 177 pasos de banco, tipos limpios y el artefacto
+correspondiendo a la fuente.
 
 **Criterio de cierre:** la beta 1.0 se puede entregar al taller sabiendo qué versión es,
 qué datos entraron, cuáles no se midieron y de dónde salió cada número.

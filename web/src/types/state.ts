@@ -63,6 +63,18 @@ export type State = {
   drawer: string | null;
   /** sub-pestaña dentro de Modelar: 'model' (la tabla LRA) o 'points' */
   tab: string;
+  /** cuántos pasos hay para atrás y para adelante.
+   *
+   *  Vive aquí para que el panel no tenga que importar `app/history.ts`: los
+   *  paneles están por DEBAJO de app/ y un panel que importa de app invierte
+   *  las capas. `history.ts` ya conoce ST y el panel también, así que el
+   *  estado es el sitio donde los dos se encuentran sin que ninguno dependa
+   *  del otro.
+   *
+   *  Es derivado y de PANTALLA: no entra en `toDoc()` y por tanto no gasta un
+   *  paso de deshacer. La pila sigue siendo la única dueña de los números;
+   *  esto es la copia que el panel lee. */
+  hist: { undo: number; redo: number };
   /** predicción de la 2.ª pieza tras aplicar la compensación; null si no se corrió */
   pred: Model | null;
   /** 'system' | 'light' | 'dark'. Sin localStorage: viaja en el JSON */
