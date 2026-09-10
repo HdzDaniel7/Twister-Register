@@ -3,8 +3,10 @@
  * localStorage ni sessionStorage.
  */
 import type { Bend, Model, Variant, AnchorMode, DatumMode } from './model.ts';
-import type { Comp, Proc } from './process.ts';
-import type { Dataset, Place, Mark, Pedestal, Tweak, Mode } from './doc.ts';
+import type { Comp, Lims, Mat, Proc, Restraint } from './process.ts';
+import type { MachineFmt } from '../engine/machine.ts';
+import type { Dataset, Place, Mark, Pedestal, Pin, Tweak, Mode } from './doc.ts';
+import type { Restrained } from '../engine/pins.ts';
 
 /* ------------------------------------------------------------ estado global */
 
@@ -46,6 +48,10 @@ export type State = {
   sel: number;
   comp: Comp;
   proc: Proc;
+  /** los umbrales con los que se juzga un dato. Ver engine/lims.ts */
+  lims: Lims;
+  /** el perfil de exportación a la máquina. Ver engine/machine.ts */
+  mach: MachineFmt;
   /** una entrada por capa dibujable, indexada por su clave ('nom', 'meas'...) */
   layers: Record<string, LayerState>;
   view: { exag: number; cmode: 'solid' | 'dev' };
@@ -85,6 +91,17 @@ export type State = {
   marks: Mark[];
   /** los pedestales sobre los que se apoya la barra. Ver engine/fixture.ts */
   fixture: Pedestal[];
+  /** los pines laterales que la sujetan. Ver engine/pins.ts */
+  pins: Pin[];
+  /** si la barra se considera sujeta, y con qué ajustes */
+  restraint: Restraint;
+  /** el material, para pasar deformación a esfuerzo */
+  mat: Mat;
+  /** la pieza tal como la dejan los pines, y lo que costó llegar ahí. `null`
+   *  con el amarre apagado: entonces la pieza sujeta ES la libre y guardar una
+   *  copia solo daría ocasión de que las dos se separaran. Es CACHÉ —sale de
+   *  `model` + `pins`— y por eso no viaja en el JSON ni entra en el deshacer. */
+  held: Restrained | null;
   /** ajuste manual sobre lo que calcula el lazo, por doblez */
   tweak: Tweak[];
 };

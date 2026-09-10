@@ -8,10 +8,11 @@
    llamar syncModel() o la caché miente.                                     */
 import * as E from './engine.ts';
 import type {
-  AnchorMode, Bend, Comp, Dataset, DatumMode, Mark, Model, PathSample, Pedestal, Place, Proc,
-  State, Tweak, Variant, Springback,
+  AnchorMode, Bend, Comp, Dataset, DatumMode, Mark, Model, PathSample, Pedestal, Pin, Place, Proc,
+  Lims, Mat, Restraint, State, Tweak, Variant, Springback,
 } from './types.ts';
 import type { Matrix4, Vector3 } from 'three';
+import type { Restrained } from './engine/pins.ts';
 
 export const LAYER_DEF = [
   ['nom', 'lNom', '#3FA9F5'], ['var', 'lVar', '#8CD65A'], ['diff', 'lDiff', '#E15FA0'],
@@ -19,6 +20,7 @@ export const LAYER_DEF = [
   ['marks', 'lMarks', '#57C8D6'],
   ['pts', 'lPts', '#D8DFE9'], ['lbl', 'lLbl', '#7E8A9C'],
   ['grid', 'lGrid', '#232C3A'], ['fix', 'lFix', '#3A4658'],
+  ['pins', 'lPins', '#57C8D6'], ['held', 'lHeld', '#F5A9E0'],
 ];
 /* Paleta de modelos. El primero es el azul nominal: la referencia arranca ahí. */
 export const VAR_COLORS = ['#3FA9F5', '#3FD68C', '#F0A02E', '#A98BF5',
@@ -26,12 +28,20 @@ export const VAR_COLORS = ['#3FA9F5', '#3FD68C', '#F0A02E', '#A98BF5',
 export const DS_COLORS = ['#F0A02E', '#E15FA0', '#8CD65A', '#A98BF5', '#57C8D6'];
 export const MARK_COLORS = ['#57C8D6', '#FFD166', '#C792EA', '#7FD8C4', '#FF8A65'];
 
-const OFF_BY_DEFAULT = ['fix', 'pred'];
+/* `held` nace apagada porque sin amarre no dibuja nada; se enciende sola al
+   encender el amarre, igual que la capa del fixture al sembrar pedestales. */
+const OFF_BY_DEFAULT = ['fix', 'pred', 'pins', 'held'];
 
 export const ST: State = {
   variants: [], active: null, ref: null, anchor: 'start',
   model: null, command: [], datasets: [], dsActive: null, sel: -1,
   comp: { ...E.COMP_DEFAULT }, proc: { ...E.PROC_DEFAULT },
+  lims: { ...E.LIMS_DEFAULT },
+  pins: [],
+  restraint: { ...E.RESTRAINT_DEFAULT },
+  mat: { ...E.MAT_DEFAULT },
+  held: null,
+  mach: { ...E.MACHINE_DEFAULT, cols: [...E.MACHINE_DEFAULT.cols] },
   layers: Object.fromEntries(LAYER_DEF.map(([k, , c]) =>
     [k, { on: !OFF_BY_DEFAULT.includes(k), color: c }])) as State['layers'],
   view: { exag: 25, cmode: 'dev' },
@@ -50,7 +60,7 @@ export const ST: State = {
   tweak: [],
 };
 
-let varSeq = 1, dsSeq = 0, markSeq = 0, pedSeq = 0;
+let varSeq = 1, dsSeq = 0, markSeq = 0, pedSeq = 0, pinSeq = 0;
 
 /* -------------------------------------------------------------- variantes */
 export const V = () => ST.variants.find(v => v.id === ST.active) || ST.variants[0];
@@ -84,7 +94,7 @@ export function loadModel(
   ST.ref = ids.includes(ref as string) ? (ref as string) : ids[0];
   ST.anchor = anchor || 'start';
   ST.datasets = []; ST.dsActive = null; ST.pred = null; ST.sel = -1;
-  dsSeq = 0; markSeq = 0; pedSeq = 0;
+  dsSeq = 0; markSeq = 0; pedSeq = 0; pinSeq = 0;
   ST.marks = [];
   /* el fixture es de la PIEZA: cargar otra deja los pedestales de la anterior
      apuntando a una barra que ya no está encima */
@@ -173,6 +183,68 @@ export function seedFixture(n?: number): Pedestal[] {
   if (!ST.model) return ST.fixture;
   return setPedestals(E.seedPedestals(placedPath(), ST.model.section, n));
 }
+
+/* --------------------------------------------------------- pines laterales */
+export function addPin(p: Partial<Pin> = {}): Pin {
+  pinSeq += 1;
+  const d: Pin = {
+    id: `pn${pinSeq}`,
+    name: p.name || `Pin ${ST.pins.length + 1}`,
+    visible: p.visible !== false,
+    hold: p.hold !== false,
+    x: +p.x! || 0, y: +p.y! || 0,
+    h: +p.h! || E.PIN_DEFAULT.h, dia: +p.dia! || E.PIN_DEFAULT.dia,
+  };
+  ST.pins.push(d);
+  return d;
+}
+export function setPins(list: Partial<Pin>[] | null | undefined): Pin[] {
+  ST.pins = [];
+  pinSeq = 0;
+  for (const p of list || []) addPin(p);
+  return ST.pins;
+}
+/** Siembra unos pines de partida y TIRA los que hubiera, igual que
+ *  `seedFixture()` y por el mismo motivo. */
+export function seedPinsFor(n?: number): Pin[] {
+  if (!ST.model) return ST.pins;
+  return setPins(E.seedPins(placedPath(), ST.model.section, n));
+}
+
+/** La pieza tal como la dejan los pines, con caché.
+ *
+ *  El solver construye una trayectoria por incógnita y por iteración —del orden
+ *  de cien— así que NO se puede llamar en cada repintado: teclear una celda
+ *  repinta la tabla varias veces. La caché se invalida con una firma de todo lo
+ *  que entra en la cuenta; mientras esa firma no cambie, la respuesta es la
+ *  misma y no hace falta volver a resolver.
+ *
+ *  Con el amarre apagado devuelve la pieza LIBRE y deja la caché en `null`: sin
+ *  eso, apagar el interruptor dejaría en pantalla la última forma sujeta.
+ *
+ *  La `place` que se le pasa es la MISMA que usa `placedPath()`: los pines
+ *  están atornillados a la mesa, así que miran a la pieza donde de verdad está,
+ *  no donde la dibujaría el modelo en el origen. */
+let heldKey = '';
+export function heldResult(): Restrained {
+  const M = ST.model;
+  if (!M) return E.restrainedFree(E.emptyModel());
+  if (!ST.restraint.on) { ST.held = null; heldKey = ''; return E.restrainedFree(M); }
+  const key = JSON.stringify([M.bends, M.tail, M.section, ST.pins, ST.restraint, ST.mat,
+                              ST.place, ST.anchor, ST.ref]);
+  if (ST.held && key === heldKey) return ST.held;
+  const A = E.anchorTransform(M, refModel(), ST.anchor);
+  const P = placeMatrix().multiply(A);
+  ST.held = E.restrain(M, ST.pins, M.section, ST.restraint, ST.mat,
+                       s => E.placePath(P, s));
+  heldKey = key;
+  return ST.held;
+}
+
+/** El modelo que hay que DIBUJAR y MEDIR: el sujeto si el amarre está puesto, y
+ *  el libre si no. Un solo sitio donde se decide, para que la escena, la tabla
+ *  y el reporte no puedan discrepar. */
+export const shownModel = (): Model => (ST.restraint.on ? heldResult().model : ST.model!);
 
 /* ------------------------------------------------- ajuste de compensación */
 export function syncTweak(n: number): Tweak[] {
@@ -287,6 +359,20 @@ export function syncCommand(): void {
   syncTweak(ST.model!.bends.length);
 }
 export const resetCommand = (): void => { ST.command = ST.model!.bends.map(b => E.bendFrom(b)); };
+
+/** El COMANDO como modelo: los dobleces que van a la máquina, con la sección,
+ *  la cola y las tolerancias de la pieza activa.
+ *
+ *  Hace falta porque `rowLengths()` y `axisAngles()` piden un modelo entero —la
+ *  recta de una fila depende del trim de su vecina y de la cola— y el comando
+ *  es solo la lista de dobleces. Lo consume la exportación a la máquina, que
+ *  tiene que escribir las rectas del COMANDO y no las del nominal: son distintas
+ *  en cuanto el lazo corrige algo, y esa diferencia es el trabajo entero. */
+export function commandModel(): Model {
+  const M = ST.model!;
+  syncCommand();
+  return E.normalizeModel({ ...M, bends: ST.command.map(b => E.bendFrom(b)) });
+}
 
 /** Cuánto se movió el extremo LIBRE del modelo activo respecto a la
  *  referencia — o el de amarre, si lo anclado es la punta. */

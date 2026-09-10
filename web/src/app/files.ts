@@ -11,7 +11,7 @@
 import * as E from '../engine.ts';
 import { T, LANG, setLang } from '../i18n.ts';
 import {
-  ST, loadModel, addDataset, setMarks, setPedestals, syncTweak,
+  ST, loadModel, addDataset, setMarks, setPedestals, setPins, syncTweak, commandModel,
 } from '../state.ts';
 import { rebuildScene, fitView } from '../scene.ts';
 import { drawRibbon } from '../ribbon.ts';
@@ -25,6 +25,8 @@ export function saveJson(): void {
   const doc = E.toDoc(ST.model!, ST.command, ST.comp, ST.proc, ST.datasets,
                       ST.variants, ST.ref, ST.anchor,
                       { place: ST.place, marks: ST.marks, fixture: ST.fixture, tweak: ST.tweak,
+                        lims: ST.lims, mach: ST.mach,
+                        pins: ST.pins, restraint: ST.restraint, mat: ST.mat,
                         ui: { theme: ST.theme, lang: LANG.cur, mode: ST.mode } });
   download(safeName(ST.model!.name) + '.json', JSON.stringify(doc, null, 1));
   /* A partir de aquí el trabajo está en disco: el aviso al cerrar deja de
@@ -39,6 +41,16 @@ export function openJson(): void {
       ST.command = d.command;
       Object.assign(ST.comp, d.comp);
       Object.assign(ST.proc, d.proc);
+      /* Los umbrales del archivo mandan sobre los que hubiera puestos: son
+         parte de la pieza, no una preferencia de pantalla. Uno anterior a
+         ellos los trae de fábrica, que es como se juzgó cuando se guardó. */
+      Object.assign(ST.lims, d.lims);
+      Object.assign(ST.mach, d.mach);
+      /* El amarre viaja con la pieza: un archivo guardado con la barra sujeta
+         se vuelve a abrir sujeta, o los números que trae no se explican. */
+      setPins(d.pins);
+      Object.assign(ST.restraint, d.restraint);
+      Object.assign(ST.mat, d.mat);
       ST.place = { ...E.PLACE_DEFAULT, ...(d.place || {}) };
       setMarks(d.marks);
       setPedestals(d.fixture);
@@ -120,13 +132,13 @@ export function importCsvText(txt: string, name: string): number {
  *  costar un Ctrl+Z, no veinte. */
 function addCsvPiece(txt: string, name: string): number {
   const M = ST.model!;
-  const pts = E.readPointsCsv(txt);
+  const pts = E.readPointsCsv(txt, ST.lims);
   /* con menos de tres puntos no hay ni un doblez que medir */
   if (pts.length < 3) return 0;
   /* Ni con puntos a la escala equivocada: una columna de desviación entra por
      aquí como una barra perfecta y se compensa contra ella. Ver csvScaleOk. */
-  if (!E.csvScaleOk(pts, E.fk(M).pis)) return 0;
-  const ds = addDataset(E.measuredModel(M, pts), name, 'csv');
+  if (!E.csvScaleOk(pts, E.fk(M).pis, ST.lims)) return 0;
+  const ds = addDataset(E.measuredModel(M, pts, ST.lims), name, 'csv');
   return ds.model.bends.length + 2;
 }
 
@@ -160,14 +172,14 @@ export function importCsvBatch(files: { text: string; name: string }[],
     const n = addCsvPiece(f.text, base);
     if (!n) {
       /* Por qué falló, en vez de un «no se importó» a secas. */
-      const p = E.parsePointsCsv(f.text);
+      const p = E.parsePointsCsv(f.text, ST.lims);
       const causa = p.reason === 'decimalComma' ? T('csvComma')
         : p.reason === 'tooManyColumns' ? T('csvCols').replace('{n}', String(p.cols))
         /* los índices se dicen tal cual salen del archivo, empezando en 1, que
            es como los numera el informe de inspección */
         : p.reason === 'coincident' ? T('csvNear')
             .replace('{i}', p.near.map(i => i + 1).join(', '))
-            .replace('{d}', String(E.PI_MIN_MM))
+            .replace('{d}', String(ST.lims.piMin))
         /* Si el archivo se leyó bien y aun así no entró, lo que queda es la
            escala: el único rechazo que no decide parsePointsCsv. */
         : p.pts.length >= 3 ? T('csvScale')
@@ -198,4 +210,19 @@ export function importPieces(): void {
 export function exportPoints(): void {
   download('puntos_' + safeName(ST.model!.name) + '.csv',
            E.writePointsCsv(E.fk(ST.model!).pis), 'text/csv');
+}
+
+/** El COMANDO a la máquina, con el perfil de la pestaña Máquina.
+ *
+ *  Sale del comando guardado (`ST.command`) y no del nominal: en cuanto el lazo
+ *  corrige algo, las rectas del comando dejan de ser las del nominal, y esa
+ *  diferencia es el trabajo entero del programa. Un ajuste manual sin aplicar
+ *  NO está aquí — el panel lo avisa antes de llegar a este botón.
+ *
+ *  El nombre del archivo lleva la pieza y nada más: la versión y la fecha van
+ *  dentro del `.json` que se guarda al lado, y meterlas en el nombre haría que
+ *  dos exportaciones del mismo comando parecieran dos comandos distintos. */
+export function exportCommand(): void {
+  download('comando_' + safeName(ST.model!.name) + '.csv',
+           E.machineCsv(commandModel(), ST.mach), 'text/csv');
 }

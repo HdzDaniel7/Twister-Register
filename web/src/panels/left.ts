@@ -31,8 +31,10 @@ function vcard(v: Variant): string {
         <input type="text" class="nm" data-vn="${v.id}" value="${esc(v.name)}"
           title="${esc(v.name)}">
         ${isref ? `<span class="refbadge">${T('isRef')}</span>` : ''}
-        <button class="xbtn" data-vd="${v.id}" title="${T('dupVar')}">⧉</button>
-        <button class="xbtn" data-vx="${v.id}" title="${T('del')}">✕</button></div>
+        <button class="xbtn" data-vd="${v.id}" title="${T('dupVar')}"
+          aria-label="${esc(T('dupVar'))}">⧉</button>
+        <button class="xbtn" data-vx="${v.id}" title="${T('del')}"
+          aria-label="${esc(T('del'))}">✕</button></div>
       <div class="meta"><span>${vm.bends.length} ${T('dblz')}</span>
         <span>Δ<b>${nd}</b></span>
         <span>${T('dTip')} <b class="${shift > .01 ? '' : 'v-dim'}">${fx(shift, 2)}</b></span></div>
@@ -88,6 +90,10 @@ const DRAWERS: Record<string, () => string> = {
      <div class="col">
        <button class="btn sm" data-a="expts">${T('expPts')}</button>
        <button class="btn sm" data-a="impts" title="${T('impTip')}">${T('impCsv')}</button>
+       <!-- El comando de máquina también se exporta desde aquí: el perfil se
+            ajusta en la pestaña Máquina, pero exportar hace falta desde
+            CUALQUIER modo, y Compensar no tiene pestañas. -->
+       <button class="btn sm" data-a="expcmd" title="${esc(T('machNote'))}">${T('machExport')}</button>
      </div>
    </div></div>`,
 
@@ -139,7 +145,8 @@ const DRAWERS: Record<string, () => string> = {
           <input type="color" class="sw" data-dc="${d.id}" value="${d.color}">
           <span class="nm" data-dsel="${d.id}">${esc(d.name)}</span>
           ${srcTag(d.src)}
-          <button class="xbtn" data-dx="${d.id}" title="${T('del')}">✕</button></div>
+          <button class="xbtn" data-dx="${d.id}" title="${T('del')}"
+            aria-label="${esc(T('del'))}">✕</button></div>
         <div class="meta"><span>Δmax <b class="${cls(d.dev!.maxA, ST.model!.tol.angle)}">${fx(d.dev!.maxA, 3)}°</b></span>
         <span>RMS <b>${fx(d.dev!.rms, 3)}°</b></span>
         <span>${T('statTip').split(' ')[0]} <b class="${cls(d.dev!.tip, ST.model!.tol.point)}">${fx(d.dev!.tip, 2)}</b></span></div>

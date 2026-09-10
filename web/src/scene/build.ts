@@ -9,8 +9,8 @@ import * as E from '../engine.ts';
 import { ST, refModel, placeMatrix } from '../state.ts';
 import { groups, root, clearGroup, clearLabels, markDirty } from './stage.ts';
 import {
-  layerGrid, layerFixtures, layerActive, layerVariants, layerMeasured,
-  layerPredicted, layerDiff, layerMarks, layerPoints, layerDev,
+  layerGrid, layerFixtures, layerPins, layerActive, layerVariants, layerMeasured,
+  layerPredicted, layerHeld, layerDiff, layerMarks, layerPoints, layerDev,
 } from './layers.ts';
 import type { ShownEntry, SceneCtx } from './types.ts';
 
@@ -44,10 +44,12 @@ export function rebuildScene(): void {
   const ctx: SceneCtx = { M, L, ref, anchor, shown, act, Axf, nomPis, hasMeas };
   layerGrid(ctx);
   layerFixtures(ctx);
+  layerPins(ctx);
   layerActive(ctx);
   layerVariants(ctx);
   layerMeasured(ctx);
   layerPredicted(ctx);
+  layerHeld(ctx);
   layerDiff(ctx);
   layerMarks(ctx);
   layerPoints(ctx);

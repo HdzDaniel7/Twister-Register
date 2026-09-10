@@ -4,7 +4,7 @@
    ========================================================================= */
 import * as E from '../engine.ts';
 import { T } from '../i18n.ts';
-import { ST, activeDataset, activeShift } from '../state.ts';
+import { ST, activeDataset, activeShift, heldResult } from '../state.ts';
 import { $, fx, cls, esc } from './fmt.ts';
 
 /* ---------------------------------------------------------------- versión --
@@ -27,6 +27,22 @@ const BUILD: { sha: string; fecha: string; sucio: boolean } = (() => {
  *  Pages es la única forma de saber qué versión produjo un número. */
 export const buildTag = (): string => BUILD.sha + (BUILD.sucio ? '+sucio' : '');
 
+/** El amarre, si está puesto. En la barra de estado y no solo en su pestaña
+ *  porque cambia LO QUE SE ESTÁ MIRANDO: con los pines sujetando, la pieza del
+ *  3D ya no es la que describe la tabla. Nadie debería tener que acordarse de
+ *  eso — y menos delante de una barra de aluminio y una dobladora.
+ *
+ *  Lleva el peor esfuerzo en el mismo chip: el número que decide si la pieza
+ *  vuelve al soltarla o se queda deformada. */
+function held(): string {
+  if (!ST.restraint.on) return '';
+  const R = heldResult();
+  const malo = R.worst >= 1;
+  return `<div class="c"><span class="chip ${malo ? 'bad' : ''}"
+    title="${esc(T('pinOnTip'))}">${T('pinOn')} · ${R.held.length} · ${
+    fx(R.worst * 100, 0)}% ${T('pinOfYield')}</span></div>`;
+}
+
 /* ============================================================ barra de estado */
 export function renderStatus(): void {
   const M = ST.model!, D = activeDataset();
@@ -41,6 +57,7 @@ export function renderStatus(): void {
    <div class="c">${T('stDatum')} <b>${ST.datum === 'start' ? T('dStart') : T('dBest')}</b></div>
    <div class="c">${T('stMax')} <b class="${D ? cls(D.dev!.maxA, M.tol.angle) : ''}">${D ? fx(D.dev!.maxA, 3) + ' °' : '—'}</b></div>
    <div class="c">${T('stUnits')} <b>mm / °</b></div>
+   ${held()}
    <div class="c">${D ? `<span class="chip ${D.dev!.out ? 'bad' : 'ok'}">${D.dev!.out ? T('bad') : T('ok')}</span>` : ''}</div>
    <div class="c ver${BUILD.sucio ? ' v-bad' : ''}" title="${esc(T('stVerTip') + (BUILD.fecha ? ' — ' + BUILD.fecha : ''))}">${T('stVer')} <b>${esc(buildTag())}</b></div>`;
 }

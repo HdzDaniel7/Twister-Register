@@ -5,14 +5,14 @@
    grupo homónimo de `groups`. `build.ts` las llama en orden fijo.
    ========================================================================= */
 import {
-  GridHelper, BoxGeometry, SphereGeometry, OctahedronGeometry,
+  GridHelper, BoxGeometry, SphereGeometry, OctahedronGeometry, CylinderGeometry,
   BufferGeometry, Float32BufferAttribute,
-  LineSegments, LineBasicMaterial, LineDashedMaterial, Mesh, MeshStandardMaterial,
+  Line, LineSegments, LineBasicMaterial, LineDashedMaterial, Mesh, MeshStandardMaterial,
   MeshBasicMaterial,
   Color, Vector3,
 } from 'three';
 import * as E from '../engine.ts';
-import { ST, placedPath } from '../state.ts';
+import { ST, placedPath, heldResult } from '../state.ts';
 import { groups, cssVar, devThreeColor, ghost, solidMat, extraLabels } from './stage.ts';
 import { barGeometry } from './geometry.ts';
 import type { SceneCtx } from './types.ts';
@@ -61,6 +61,56 @@ export function layerFixtures(ctx: SceneCtx): void {
     cuna.rotation.set(0, ped.tilt * E.D2R, (f ? f.head : 0) * E.D2R, 'ZYX');
     groups.fix.add(cuna);
   }
+}
+
+/** Los pines laterales, y si de verdad están tocando la barra.
+ *
+ *  El color dice lo mismo que la tabla: el pin que sujeta va en su color y el
+ *  que no —porque le falta altura o porque la barra le pasa lejos— sale en el
+ *  color de fuera de tolerancia. Un pin que no toca no es un error: puede haber
+ *  más pines montados que los que esta pieza usa. Lo que no puede pasar es
+ *  creerse que sujeta uno que no llega.
+ *
+ *  Cilindro y no caja: un pin es redondo y la barra toca su superficie, no su
+ *  eje. Esa diferencia son diez milímetros en un pin de 20, y es justo lo que
+ *  decide si toca o no. */
+export function layerPins(ctx: SceneCtx): void {
+  const { M, L } = ctx;
+  if (!L.pins || !L.pins.on || !ST.pins.length) return;
+  const ok = cssVar('--pincol', '#57C8D6'), bad = cssVar('--bad', '#FF4D5E');
+  const path = placedPath();
+  for (const pin of ST.pins) {
+    if (!pin.visible || !(pin.h > 1)) continue;
+    const f = E.pinFit(path, M.section, pin);
+    const toca = !!f && f.reach && Math.abs(f.gap) <= Math.max(M.tol.point, ST.restraint.tol);
+    const mat = new MeshStandardMaterial({
+      color: toca ? ok : bad, roughness: .55, metalness: .35,
+      /* el que no sujeta se dibuja translúcido: está ahí, pero no cuenta */
+      transparent: !pin.hold, opacity: pin.hold ? 1 : .45,
+    });
+    const col = new Mesh(new CylinderGeometry(pin.dia / 2, pin.dia / 2, pin.h, 16), mat);
+    /* el cilindro de three nace con el eje en +y; el pin sube en +z */
+    col.rotation.x = Math.PI / 2;
+    col.position.set(pin.x, pin.y, E.TABLE_Z + pin.h / 2);
+    groups.pins.add(col);
+  }
+}
+
+/** La pieza tal como la dejan los pines, encima de la libre.
+ *
+ *  Es la capa que hace visible el motivo entero del amarre: la barra sujeta NO
+ *  está donde dice la tabla, y ver las dos formas a la vez es lo que convierte
+ *  eso en algo que se puede juzgar. Va en alambre y no en sólido porque las dos
+ *  se superponen casi por completo salvo en la punta, y dos sólidos pegados se
+ *  ven sucios. */
+export function layerHeld(ctx: SceneCtx): void {
+  const { L, Axf } = ctx;
+  if (!L.held || !L.held.on || !ST.restraint.on) return;
+  const R = heldResult();
+  if (!R.iters && !R.held.length) return;
+  const pts = E.applyMat(Axf, E.buildPath(R.model).samples.map(q => q.p));
+  const g = new BufferGeometry().setFromPoints(pts);
+  groups.held.add(new Line(g, new LineBasicMaterial({ color: cssVar('--held', '#F5A9E0') })));
 }
 
 /* --- modelo activo: sólido, es el que se está editando ---------------- */

@@ -8,7 +8,8 @@
  */
 import type { Vector3 } from 'three';
 import type { Bend, Model, Variant, AnchorMode } from './model.ts';
-import type { Comp, Proc, Deviations } from './process.ts';
+import type { Comp, Lims, Mat, Proc, Restraint, Deviations } from './process.ts';
+import type { MachineFmt } from '../engine/machine.ts';
 
 /* -------------------------------------------------------------- documento */
 
@@ -57,6 +58,30 @@ export type Pedestal = {
    *  punto: apoya en un tramo, y ese tramo es lo que decide si la barra pisa
    *  el pedestal o pasa de largo por al lado */
   pad: number;
+};
+
+/** Un PIN LATERAL: un poste vertical atornillado a la mesa contra el que la
+ *  barra tiene que tocar de lado.
+ *
+ *  A diferencia de un pedestal, que solo sostiene, un pin IMPIDE que la barra se
+ *  vaya a donde la mandaría la cinemática: mientras esté puesto, cambiar un
+ *  ángulo deforma la barra en vez de moverla libremente. Ver engine/pins.ts. */
+export type Pin = {
+  id: string;
+  name: string;
+  /** ¿se dibuja? Igual que en un pedestal, es cosa de la vista */
+  visible: boolean;
+  /** ¿SUJETA? Un pin puede estar montado y no tocar esta pieza; y se puede
+   *  querer ver qué pasa sin él sin tener que borrarlo de la lista */
+  hold: boolean;
+  /** posición del eje del pin sobre la mesa, mm */
+  x: number;
+  y: number;
+  /** alto desde la mesa (z = TABLE_Z), mm. Uno que no llegue a la barra no
+   *  sujeta nada, y la tabla lo dice */
+  h: number;
+  /** diámetro del pin, mm: la barra toca su superficie, no su eje */
+  dia: number;
 };
 
 /** Una pieza medida. `model` son sus parámetros; `dev`, su comparación. */
@@ -156,6 +181,13 @@ export type Doc = {
   command: Bend[];
   comp: Comp;
   proc: Proc;
+  /** los umbrales con los que se juzgó esta pieza. Clave opcional: un archivo
+   *  sin ella abre con los de fábrica, o sea con el comportamiento que ese
+   *  archivo tenía cuando se guardó. Ver engine/lims.ts */
+  lims?: Lims;
+  /** el perfil con el que se exporta el comando de máquina. Clave opcional:
+   *  un archivo sin ella abre con el perfil de fábrica. Ver engine/machine.ts */
+  mach?: MachineFmt;
   /** piezas medidas: solo lo que hace falta para reconstruirlas, sin `dev` */
   datasets: { name: string; color: string; src: string; bends: Bend[]; tail: number;
               cmd?: Bend[] }[];
@@ -167,6 +199,12 @@ export type Doc = {
   marks?: { name: string; color: string; visible: boolean; x: number; y: number; z: number }[];
   /** el fixture. Sin `id`: se reasigna al abrir, igual que en `marks` */
   fixture?: Omit<Pedestal, 'id'>[];
+  /** los pines laterales. Sin `id`, por lo mismo */
+  pins?: Omit<Pin, 'id'>[];
+  /** el amarre: si la barra se considera sujeta y con qué ajustes */
+  restraint?: Restraint;
+  /** el material, para pasar de deformación a esfuerzo */
+  mat?: Mat;
   tweak?: Tweak[];
   ui?: UiPrefs;
 };
@@ -188,6 +226,10 @@ export type LoadedDoc = {
   ambiguous: boolean;
   comp: Comp;
   proc: Proc;
+  /** completos y dentro de rango, venga lo que venga del archivo */
+  lims: Lims;
+  /** el perfil de exportación, saneado */
+  mach: MachineFmt;
   datasets: { name: string; color: string; src: string; bends: Bend[]; tail: number;
               cmd?: Bend[] }[];
   anchor: AnchorMode;
@@ -196,6 +238,9 @@ export type LoadedDoc = {
   place: Place;
   marks: Mark[];
   fixture: Pedestal[];
+  pins: Pin[];
+  restraint: Restraint;
+  mat: Mat;
   tweak: Tweak[];
   /** null = el archivo no dijo nada: no se pisa la preferencia actual */
   ui: { theme: string | null; lang: string | null; mode: string | null } | null;

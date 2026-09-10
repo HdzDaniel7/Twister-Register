@@ -20,7 +20,7 @@ import { fx, esc, nfield, oriTag } from './fmt.ts';
  *  reescribe también desde allí, o solo aparecería al repintar por otro
  *  motivo. Por eso el hueco `#fabnote` se pinta siempre, aunque vaya vacío. */
 export function feasNote(M: Model): string {
-  const f = E.feasibility(M);
+  const f = E.feasibility(M, ST.lims);
   if (f.ok) return '';
   const bs = (ix: number[]): string => ix.map(i => `B${i + 1}`).join(', ');
   const partes: string[] = [];
@@ -30,9 +30,9 @@ export function feasNote(M: Model): string {
   const cortos = f.short.filter(i => !f.negative.includes(i));
   if (cortos.length) {
     partes.push(T('fabShort').replace('{b}', bs(cortos))
-                             .replace('{n}', String(E.STRAIGHT_MIN_MM)));
+                             .replace('{n}', String(ST.lims.straightMin)));
   }
-  if (f.tailShort) partes.push(T('fabTail').replace('{n}', String(E.STRAIGHT_MIN_MM)));
+  if (f.tailShort) partes.push(T('fabTail').replace('{n}', String(ST.lims.straightMin)));
   if (f.overBent.length) {
     partes.push(T('fabOver').replace('{b}', bs(f.overBent))
                             .replace('{n}', String(E.BEND_MAX_DEG)));
@@ -74,7 +74,7 @@ export function paneModel(M: Model): string {
     const bb = base[i];
     return `<tr class="clk ${i === ST.sel ? 'sel' : ''} ${hasD ? 'hasd' : ''}" data-r="${i}">
       <td>B${i + 1}</td><td>${oriTag(ori[i])}</td>
-      <td>${nfield('.5', `data-st="${i}" class="${BASE[i].straight < E.STRAIGHT_MIN_MM ? 'v-bad' : ''}"`,
+      <td>${nfield('.5', `data-st="${i}" class="${BASE[i].straight < ST.lims.straightMin ? 'v-bad' : ''}"`,
                    BASE[i].straight)}</td>
       <td class="dcol">${dnum(i, 'feed', '.1')}</td>
       <td>${nfield('.1', `data-b="${i}" data-k="rot"

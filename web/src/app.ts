@@ -13,7 +13,7 @@
      app/events/keyboard.ts  la tabla como hoja de cálculo, y la rueda
      app/events/grips.ts   los dos tiradores y el ResizeObserver
 
-   El motor vive en engine.ts (gemelo de python/barcomp/core.py) y el resto
+   El motor vive en engine.ts, que desde el 2026-09-08 es el único, y el resto
    está repartido en i18n · state · scene · ribbon · panels · report · io.
 
    Flujo de renderizado, de más barato a más caro (ver app/render.ts):
@@ -31,7 +31,7 @@
    ========================================================================= */
 import * as E from './engine.ts';
 import { I18N, LANG } from './i18n.ts';
-import { ST, REF, loadModel } from './state.ts';
+import { ST, REF, loadModel, commandModel, placedPath, shownModel, heldResult } from './state.ts';
 import {
   initScene, fitView, setOnPick, setOnResize, markDirty, rebuildScene, renderer, scene,
   drawGizmo, drawLabels, groupHost,
@@ -120,6 +120,15 @@ type DebugExports = {
      mismo camino que recorre un CSV de verdad menos el diálogo. */
   importCsvText: typeof importCsvText;
   importCsvBatch: typeof importCsvBatch;
+  /* El comando como modelo. Lo expone el banco para comprobar que la vista
+     previa de la pestaña Máquina es EXACTAMENTE el archivo que se escribe. */
+  commandModel: typeof commandModel;
+  /* El amarre: la trayectoria colocada, la pieza que se enseña y la cuenta de
+     lo que los pines le hacen a la barra. El banco las necesita para comprobar
+     que el interruptor de verdad devuelve la pieza libre. */
+  placedPath: typeof placedPath;
+  shownModel: typeof shownModel;
+  heldResult: typeof heldResult;
   /* tampoco puede provocar un archivo roto desde el disco: la clasificacion
      del fallo al abrir se ejercita llamando aqui con el error ya construido. */
   openError: typeof openError;
@@ -128,7 +137,8 @@ type DebugExports = {
    este módulo se evalúe: copiarlo aquí guardaría el undefined de arranque. */
 if (typeof window !== 'undefined') (window as unknown as { BARCOMP: DebugExports }).BARCOMP = {
   ST, E, I18N, LANG, renderAll, refresh, REF, drawGizmo, drawLabels, groupHost,
-  rebuildScene, markDirty, importCsvText, importCsvBatch, openError,
+  rebuildScene, markDirty, importCsvText, importCsvBatch, openError, commandModel,
+  placedPath, shownModel, heldResult,
   get renderer() { return renderer; },
   get scene() { return scene; },
 };

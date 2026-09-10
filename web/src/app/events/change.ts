@@ -44,6 +44,18 @@ const MARK_KEYS = new Set(['name', 'x', 'y', 'z']);
 const PED_NUM = new Set(Object.keys(E.PED_DEFAULT).filter(k => k !== 'visible'));
 const PED_KEYS = new Set(['name', ...PED_NUM]);
 const ANCHORS = new Set(['start', 'end', 'best']);
+/* Los umbrales: la lista sale de LIMS_DEFAULT, como las demas. */
+const LIMS_KEYS = new Set<string>(E.LIMS_KEYS);
+/* El perfil de maquina: las columnas por un lado —son una lista— y el resto de
+   campos por otro. Las dos listas salen de lo congelado en engine/machine.ts. */
+const MACH_COLS = new Set<string>(E.MACHINE_COLS);
+/* Pines, amarre y material: las tres listas salen de lo congelado en
+   engine/pins.ts, como PED_NUM sale de PED_DEFAULT. */
+const PIN_NUM = new Set(Object.keys(E.PIN_DEFAULT).filter(k => k !== 'visible' && k !== 'hold'));
+const PIN_KEYS = new Set(['name', ...PIN_NUM]);
+const RS_NUM = new Set(Object.keys(E.RESTRAINT_DEFAULT).filter(k => k !== 'on' && k !== 'doRot'));
+const MAT_KEYS = new Set(Object.keys(E.MAT_DEFAULT));
+const MACH_KEYS = new Set(Object.keys(E.MACHINE_DEFAULT).filter(k => k !== 'cols'));
 
 /** Un numero que se puede escribir en el modelo, o null.
  *
@@ -166,7 +178,116 @@ function onModelField(t: HTMLInputElement, d: DOMStringMap): boolean {
     return true;
   }
   if (d.pr !== undefined) { setNum(ST.proc, PROC_KEYS, d.pr, t.value); return true; }
+  if (d.pn !== undefined || d.pnv !== undefined || d.pnh !== undefined
+      || d.rs !== undefined || d.mt !== undefined) return onPin(t, d);
+  if (d.mc !== undefined || d.mf !== undefined) return onMachine(t, d);
+  if (d.lm !== undefined) {
+    if (!LIMS_KEYS.has(d.lm)) return true;
+    const n = num(t.value);
+    if (n === null) return true;
+    /* Recortado a su rango AQUI, no solo al abrir un archivo: un umbral
+       tecleado fuera de rango es el mismo fallo que uno leido fuera de rango, y
+       limOf() es el unico sitio donde vive esa decision. Se repinta siempre,
+       tambien cuando el recorte devuelve otro numero del que se tecleo: si no,
+       la celda se queda enseñando un valor que el programa no esta usando. */
+    ST.lims[d.lm as keyof typeof ST.lims] = E.limOf(d.lm as keyof typeof ST.lims, n);
+    /* La escena no: ningun umbral mueve un PI. Lo que cambia es la tabla —que
+       recta se pinta corta— y el aviso de fabricacion. */
+    renderRight();
+    return true;
+  }
   return false;
+}
+
+/* --- los pines laterales, el amarre y el material -------------------------
+   Todo esto puede cambiar la FORMA de la pieza —con el amarre puesto, mover un
+   pin la deforma— así que después de escribir se repinta y se reconstruye la
+   escena, igual que al mover un pedestal. La cuenta en sí no se dispara aquí:
+   `heldResult()` la hace cuando alguien pregunta, y con caché. */
+function onPin(t: HTMLInputElement, d: DOMStringMap): boolean {
+  /* La barra de ESTADO también: lleva el aviso de que la pieza está sujeta y
+     el peor esfuerzo. Sin esto, apagar el amarre dejaba el aviso puesto —lo
+     cazó el banco— y un aviso que se queda cuando ya no toca deja de leerse. */
+  const pintar = () => { renderShell(); renderRight(); renderStatus(); rebuildScene(); };
+  if (d.pn !== undefined) {
+    const p = ST.pins.find(x => x.id === d.pn);
+    if (!p || !d.k || !PIN_KEYS.has(d.k)) return true;
+    if (d.k === 'name') p.name = t.value;
+    else if (!setNum(p, PIN_NUM, d.k, t.value)) return true;
+    pintar();
+    return true;
+  }
+  if (d.pnv !== undefined) {
+    const p = ST.pins.find(x => x.id === d.pnv);
+    if (p) { p.visible = t.checked; rebuildScene(); }
+    return true;
+  }
+  if (d.pnh !== undefined) {
+    const p = ST.pins.find(x => x.id === d.pnh);
+    /* quitar el «sujeta» de un pin cambia la forma sujeta: hay que repintar la
+       tabla del costo, no solo la escena */
+    if (p) { p.hold = t.checked; pintar(); }
+    return true;
+  }
+  if (d.rs !== undefined) {
+    if (d.rs === 'on' || d.rs === 'doRot') {
+      (ST.restraint as unknown as Record<string, boolean>)[d.rs] = t.checked;
+      /* encender el amarre enciende sus dos capas: si no, se activa y en el 3D
+         no cambia nada visible, que se lee como que no funcionó */
+      if (d.rs === 'on' && t.checked) {
+        ST.layers.pins.on = true;
+        ST.layers.held.on = true;
+      }
+    } else if (!setNum(ST.restraint, RS_NUM, d.rs, t.value)) return true;
+    pintar();
+    return true;
+  }
+  if (d.mt !== undefined) {
+    /* El material NO mueve un PI —ver engine/pins.ts— así que aquí basta con
+       repintar la tabla: reconstruir la escena no cambiaría un píxel. */
+    if (setNum(ST.mat, MAT_KEYS, d.mt, t.value)) renderRight();
+    return true;
+  }
+  return false;
+}
+
+/* --- el perfil de exportación a la máquina -------------------------------
+   Todo lo de aquí cambia el ARCHIVO, no la pieza: la vista previa se rehace y
+   la escena ni se entera. Los valores llegan como cadenas de un <select>, así
+   que se validan contra las listas congeladas y lo que no encaje se descarta —
+   normMachineFmt() los volvería a sanear al guardar, pero para entonces el
+   panel ya estaría enseñando algo que el motor no usa. */
+function onMachine(t: HTMLInputElement, d: DOMStringMap): boolean {
+  if (d.mc !== undefined) {
+    if (!MACH_COLS.has(d.mc)) return true;
+    const col = d.mc as (typeof E.MACHINE_COLS)[number];
+    const on = t.checked;
+    const cols = ST.mach.cols.filter(c => c !== col);
+    /* La ULTIMA columna no se puede quitar. Sin ninguna no hay archivo que
+       escribir, y machineCsv() volveria al perfil de fabrica: el panel
+       ensenaria cero columnas marcadas y el archivo saldria con cinco, que es
+       justo el fallo que este panel existe para no tener. La casilla vuelve a
+       marcarse sola al repintar. */
+    if (!on && !cols.length) { renderRight(); return true; }
+    /* El orden del archivo es el de MACHINE_COLS, no el de marcado: reordenar
+       a mano pediría arrastrar, y el panel se reconstruye entero. */
+    ST.mach.cols = on ? E.MACHINE_COLS.filter(c => c === col || cols.includes(c)) : cols;
+    renderRight();
+    return true;
+  }
+  const k = d.mf;
+  if (k === undefined || !MACH_KEYS.has(k)) return true;
+  const M = ST.mach as unknown as Record<string, unknown>;
+  if (t.type === 'checkbox') M[k] = t.checked;
+  else if (k === 'decimals') { const n = num(t.value); if (n === null) return true; M[k] = n; }
+  else if (k === 'signAngle' || k === 'signRot') M[k] = t.value === '-1' ? -1 : 1;
+  else M[k] = t.value;
+  /* Saneado en el acto, con la misma función que sanea un archivo: un perfil a
+     medias tiene que dar un archivo válido, y el sitio donde vive esa decisión
+     es uno solo. */
+  Object.assign(ST.mach, E.normMachineFmt(ST.mach));
+  renderRight();
+  return true;
 }
 
 /* --- celdas de las tablas: dobleces, rectas, Δ y puntos ------------------ */

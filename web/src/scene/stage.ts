@@ -104,11 +104,13 @@ export function initScene(): void {
   root = new Group();
   root.matrixAutoUpdate = false;
   scene.add(root);
-  for (const k of ['nom', 'var', 'meas', 'pred', 'diff', 'dev', 'marks', 'pts']) {
+  for (const k of ['nom', 'var', 'meas', 'pred', 'held', 'diff', 'dev', 'marks', 'pts']) {
     groups[k] = new Group();
     root.add(groups[k]);
   }
-  for (const k of ['grid', 'fix']) {
+  /* Los pines están atornillados a la mesa igual que los pedestales: van en
+     `world`, que la colocación de la pieza no toca. */
+  for (const k of ['grid', 'fix', 'pins']) {
     groups[k] = new Group();
     world.add(groups[k]);
   }

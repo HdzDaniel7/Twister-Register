@@ -28,7 +28,8 @@ function pedRow(M: Model, i: number, f: PedFit | null, vano: number): string {
       ${num('x')}${num('y')}${num('h')}${num('pad', '0')}${num('tilt', '2')}
       <td class="v-bad" colspan="5" title="${esc(T('pedOffTip'))}">${T('pedOff')}</td>
       <td class="v-dim">${isFinite(vano) ? fx(vano, 0) : '—'}</td>
-      <td><button class="xbtn" data-px="${p.id}" title="${T('del')}">✕</button></td></tr>`;
+      <td><button class="xbtn" data-px="${p.id}" title="${T('del')}"
+        aria-label="${esc(T('del'))}">✕</button></td></tr>`;
   }
   return `<tr class="ped"><td><input type="checkbox" data-pv="${p.id}" ${p.visible ? 'checked' : ''}></td>
     <td><input type="text" data-pd="${p.id}" data-k="name" value="${esc(p.name)}" style="min-width:64px"></td>
@@ -39,7 +40,8 @@ function pedRow(M: Model, i: number, f: PedFit | null, vano: number): string {
     <td class="v-dim">${fx(f.plan, 1)}</td>
     <td class="${cls(Math.abs(f.gap), M.tol.point)}">${fx(f.gap, 2)}</td>
     <td class="v-dim">${isFinite(vano) ? fx(vano, 0) : '—'}</td>
-    <td><button class="xbtn" data-px="${p.id}" title="${T('del')}">✕</button></td></tr>`;
+    <td><button class="xbtn" data-px="${p.id}" title="${T('del')}"
+      aria-label="${esc(T('del'))}">✕</button></td></tr>`;
 }
 
 export function paneFixture(M: Model): string {

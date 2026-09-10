@@ -56,3 +56,36 @@ export function basisOf(M: Matrix4): [Vector3, Vector3, Vector3] {
 }
 /** Aplica una transformación rígida a una lista de puntos (copia). */
 export const applyMat = (M: Matrix4, pts: Vector3[]): Vector3[] => pts.map(p => p.clone().applyMatrix4(M));
+
+/* ------------------------------------------------------- sistemas lineales */
+/** Resuelve `A·x = b` por eliminación gaussiana con pivoteo parcial.
+ *
+ *  `A` se consume: entra como filas y sale destrozada. Devuelve `null` si la
+ *  matriz es singular —que aquí significa «este problema no tiene una respuesta
+ *  única»— en vez de devolver infinitos: quien llama tiene que poder decirlo.
+ *
+ *  Denso y sin dependencias a propósito: los sistemas de este programa son de
+ *  treinta incógnitas como mucho (dos por doblez), y a ese tamaño una matriz
+ *  dispersa cuesta más de mantener de lo que ahorra. */
+export function solveDense(A: number[][], b: number[]): number[] | null {
+  const n = b.length;
+  const M = A.map((row, i) => [...row, b[i]]);
+  for (let c = 0; c < n; c++) {
+    let piv = c;
+    for (let r = c + 1; r < n; r++) if (Math.abs(M[r][c]) > Math.abs(M[piv][c])) piv = r;
+    if (!(Math.abs(M[piv][c]) > 1e-12)) return null;
+    [M[c], M[piv]] = [M[piv], M[c]];
+    for (let r = c + 1; r < n; r++) {
+      const f = M[r][c] / M[c][c];
+      if (!f) continue;
+      for (let k = c; k <= n; k++) M[r][k] -= f * M[c][k];
+    }
+  }
+  const x = new Array<number>(n).fill(0);
+  for (let r = n - 1; r >= 0; r--) {
+    let acc = M[r][n];
+    for (let k = r + 1; k < n; k++) acc -= M[r][k] * x[k];
+    x[r] = acc / M[r][r];
+  }
+  return x.every(v => isFinite(v)) ? x : null;
+}

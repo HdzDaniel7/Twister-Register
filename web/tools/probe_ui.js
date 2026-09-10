@@ -1603,6 +1603,347 @@ step('coste de reconstruir la escena con 13 piezas medidas', () => {
   if (o2 !== o1) throw new Error(`la escena crece al reconstruirla: ${o1} -> ${o2}`);
 });
 
+/* ------------------------------------------------------------- LÍMITES ----
+   Los umbrales que juzgan un dato. Lo que hay que vigilar aquí no es que la
+   tabla se pinte: es que un número tecleado LLEGUE al motor y que uno absurdo
+   se recorte en vez de apagar la guarda. */
+step('la pestaña Límites existe en Modelar y trae los ocho números', () => {
+  click('[data-md="model"]');
+  click('#tabs [data-t="lims"]');
+  if (S().tab !== 'lims') throw new Error('no cambió de pestaña');
+  const campos = document.querySelectorAll('#panes [data-lm], #panes [data-c]').length;
+  if (campos !== 8) throw new Error(campos + ' campos');
+});
+step('Límites NO aparece en Compensar: le comería una fila a la tabla', () => {
+  click('[data-md="comp"]');
+  if (document.querySelector('#tabs [data-t="lims"]')) {
+    throw new Error('la pestaña se coló en el modo taller');
+  }
+  click('[data-md="model"]');
+  click('#tabs [data-t="lims"]');
+});
+step('un umbral tecleado llega al motor', () => {
+  setval('#panes [data-lm="straightMin"]', '40');
+  if (S().lims.straightMin !== 40) throw new Error('ST.lims dice ' + S().lims.straightMin);
+});
+step('y muerde: subirlo deja rectas de esta pieza fuera', () => {
+  setval('#panes [data-lm="straightMin"]', '400');
+  const B = window.BARCOMP;
+  const f = B.E.feasibility(S().model, S().lims);
+  if (f.ok) throw new Error('con 400 mm la demo sigue siendo fabricable');
+  /* Y se dice en la propia pestaña, no solo por dentro. */
+  const chip = q('#panes .chip');
+  if (!/\d/.test(chip.textContent)) throw new Error('la insignia no dice cuántas');
+});
+step('un valor fuera de rango se recorta y la celda enseña lo recortado', () => {
+  setval('#panes [data-lm="scaleMin"]', '9');
+  if (S().lims.scaleMin !== 1) throw new Error('ST.lims dice ' + S().lims.scaleMin);
+  const celda = q('#panes [data-lm="scaleMin"]');
+  if (parseFloat(celda.value) !== 1) throw new Error('la celda enseña ' + celda.value);
+});
+step('un umbral vacío no escribe un 0 que nadie pidió', () => {
+  const antes = S().lims.piMin;
+  setval('#panes [data-lm="piMin"]', '');
+  if (S().lims.piMin !== antes) throw new Error('se escribió ' + S().lims.piMin);
+});
+step('las guardas del lazo se tocan aquí y van a ST.comp', () => {
+  setval('#panes [data-c="dead"]', '0.2');
+  if (S().comp.dead !== 0.2) throw new Error('ST.comp.dead = ' + S().comp.dead);
+});
+step('volver a los de fábrica restaura los ocho', () => {
+  click('#panes [data-a="limsdef"]');
+  const B = window.BARCOMP;
+  if (!B.E.limsAreDefault(S().lims)) throw new Error('los umbrales siguen tocados');
+  if (S().comp.dead !== B.E.COMP_DEFAULT.dead) throw new Error('la banda muerta no volvió');
+});
+step('y el botón queda apagado cuando ya no hay nada que restaurar', () => {
+  if (!q('#panes [data-a="limsdef"]').disabled) throw new Error('sigue habilitado');
+});
+step('un umbral gasta un paso de deshacer y Ctrl+Z lo devuelve', () => {
+  setval('#panes [data-lm="straightMin"]', '55');
+  if (S().lims.straightMin !== 55) throw new Error('no se escribió');
+  hotkey('z', { ctrlKey: true });
+  if (S().lims.straightMin === 55) throw new Error('deshacer no lo devolvió');
+});
+step('los umbrales viajan en el JSON que se guarda', () => {
+  const B = window.BARCOMP;
+  setval('#panes [data-lm="piMin"]', '3');
+  const doc = B.E.toDoc(S().model, S().command, S().comp, S().proc, S().datasets,
+                        S().variants, S().ref, S().anchor, { lims: S().lims });
+  if (!doc.lims || doc.lims.piMin !== 3) throw new Error('el documento no los lleva');
+  click('#panes [data-a="limsdef"]');
+});
+
+/* ------------------------------------------------------------- MÁQUINA ----
+   El comando que sale a la dobladora. Lo que hay que vigilar es que la vista
+   previa sea EXACTAMENTE el archivo: si se dibujara aparte, comprobar unidades
+   y signos en pantalla dejaría de valer para nada. */
+step('la pestaña Máquina existe y trae la vista previa', () => {
+  click('[data-md="model"]');
+  click('#tabs [data-t="mach"]');
+  if (S().tab !== 'mach') throw new Error('no cambió de pestaña');
+  const filas = document.querySelectorAll('#panes table.marks tbody tr').length;
+  if (filas < 1) throw new Error('la vista previa está vacía');
+});
+step('la vista previa es carácter por carácter lo que se exporta', () => {
+  const B = window.BARCOMP;
+  const tabla = B.E.machineTable(B.commandModel(), S().mach);
+  const celdas = [...document.querySelectorAll('#panes table.marks tbody tr')]
+    .map(tr => [...tr.children].map(td => td.textContent));
+  const cuerpo = S().mach.header ? tabla.slice(1) : tabla;
+  for (let i = 0; i < celdas.length; i++) {
+    if (celdas[i].join('|') !== cuerpo[i].join('|')) {
+      throw new Error(`fila ${i}: «${celdas[i].join('|')}» vs «${cuerpo[i].join('|')}»`);
+    }
+  }
+});
+step('marcar una columna la añade en el orden fijo, no al final', () => {
+  check('#panes [data-mc="twist"]', true);
+  const cols = S().mach.cols.join(',');
+  if (!cols.includes('twist')) throw new Error('no entró: ' + cols);
+  if (cols.indexOf('twist') < cols.indexOf('radius')) throw new Error('orden: ' + cols);
+  check('#panes [data-mc="twist"]', false);
+  if (S().mach.cols.includes('twist')) throw new Error('no salió');
+});
+step('cambiar a pulgadas cambia los números de la vista previa', () => {
+  const antes = q('#panes table.marks tbody tr').textContent;
+  setval('#panes [data-mf="lenUnit"]', 'in');
+  if (S().mach.lenUnit !== 'in') throw new Error('el perfil no cambió');
+  if (q('#panes table.marks tbody tr').textContent === antes) {
+    throw new Error('la vista previa no se enteró');
+  }
+  setval('#panes [data-mf="lenUnit"]', 'mm');
+});
+step('el rodado absoluto y el incremental dan tablas distintas', () => {
+  const delta = q('#panes table.marks tbody').textContent;
+  setval('#panes [data-mf="rotMode"]', 'abs');
+  if (q('#panes table.marks tbody').textContent === delta) {
+    throw new Error('elegir el eje absoluto no cambió nada');
+  }
+  setval('#panes [data-mf="rotMode"]', 'delta');
+});
+step('la última columna no se puede quitar: sin ninguna no hay archivo', () => {
+  const B = window.BARCOMP;
+  for (const c of [...S().mach.cols]) check(`#panes [data-mc="${c}"]`, false);
+  if (S().mach.cols.length !== 1) {
+    throw new Error('quedaron ' + S().mach.cols.length + ' columnas');
+  }
+  /* Y la casilla vuelve a marcarse sola: el panel no puede enseñar cero
+     columnas mientras el archivo sale con una. */
+  if (!q(`#panes [data-mc="${S().mach.cols[0]}"]`).checked) {
+    throw new Error('la casilla no refleja lo que va a salir');
+  }
+  click('#panes [data-a="machdef"]');
+  if (S().mach.cols.join(',') !== B.E.MACHINE_DEFAULT.cols.join(',')) {
+    throw new Error('el perfil de fábrica no volvió');
+  }
+});
+step('el perfil de máquina gasta un paso de deshacer y vuelve', () => {
+  setval('#panes [data-mf="decimals"]', '1');
+  if (S().mach.decimals !== 1) throw new Error('no se escribió');
+  hotkey('z', { ctrlKey: true });
+  if (S().mach.decimals === 1) throw new Error('deshacer no lo devolvió');
+});
+step('exportar el comando no revienta y el botón está en el cajón de archivo', () => {
+  click('#panes [data-a="expcmd"]');
+  drawer('file');
+  click('#lf [data-a="expcmd"]');
+});
+
+/* -------------------------------------------------------- ACCESIBILIDAD ---
+   Lo que se mide aquí es lo que un lector de pantalla o un ratón impreciso
+   encuentran, y son cosas que no se ven mirando la pantalla: el tamaño real
+   del blanco de clic y si a una fila se puede llegar sin ratón. Se miden con
+   getComputedStyle y con el rectángulo real, no con lo que dice el CSS. */
+step('los botones de solo icono miden 24 px o más', () => {
+  drawer('models');
+  const b = q('#lf .xbtn').getBoundingClientRect();
+  if (b.width < 24 || b.height < 24) {
+    throw new Error(`${b.width.toFixed(1)}x${b.height.toFixed(1)} px`);
+  }
+});
+step('y llevan rótulo: la ✕ sola no dice nada a un lector de pantalla', () => {
+  for (const el of document.querySelectorAll('#lf .xbtn')) {
+    if (!el.getAttribute('aria-label')) throw new Error('un botón sin aria-label');
+  }
+});
+step('las filas de capa llegan a 24 px de alto', () => {
+  drawer('view');
+  const r = q('#lf .layer').getBoundingClientRect();
+  if (r.height < 24) throw new Error(r.height.toFixed(1) + ' px');
+  drawer('view');
+});
+step('la fila de desviación se puede enfocar sin ratón', () => {
+  click('[data-md="meas"]');
+  const fila = q('#side tr[data-r]');
+  if (fila.tabIndex !== 0) throw new Error('la fila no es enfocable');
+  if (!fila.getAttribute('aria-label')) throw new Error('la fila no se anuncia');
+  fila.focus();
+  if (document.activeElement !== fila) throw new Error('no tomó el foco');
+});
+step('Enter sobre la fila selecciona ese doblez', () => {
+  const fila = q('#side tr[data-r="2"]');
+  fila.focus();
+  fila.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }));
+  if (S().sel !== 2) throw new Error('sel = ' + S().sel);
+  /* y el foco sigue en la fila después de que el panel se reconstruya entero */
+  const vivo = document.activeElement;
+  if (!vivo || vivo.dataset.r !== '2') throw new Error('el foco se perdió al repintar');
+});
+step('las flechas suben y bajan por la tabla sin salirse', () => {
+  const fila = q('#side tr[data-r="2"]');
+  fila.focus();
+  fila.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true, cancelable: true }));
+  if (document.activeElement.dataset.r !== '3') {
+    throw new Error('bajó a ' + document.activeElement.dataset.r);
+  }
+  /* En la primera fila, ArrowUp no tiene a dónde ir y el foco se queda: nada
+     salta al panel de al lado. */
+  const p0 = q('#side tr[data-r="0"]');
+  p0.focus();
+  p0.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowUp', bubbles: true, cancelable: true }));
+  if (document.activeElement !== p0) throw new Error('el foco se escapó de la tabla');
+  click('[data-md="model"]');
+});
+
+/* --------------------------------------------------------------- AMARRE ---
+   Los pines laterales. Lo que hay que vigilar aquí no es que la tabla se
+   pinte: es que el interruptor sea de verdad un interruptor —apagado, la pieza
+   tiene que ser la misma que antes de que los pines existieran— y que con él
+   puesto la forma CAMBIE, porque si no cambia nada el amarre es un adorno. */
+step('la pestaña Amarre existe y arranca con el amarre apagado', () => {
+  click('[data-md="model"]');
+  click('#tabs [data-t="pins"]');
+  if (S().tab !== 'pins') throw new Error('no cambió de pestaña');
+  if (S().restraint.on) throw new Error('el amarre nace encendido');
+  if (!q('#panes [data-rs="on"]')) throw new Error('no está el interruptor');
+});
+step('sembrar pines los deja tocando la barra', () => {
+  click('#panes [data-a="seedpin"]');
+  const B = window.BARCOMP;
+  if (!S().pins.length) throw new Error('no se sembró ninguno');
+  const path = B.placedPath();
+  const fits = S().pins.map(p => B.E.pinFit(path, S().model.section, p));
+  if (fits.some(f => !f || Math.abs(f.gap) > 1)) {
+    throw new Error('algún pin nace sin tocar: ' + fits.map(f => f && f.gap.toFixed(2)).join(' '));
+  }
+  /* y la capa se enciende sola: sembrar y que el 3D siga igual se lee como que
+     no funcionó */
+  if (!S().layers.pins.on) throw new Error('la capa de pines sigue apagada');
+});
+step('con el amarre APAGADO la pieza es exactamente la de antes', () => {
+  const B = window.BARCOMP;
+  const antes = B.E.fk(S().model).pis.map(p => [p.x, p.y, p.z]);
+  const libre = B.shownModel();
+  const ahora = B.E.fk(libre).pis.map(p => [p.x, p.y, p.z]);
+  const d = Math.max(...antes.map((p, i) => Math.max(
+    Math.abs(p[0] - ahora[i][0]), Math.abs(p[1] - ahora[i][1]), Math.abs(p[2] - ahora[i][2]))));
+  if (d !== 0) throw new Error('los PI se movieron sin amarre: ' + d);
+});
+step('encender el amarre enciende sus dos capas', () => {
+  check('#panes [data-rs="on"]', true);
+  if (!S().restraint.on) throw new Error('no se encendió');
+  if (!S().layers.pins.on || !S().layers.held.on) throw new Error('las capas siguen apagadas');
+});
+step('con la pieza en su sitio los pines no piden nada', () => {
+  const B = window.BARCOMP;
+  const R = B.heldResult();
+  /* recién sembrados están tocando: puede que sujeten, pero no hay nada que
+     cerrar, así que la forma no se mueve */
+  const d = B.E.fk(R.model).pis.reduce(
+    (m, p, i) => Math.max(m, p.distanceTo(B.E.fk(S().model).pis[i])), 0);
+  if (d > 1) throw new Error('la forma se movió sin motivo: ' + d.toFixed(2));
+});
+step('mover un ángulo con la barra sujeta la DEFORMA en vez de moverla libre', () => {
+  const B = window.BARCOMP;
+  const libreAntes = B.E.fk(S().model).pis;
+  click('#tabs [data-t="model"]');
+  const celda = q('#panes [data-b="3"][data-k="angle"]');
+  celda.focus();
+  document.execCommand('selectAll', false, null);
+  if (!document.execCommand('insertText', false, String((+celda.value + 2).toFixed(1)))) {
+    throw new Error('execCommand insertText no disponible');
+  }
+  celda.blur();
+  click('#tabs [data-t="pins"]');
+  const R = B.heldResult();
+  if (!R.held.length) throw new Error('ningún pin sujetó tras mover el ángulo');
+  const libre = B.E.fk(S().model).pis, sujeta = B.E.fk(R.model).pis;
+  const dif = libre[libre.length - 1].distanceTo(sujeta[sujeta.length - 1]);
+  if (!(dif > .5)) throw new Error('la barra sujeta acabó donde la libre: ' + dif.toFixed(2));
+  if (libreAntes.length !== libre.length) throw new Error('cambió el número de PI');
+  /* y la pestaña lo dice con números, no solo por dentro */
+  if (!/\d/.test(q('#panes .chip').textContent)) throw new Error('el costo no se enseña');
+});
+step('apagar el amarre devuelve la pieza libre', () => {
+  const B = window.BARCOMP;
+  check('#panes [data-rs="on"]', false);
+  if (S().held !== null) throw new Error('la caché de la forma sujeta sobrevivió');
+  const d = B.E.fk(B.shownModel()).pis.reduce(
+    (m, p, i) => Math.max(m, p.distanceTo(B.E.fk(S().model).pis[i])), 0);
+  if (d !== 0) throw new Error('sigue enseñando la forma sujeta: ' + d);
+});
+step('el material no mueve un solo punto, y el aviso lo dice', () => {
+  const B = window.BARCOMP;
+  check('#panes [data-rs="on"]', true);
+  const antes = B.E.fk(B.heldResult().model).pis.map(p => p.clone());
+  setval('#panes [data-mt="E"]', '200000');
+  if (S().mat.E !== 200000) throw new Error('no se escribió el módulo');
+  const d = B.E.fk(B.heldResult().model).pis.reduce((m, p, i) => Math.max(m, p.distanceTo(antes[i])), 0);
+  if (d > 1e-9) throw new Error('cambiar E movió la forma: ' + d);
+  setval('#panes [data-mt="E"]', '69000');
+});
+step('un pin se puede desactivar sin borrarlo', () => {
+  const id = S().pins[0].id;
+  check(`#panes [data-pnh="${id}"]`, false);
+  if (S().pins[0].hold) throw new Error('sigue sujetando');
+  if (window.BARCOMP.heldResult().held.includes(0)) throw new Error('el solver lo siguió contando');
+  check(`#panes [data-pnh="${id}"]`, true);
+});
+step('los pines y el amarre entran en el deshacer', () => {
+  const n = S().pins.length;
+  click('#panes [data-a="addpin"]');
+  if (S().pins.length !== n + 1) throw new Error('no se añadió');
+  hotkey('z', { ctrlKey: true });
+  if (S().pins.length !== n) throw new Error('deshacer no lo quitó: ' + S().pins.length);
+});
+step('resolver el amarre cuesta menos que repintar la escena', () => {
+  const B = window.BARCOMP;
+  check('#panes [data-rs="on"]', true);
+  /* La cuenta es cara —una trayectoria por incógnita y por iteración— y por eso
+     va con caché. Lo que se mide aquí es el caso PEOR: la primera vez, con la
+     caché fría. El presupuesto es el mismo que el de la escena, 250 ms: por
+     encima de eso, mover un pin se siente pegajoso y habría que resolver en
+     diferido en vez de al repintar. */
+  S().held = null;
+  const t0 = performance.now();
+  B.heldResult();
+  const ms = performance.now() - t0;
+  log.push(`     amarre: ${ms.toFixed(1)} ms · ${S().pins.length} pines · ${S().model.bends.length} dobleces`);
+  if (!(ms < 250)) throw new Error('el amarre va a tirones: ' + ms.toFixed(0) + ' ms');
+  /* Y la caché tiene que servir de algo: la segunda llamada no vuelve a
+     resolver, devuelve lo mismo. */
+  const t1 = performance.now();
+  const again = B.heldResult();
+  if (performance.now() - t1 > ms / 2) throw new Error('la caché no está sirviendo');
+  if (again !== S().held) throw new Error('la caché devolvió otra cosa');
+});
+step('la barra de estado avisa de que la pieza está sujeta', () => {
+  check('#panes [data-rs="on"]', true);
+  const txt = q('#st').textContent;
+  if (!/%/.test(txt)) throw new Error('el estado no dice el esfuerzo: ' + txt);
+  /* y desaparece al soltar: un aviso que se queda puesto deja de leerse */
+  check('#panes [data-rs="on"]', false);
+  const chips = [...document.querySelectorAll('#st .chip')].map(c => c.textContent);
+  if (chips.some(c => /%/.test(c))) throw new Error('el aviso sobrevivió al apagado');
+  check('#panes [data-rs="on"]', true);
+});
+step('quitar todos los pines deja el amarre sin nada que sujetar', () => {
+  check('#panes [data-rs="on"]', false);
+  click('#panes [data-a="clearpin"]');
+  if (S().pins.length) throw new Error('quedaron pines');
+});
+
 step('modelo nuevo y demo', () => {
   drawer('file'); click('[data-a="new"]'); click('[data-a="demo"]'); });
 step('demo limpia las cotas', () => { if (S().marks.length) throw new Error('quedaron cotas'); });

@@ -8,11 +8,12 @@
    original, y volver a cero con un clic.
    ========================================================================= */
 import { Vector3 } from 'three';
-import type { Bend, Model, Variant, DeltaKey, Delta } from '../types.ts';
+import type { Bend, Model, Variant, DeltaKey, Delta, Lims } from '../types.ts';
 import { clamp, wrapTurn, mulberry32 } from './math.ts';
 import { BEND_DEFAULT, newBend, bendFrom, normalizeModel, cloneModel } from './bend.ts';
 import type { RawModel } from './bend.ts';
-import { fk, ik, canonRot, AXIS_MIN_DEG } from './kinematics.ts';
+import { fk, ik, canonRot } from './kinematics.ts';
+import { LIMS_DEFAULT } from './lims.ts';
 
 /* ------------------------------------------------------------------ modelo */
 export function emptyModel(): Model {
@@ -156,15 +157,14 @@ function modelFromPoints(model: Model, P: Vector3[], keep: Bend[], minBendDeg = 
  *  MENOS puntos que el nominal --pasa, y ya revento una vez-- los dobleces que
  *  sobran del nominal se quedan fuera, y si trae mas, los que falten caen en
  *  BEND_DEFAULT.
- *
- *  Gemelo de `measured_model()` del motor de Python.
  */
-export function measuredModel(nominal: Model, pts: Vector3[]): Model {
+export function measuredModel(nominal: Model, pts: Vector3[],
+                              lims: Lims = LIMS_DEFAULT): Model {
   const n = Math.max(0, pts.length - 2);
   const keep = nominal.bends.slice(0, n);
   /* Camino MEDIDO: los puntos traen ruido, así que un doblez casi recto no
-     tiene eje legible y heredarlo es mejor que inventarlo. Ver AXIS_MIN_DEG. */
-  return modelFromPoints(nominal, pts.map(p => p.clone()), keep, AXIS_MIN_DEG);
+     tiene eje legible y heredarlo es mejor que inventarlo. Ver lims.axisMin. */
+  return modelFromPoints(nominal, pts.map(p => p.clone()), keep, lims.axisMin);
 }
 
 /** Mueve el PI `i` y regenera la cadena entera desde los puntos.

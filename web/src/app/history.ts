@@ -10,7 +10,11 @@
    QUÉ SE DESHACE — lo que viaja en toDoc():
      el modelo y sus variantes, los comandos de máquina, las ganancias, los
      parámetros del simulador, las piezas medidas, el extremo fijo, la
-     colocación, las cotas y el ajuste manual de la compensación.
+     colocación, las cotas, los pines laterales con su amarre y su material
+     —mover un pin con el amarre puesto cambia la FORMA de la pieza—, el
+     ajuste manual de la compensación y los umbrales
+     de la pestaña «Límites» — estos últimos porque cambian qué se rechaza y
+     qué se avisa, o sea el resultado, y no cómo se ve la pantalla.
 
    QUÉ NO — lo que no está en el documento, y es deliberado:
      la cámara, el doblez seleccionado, el modo de trabajo, el cajón abierto,
@@ -25,7 +29,7 @@
    gasta un paso de deshacer.
    ========================================================================= */
 import * as E from '../engine.ts';
-import { ST, loadModel, setMarks, setPedestals, syncTweak, addDataset } from '../state.ts';
+import { ST, loadModel, setMarks, setPedestals, setPins, syncTweak, addDataset } from '../state.ts';
 import type { Doc } from '../types.ts';
 
 /** 50 pasos: con ~20 KB por documento son 1 MB largo, y nadie deshace más de
@@ -53,7 +57,9 @@ function snapshot(): string {
   const doc = E.toDoc(ST.model, ST.command, ST.comp, ST.proc, ST.datasets,
                       ST.variants, ST.ref, ST.anchor,
                       { place: ST.place, marks: ST.marks, fixture: ST.fixture,
-                        tweak: hayAjuste ? ST.tweak : [] });
+                        tweak: hayAjuste ? ST.tweak : [], lims: ST.lims,
+                        mach: ST.mach,
+                        pins: ST.pins, restraint: ST.restraint, mat: ST.mat });
   /* `saved` es la hora de guardado, y cambia en cada llamada: si se queda, dos
      documentos idénticos salen distintos, la comparación de commit() no sirve
      de nada y CUALQUIER clic gasta un paso de deshacer. */
@@ -131,6 +137,11 @@ function restore(text: string): void {
     ST.command = d.command;
     Object.assign(ST.comp, d.comp);
     Object.assign(ST.proc, d.proc);
+    Object.assign(ST.lims, d.lims);
+    Object.assign(ST.mach, d.mach);
+    setPins(d.pins);
+    Object.assign(ST.restraint, d.restraint);
+    Object.assign(ST.mat, d.mat);
     ST.place = { ...E.PLACE_DEFAULT, ...(d.place || {}) };
     setMarks(d.marks);
     setPedestals(d.fixture);

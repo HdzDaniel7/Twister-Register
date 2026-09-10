@@ -54,7 +54,40 @@ function moveCell(from: HTMLInputElement | HTMLSelectElement, to: HTMLInputEleme
   if ((live as HTMLInputElement).select) (live as HTMLInputElement).select();
 }
 
+/** La tabla de desviacion con el teclado.
+ *
+ *  Sus filas seleccionan un doblez al pulsarlas —eso ya estaba— pero solo con
+ *  el raton: no habia forma de llegar a ellas tabulando, y quien no usa raton
+ *  se quedaba sin la unica manera de saltar de la desviacion al doblez que la
+ *  produjo. Ahora la fila es enfocable (`tabindex` en panels/meas.ts) y aqui
+ *  van las teclas: Enter y Espacio la eligen, y las flechas suben y bajan sin
+ *  salir de la tabla, que es lo que hace un `<select>` o cualquier lista.
+ *
+ *  El foco se vuelve a poner DESPUES del repintado, buscando la fila por su
+ *  `data-r`: seleccionar reconstruye el panel entero y el nodo de antes ya no
+ *  esta en el documento — el mismo motivo por el que moveCell() rebusca. */
+function bindDevRows(): void {
+  document.body.addEventListener('keydown', e => {
+    const fila = (e.target as HTMLElement).closest('tr[data-r]') as HTMLTableRowElement | null;
+    if (!fila) return;
+    const i = +(fila.dataset.r as string);
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      fila.click();
+      const vivo = $<HTMLElement>(`tr[data-r="${i}"]`);
+      if (vivo) vivo.focus();
+      return;
+    }
+    if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return;
+    e.preventDefault();
+    const paso = e.key === 'ArrowDown' ? 1 : -1;
+    const dest = $<HTMLElement>(`tr[data-r="${i + paso}"]`);
+    if (dest) dest.focus();
+  });
+}
+
 export function bindKeyboard(): void {
+  bindDevRows();
   /* Escape cierra el cajón de menú, como en cualquier menú. Solo cuando el
      foco NO está en un campo: dentro de una celda, Escape ya significa
      «descarta lo que escribí», y esa es la que manda. */

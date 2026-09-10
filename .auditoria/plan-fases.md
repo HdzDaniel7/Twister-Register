@@ -28,42 +28,45 @@ números que van a la máquina, es de Sonnet. Si hay que decidir algo, es de Opu
 
 ## Fase 0 · Contención — antes de la primera barra real
 
+**CERRADA 2026-09-08.** Las casillas de abajo se quedaron sin marcar en su día; el detalle
+de lo que cambió está en `CONTEXTO_BARCOMP.md` §11.
+
 Objetivo: que el programa deje de producir números que parecen correctos sin serlo, y que
 se pueda saber qué versión produjo cada número. **Ninguna barra real se dobla con esto
 abierto.**
 
-- [ ] **[C7] Sello de versión en la página · [O]** — marcador `/*__VER__*/` en
+- [x] **[C7] Sello de versión en la página · [O]** — marcador `/*__VER__*/` en
       `src/shell.html`, sustituido en `build.mjs` por `git rev-parse --short HEAD` + fecha,
       pintado en la barra de estado. · S · Va primero: sin esto, ningún otro arreglo se
       puede rastrear hasta una copia concreta.
-- [ ] **[C3] Congelar el comportamiento actual · [O]** — subir `SCHEMA` a `barcomp/2.3`
+- [x] **[C3] Congelar el comportamiento actual · [O]** — subir `SCHEMA` a `barcomp/2.3`
       (los signos cambiaron respecto de lo que otros archivos `2.2` pudieran contener) y
       crear `web/test/fixtures/` con un JSON y sus PI esperados escritos a mano, **tomados
       del comportamiento de hoy, que es el que funciona**. Aserción de coordenadas en
       `test_motor.js`. · M · Regla que queda escrita: tocar `ANG_DIR`/`ROT_DIR` obliga a
       subir `SCHEMA` y a regenerar el fixture a propósito, nunca por accidente.
-- [ ] **[A5] Rechazar esquemas desconocidos · [S]** — `SCHEMA_LEGACY` existe y no se usa;
+- [x] **[A5] Rechazar esquemas desconocidos · [S]** — `SCHEMA_LEGACY` existe y no se usa;
       hoy `barcomp/9.9` se lee como cinemática 1.0. Dos líneas y una clave i18n. · S
-- [ ] **[C1 + A4] Alineación de rama y umbral físico del eje · [O]** — `alignBranch(meas,
+- [x] **[C1 + A4] Alineación de rama y umbral físico del eje · [O]** — `alignBranch(meas,
       nom)` en `measuredModel()`, `deviations()`, `bendStats()` y `medianPart()`; en `ik()`,
       si el doblez es menor que el ruido lo declara "eje no observable" y hereda `prevRot`.
       Prueba que barre el eje de 85° a 95° con ruido. · M · **Es el hallazgo más grave de la
       auditoría** y van juntos: separarlos deja medio mecanismo en pie.
-- [ ] **[C2 parcial] Blindar el CSV con lo que se sabe hoy · [O]** — sin el archivo real no
+- [x] **[C2 parcial] Blindar el CSV con lo que se sabe hoy · [O]** — sin el archivo real no
       se puede mapear por nombre, pero sí se puede **rechazar lo ambiguo**: exigir 3 o 4
       columnas numéricas por línea y rechazar la línea si el patrón se rompe (en vez de
       recortar por la derecha), detectar coma decimal, y verificar
       `pts.length - 2 === bends.length` avisando el desajuste. · M · El mapeo por cabecera
       llega en la Fase 2, cuando llegue el archivo.
-- [ ] **[C5] SIM/MED visible en Compensar · [S]** — `srcTag()` en el encabezado de la tabla
+- [x] **[C5] SIM/MED visible en Compensar · [S]** — `srcTag()` en el encabezado de la tabla
       de comandos y en la barra de estado; `warnbox` si hay piezas simuladas en el lazo; la
       insignia también en el reporte impreso. · S · La función y las claves ya existen.
-- [ ] **[C6] Marcar los dobleces sin medir · [O]** — guion en vez de `+0.000`, fila
+- [x] **[C6] Marcar los dobleces sin medir · [O]** — guion en vez de `+0.000`, fila
       atenuada, celda no editable, contador "medidos 10/15". · M · Toca la lógica de
       `compensate()`, no solo la vista.
-- [ ] **[C8] Aviso al cerrar con cambios sin guardar · [S]** — `beforeunload` con documento
+- [x] **[C8] Aviso al cerrar con cambios sin guardar · [S]** — `beforeunload` con documento
       sucio. · S
-- [ ] **[A1] Guardas del lazo · [O]** — banda muerta, tope de Δ por ciclo, ganancia máxima
+- [x] **[A1] Guardas del lazo · [O]** — banda muerta, tope de Δ por ciclo, ganancia máxima
       1.0, "Aplicar" deshabilitado con n<3. · S · Sin esto, con ruido alto el lazo empeora
       la pieza.
 
@@ -312,7 +315,26 @@ Lo que se hizo, que es todo lo que no dependía de una respuesta:
       `scene/layers.ts`: es `TABLE_Z`, y ahora es el cero de una cota que
       alguien va a mecanizar, no un detalle de dibujo.
 
-- [ ] **[B1/B2] Exportación de comandos a la máquina · [O]** — ⛔ depende de **B.1 y B.2**.
+- [x] **[B1/B2] Exportación de comandos a la máquina · [O]** — **hecho
+      2026-09-08**, sin esperar el manual y sin inventarlo: `engine/machine.ts`
+      escribe el comando con un perfil configurable (columnas y orden,
+      separador, decimales, mm/pulgadas, grados/radianes, signo del ángulo y del
+      rodado, rodado incremental o absoluto, encabezado, CRLF y fila de la cola)
+      y la pestaña **Máquina** lo ajusta con una vista previa que es el archivo
+      —la pinta `machineTable()`, la misma función que escribe el CSV—. El
+      perfil viaja en el JSON de la pieza.
+
+      **Lo que sigue dependiendo de B.1/B.2 es ACERTAR**, y eso no lo arregla
+      ningún código: lo que cambia es quién decide y cuándo. Antes había que
+      recompilar y repartir un HTML nuevo; ahora lo teclea quien tenga el manual
+      delante, lo comprueba contra una pieza conocida en la vista previa, y
+      queda escrito junto al comando que se exportó.
+
+      Los signos invierten el ARCHIVO, no el motor: `ANG_DIR` y `ROT_DIR` siguen
+      congelados, y hay prueba de que invertir el signo de escritura no mueve un
+      solo PI.
+
+      Texto anterior, para saber de dónde venía: ⛔ depende de **B.1 y B.2**.
       Hoy no existe ninguna y los números se pasan a mano. Si la máquina lee CSV, es una
       función de 30 líneas junto a `expts`; lo caro no es escribirla, es acertar con las
       unidades y los signos. **Alto valor por poco esfuerzo en cuanto llegue el formato.**
@@ -534,9 +556,13 @@ Recortado a propósito. Cuesta mucho, aporta poco **a esta versión**:
 
 - **Capacidad de proceso (Cp/Cpk) y cartas de control.** Necesita ≥20 piezas para significar
   algo, y la beta va a ver 13. Cuando haya producción real, se retoma.
-- **Accesibilidad completa** (tamaños de 24 px, `tabindex` en las filas, navegación por
-  teclado de la tabla de desviación). Se queda solo el glifo de fuera de tolerancia, que es
-  el que evita un error de lectura.
+- ~~**Accesibilidad completa**~~ (tamaños de 24 px, `tabindex` en las filas, navegación por
+  teclado de la tabla de desviación). **Los tres, hechos el 2026-09-08** en la Fase 4: los
+  botones de solo icono llegan a 24×24 con su `aria-label`, las filas de capa a 24 px de
+  alto, y la tabla de desviación se enfoca y se recorre con Enter y las flechas. Se midió
+  con el rectángulo real en el banco, no comprobando que el CSS diga 24.
+  Sigue diferido lo que queda: revisar el resto de la interfaz con un lector de pantalla de
+  verdad, que es otra clase de trabajo y pide a alguien que lo use a diario.
 - **Reutilizar los nodos de las etiquetas 3D** y la ruta dirigida de `paneComp`. Son
   rendimiento percibido; hoy nadie se ha quejado y no hay medición que lo respalde.
 - **`InstancedMesh` para los PI.** Optimizar contra una carga imaginaria. Primero medir con
@@ -551,10 +577,78 @@ Recortado a propósito. Cuesta mucho, aporta poco **a esta versión**:
 
 - **Framework de UI o reescritura de los paneles.** El requisito de un solo HTML offline es
   duro y ningún hallazgo se resolvería mejor así.
-- **Consolidar los dos motores en uno.** El riesgo real —que diverjan en silencio— lo cubre
-  el fixture congelado de C3 por una fracción del costo.
+- ~~**Consolidar los dos motores en uno.**~~ **Revocado el 2026-09-08 por el dueño del
+  proyecto, y en el sentido contrario al que decía este punto:** el motor de Python y su
+  visor Tkinter salen del alcance enteros. Lo que aquí se descartaba era el trabajo de
+  FUSIONARLOS —caro y arriesgado—; retirar uno no cuesta nada y quita la mitad del
+  mantenimiento. El riesgo que cubría el segundo motor —que la cinemática derive en
+  silencio— lo sigue cubriendo el fixture congelado de C3, que fue el argumento original.
+  Consecuencia asumida: se pierde numpy/scipy a la mano para el extractor RANSAC; si algún
+  día se escribe, se decide entonces en qué lenguaje.
 - **Invertir los signos de ángulo o rodado.** Los actuales funcionan contra valores de
   máquina que no se pueden modificar. Se congelan, no se tocan.
 - **Migrar `test_motor.js` a otro runner.** Funciona y las pruebas son honestas.
 - **`noUncheckedIndexedAccess`.** El `tsconfig.json` ya explica por qué está apagada y el
   argumento sigue en pie.
+
+---
+
+## Alcance NUEVO — el amarre por pines laterales (2026-09-09)
+
+**No sale de la auditoría**: lo pidió el dueño del proyecto y se apunta aquí para
+que el plan siga siendo el único sitio donde está todo. Detalle completo en
+`CONTEXTO_BARCOMP.md`, «El amarre: la barra sujeta por pines».
+
+- [x] **Modelo de datos y solver · [O]** — `engine/pins.ts`. La barra sujeta se
+      resuelve en el espacio de parámetros, con el reparto pesado por `EI/L`.
+      `solveDense()` nuevo en `engine/math.ts`.
+- [x] **Interruptor, y que sea de verdad un interruptor · [O]** — apagado,
+      `restrain()` devuelve el mismo objeto que entró. Prueba de motor y paso de
+      banco exigiendo diferencia CERO en los PI.
+- [x] **Pestaña Amarre, capas del 3D, JSON y deshacer · [O]**
+- [ ] **Contrastar el modelo contra una pieza real · [—]** — ⛔ depende de un
+      escaneo de una pieza medida **con el fixture puesto** y del certificado del
+      material. Sin eso, el modelo dice DÓNDE se concentra el esfuerzo y cuánto
+      se mueve la punta, pero la magnitud en MPa lleva un material de manual.
+      Es el mismo dato que espera M6 (la flecha por gravedad), así que van en el
+      mismo correo.
+- [ ] **Decidir qué es el nominal con la barra sujeta · [—]** — ⛔ pregunta de
+      taller, no de software: el lazo compara hoy contra la pieza LIBRE, y con
+      el amarre puesto eso corrige hacia una forma que la barra sujeta no puede
+      tomar. Hay dos respuestas posibles —la forma que se quiere AL SOLTARLA o la
+      que se quiere MONTADA— y cada una cambia el código.
+
+---
+
+## Retirada del motor de Python — 2026-09-08
+
+**Decisión del dueño del proyecto**, tomada después de cerrar la Fase 3: lo que importa es
+que la página web funcione bien y correctamente; el motor gemelo en Python y su visor
+Tkinter no los usa nadie para eso, y salen del alcance.
+
+Lo que se hizo en el repo, que es todo lo que había aquí dentro:
+
+- `web/engine_dump.js` borrado — su único consumidor era `compare_engines.py`. Sale también
+  de `tsconfig.json` y de `.gitignore`.
+- Los comentarios que declaraban a `engine.ts`, `doc.ts`, `csv.ts`, `model.ts`,
+  `kinematics.ts`, `app.ts` y `actions.ts` «gemelos» de `core.py`, reescritos. Uno de ellos
+  —`csv.ts:88`— era una **deuda pendiente**: pedía llevarle a Python un cambio del lector
+  que nunca se llevó. Esa deuda deja de existir.
+- `README.md` y `CONTEXTO_BARCOMP.md`: las cuatro redes pasan a tres, §9 deja de ser «La
+  versión Python» y conserva lo que sí era del motor —variantes y edición de puntos—, ahora
+  en camelCase.
+- El criterio de aceptación del motor pasa a ser el **fixture congelado** de C3, escrito
+  donde antes estaba `compare_engines.py`.
+
+**Dónde acabó:** el 2026-09-09, por decisión del dueño del proyecto, la carpeta se movió de
+`Twister Register Python/` a **`BARCOMP Python/`**, hermana de este repo y fuera de él. No se
+borra: queda como un proyecto aparte que ya no se toca. El aviso sigue escrito en §9 del
+contexto — está en `barcomp/2.2` y su `load_json()` nunca miró el esquema, así que no sirve
+para abrir archivos de producción.
+
+**Lo que se pierde, dicho a las claras:** la verificación cruzada entre dos implementaciones
+independientes, que es más fuerte que un fixture —un fixture congela lo que HOY sale, y si
+hoy está mal, congela el error. Se acepta porque los signos ya están congelados a propósito
+(§11, «Decisión que manda sobre todo lo demás») y porque el segundo motor llevaba semanas
+sin actualizarse: la Fase 0 y la Fase 1 no se replicaron nunca en `core.py`, así que la
+red cruzada ya solo cubría la cinemática, no las guardas.

@@ -12,7 +12,7 @@
    parte, se parte por lo que YA salió solo: feasible.ts se llevó lo que la
    máquina no puede hacer, y ese es el patrón a repetir.
 
-   Convenciones cerradas (idénticas al motor Python):
+   Convenciones cerradas:
      · milímetros y grados en el modelo; radianes solo aquí dentro
      · sistema derecho, regla de la mano derecha
      · marco local: x = eje de la barra · y = espesor · z = ancho
@@ -209,25 +209,11 @@ export function fk(model: Model): { pis: Vector3[]; frames: Matrix4[]; end: Matr
  *
  *  de donde  angle = asin(d_y)  y  rot = atan2(-d_z, d_x).
  */
-/** Por debajo de este desvío, el eje de un doblez medido no se puede leer: la
- *  dirección lateral es toda ruido. Es un umbral FÍSICO, no numérico — el
- *  1e-12 de antes no se cumplía nunca con datos reales.
- *
- *  Con 0.5 mm de ruido de medición y avances de ~100 mm, un doblez de medio
- *  grado hace que el eje recorra [-89, +90] entero. Y como lo que se guarda es
- *  el GIRO (`rot - prevRot`), ese eje inventado envenena también la fila
- *  siguiente.
- *
- *  VALOR PROVISIONAL. La regla es `atan(3σ/avance)`, y **σ todavía no se ha
- *  medido**: hace falta la repetibilidad real del escaneo (ver
- *  `.auditoria/solicitud-datos.md`, punto A.6). Con 1.0° se atrapan los casos
- *  más groseros, pero el ruido puede inflar el ángulo APARENTE de un doblez
- *  casi recto por encima del umbral y entonces la guarda no dispara. Cuando se
- *  conozca σ, este número se recalcula — es el único sitio donde vive.
- *
- *  Solo se aplica al camino MEDIDO. En un modelo tecleado un doblez de 0.2° es
- *  deliberado y su eje es exacto, así que ahí el umbral se queda en 0. */
-export const AXIS_MIN_DEG = 1.0;
+/* El umbral de eje no observable —por debajo de qué desvío el eje de un doblez
+   MEDIDO es puro ruido— ya no vive aquí: es `lims.axisMin`, se teclea en la
+   pestaña «Límites» y viaja en el JSON. `ik()` lo recibe por parámetro, que es
+   como tiene que ser: en un modelo TECLEADO un doblez de 0.2° es deliberado y
+   su eje es exacto, así que ahí el umbral se queda en 0. */
 
 export function ik(
   points: Vector3[],

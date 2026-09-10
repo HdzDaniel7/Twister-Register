@@ -9,6 +9,9 @@ import { saveFocus, restoreFocus } from './focus.ts';
 import { paneModel } from './model.ts';
 import { panePoints } from './points.ts';
 import { paneFixture } from './fixture.ts';
+import { paneLims } from './lims.ts';
+import { paneMach } from './mach.ts';
+import { panePins } from './pins.ts';
 import { paneMeas } from './meas.ts';
 import { paneComp } from './comp.ts';
 import { renderLeft } from './left.ts';
@@ -36,8 +39,9 @@ export function renderRight(): void {
      'meas', o en 'comp' mientras se modela, cae en la primera del modo */
   const tabs = TABS_OF[ST.mode];
   if (!tabs.includes(ST.tab)) ST.tab = tabs[0];
-  const pane = { model: paneModel, points: panePoints, fixture: paneFixture, comp: paneComp
-               }[ST.tab as 'model' | 'points' | 'fixture' | 'comp'];
+  const pane = { model: paneModel, points: panePoints, fixture: paneFixture,
+                 pins: panePins, lims: paneLims, mach: paneMach, comp: paneComp
+               }[ST.tab as 'model' | 'points' | 'fixture' | 'pins' | 'lims' | 'mach' | 'comp'];
   $('#panes')!.innerHTML = pane(M!);
   if (host) host.scrollTop = keep;
   restoreFocus(f);

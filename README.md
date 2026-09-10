@@ -84,6 +84,35 @@ tiene internet.
   ángulo comandado —ahí una constante única miente— y si las piezas visibles son
   simuladas, porque entonces la cuenta devuelve lo que ya está escrito en el
   simulador. Adoptarlo es un botón, nunca automático.
+- **Los umbrales que juzgan un dato se teclean**, en la pestaña **Límites**: por
+  debajo de qué desvío el eje de un doblez medido es ruido, qué separación entre
+  PI hace creíble un archivo, a qué escala deja de ser la misma pieza, qué recta
+  necesita el herramental, y las cuatro guardas del lazo —banda muerta y tope
+  por ciclo— que hasta ahora decidían el comando desde un valor que nadie eligió.
+  Viajan en el JSON, así que un archivo guardado dice con qué umbrales se juzgó
+  esa pieza, y la pantalla marca cuáles siguen siendo **provisionales** y qué
+  dato esperan. Ninguno mueve un PI: deciden qué se rechaza, no dónde cae la
+  barra.
+- **La barra puede estar SUJETA, no libre en el espacio.** Los pines laterales
+  son postes atornillados a la mesa contra los que la barra tiene que tocar:
+  con ellos puestos, mover un ángulo ya no mueve libremente lo que viene
+  después, la pieza se queda donde la dejan los pines y se **deforma** para
+  llegar ahí. La pestaña Amarre dice cuánto se mueve la punta respecto de la
+  pieza libre, en qué estación está el peor codo y qué porcentaje del límite
+  elástico se alcanza — pasado el 100 %, la barra no vuelve al soltarla y la
+  pieza que sale no es la del modelo. Se enciende y se apaga con un
+  interruptor, y apagado el programa se comporta exactamente como si los pines
+  no existieran. La FORMA que toma la barra sujeta no depende del módulo
+  elástico: con sección constante se cancela, y el material solo hace falta
+  para el esfuerzo.
+- **El comando sale a la máquina en un archivo**, con el formato a la vista:
+  columnas y su orden, separador, decimales, mm o pulgadas, grados o radianes,
+  el signo del ángulo y el del rodado, y el rodado como incremento o como eje
+  absoluto. La vista previa la pinta la misma función que escribe el archivo, así
+  que comprobar unidades y signos en pantalla vale para algo. El formato real que
+  lee la dobladora está pedido y no ha llegado: por eso se deja configurable en
+  vez de adivinarlo, y el perfil viaja en el JSON para poder regenerar meses
+  después el mismo archivo.
 - **Cinta inferior** que desenrolla la longitud desarrollada, una columna por
   doblez coloreada por desviación. Con pieza medida muestra la desviación del
   desvío total; sin ella, el Δ contra el modelo de referencia.
@@ -235,16 +264,17 @@ cd web
 npm install          # una sola vez: three + esbuild
 npm run check        # typecheck -> pruebas -> build -> banco de interfaz
 npm run typecheck    # tsc --noEmit, con strict
-npm test             # 261 pruebas del motor y del i18n
+npm test             # 431 pruebas del motor y del i18n
 npm run build        # regenera index.html (y web/barcomp_viewer.html en local)
-npm run test:ui      # 162 pasos de interfaz en Edge headless, por CDP
+npm run test:ui      # 215 pasos de interfaz en Edge headless, por CDP
 ```
 
-Cuatro redes, y ninguna fase cierra con una en rojo: los tipos, las pruebas del
-motor, el banco de interfaz y —si se tocó el motor— `compare_engines.py` contra
-la implementación de Python (100 pruebas de su lado).
+Tres redes, y ninguna fase cierra con una en rojo: los tipos, las pruebas del
+motor y el banco de interfaz. Hubo una cuarta —`compare_engines.py` contra un
+motor gemelo en Python— hasta el **2026-09-08**, cuando ese motor se retiró del
+alcance: ver «Estado».
 
-Las mismas cuatro corren en **CI** ([`.github/workflows/ci.yml`](.github/workflows/ci.yml))
+Las mismas tres corren en **CI** ([`.github/workflows/ci.yml`](.github/workflows/ci.yml))
 sobre Node 22.18 —el suelo declarado en `engines`— y 24, más dos comprobaciones que
 solo tienen sentido allí: que `index.html` corresponde de verdad a `web/src/` (comparado
 sin el sello de versión, que por construcción no puede coincidir) y que el artefacto
@@ -402,9 +432,9 @@ del doblez `i` mueve **dos** avances, el `i` y el `i+1`; con el del último se
 ajusta la cola.
 
 Nada de esto cambia el archivo. **El JSON sigue guardando `feed`**, de PI a PI,
-que es lo que ve `command[]` y lo que ve el motor de Python; la recta es la
-lectura de ese mismo estado y `feedForStraight()` da la vuelta. Por eso
-`compare_engines.py` sigue en verde y los archivos anteriores abren igual.
+que es lo que ve `command[]` y lo que se manda a la máquina; la recta es la
+lectura de ese mismo estado y `feedForStraight()` da la vuelta. Por eso los
+archivos anteriores abren igual.
 
 La cuenta vive en un solo sitio, `rowLengths()` en `engine/kinematics.ts`; `machineFeeds()`,
 `twistSpanOf()`, `buildPath()` y `bendStations()` la consumen en vez de
@@ -522,7 +552,7 @@ cero.
 
 `Recta`, `L` y `Σ L` **no se guardan**: son magnitudes derivadas de `feed`,
 `radius` y los ángulos. El estado sigue siendo `feed`, de PI a PI, que es lo que
-ve el motor de Python — aunque no aparezca en la tabla y sea la recta la que se
+viaja en el JSON — aunque no aparezca en la tabla y sea la recta la que se
 teclea.
 
 ```jsonc
@@ -565,16 +595,22 @@ metido todavía una barra real. Lo que falta, en orden de impacto:
    en lote. Con eso, `sbW` y `sbT` dejan de ser dos números tecleados a ojo y
    pasan a salir de las piezas, con su dispersión a la vista.
 2. **Extraer los PI desde la nube de puntos**: segmentar tramos rectos → ajustar
-   rectas robustas (RANSAC) → intersectar ejes → PI. Va del lado Python, que
-   tiene numpy a mano; el visor recibe el CSV.
+   rectas robustas (RANSAC) → intersectar ejes → PI. Hoy el visor recibe el CSV
+   con los PI ya extraídos; quién los extraiga está sin decidir y espera la
+   respuesta de metrología (si el plan de inspección puede darlos directamente,
+   este paso no se escribe nunca).
 3. **Confirmar qué parámetros acepta la dobladora.** Si solo toma ángulo,
    `doRot` y `doFeed` se quedan apagados y el sesgo de rotación hay que atacarlo
    por calibración del robot.
 4. **Flexión por gravedad en el fixture**: en 1.7 m de aluminio puede ser del
    orden de las tolerancias, y hoy no se modela.
-5. **Consolidar en un solo motor.** El de Python y el del visor están
-   sincronizados y `compare_engines.py` lo demuestra, pero mantener los dos
-   cuesta el doble por cada cambio de cinemática.
+5. ~~Consolidar en un solo motor.~~ **Hecho el 2026-09-08**, por decisión del
+   dueño del proyecto: el motor gemelo en Python y su visor Tkinter salen del
+   alcance. El motor es uno solo, `web/src/engine.ts`, y el JSON deja de tener
+   que ser legible por dos implementaciones. Lo que se pierde es la comparación
+   cruzada de `compare_engines.py`; lo que la sustituye es el fixture congelado
+   de `web/test/fixtures/`, que vigila lo mismo —que los números no se muevan en
+   silencio— sin costar el doble por cada cambio de cinemática.
 
 `simulate()` sigue ahí y se queda: es la única forma de contestar «con esta
 dispersión de medición, ¿converge el lazo o se pone a oscilar?» antes de gastar

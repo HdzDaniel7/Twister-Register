@@ -6,7 +6,7 @@
    ========================================================================= */
 export type Lang = 'es' | 'en' | 'de';
 
-/** Las 239 claves que deben existir en LOS TRES diccionarios. */
+/** Las 364 claves que deben existir en LOS TRES diccionarios. */
 export type I18nKey =
   | 'sub' | 'bNew' | 'bOpen' | 'bSave' | 'bRep' | 'bDemo' | 'layers' | 'datasets'
   | 'model' | 'meas' | 'thSys' | 'thLight' | 'thDark' | 'comp' | 'points' | 'lNom'
@@ -27,6 +27,27 @@ export type I18nKey =
   | 'pedLiftTip' | 'addPed' | 'seedPed' | 'clearPed' | 'fixEmpty' | 'fixNote' | 'sbFew'
   | 'sbFewTip' | 'sbFlat' | 'sbFlatTip'
   | 'fabHead' | 'fabNeg' | 'fabShort' | 'fabTail' | 'fabOver'
+  | 'pins' | 'lPins' | 'lHeld' | 'pinOn' | 'pinOnTip' | 'pinDoRot' | 'pinRotTip'
+  | 'pinTol' | 'pinTolTip' | 'pinDamp' | 'pinDampTip' | 'pinDia' | 'pinGap'
+  | 'pinReach' | 'pinReachTip' | 'pinYes' | 'pinNo' | 'pinHold' | 'pinHoldTip'
+  | 'pinState' | 'pinHolding' | 'pinEmpty' | 'addPin' | 'seedPin' | 'clearPin'
+  | 'pinNote' | 'pinOffNote' | 'pinNoneHold' | 'pinHeldN' | 'pinTip' | 'pinTipTip'
+  | 'pinWorstKink' | 'pinStress' | 'pinOfYield' | 'pinYield' | 'pinYieldTip'
+  | 'pinOpen' | 'pinOpenTip' | 'pinKink' | 'pinCurv' | 'pinSigma'
+  | 'matE' | 'matYield' | 'matTip' | 'matProv'
+  | 'devRowTip'
+  | 'mach' | 'machTitle' | 'machCols' | 'machAxis' | 'machSep' | 'machDec'
+  | 'machLen' | 'machAng' | 'machSignA' | 'machSignR' | 'machSignTip'
+  | 'machRot' | 'machRotDelta' | 'machRotAbs' | 'machRotTip'
+  | 'machHead' | 'machCrlf' | 'machCrlfTip' | 'machTail' | 'machTailTip'
+  | 'machPrev' | 'machMore' | 'machExport' | 'machDirty' | 'machNote'
+  | 'lims' | 'limWhat' | 'limVal' | 'limDef' | 'limState' | 'limWait'
+  | 'limTouched' | 'limFactory' | 'limProv' | 'limRead' | 'limLoop' | 'limReset'
+  | 'limNote' | 'limHitStraight'
+  | 'lim_axisMin' | 'lim_piMin' | 'lim_scaleMin' | 'lim_straightMin'
+  | 'lim_axisMinTip' | 'lim_piMinTip' | 'lim_scaleMinTip' | 'lim_straightMinTip'
+  | 'lim_dead' | 'lim_deadFeed' | 'lim_maxStep' | 'lim_maxStepFeed'
+  | 'lim_deadTip' | 'lim_deadFeedTip' | 'lim_maxStepTip' | 'lim_maxStepFeedTip'
   | 'compSim' | 'compShort' | 'rowNoMeas'
   | 'batchUse' | 'batchTip' | 'batchOn' | 'batchHint' | 'spread' | 'spreadTip'
   | 'sbMeas' | 'sbUse' | 'sbNote' | 'sbCircular' | 'sbSpreadTip'

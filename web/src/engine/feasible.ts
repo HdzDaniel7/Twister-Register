@@ -12,19 +12,15 @@
    ya pasa de las 400 líneas de la regla, y esto no es cinemática —es el juicio
    sobre lo que la cinemática produjo—. La dependencia va en un solo sentido.  */
 import { bendTheta, straightOf, tailStraight, BEND_MAX_DEG } from './kinematics.ts';
-import type { Model } from '../types.ts';
+import { LIMS_DEFAULT } from './lims.ts';
+import type { Model, Lims } from '../types.ts';
 
-/** Recta mínima entre tangencias para que quepan los herramentales.
- *
- *  VALOR PROVISIONAL, como AXIS_MIN_DEG y PI_MIN_MM: el número real es una
- *  cota de la máquina —el largo de la mordaza más la carrera del cabezal— y
- *  está pedido en `.auditoria/solicitud-datos.md`, punto B.2. Los 25 mm de
- *  aquí venían escritos a mano en dos archivos de la vista; al menos ahora
- *  viven en un solo sitio y se recalculan cambiando una línea.
- *
- *  Una recta NEGATIVA no es cuestión de umbral: es geometría imposible pase lo
- *  que pase, y por eso se lista aparte. */
-export const STRAIGHT_MIN_MM = 25;
+/* La recta mínima entre tangencias es `lims.straightMin`: se teclea en la
+   pestaña «Límites», viaja en el JSON y lo explica engine/lims.ts. Aquí solo se
+   consume.
+
+   Una recta NEGATIVA no es cuestión de umbral: es geometría imposible pase lo
+   que pase, y por eso se lista aparte y no depende de ningún número. */
 
 export type Feasibility = {
   /** dobleces cuya recta de ENTRADA no llega al mínimo (índice base 0) */
@@ -49,15 +45,15 @@ export const overBent = (model: Model): number[] =>
 /** Qué le impide a esta pieza salir de la máquina. Todo en índices base 0; a
  *  quien lo pinta le toca sumar uno, que es como se numeran los dobleces en la
  *  tabla y en el taller. */
-export function feasibility(model: Model): Feasibility {
+export function feasibility(model: Model, lims: Lims = LIMS_DEFAULT): Feasibility {
   const short: number[] = [], negative: number[] = [];
   model.bends.forEach((_, i) => {
     const s = straightOf(model, i);
-    if (s < STRAIGHT_MIN_MM) short.push(i);
+    if (s < lims.straightMin) short.push(i);
     if (s < 0) negative.push(i);
   });
   const over = overBent(model);
-  const tailShort = tailStraight(model) < STRAIGHT_MIN_MM;
+  const tailShort = tailStraight(model) < lims.straightMin;
   return {
     short, negative, overBent: over, tailShort,
     ok: !short.length && !over.length && !tailShort,

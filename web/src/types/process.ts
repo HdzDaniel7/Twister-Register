@@ -56,6 +56,49 @@ export type Comp = {
   maxStepFeed?: number;
 };
 
+/** LOS UMBRALES QUE JUZGAN. Ver `engine/lims.ts`: qué significa cada uno, de
+ *  qué respuesta depende y entre qué valores se admite.
+ *
+ *  Van en el documento y no en el código para que el taller los ajuste cuando
+ *  se mida σ, y para que un archivo guardado diga con qué umbrales se juzgó esa
+ *  pieza. Ninguno toca la cinemática: deciden qué se rechaza y de qué dato se
+ *  desconfía, no dónde cae un PI. */
+export type Lims = {
+  /** desvío mínimo (°) para creerle el eje a un doblez MEDIDO; 0 = creerle siempre */
+  axisMin: number;
+  /** distancia mínima (mm) entre dos PI de un archivo importado; 0 = no mirar */
+  piMin: number;
+  /** fracción mínima del paso nominal para aceptar la escala de una nube; 0 = no mirar */
+  scaleMin: number;
+  /** recta mínima (mm) entre tangencias para que quepan los herramentales */
+  straightMin: number;
+};
+
+/** EL MATERIAL de la barra. Solo hace falta para pasar de deformación a
+ *  ESFUERZO: la forma que toma una barra sujeta no depende de E (ver la
+ *  cabecera de engine/pins.ts). PROVISIONAL hasta que llegue el certificado. */
+export type Mat = {
+  /** módulo elástico, MPa */
+  E: number;
+  /** límite elástico, MPa. Pasarlo significa que la pieza no vuelve al soltarla */
+  yield: number;
+};
+
+/** EL AMARRE: qué se hace con los pines laterales. Ver engine/pins.ts. */
+export type Restraint = {
+  /** ¿la barra está sujeta? Apagado, el programa se comporta exactamente como
+   *  si los pines no existieran, y hay una prueba de que los PI son idénticos */
+  on: boolean;
+  /** ¿el rodado también cede, o solo el ángulo? */
+  doRot: boolean;
+  /** tolerancia de contacto, mm */
+  tol: number;
+  /** amortiguación del reparto entre estaciones: 0 lo concentra, 1 lo reparte */
+  damp: number;
+  /** iteraciones del solver */
+  iters: number;
+};
+
 /** Lo que devuelve `deviations()`: una pieza medida contra su nominal. */
 export type Deviations = {
   /** los PI de la medida, ya alineados según el datum */

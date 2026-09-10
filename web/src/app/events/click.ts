@@ -48,7 +48,7 @@ function onClick(e: MouseEvent): void {
     }
     const t = (e.target as HTMLElement).closest(
       '[data-a],[data-v],[data-dm],[data-l],[data-th],[data-md],[data-dr],[data-dx],[data-dsel],[data-cm],[data-mx],[data-px],' +
-      '[data-vsel],[data-vx],[data-vd],[data-vr],[data-r]') as HTMLElement | null;
+      '[data-vsel],[data-vx],[data-vd],[data-vr],[data-r],[data-pnx]') as HTMLElement | null;
     if (!t) return;
     const d = t.dataset;
     if (d.l !== undefined) { setLang(d.l); renderAll(); return; }
@@ -73,6 +73,13 @@ function onClick(e: MouseEvent): void {
     /* borrar un pedestal. No renumera los que quedan: el nombre es del taller
        —está escrito en el pedestal— y renumerarlo aquí lo despegaría del que
        hay atornillado a la mesa. */
+    /* borrar un pin. Como con los pedestales, no renumera los que quedan: el
+       nombre es del taller, no un índice. */
+    if (d.pnx !== undefined) {
+      ST.pins = ST.pins.filter(p => p.id !== d.pnx);
+      renderRight(); rebuildScene();
+      return;
+    }
     if (d.px !== undefined) {
       ST.fixture = ST.fixture.filter(p => p.id !== d.px);
       renderRight(); rebuildScene();

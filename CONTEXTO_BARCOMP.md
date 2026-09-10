@@ -19,21 +19,14 @@ cd web && npm install                (solo la primera vez: three + esbuild)
 
 Editar  web/src/*.js  y/o  web/src/app.css
    →   cd web && node test_motor.js        (120 pruebas · npm test)
-   →   cd web && node build.mjs            (npm run build · python build.py hace lo mismo)
+   →   cd web && node build.mjs            (npm run build)
 ```
 
-Del lado Python:
-
-```
-Editar  python/barcomp/core.py  y/o  python/barcomp/gui.py
-   →   cd python && python test_core.py    (60 pruebas)
-```
-
-Y si el cambio tocó la cinemática o el esquema de datos, **en cualquiera de los dos lados**:
-
-```
-   →   python compare_engines.py           (los dos motores sobre el mismo modelo)
-```
+**El motor de Python se retiró del alcance el 2026-09-08** por decisión del dueño del proyecto.
+Había un gemelo (`python/barcomp/core.py` + un visor Tkinter) que compartía el esquema JSON y se
+comparaba contra este con `compare_engines.py`. Hoy el motor es UNO, `web/src/engine.ts`, y quien
+vigila que los números no se muevan en silencio es el fixture congelado de `web/test/fixtures/`.
+Si encuentras esa carpeta en el disco, no la sincronices: está fuera del proyecto.
 
 Si solo tienes el `.html` y no la carpeta `web/src/`, **detente y pídele al usuario los archivos
 fuente.** No intentes reconstruirlos ni parchear el HTML.
@@ -70,21 +63,26 @@ que quien los importa no nota el reparto.
 
 ```
 web/                        ← motor TypeScript + visor three.js
-  src/engine.ts             ← EL MOTOR, barril. Gemelo de python/barcomp/core.py. Sin DOM.
+  src/engine.ts             ← EL MOTOR, barril. El único que hay. Sin DOM.
     engine/math.ts             matrices, wrap, PRNG
     engine/bend.ts             el doblez y su normalización
     engine/kinematics.ts       fk · ik · bendDecomp · buildPath · rowLengths
     engine/model.ts            variantes, deltas, edición de puntos PI, measuredModel
-    engine/feasible.ts         rectas que no caben y dobleces imposibles (STRAIGHT_MIN_MM)
+    engine/feasible.ts         rectas que no caben y dobleces imposibles
+    engine/lims.ts             LOS UMBRALES QUE JUZGAN: rangos, saneado y por
+                               qué cada uno sigue siendo provisional
+    engine/machine.ts          el comando que sale a la dobladora: columnas,
+                               unidades, signos y el rodado abs/incremental
     engine/fitting.ts          Kabsch, anclaje entre modelos, colocación
     engine/compensate.ts       simulate · compensate · deviations · lote · springback
     engine/expr.ts             la celda de compensación (parser propio, sin eval)
     engine/doc.ts              esquema barcomp/2.3, migración de archivos anteriores
-    engine/csv.ts              la nube de PI: lectura tolerante (PI_MIN_MM,
-                               SCALE_MIN_RATIO) y escritura
+    engine/csv.ts              la nube de PI: lectura tolerante y escritura
     engine/fixture.ts          los pedestales: dónde apoyan, qué hueco dejan y
                                qué vano queda entre uno y otro (TABLE_Z)
-  src/i18n.ts               ← barril de i18n/: keys.ts (la unión de 239 claves) + es · en · de.
+    engine/pins.ts             EL AMARRE: los pines laterales, la forma que la
+                               barra toma sujeta y lo que le cuesta deformarse
+  src/i18n.ts               ← barril de i18n/: keys.ts (la unión de 364 claves) + es · en · de.
                               T() y LANG. La paridad es error de COMPILACIÓN, no solo de prueba.
   src/state.ts              ← ST: variantes, referencia, anclaje, capas, piezas medidas,
                               cotas y el fixture. placedPath() es la trayectoria colocada.
@@ -109,7 +107,6 @@ web/                        ← motor TypeScript + visor three.js
   package.json              ← three + esbuild; typescript y @types/three de desarrollo.
   build.mjs                 ← esbuild: src/ + three  ->  ../index.html (Pages) + barcomp_viewer.html.
   test_motor.js             ← 163 pruebas del motor y del i18n, en Node sin navegador.
-  engine_dump.js            ← vuelca el resultado del motor JS a JSON (lo usa compare_engines.py).
   barcomp_viewer.html       ← SALIDA. Generado. No editar.
   tools/                    ← banco de interfaz y sondas. AHORA SÍ versionado.
     ui_test.mjs                lanza Edge headless y corre probe_ui.js dentro de la página.
@@ -120,15 +117,7 @@ web/                        ← motor TypeScript + visor three.js
     probe_perf.js              mide la escena dentro del navegador.
     bundle_report.mjs          de qué está hecho el bundle.
 
-python/                     ← motor numpy + visor Tkinter/matplotlib
-  barcomp/core.py           ← el motor. Gemelo de engine.js, snake_case. Sin dependencias de interfaz.
-  barcomp/gui.py            ← el visor. Reinterpretado para Python, no es un puerto pixel a pixel.
-  run.py                    ← arranque del visor.
-  test_core.py              ← 70 pruebas: los invariantes de test_motor.js + variantes y puntos.
-  requirements.txt          ← numpy + matplotlib.
-
-compare_engines.py          ← corre los DOS motores sobre el mismo modelo y reporta diferencias.
-README.md                   ← cómo correr cada uno.
+README.md                   ← cómo correr el visor y qué hace cada pantalla.
 ```
 
 ### Por qué esbuild y three.js actual
@@ -269,8 +258,7 @@ polígono, no los puntos de tangencia. Los arcos se inscriben con `trim = radius
 
 ## 4. Funciones del motor
 
-Todas puras y todas en `web/src/engine.js`, que no toca el DOM. Los mismos nombres existen en
-`python/barcomp/core.py` en `snake_case`; la tabla usa el nombre JS.
+Todas puras y todas en `web/src/engine.ts`, que no toca el DOM.
 
 | función | firma | invariante |
 |---|---|---|
@@ -314,8 +302,8 @@ Todas puras y todas en `web/src/engine.js`, que no toca el DOM. Los mismos nombr
 | `bendStats(piezas)` | → `[{angle,rot,feed,n}]` | dispersión por doblez; llega hasta la pieza más LARGA |
 | `medianPart(piezas)` | → `bends[]` | la pieza mediana del lote; se detiene en la más CORTA |
 | `springback(muestras,ori)` | → `{W,T}` | `sb = 1 − medido/comandado`, con pendiente y r |
-| `evalCell(texto,c,v)` | → número \| null | la celda de compensación; **solo del visor web**, no existe en `core.py` |
-| `toDoc` / `fromDoc` | → `doc` / estado | esquema `barcomp/1.0`, compartido con Python |
+| `evalCell(texto,c,v)` | → número \| null | la celda de compensación; parser propio, sin `eval` |
+| `toDoc` / `fromDoc` | → `doc` / estado | esquema `barcomp/2.3`; migra los anteriores al abrir |
 
 `barGeometry(path, sec, devFn)` vive en `scene.js`, no en el motor: devuelve una `BufferGeometry` y
 por lo tanto depende de three.
@@ -329,7 +317,7 @@ cum(i)    = cum(i−1) + recta(i) + arco(i)
 ```
 
 `feed` es de PI a PI y es el **estado**: es lo que se guarda en el JSON, lo que va en `command[]`,
-lo que mueve `doFeed` y lo que ve el motor de Python. La recta es de tangencia a tangencia y es lo
+lo que mueve `doFeed` y lo que sale hacia la máquina. La recta es de tangencia a tangencia y es lo
 que consume la máquina.
 
 **En la tabla la recta es lo único que se teclea de las longitudes; el avance ni siquiera aparece**,
@@ -347,8 +335,8 @@ exactamente `x` en coma flotante, y recalcularlas todas en cada edición arrastr
 —`machineFeeds()`, `twistSpanOf()`, `buildPath()` y `bendStations()`— y era cuestión de tiempo que
 divergieran. `bendStations()` quedó en una línea: `rows.map(r => r.cum - r.arc / 2)`.
 
-Ninguna de estas magnitudes es estado nuevo, así que **el motor de Python no cambia** y
-`compare_engines.py` tiene que seguir diciendo *"los dos motores coinciden"*.
+Ninguna de estas magnitudes es estado nuevo: el JSON no crece por tenerlas y el fixture congelado
+sigue dando los mismos PI.
 
 ### El arco de un doblez compuesto
 
@@ -620,7 +608,7 @@ tiempo de ejecución —fondo, niebla, los dos colores del `GridHelper`, el mate
 el eje y las etiquetas de la cinta—. Un color nuevo se define en `app.css`, en los dos temas.
 `applyTheme()` recoloca fondo y niebla sin reconstruir; la rejilla y los pedestales llevan el color
 dentro del material, así que cambiar de tema hace `rebuildScene()`. `devColor()` se queda en el
-motor: es semántico y compartido con Python.
+motor: es semántico, no decorativo.
 
 Sin `localStorage`, el tema y el idioma viajan en la clave **opcional** `ui` del JSON. Un archivo
 sin `ui` no pisa lo que el usuario tenga puesto.
@@ -697,7 +685,7 @@ punteada. Deja ver de un vistazo cuál doblez está fuera. Es clicable.
     vez. Ahora vive solo en `straightOf()` / `rowLengths()`, y `machineFeeds()`, `twistSpanOf()`,
     `buildPath()` y `bendStations()` la consumen. No la vuelvas a escribir a mano.
 16. `Recta` es lo único que se teclea; `Avance` es de solo lectura. Pero **el estado sigue siendo
-    `feed`**: es lo que va al JSON, a `command[]` y al motor de Python. Al cambiar un radio o un
+    `feed`**: es lo que va al JSON y a `command[]`. Al cambiar un radio o un
     ángulo se conserva la RECTA y se mueve el avance, nunca al revés. Si inviertes esto, la tabla
     deja de hacer lo que el usuario pidió.
 17. `Recta` y su Δ trabajan sobre la **base**, como el resto de columnas editables; `Avance` y
@@ -743,12 +731,9 @@ punteada. Deja ver de un vistazo cuál doblez está fuera. Es clicable.
 ```bash
 cd web && npm run check            # typecheck -> pruebas -> build -> banco, de una
 cd web && npm run typecheck        # tsc --noEmit, con strict
-cd web && node test_motor.js       # 163 pruebas; todas deben pasar
+cd web && node test_motor.js       # 431 pruebas; todas deben pasar
 cd web && node build.mjs           # regenera index.html y barcomp_viewer.html
-cd web && node tools/ui_test.mjs   # 140 pasos de interfaz en Edge headless
-
-cd "..\Twister Register Python\python" && python test_core.py   # 100 pruebas
-cd "..\Twister Register Python" && python compare_engines.py     # los DOS motores
+cd web && node tools/ui_test.mjs   # 215 pasos de interfaz en Edge headless
 ```
 
 Dos herramientas más, que no son pruebas sino evidencia:
@@ -771,8 +756,10 @@ Asignar `.value` por script NO marca el campo sucio, así que el navegador no di
 desenfocar. Las pruebas que confirman un valor tecleado usan `execCommand('insertText')` sobre el
 campo enfocado, que sí recorre el camino real.
 
-`compare_engines.py` es el criterio de aceptación del motor: tiene que decir *"los dos motores
-coinciden"*, con las diferencias en el ruido de redondeo IEEE (~1e-13).
+El criterio de aceptación del motor es el **fixture congelado** (`web/test/fixtures/`, C3): los PI
+que salen hoy tienen que seguir saliendo mañana, hasta el último decimal. Sustituye a lo que antes
+hacía `compare_engines.py` contra el motor de Python, y vigila lo mismo por una fracción del costo.
+Si el fixture cambia, o rompiste la cinemática o subiste `SCHEMA` a propósito: no hay tercer caso.
 
 Y abrir el HTML y verificar a mano lo que las pruebas no cubren: gira la vista, cambia de idioma y
 de tema, recorre la tabla entera solo con el teclado, arrastra los dos tiradores hasta los
@@ -785,49 +772,38 @@ desincronice ni contexto `vm` que preparar.
 
 ---
 
-## 9. La versión Python
+## 9. Variantes y edición de puntos
 
-`python/barcomp/core.py` implementa el **mismo motor** con numpy y comparte el esquema JSON
-`barcomp/1.0`, así que los archivos van y vienen entre las dos implementaciones. Existe para que el
-usuario compare cuál le conviene. `python/barcomp/gui.py` es su visor: Tkinter + matplotlib.
+> **Aquí vivía «La versión Python».** Hasta el 2026-09-08 hubo un segundo motor
+> (`python/barcomp/core.py`, numpy) con su propio visor Tkinter/matplotlib, que compartía el esquema
+> JSON y se verificaba contra este con `compare_engines.py`. **Salió del alcance por decisión del
+> dueño del proyecto:** lo que importa es que la página web funcione bien, y mantener dos motores
+> costaba el doble por cada cambio de cinemática. Lo que aquel apartado servía —que la cinemática no
+> derive en silencio— lo cubre hoy el fixture congelado de `web/test/fixtures/`, que compara contra
+> PI esperados y no contra otra implementación.
+>
+> **Dónde está ahora:** el 2026-09-09 se movió a `../BARCOMP Python/`, una carpeta hermana de este
+> repo, y **queda como un proyecto aparte que ya no se toca**. No lo sincronices, no lo cites en
+> comentarios nuevos y no lo uses para abrir archivos de producción — se quedó en `barcomp/2.2` y su
+> `load_json()` nunca miró el esquema, así que un archivo de hoy lo abre sin avisar de nada.
 
-**Si cambias la cinemática o el modelo de datos en `web/src/engine.js`, hay que replicarlo en
-`python/barcomp/core.py`, y al revés.** Las funciones se llaman igual (`fk`, `ik`, `orientations`,
-`machine_feeds`, `bend_decomp`, `build_path`, `twist_spans`, `simulate`, `compensate`, `kabsch`,
-`effective_model`, `anchor_transform`, `move_pi`), en `snake_case` del lado Python.
-
-Los dos motores implementan el mismo **doblez biaxial** y el mismo `demoModel()`, con el mismo PRNG
-y la misma semilla. No hay divergencia permitida: si `compare_engines.py` no dice *"los dos motores
-coinciden"*, algo se rompió.
-
-La forma de verificar que siguen sincronizados no es leerlos en paralelo:
-
-```bash
-python compare_engines.py
-```
-
-Corre los dos sobre el mismo modelo y compara puntos PI, longitud desarrollada, trayectoria
-muestreada, avances de máquina, la inversa, la pieza simulada y la compensación. Hoy todo queda en
-~1e-13 y el simulador coincide **bit a bit**: `mulberry32` está portado exacto (con `jround()`,
-porque `round()` de Python redondea a par y `Math.round` de JS no), así que la misma semilla produce
-la misma pieza virtual en los dos motores. Si tocas el motor y esa comparación se rompe, no
-sincronizaste bien.
+Lo que sigue no era de Python: son dos mecanismos del MOTOR, y los dos están vivos en el visor web.
 
 ### Variantes: varios modelos comparables sobre un extremo común
 
-Está en los **dos** visores. Una **variante** es `{base, deltas, tailDelta}`:
+Una **variante** es `{base, deltas, tailDelta}`:
 los valores base más una columna de corrección por parámetro. El **modelo
-efectivo** = base + deltas es lo único que ve la cinemática; `effective_model()`
-lo arma y `bake_deltas()` funde los deltas en la base. Separarlos permite
+efectivo** = base + deltas es lo único que ve la cinemática; `effectiveModel()`
+lo arma y `bakeDeltas()` funde los deltas en la base. Separarlos permite
 escribir la compensación al lado del dato sin perder el valor original.
 
 `ST["variants"]` es la lista, `ST["active"]` la que se edita, `ST["ref"]` la
 referencia y `ST["model"]` **es solo una caché** del modelo efectivo de la
 activa: todo el código de dibujo y medición sigue leyendo de ahí. Después de
-tocar una variante hay que llamar `_sync_model()` (`syncModel()` del lado web) o
+tocar una variante hay que llamar `syncModel()` o
 la caché miente.
 
-`anchor_transform(model, ref, mode)` es lo que hace comparable a dos variantes:
+`anchorTransform(model, ref, mode)` es lo que hace comparable a dos variantes:
 
 | modo | qué queda fijo | para qué sirve |
 |---|---|---|
@@ -835,12 +811,12 @@ la caché miente.
 | `end` | el extremo **libre** | lleva el marco final de la variante sobre el de la referencia, así que la punta maquinada coincide en posición Y orientación y la divergencia se ve acumulándose hacia el amarre. Es el anclaje útil si el criterio de aceptación es la posición del extremo maquinado. |
 | `best` | nada, reparte el error | Kabsch sobre los PI. |
 
-`pi_shift()` devuelve cuánto se movió cada PI ya anclado; cuando el anclaje es
+`piShift()` devuelve cuánto se movió cada PI ya anclado; cuando el anclaje es
 `end` las listas se alinean **por el final**, no por el principio.
 
 ### Edición de puntos: absoluta, no paramétrica
 
-`move_pi`, `insert_pi` y `delete_pi` trabajan en el espacio de los PI y
+`movePi`, `insertPi` y `deletePi` trabajan en el espacio de los PI y
 reconstruyen la cadena con `ik()`. Consecuencia deliberada: **mover un punto deja
 los demás donde están** — se recalculan los avances y ángulos vecinos, no se
 arrastra la cadena. Es lo contrario de editar un ángulo en la tabla LRA, que sí
@@ -848,56 +824,12 @@ hace girar todo lo que va después. Las dos semánticas son útiles y conviven.
 
 Un punto insertado nace **colineal** (ángulo 0): es un punto de control listo
 para moverse, no un doblez todavía. `ik()` no puede recuperar radio ni torsión
-de los puntos, así que `_model_from_points()` los arrastra por índice.
+de los puntos, así que `modelFromPoints()` los arrastra por índice.
 
 Editar puntos sobre una variante con deltas pendientes los **funde** primero
-(`_bake_guard()` pregunta antes): la geometría efectiva es la que se está
+(el visor pregunta antes): la geometría efectiva es la que se está
 tocando, y guardar el resultado en la base sin fundir perdería los deltas sin
 avisar.
-
-### El visor Python NO es un puerto pixel a pixel
-
-Es la misma herramienta reinterpretada con lo que Python hace bien, y así debe seguir:
-
-- **Tablas nativas.** `EditTree` es un `ttk.Treeview` con edición en celda por doble clic: el Entry
-  flotante hereda el ancho completo de la columna, con Enter/Flechas para saltar de fila.
-- **El 3D es matplotlib, no Three.js.** La barra se dibuja como superficie: `_bar_surface()` arma
-  4 caras por tramo con `Poly3DCollection` más tapas, y las sombrea a mano con un Lambert de una
-  luz (`_shade()`), porque `Poly3DCollection` no ilumina nada por su cuenta. `_decim()` mantiene el
-  muestreo cerca de 190 estaciones (~1500 polígonos) pase lo que pase: alcanza ~15 fps al rotar.
-  Con una pieza medida encima, el nominal pasa a alambrado (`_bar_ghost()`); superficies
-  translúcidas superpuestas se ven sucias en matplotlib.
-- **Los ejes van apagados y el panel NO es cuadrado.** `Axes3D.apply_aspect()` recorta el eje a un
-  cuadrado en cada dibujo: en un panel ancho eso deja media pantalla muerta y recorta la barra
-  contra el borde. `_widen_axes3d()` anula `apply_aspect` y compensa la deformación resultante
-  premultiplicando la matriz de `get_proj()` por una escala `alto/ancho` en X — verificado contra
-  un cubo, la relación entre sus aristas vuelve a ser la del eje cuadrado. Si tocas esto, vuelve a
-  verificarlo con un cubo o la torsión empezará a mentir.
-- **`_equalize()` + `_autofit()`.** El primero pone límites y `set_box_aspect` proporcionales al
-  volumen real (escala verdadera, sin el cubo de 1.7 m de lado que dejaba la barra como un hilo).
-  El segundo mide en píxeles el alcance del modelo **desde el centro del eje** — no su ancho: el
-  modelo casi nunca queda centrado en su caja, y medir el ancho hacía que el zoom creciera hasta
-  salirse por arriba.
-- La rejilla de piso se dibuja a mano al ras de `get_zlim()[0]`. La nativa de matplotlib solo
-  existe con los ejes encendidos y arrastra paneles y etiquetas.
-- **Todas las variantes visibles se dibujan a la vez**, cada una en su color y todas transformadas
-  por su `anchor_transform`. La activa va como superficie sólida; las demás como alambrado. La capa
-  `diff` une cada PI con su homólogo de la referencia y colorea por magnitud — con escala relativa
-  al mayor desplazamiento del cuadro, no a la tolerancia: ahí se comparan diseños, no piezas contra
-  tolerancia. El rombo con la cifra marca el extremo que **sí** se mueve, o sea el opuesto al anclado.
-- La cinta inferior cambia de significado sola: con pieza medida muestra la desviación de
-  inspección; sin ella, y con la activa distinta de la referencia, muestra el Δ ángulo por doblez
-  **entre variantes**.
-- Los campos numéricos (`NumField`) tampoco llevan spinbox, por la misma razón que en el visor web.
-
-A largo plazo esta duplicación debe desaparecer: el motor se queda en un solo lenguaje y el JSON es
-la frontera. Está duplicado a propósito en el alfa. Si el usuario ya decidió con cuál se queda,
-propón consolidar — y `compare_engines.py` es lo que le da la evidencia para decidir.
-
-El visor web ya cubre lo mismo que el de Python: varios modelos con columnas Δ, extremo fijo común,
-capa de desplazamiento, edición de puntos PI y la cinta que cambia de significado sola. La
-diferencia que queda es de herramientas, no de funciones: el lado Python tiene numpy/scipy a la mano
-para lo que viene (RANSAC sobre nubes de GOM, ajuste de springback contra piezas reales).
 
 ---
 
@@ -910,14 +842,14 @@ Es un **alfa de demostración**, sin datos reales todavía. Lo que sigue, en ord
    orientación**: doblar contra el ancho y contra el espesor, con el laminado a lo largo, tiene
    constantes elásticas distintas.
 2. **Extraer los PI desde la nube de GOM.** Hoy el visor recibe puntos ya extraídos. Falta:
-   segmentar tramos rectos → ajustar rectas robustas (RANSAC) → intersectar ejes → PI. Va del lado
-   Python.
+   segmentar tramos rectos → ajustar rectas robustas (RANSAC) → intersectar ejes → PI. Quién lo
+   escriba está sin decidir: espera la respuesta A.3 de metrología.
 3. **Confirmar qué parámetros acepta la dobladora.** Si solo toma ángulo, `doRot` y `doFeed` se
    quedan apagados y el sesgo de rotación hay que atacarlo por calibración del robot.
 4. Flexión por gravedad en el fixture: en 1.7 m de aluminio puede ser del orden de las tolerancias.
 5. Trazabilidad histórica por lote (el esquema ya guarda varias piezas por archivo).
-6. Consolidar en un solo motor. Los dos están sincronizados y `compare_engines.py` lo demuestra;
-   mantener ambos cuesta el doble por cada cambio de cinemática.
+6. ~~Consolidar en un solo motor.~~ **Hecho el 2026-09-08:** el motor de Python salió del alcance
+   y el único que queda es `web/src/engine.ts` (ver §9).
 
 ### Hallazgo de la validación, importante para las decisiones de diseño
 
@@ -1196,11 +1128,187 @@ con razón.
   con 13 piezas contra un presupuesto de 250, y la medición queda como paso de banco.
   Y `panels/` ya no importa de `app/` (B1): los contadores de deshacer viven en `ST.hist`.
 
+### Un solo motor — 2026-09-08
+
+Después de cerrar la Fase 3, el dueño del proyecto retiró del alcance el motor de Python y su
+visor Tkinter: lo que importa es que la página web funcione bien. Detalle completo en
+`.auditoria/plan-fases.md`, «Retirada del motor de Python». Lo que hay que saber para trabajar:
+
+- **El motor es uno**, `web/src/engine.ts`. No hay nada que replicar ni que sincronizar.
+- **El criterio de aceptación pasa a ser el fixture congelado** de `web/test/fixtures/` (C3).
+  Es más débil que dos implementaciones independientes —congela lo que sale hoy, y si hoy
+  está mal, congela el error— y se acepta a sabiendas: los signos ya estaban congelados a
+  propósito, y `core.py` llevaba desde antes de la Fase 0 sin actualizarse, así que la red
+  cruzada ya solo cubría la cinemática y no las guardas.
+- **Los archivos de versiones anteriores siguen abriéndose.** El dueño avisó que ya no tiene
+  archivos viejos, pero `migrateModel()` no se toca: cuesta cero mantenerlo y su ausencia se
+  paga con geometría equivocada y sin aviso, que es justo lo que le pasa al Python retirado.
+
+### Fase 4 · lo que no depende de nadie de fuera — arrancada 2026-09-08
+
+Con la Fase 2 detenida por respuestas que no llegan, esto es lo que sí se puede
+hacer. Elegido por el dueño del proyecto entre cuatro candidatos.
+
+**✔ Umbrales configurables — hecho 2026-09-08.** Los cuatro números que deciden
+que un dato no se puede creer estaban compilados dentro del HTML: el día que se
+mida σ había que recompilar, volver a publicar y volver a copiar el archivo a
+cada USB para mover uno. Ahora viven en `engine/lims.ts`, viajan en el JSON de
+la pieza y se teclean en la pestaña **Límites** de Modelar.
+
+- `axisMin` · `piMin` · `scaleMin` · `straightMin` en `ST.lims`, y con ellos las
+  cuatro guardas del lazo que existían desde la Fase 0 y **nunca tuvieron dónde
+  tocarse** (`dead`, `deadFeed`, `maxStep`, `maxStepFeed`): decidían el comando
+  de máquina desde un valor por defecto que nadie eligió.
+- **Se pasan por parámetro, no por variable global.** `feasibility(model, lims)`,
+  `parsePointsCsv(txt, lims)`, `csvScaleOk(pts, nom, lims)` y
+  `measuredModel(nom, pts, lims)` los reciben con el de fábrica por defecto, así
+  que el motor sigue siendo puro y las pruebas pueden mover un umbral sin tocar
+  estado compartido.
+- **Un umbral corrupto no apaga la guarda.** `limOf()` recorta al rango y manda
+  al valor de fábrica lo que no sea un número finito: un `NaN` ahí no rechazaría
+  NUNCA nada —toda comparación con NaN es falsa— que es el fallo exacto que
+  estas guardas existen para evitar. Se recorta al TECLEAR y al ABRIR, en el
+  mismo sitio.
+- **Que viajen en el archivo es la mitad del punto:** un `.json` guardado dice
+  con qué umbrales se juzgó esa pieza. Se guardan siempre, también cuando son
+  los de fábrica — un archivo sin la clave no dice «los de fábrica», dice «no se
+  sabe».
+- Entran en el deshacer, porque cambian el resultado y no la vista.
+- La pantalla dice de cada uno si está tocado y **qué respuesta espera** para
+  dejar de ser provisional (A.6 la σ del escaneo, B.2 la cota de la máquina), y
+  cuántas rectas de la pieza en pantalla está dejando fuera ahora mismo. Un
+  umbral sin consecuencia visible se teclea a ciegas.
+- **La pestaña NO está en Compensar**, aunque cuatro de sus ocho números sean
+  del lazo: ese modo no tiene barra de pestañas, y ponerla le come una fila de
+  comando a la tabla —medido: 4 filas donde se veían 5—. Los umbrales se dejan
+  puestos antes de doblar.
+
+**✔ Exportación de comandos a la máquina — hecho 2026-09-08.** Era el punto
+**B1/B2** de la Fase 2 y llevaba ⛔ esperando el manual de la dobladora. Se hace
+sin él, y sin inventarlo: `engine/machine.ts` escribe el comando con un **perfil
+configurable** —qué columnas y en qué orden, separador, decimales, milímetros o
+pulgadas, grados o radianes, el signo del ángulo y el del rodado, el rodado como
+incremento o como eje absoluto, encabezado, CRLF y fila de la cola— y la pestaña
+**Máquina** lo ajusta con una **vista previa que es el archivo**: la pinta
+`machineTable()`, la misma función que escribe el CSV, así que comprobar
+unidades y signos en pantalla vale para algo. El perfil viaja en el JSON.
+
+- **Sale del COMANDO, no del nominal.** `commandModel()` arma el modelo con
+  `ST.command`, porque en cuanto el lazo corrige algo las rectas del comando
+  dejan de ser las del nominal — y esa diferencia es el trabajo entero del
+  programa. Un ajuste manual escrito y sin aplicar no está en `ST.command`, y el
+  panel lo dice antes de exportar.
+- **Los signos invierten el ARCHIVO, no el motor.** `ANG_DIR` y `ROT_DIR` siguen
+  congelados; `signAngle`/`signRot` se aplican al escribir. Por eso son seguros:
+  una máquina puede tener el eje montado al revés sin que eso toque un número de
+  la cinemática. Hay prueba de que el modelo no se mueve al invertirlos.
+- **El rodado, incremento o absoluto.** Las dos formas describen la misma pieza
+  y hay controles de cada tipo; elegir la equivocada dobla bien la primera
+  estación y mal todas las demás. Las dos coinciden en la primera fila, que es
+  justo lo que engaña, y hay una prueba dedicada a eso.
+- **La fila de la cola deja vacías las columnas que no le tocan**, no en cero: un
+  cero en la columna del ángulo es un doblez de cero grados, o sea una
+  instrucción.
+- **La última columna no se puede quitar**: sin ninguna, `machineCsv()` volvería
+  al perfil de fábrica y el panel enseñaría cero columnas mientras el archivo
+  sale con cinco.
+- Lo caro de esto nunca fue escribirlo, sino acertar con unidades y signos. Eso
+  sigue pendiente de B.1/B.2 — lo que cambia es que ahora lo decide quien tenga
+  el manual delante, sin recompilar, y queda escrito en el archivo de la pieza.
+
+**✔ Accesibilidad de la tabla — hecho 2026-09-08.** Estaba diferido a después de
+la beta y se adelantó lo que se paga solo:
+
+- **Blanco de clic de 24×24** (WCAG 2.5.8 AA) en los botones de solo icono, que
+  medían ~10×12: fallar el botón de borrar en una lista de trece piezas es
+  prueba y error con consecuencias. Las filas de capa llegan a 24 px de alto por
+  el `<label>`, sin agrandar la casilla.
+- **Rótulo en los botones de solo icono** (`aria-label`): una ✕ suelta no dice
+  nada.
+- **La tabla de desviación se recorre sin ratón.** Sus filas seleccionaban un
+  doblez desde el principio, pero solo con el ratón: no había forma de tabular
+  hasta ellas. Ahora son enfocables, Enter y Espacio eligen, y ↑ ↓ suben y bajan
+  sin salirse de la tabla. El foco se vuelve a poner DESPUÉS del repintado
+  buscando la fila por su `data-r` — seleccionar reconstruye el panel entero y
+  el nodo de antes ya no está en el documento.
+- El banco lo mide con `getBoundingClientRect()` y con el foco real, no
+  comprobando que el CSS diga 24: lo que importa es el píxel que sale.
+
+### El amarre: la barra sujeta por pines — 2026-09-09
+
+Pedido por el dueño del proyecto y **fuera de la auditoría**: no es un hallazgo,
+es alcance nuevo. La barra deja de estar libre en el espacio.
+
+Un pedestal SOSTIENE y no impide nada; un pin **IMPIDE**. Con pines puestos, mover
+un ángulo ya no mueve libremente todo lo que viene después: la cadena choca
+contra ellos, la pieza se queda en una forma intermedia, y para quedarse ahí
+tiene que deformarse. Esa deformación no se reparte por igual —se concentra donde
+los vanos son cortos— y si en algún punto pasa del límite elástico, la barra no
+vuelve al soltarla: **la pieza que sale de la máquina no es la que dice la
+tabla.**
+
+**Cómo se resuelve, y por qué así.** La corrección se busca en el ESPACIO DE
+PARÁMETROS —ángulos y rodados— y no desplazando puntos: así lo que sale es una
+pieza que la cinemática puede describir, no una nube que ya no corresponde a
+ningún comando. Es la misma idea que sostiene la compensación (§1). El reparto
+entre estaciones lo decide la rigidez `EI/L`: doblar un tramo corto cuesta más,
+así que la deformación se va sola a donde la barra es más flexible. Mínimos
+cuadrados amortiguados, jacobiano numérico, sistema denso —treinta incógnitas
+como mucho— con `solveDense()` nuevo en `engine/math.ts`.
+
+**La propiedad que decide qué se puede afirmar:** con sección constante, **la
+FORMA no depende de E**. El módulo elástico multiplica todos los pesos por igual
+y se cancela en el reparto. E hace falta para pasar de ángulos a ESFUERZO, no
+para saber dónde queda la barra. Por eso la geometría se da con confianza y el
+esfuerzo lleva escrito que el material está sin confirmar. Hay prueba: cambiar E
+de 69 000 a 200 000 MPa no mueve un PI ni 1e-9 mm, y el esfuerzo cambia en la
+razón exacta de los dos módulos.
+
+**El interruptor es de verdad un interruptor.** Apagado, `restrain()` devuelve el
+MISMO objeto que entró —no una copia parecida— y el programa se comporta como
+antes de que los pines existieran. Lo comprueban una prueba de motor y un paso de
+banco que compara los PI uno a uno exigiendo diferencia CERO, no «pequeña».
+
+Lo que hay:
+
+- `engine/pins.ts` — `pinFit()` (contacto: dónde toca, qué hueco queda, si el pin
+  llega a la altura de la barra), `restrain()` (la forma sujeta, el codo de cada
+  estación, la curvatura, la tensión y el peor caso contra el límite elástico),
+  `seedPins()` (siembra alternando de lado: todos del mismo lado dejarían la
+  barra girar sobre ellos) y `sampleAt()` (el contacto se CONGELA en su longitud
+  desarrollada: buscar la muestra más cercana en cada iteración haría saltar el
+  residuo y el jacobiano saldría de ruido).
+- Pestaña **Amarre** en Modelar: el interruptor, los ajustes del solver, el
+  material, la tabla de pines y —la mitad que importa— **lo que el amarre le
+  cuesta a la pieza**: cuánto se mueve la punta respecto de la libre, dónde está
+  el peor codo, qué porcentaje del límite elástico se alcanza y en qué estación.
+- Dos capas nuevas en el 3D: los pines (cilindros, en su color si tocan y en el
+  de fuera de tolerancia si no llegan) y **la barra sujeta** sobre la libre, que
+  es lo que hace visible el motivo entero.
+- `ST.pins`, `ST.restraint` y `ST.mat` viajan en el JSON y entran en el deshacer:
+  mover un pin con el amarre puesto cambia la forma, o sea el resultado.
+- `ST.held` es CACHÉ, con firma de todo lo que entra en la cuenta. El solver
+  construye del orden de cien trayectorias, así que no se puede llamar en cada
+  repintado. Medido en el banco: 3–26 ms contra un presupuesto de 250.
+
+**Lo que esto NO es, dicho antes de que alguien lo confunda:** no hay elementos
+finitos, ni contacto con fricción, ni pandeo, ni torsión inducida por el amarre,
+ni plastificación parcial de la sección. Es un modelo de vigas con codos
+elásticos en las estaciones que ya existen. Es lo que se puede sostener con los
+datos que hay; cuando llegue el material confirmado y una pieza medida CON el
+fixture puesto, se contrasta contra ella.
+
+**Lo que falta y no se ha hecho:** el lazo de compensación sigue comparando
+contra la pieza LIBRE. Con el amarre puesto eso significa que el lazo corrige
+hacia una forma que la barra sujeta no puede tomar. Hacerlo bien pide decidir qué
+es el nominal cuando la barra está sujeta —¿la forma que se quiere al soltarla, o
+la que se quiere montada?— y esa pregunta es del taller, no del programa.
+
 ### Diferido a después de beta 1.0
 
 Cp/Cpk y cartas de control (necesitan ≥20 piezas, la beta verá 13), accesibilidad completa,
 rendimiento de etiquetas 3D e `InstancedMesh` (medir antes de optimizar), pruebas de
-`state.ts`, y **el extractor RANSAC de Python — no escribir una línea hasta saber si el
+`state.ts`, y **el extractor RANSAC — no escribir una línea hasta saber si el
 plan de inspección de ZEISS puede exportar los puntos de intersección directamente.**
 
 ### Los tres hallazgos que hay que tener presentes al tocar el motor

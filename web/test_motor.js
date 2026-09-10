@@ -554,8 +554,8 @@ ok('deletePi se niega a dejar el modelo sin dobleces',
 /* ---------------------------------------------------------------------- */
 console.log('\n— importar una pieza medida —');
 
-/* La regla del lector es la del motor de Python: de cada línea, las TRES
-   ÚLTIMAS columnas numéricas. Todo lo demás se descarta solo. */
+/* La regla del lector: de cada línea, las TRES ÚLTIMAS columnas numéricas.
+   Todo lo demás se descarta solo. */
 {
   const csv = E.writePointsCsv(E.fk(M).pis);
   const back = E.readPointsCsv(csv);
@@ -976,13 +976,18 @@ console.log('\n— idiomas —');
                       medida sí cambia (MED/MEAS/MESS) y sigue vigilada. */
                    'srcSim', 'srcVerify',
                    /* «±σ» es notación, no idioma. Su tooltip sí está traducido. */
-                   'spread'];
+                   'spread',
+                   /* «Ø» y «σ MPa» son símbolos: traducirlos sería inventarse
+                      una notación que no usa nadie. */
+                   'pinDia', 'pinSigma'];
   const IGUALES = {
     /* «fixture» y «pedestal» son las palabras del taller y se dicen igual en
        español que en inglés —así las escribe quien monta la pieza— pero NO en
        alemán, donde son Vorrichtung y Bock: ahí la prueba las sigue vigilando. */
     en: new Set([...COMUNES, 'cmode', 'distPi', 'nearPi', 'stDatum', 'twist',
-                 'fixture', 'addPed']),
+                 /* «pin» es la palabra del taller también en inglés, y «no» se
+                    escribe igual en los dos idiomas. */
+                 'fixture', 'addPed', 'addPin', 'pinNo']),
     de: new Set(COMUNES),
   };
   for (const l of ['en', 'de']) {
@@ -1141,7 +1146,7 @@ console.log('\n— eje no observable en dobleces casi rectos —');
     p.x + E.gauss(rnd) * 0.5, p.y + E.gauss(rnd) * 0.5, p.z + E.gauss(rnd) * 0.5));
 
   const sinUmbral = E.ik(sucios, casi.map(b => b.radius), 0);
-  const conUmbral = E.ik(sucios, casi.map(b => b.radius), E.AXIS_MIN_DEG);
+  const conUmbral = E.ik(sucios, casi.map(b => b.radius), E.LIMS_DEFAULT.axisMin);
 
   ok('el doblez casi recto se marca como no observable',
      conUmbral.unobservable.includes(1), `${conUmbral.unobservable}`);
@@ -1291,8 +1296,8 @@ console.log('\n— PI coincidentes: dos puntos pegados inventan un doblez —');
   const demo = E.fk(E.demoModel()).pis;
   const minDemo = demo.slice(1).reduce(
     (m, p, i) => Math.min(m, p.distanceTo(demo[i])), Infinity);
-  ok('la demo está muy lejos del umbral', minDemo > 10 * E.PI_MIN_MM,
-     `PI más juntos: ${minDemo.toFixed(1)} mm vs ${E.PI_MIN_MM} mm`);
+  ok('la demo está muy lejos del umbral', minDemo > 10 * E.LIMS_DEFAULT.piMin,
+     `PI más juntos: ${minDemo.toFixed(1)} mm vs ${E.LIMS_DEFAULT.piMin} mm`);
 }
 
 /* ======================================================================== */
@@ -1353,14 +1358,14 @@ console.log('\n— escala de la nube: una columna de desviación no es una barra
   const minFuera = fuera.slice(1).reduce(
     (m, p, i) => Math.min(m, p.distanceTo(fuera[i])), Infinity);
   ok('una desviación de varios mm pasa el guardia de PI pegados',
-     minFuera > E.PI_MIN_MM, `${minFuera.toFixed(1)} mm vs ${E.PI_MIN_MM} mm`);
+     minFuera > E.LIMS_DEFAULT.piMin, `${minFuera.toFixed(1)} mm vs ${E.LIMS_DEFAULT.piMin} mm`);
   ok('y aun así se rechaza por escala', !E.csvScaleOk(fuera, nom),
      `paso ${E.piStep(fuera).toFixed(1)} mm vs ${paso.toFixed(1)} mm`);
 
   /* El umbral tiene que dejar sitio de sobra por arriba y por abajo. */
   ok('el umbral deja un factor 2.5 hasta el peor error de unidades real',
-     E.SCALE_MIN_RATIO > 0.1 * 2 && E.SCALE_MIN_RATIO < 0.5,
-     `${E.SCALE_MIN_RATIO}`);
+     E.LIMS_DEFAULT.scaleMin > 0.1 * 2 && E.LIMS_DEFAULT.scaleMin < 0.5,
+     `${E.LIMS_DEFAULT.scaleMin}`);
 }
 
 /* ======================================================================== */
@@ -1932,6 +1937,305 @@ console.log('\n— esquemas: qué se convierte, qué se avisa y qué se rechaza 
             : e instanceof E.NotADocError ? 'nodoc' : 'roto');
   ok('cada fallo al abrir cae en su propia rama',
      clases.join(',') === 'schema,nojson,nodoc,roto', clases.join(','));
+}
+
+/* ======================================================================== */
+console.log('\n— los umbrales configurables (engine/lims.ts) —');
+{
+  /* Que se puedan teclear no significa que se pueda teclear cualquier cosa.
+     Un umbral que se lee como NaN no rechaza NUNCA —toda comparacion con NaN es
+     falsa— asi que un archivo corrupto apagaria las guardas en silencio, que es
+     el fallo exacto que estas guardas existen para evitar. */
+  ok('un umbral no numérico cae al valor de fábrica',
+     E.limOf('piMin', 'hola') === E.LIMS_DEFAULT.piMin
+     && E.limOf('piMin', NaN) === E.LIMS_DEFAULT.piMin
+     && E.limOf('axisMin', Infinity) === E.LIMS_DEFAULT.axisMin);
+  ok('y uno fuera de rango se recorta, no se descarta',
+     E.limOf('scaleMin', 5) === 1 && E.limOf('straightMin', -10) === 0,
+     `${E.limOf('scaleMin', 5)} · ${E.limOf('straightMin', -10)}`);
+  ok('el 0 SÍ se admite: es «no vigiles esto», no un error',
+     E.limOf('piMin', 0) === 0 && E.limOf('axisMin', 0) === 0);
+
+  const l = E.normLims({ piMin: 3 });
+  ok('normLims completa lo que el archivo no trajo',
+     l.piMin === 3 && l.axisMin === E.LIMS_DEFAULT.axisMin
+     && l.straightMin === E.LIMS_DEFAULT.straightMin);
+  ok('un documento sin `lims` abre con los de fábrica',
+     E.limsAreDefault(E.normLims(null)) && E.limsAreDefault(E.normLims(undefined)));
+  ok('y uno con un umbral tocado lo dice', !E.limsAreDefault(E.normLims({ piMin: 3 })));
+
+  /* Cada umbral tiene que MORDER: uno que no cambia nada al moverlo es un campo
+     de adorno, y eso es peor que no tenerlo — se teclea y no pasa nada. */
+  const sano = E.demoModel();
+  ok('straightMin: con el de fábrica la demo es fabricable',
+     E.feasibility(sano, E.LIMS_DEFAULT).ok);
+  const duro = E.feasibility(sano, E.normLims({ straightMin: 400 }));
+  ok('y subiéndolo a 400 mm deja de serlo', !duro.ok && duro.short.length > 0,
+     `${duro.short.length} recta(s) cortas`);
+  ok('bajándolo a 0 no queda ninguna corta',
+     E.feasibility(sano, E.normLims({ straightMin: 0 })).short.length === 0);
+
+  /* piMin: el mismo archivo, aceptado o rechazado segun el umbral. */
+  const linea2 = pts => 'x,y,z\n' + pts.map(q => q.join(',')).join('\n');
+  const csv = linea2([[0, 0, 0], [100, 0, 0], [102, 0, 0], [300, 60, 0]]);
+  ok('piMin: dos PI a 2 mm pasan con el umbral de fábrica (1 mm)',
+     E.parsePointsCsv(csv, E.LIMS_DEFAULT).reason === 'ok');
+  const estricto = E.parsePointsCsv(csv, E.normLims({ piMin: 5 }));
+  ok('y con 5 mm el mismo archivo se rechaza, diciendo cuál',
+     estricto.reason === 'coincident' && estricto.near[0] === 2, `${estricto.near}`);
+
+  /* scaleMin: la nube de desviaciones que motivó la guarda entera. */
+  const nom2 = E.fk(sano).pis;
+  const desv2 = nom2.map((q, i) => new Vector3(((i * 37) % 11) / 10 - 0.5,
+                                               ((i * 53) % 7) / 10 - 0.3,
+                                               ((i * 29) % 5) / 10 - 0.2));
+  ok('scaleMin: la nube de desviaciones se rechaza con el de fábrica',
+     !E.csvScaleOk(desv2, nom2, E.LIMS_DEFAULT));
+  ok('y con scaleMin en 0 la guarda queda apagada a propósito',
+     E.csvScaleOk(desv2, nom2, E.normLims({ scaleMin: 0 })));
+
+  /* axisMin: el umbral de eje no observable, sobre el camino MEDIDO. */
+  const casiRecto = E.normalizeModel({ ...sano, bends: [
+    E.newBend({ feed: 200, rot: 0, angle: 30, radius: 30 }),
+    E.newBend({ feed: 200, rot: 90, angle: 0.2, radius: 30 }),
+    E.newBend({ feed: 200, rot: 0, angle: 30, radius: 30 }),
+  ] });
+  const pis2 = E.fk(casiRecto).pis;
+  const conUmbral = E.measuredModel(casiRecto, pis2, E.LIMS_DEFAULT);
+  const sinUmbral = E.measuredModel(casiRecto, pis2, E.normLims({ axisMin: 0 }));
+  ok('axisMin: con umbral, el doblez de 0.2° hereda el eje en vez de inventarlo',
+     Math.abs(conUmbral.bends[1].rot) < 1e-9,
+     `rot ${conUmbral.bends[1].rot.toFixed(3)}`);
+  ok('y con el umbral en 0 se le cree el eje al ruido',
+     Math.abs(sinUmbral.bends[1].rot) > 1e-6,
+     `rot ${sinUmbral.bends[1].rot.toFixed(3)}`);
+
+  /* El documento: los umbrales viajan, y por eso un rechazo se puede explicar
+     meses despues. */
+  const doc = E.toDoc(sano, null, null, null, [], [], null, 'start',
+                      { lims: { piMin: 3, straightMin: 40 } });
+  ok('toDoc guarda los umbrales SIEMPRE, también los de fábrica',
+     doc.lims && doc.lims.piMin === 3 && doc.lims.axisMin === E.LIMS_DEFAULT.axisMin);
+  const leido = E.fromDoc(JSON.parse(JSON.stringify(doc)));
+  ok('y fromDoc los devuelve enteros', leido.lims.piMin === 3 && leido.lims.straightMin === 40);
+  const roto2 = E.fromDoc({ ...JSON.parse(JSON.stringify(doc)),
+                            lims: { piMin: 'x', scaleMin: 99 } });
+  ok('un `lims` corrupto entra saneado, no apaga las guardas',
+     roto2.lims.piMin === E.LIMS_DEFAULT.piMin && roto2.lims.scaleMin === 1,
+     `${roto2.lims.piMin} · ${roto2.lims.scaleMin}`);
+  const viejo = JSON.parse(JSON.stringify(doc));
+  delete viejo.lims;
+  ok('un archivo anterior a los umbrales abre con los de fábrica',
+     E.limsAreDefault(E.fromDoc(viejo).lims));
+}
+
+/* ======================================================================== */
+console.log('\n— el comando que sale a la máquina (engine/machine.ts) —');
+{
+  const Mx = E.demoModel();
+  const F = E.MACHINE_DEFAULT;
+  /* Con seis decimales, para que las comparaciones numéricas de abajo midan
+     la conversión y no el redondeo del perfil de fábrica. */
+  const F6 = { ...F, decimals: 6 };
+  const filas = E.machineTable(Mx, F6);
+  ok('la primera fila es el encabezado y dice las columnas pedidas',
+     filas[0].join(',') === F.cols.join(','), filas[0].join(','));
+  ok('hay una fila por doblez más la de la cola',
+     filas.length === 1 + Mx.bends.length + 1, `${filas.length} filas`);
+
+  /* La fila de la cola NO es un doblez: sus columnas de ángulo salen VACÍAS.
+     Un cero ahí es un doblez de cero grados, o sea una instrucción. */
+  const cola = filas[filas.length - 1];
+  const iAng = F.cols.indexOf('angle');
+  ok('la fila de la cola deja el ángulo vacío, no en cero', cola[iAng] === '',
+     `«${cola[iAng]}»`);
+  ok('y sí lleva su recta de salida',
+     Math.abs(parseFloat(cola[F.cols.indexOf('straight')]) - E.tailStraight(Mx)) < 1e-5);
+  ok('sin la fila de la cola el archivo tiene una fila menos',
+     E.machineTable(Mx, { ...F6, tailRow: false }).length === filas.length - 1);
+
+  /* Lo que el archivo escribe es la RECTA, que es lo que consume la máquina, y
+     no el `feed` de PI a PI, que es lo que se guarda. */
+  const rect = E.rowLengths(Mx);
+  ok('la columna de recta es la recta de tangencia a tangencia',
+     Math.abs(parseFloat(filas[1][F.cols.indexOf('straight')]) - rect[0].straight) < 1e-6);
+
+  /* Unidades: el mismo comando en pulgadas y en radianes. Este es el error que
+     no se ve hasta que hay una barra doblada. */
+  const pulg = E.machineTable(Mx, { ...F6, lenUnit: 'in' });
+  ok('en pulgadas las longitudes se dividen por 25.4',
+     Math.abs(parseFloat(pulg[1][F.cols.indexOf('straight')]) - rect[0].straight / 25.4) < 1e-5);
+  const rad = E.machineTable(Mx, { ...F6, angUnit: 'rad' });
+  ok('en radianes los ángulos se convierten y las longitudes NO',
+     Math.abs(parseFloat(rad[1][F.cols.indexOf('angle')]) - Mx.bends[0].angle * Math.PI / 180) < 1e-6
+     && Math.abs(parseFloat(rad[1][F.cols.indexOf('straight')]) - rect[0].straight) < 1e-6);
+
+  /* Los signos invierten el ARCHIVO y no el motor: ANG_DIR y ROT_DIR siguen
+     congelados, que es la decisión que manda sobre todo lo demás. */
+  const inv = E.machineTable(Mx, { ...F6, signAngle: -1 });
+  ok('el signo del ángulo invierte lo que se escribe',
+     Math.abs(parseFloat(inv[1][F.cols.indexOf('angle')]) + Mx.bends[0].angle) < 1e-6);
+  ok('y NO toca el modelo: el motor sigue dando la misma pieza',
+     Math.abs(E.fk(Mx).pis[2].y - E.fk(E.demoModel()).pis[2].y) < 1e-12);
+
+  /* El rodado: incremento o eje absoluto. Elegir mal dobla bien la primera
+     estación y mal todas las demás, así que hay que poder comprobarlo. */
+  const ejes = E.axisAngles(Mx);
+  const abs = E.machineTable(Mx, { ...F6, rotMode: 'abs' });
+  const iRot = F.cols.indexOf('rot');
+  ok('con rotMode=abs la columna del rodado lleva el eje ABSOLUTO',
+     Math.abs(parseFloat(abs[2][iRot]) - ejes[1]) < 1e-6,
+     `${abs[2][iRot]} vs ${ejes[1].toFixed(3)}`);
+  ok('y con delta lleva el giro respecto de la estación anterior',
+     Math.abs(parseFloat(filas[2][iRot]) - Mx.bends[1].rot) < 1e-6);
+  ok('las dos coinciden en la PRIMERA estación, que es lo que engaña',
+     Math.abs(parseFloat(abs[1][iRot]) - parseFloat(filas[1][iRot])) < 1e-9);
+
+  /* El texto: separador, fin de línea y encabezado. */
+  const csv = E.machineCsv(Mx, F);
+  ok('el CSV termina cada línea en CRLF cuando el perfil lo pide',
+     csv.includes('\r\n') && csv.endsWith('\r\n'));
+  ok('y con crlf apagado no queda ni un retorno de carro',
+     !E.machineCsv(Mx, { ...F, crlf: false }).includes('\r'));
+  ok('el separador se respeta',
+     E.machineCsv(Mx, { ...F, sep: ';' }).split('\r\n')[0].includes(';'));
+  ok('sin encabezado la primera línea ya es un doblez',
+     E.machineCsv(Mx, { ...F, header: false }).split('\r\n')[0].startsWith('1'));
+
+  /* Saneado: un perfil de un archivo puede venir con cualquier cosa, y a
+     diferencia de un umbral, aquí el fallo llega a la máquina. */
+  const roto = E.normMachineFmt({ cols: ['angle', 'noExiste'], sep: '|', decimals: 99,
+                                  lenUnit: 'yardas', rotMode: 'x' });
+  ok('un perfil corrupto se sanea: columna inventada fuera, separador válido',
+     roto.cols.join(',') === 'angle' && roto.sep === ',' && roto.decimals === 6
+     && roto.lenUnit === 'mm' && roto.rotMode === 'delta',
+     `${roto.cols} · ${roto.sep} · ${roto.decimals}`);
+  ok('y un perfil SIN columnas válidas vuelve al de fábrica, no escribe vacío',
+     E.normMachineFmt({ cols: ['xx'] }).cols.join(',') === E.MACHINE_DEFAULT.cols.join(','));
+
+  /* Viaja en el documento, como los umbrales. */
+  const doc = E.toDoc(Mx, null, null, null, [], [], null, 'start',
+                      { mach: { ...F, lenUnit: 'in', cols: ['n', 'angle'] } });
+  ok('el perfil de máquina se guarda en el documento',
+     doc.mach.lenUnit === 'in' && doc.mach.cols.join(',') === 'n,angle');
+  const leido = E.fromDoc(JSON.parse(JSON.stringify(doc)));
+  ok('y vuelve entero al abrir', leido.mach.lenUnit === 'in');
+  const viejo = JSON.parse(JSON.stringify(doc));
+  delete viejo.mach;
+  ok('un archivo anterior abre con el perfil de fábrica',
+     E.fromDoc(viejo).mach.cols.join(',') === E.MACHINE_DEFAULT.cols.join(','));
+}
+
+/* ======================================================================== */
+console.log('\n— los pines laterales: la barra deja de estar libre (engine/pins.ts) —');
+{
+  /* Sistema lineal: es la pieza sobre la que se apoya el solver, y una
+     eliminación gaussiana mal hecha no falla, devuelve otra cosa. */
+  ok('solveDense resuelve un sistema conocido',
+     (() => { const x = E.solveDense([[2, 1], [1, 3]], [5, 10]);
+              return Math.abs(x[0] - 1) < 1e-12 && Math.abs(x[1] - 3) < 1e-12; })());
+  ok('y dice que no cuando el sistema es singular',
+     E.solveDense([[1, 2], [2, 4]], [1, 2]) === null);
+
+  const Mp = E.demoModel();
+  const path = E.buildPath(Mp).samples;
+
+  /* sampleAt: el solver mira SIEMPRE el mismo punto de la barra, y de ahí sale
+     que el jacobiano sea derivable. */
+  const mid = E.sampleAt(path, path[path.length - 1].s / 2);
+  ok('sampleAt cae dentro del recorrido y respeta los extremos',
+     mid.s > 0 && mid.s < path[path.length - 1].s
+     && E.sampleAt(path, -50).s === path[0].s
+     && E.sampleAt(path, 1e9).s === path[path.length - 1].s);
+  const exacto = E.sampleAt(path, path[3].s);
+  ok('y en una muestra existente devuelve esa muestra',
+     exacto.p.distanceTo(path[3].p) < 1e-9);
+
+  /* Sembrar: los pines nacen TOCANDO, y alternando de lado. Todos del mismo
+     lado dejarían la barra girar sobre ellos. */
+  const seeds = E.seedPins(path, Mp.section, 4);
+  const pins = seeds.map((q, i) => ({ ...q, id: `pn${i + 1}`, name: `Pin ${i + 1}` }));
+  const fits = pins.map(q => E.pinFit(path, Mp.section, q));
+  ok('los pines sembrados nacen tocando la barra',
+     fits.every(f => f && Math.abs(f.gap) < .05),
+     fits.map(f => f.gap.toFixed(3)).join(' '));
+  ok('y llegan a su altura', fits.every(f => f.reach));
+  ok('sembrados alternan de lado', fits[0].side !== fits[1].side,
+     `${fits[0].side} vs ${fits[1].side}`);
+
+  /* EL INTERRUPTOR. Es la promesa más importante de toda la función: con el
+     amarre apagado, el programa se comporta como si los pines no existieran. */
+  const off = E.restrain(Mp, pins, Mp.section, { ...E.RESTRAINT_DEFAULT, on: false });
+  ok('con el amarre apagado la pieza es la MISMA, no una copia parecida',
+     off.model === Mp && off.held.length === 0 && off.iters === 0);
+
+  /* Un ángulo movido: la barra querría irse y los pines no la dejan. */
+  const M2 = E.normalizeModel({ ...Mp,
+    bends: Mp.bends.map((b, i) => (i === 3 ? { ...b, angle: b.angle + 2 } : b)) });
+  const g2 = pins.map(q => E.pinFit(E.buildPath(M2).samples, Mp.section, q).gap);
+  ok('mover un ángulo mete unos pines dentro de la barra y deja aire en otros',
+     g2.some(v => v < -.5) && g2.some(v => v > .5), g2.map(v => v.toFixed(2)).join(' '));
+
+  const on = { ...E.RESTRAINT_DEFAULT, on: true };
+  const R = E.restrain(M2, pins, Mp.section, on, E.MAT_DEFAULT);
+  ok('el solver cierra los contactos que hay que cerrar',
+     R.held.length > 0 && Math.max(...R.res.map(Math.abs)) < .5,
+     `${R.held.length} pines · residuo ${Math.max(...R.res.map(Math.abs)).toFixed(3)} mm`);
+  ok('y lo hace moviendo ÁNGULOS, no puntos sueltos: sale un modelo',
+     R.model.bends.length === M2.bends.length);
+  const puntaLibre = E.fk(M2).pis, puntaSujeta = E.fk(R.model).pis;
+  ok('la pieza sujeta NO está donde la libre: eso es lo que hay que ver',
+     puntaLibre[puntaLibre.length - 1].distanceTo(puntaSujeta[puntaSujeta.length - 1]) > 1,
+     `${puntaLibre[puntaLibre.length - 1].distanceTo(puntaSujeta[puntaSujeta.length - 1]).toFixed(2)} mm`);
+  ok('la deformación se reparte y no se va entera a una estación',
+     R.kink.filter(k => E.kinkOf(k) > .01).length >= 2,
+     R.kink.map(k => E.kinkOf(k).toFixed(2)).join(' '));
+
+  /* LA PROPIEDAD que decide qué se puede afirmar y qué no: la FORMA no depende
+     del módulo elástico. Con sección constante E se cancela en el reparto. */
+  const R2 = E.restrain(M2, pins, Mp.section, on, { E: 200000, yield: 500 });
+  const dPi = E.fk(R2.model).pis.reduce((m, q, i) => Math.max(m, q.distanceTo(puntaSujeta[i])), 0);
+  ok('cambiar el módulo elástico NO mueve un solo PI', dPi < 1e-9, dPi.toExponential(2));
+  ok('pero sí cambia el esfuerzo, que es para lo único que hace falta E',
+     Math.abs(R2.stress[0] - R.stress[0]) > 1e-6
+     && Math.abs(R2.stress[0] / R.stress[0] - 200000 / 69000) < 1e-6);
+
+  /* Un pin que no llega a la barra no sujeta nada, por bien puesto que esté. */
+  const enano = pins.map(q => ({ ...q, h: 5 }));
+  ok('un pin más bajo que la barra no sujeta',
+     E.restrain(M2, enano, Mp.section, on).held.length === 0);
+  ok('y la tabla lo dice antes de que nadie lo pregunte',
+     E.pinFit(path, Mp.section, enano[0]).reach === false);
+
+  /* Un pin con hueco a favor no empuja: el fixture puede tener más pines de
+     los que esta pieza usa, y eso no es un error. */
+  const lejos = pins.map(q => ({ ...q, x: q.x + 300, y: q.y + 300 }));
+  ok('un pin al que la barra no llega se ignora en silencio',
+     E.restrain(M2, lejos, Mp.section, on).held.length === 0);
+  ok('y uno apagado tampoco cuenta, aunque esté tocando',
+     E.restrain(M2, pins.map(q => ({ ...q, hold: false })), Mp.section, on).held.length === 0);
+
+  /* La sección vista de lado no es siempre el ancho: de canto asoma el espesor.
+     Confundirlas mueve el contacto media sección. */
+  const q0 = path[10];
+  const n0 = E.planNormal(q0);
+  const hw = E.planHalfWidth(q0, { width: 40, thickness: 12, chamfer: 0, endLen: 0 }, n0);
+  ok('la media anchura en planta está entre el medio espesor y el medio ancho',
+     hw >= 6 - 1e-9 && hw <= 20 + 1e-9, hw.toFixed(2));
+
+  /* El documento: los pines viajan, y un archivo anterior abre SIN amarre. */
+  const doc = E.toDoc(Mp, null, null, null, [], [], null, 'start',
+                      { pins, restraint: on, mat: { E: 70000, yield: 250 } });
+  ok('los pines y el amarre se guardan en el documento',
+     doc.pins.length === 4 && doc.restraint.on === true && doc.mat.E === 70000);
+  const leido = E.fromDoc(JSON.parse(JSON.stringify(doc)));
+  ok('y vuelven con su id al abrir',
+     leido.pins.length === 4 && leido.pins[0].id === 'pn1' && leido.restraint.on === true);
+  const viejo = JSON.parse(JSON.stringify(doc));
+  delete viejo.pins; delete viejo.restraint; delete viejo.mat;
+  const v2 = E.fromDoc(viejo);
+  ok('un archivo anterior a los pines abre con el amarre APAGADO',
+     v2.pins.length === 0 && v2.restraint.on === false && v2.mat.E === E.MAT_DEFAULT.E);
 }
 
 console.log(`\n${fails ? fails + ' PRUEBA(S) FALLARON' : 'todas las pruebas pasaron'}\n`);

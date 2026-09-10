@@ -10,6 +10,7 @@ import {
   ST, V, VAR_COLORS, syncModel, newVid, loadModel, refModel,
   activeDataset, addDataset, syncCommand, resetCommand,
   addMark, addPedestal, setPedestals, seedFixture, placedPath, placeMatrix,
+  addPin, setPins, seedPinsFor,
   syncTweak, zeroTweak, compensatedCommand, loopMeasured,
   measuredSpringback,
 } from '../state.ts';
@@ -23,7 +24,7 @@ import { makeReport } from '../report.ts';
 import { renderAll, refresh, refreshTable, toggleSolo } from './render.ts';
 import { undo, redo } from './history.ts';
 import {
-  saveJson, openJson, importPieces, exportPoints,
+  saveJson, openJson, importPieces, exportPoints, exportCommand,
 } from './files.ts';
 
 const clamp = E.clamp;
@@ -73,7 +74,7 @@ export function editBend(i: number, key: DeltaKey, val: number): void {
   syncModel(); syncCommand(); refreshTable();
 }
 /** Columna «Recta»: es LA columna que se teclea. Guarda el `feed` (PI a PI),
- *  que sigue siendo el estado del JSON y lo que ve el motor de Python; el
+ *  que sigue siendo el estado del JSON y lo que se manda a la máquina; el
  *  avance de la tabla es solo la lectura de ese estado.
  *
  *  Trabaja sobre la BASE, igual que el resto de columnas editables: su Δ va al
@@ -230,11 +231,42 @@ function fixtureAction(a: string, M: Model): boolean {
     showFixture();
   } else if (a === 'clearped') {
     setPedestals([]);
+  } else if (a === 'addpin') {
+    /* Nace TOCANDO la barra al lado del doblez seleccionado, por el mismo
+       motivo que un pedestal nace con la altura que la pieza pide: un pin en el
+       origen y a cero no sujeta nada y su fila saldría entera en rojo. Eso no
+       es un valor por defecto, es una tarea pendiente disfrazada. */
+    const path = placedPath();
+    const q = path.length ? path[E.clamp(Math.round((ST.sel + 1) / Math.max(1, M.bends.length)
+                                                   * (path.length - 1)), 0, path.length - 1)]
+                          : null;
+    const n = q ? E.planNormal(q) : null;
+    const dia = E.PIN_DEFAULT.dia;
+    if (q && n) {
+      const d = dia / 2 + E.planHalfWidth(q, M.section, n);
+      addPin({ x: +(q.p.x + n.x * d).toFixed(2), y: +(q.p.y + n.y * d).toFixed(2),
+               h: +E.clamp(q.p.z - E.TABLE_Z + 20, 20, 400).toFixed(2), dia });
+    } else {
+      addPin({});
+    }
+    showPins();
+  } else if (a === 'seedpin') {
+    seedPinsFor();
+    showPins();
+  } else if (a === 'clearpin') {
+    setPins([]);
   } else {
     return false;
   }
   renderRight(); rebuildScene();
   return true;
+}
+
+/** Enciende la capa de los pines al crear uno, por el mismo motivo que
+ *  `showFixture()`: sembrar cuatro pines y que el 3D siga igual se lee como que
+ *  no funcionó. */
+function showPins(): void {
+  if (!ST.layers.pins.on) { ST.layers.pins.on = true; renderShell(); }
 }
 
 /** Enciende la capa del fixture al crear pedestales.
@@ -271,6 +303,21 @@ export function action(a: string): void {
         syncModel(); resetCommand(); refresh();
       }
       return;
+    case 'expcmd': return exportCommand();
+    case 'machdef':
+      ST.mach = { ...E.MACHINE_DEFAULT, cols: [...E.MACHINE_DEFAULT.cols] };
+      return refresh();
+
+    case 'limsdef':
+      /* Los cuatro umbrales Y las cuatro guardas del lazo: el boton dice
+         «volver a los de fabrica» y dejar la mitad puesta seria mentir. */
+      Object.assign(ST.lims, E.LIMS_DEFAULT);
+      ST.comp.dead = E.COMP_DEFAULT.dead;
+      ST.comp.deadFeed = E.COMP_DEFAULT.deadFeed;
+      ST.comp.maxStep = E.COMP_DEFAULT.maxStep;
+      ST.comp.maxStepFeed = E.COMP_DEFAULT.maxStepFeed;
+      return refresh();
+
     case 'bake':
       E.bakeDeltas(v); syncModel(); return refresh();
     case 'zerod':

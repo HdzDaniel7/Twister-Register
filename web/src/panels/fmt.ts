@@ -9,7 +9,7 @@ import { T } from '../i18n.ts';
 import type { Mode, Orientation } from '../types.ts';
 
 /** i18n.ts no exporta `I18nKey`: se deriva aquí del propio parámetro de T()
- *  para no duplicar la lista de 239 claves y para que tsc siga comprobando
+ *  para no duplicar la lista de 364 claves y para que tsc siga comprobando
  *  contra la misma unión si esa lista cambia. */
 export type I18nKey = Parameters<typeof T>[0];
 
@@ -24,11 +24,17 @@ export { $ } from '../dom.ts';
  *  puntos—; Medir y Compensar tienen una sola cosa que enseñar y por eso no
  *  gastan una fila de pestañas en decirlo. */
 export const MODES: Mode[] = ['model', 'meas', 'comp'];
+/* «Límites» vive SOLO en Modelar, y no en Compensar aunque cuatro de sus ocho
+   números sean del lazo: en Compensar no hay fila de pestañas —sería una
+   etiqueta de una sola opción— y añadirla le come una fila de comando a la
+   tabla, que es justo lo que ese modo existe para enseñar. Medido: con la barra
+   de pestañas puesta se ven 4 filas donde antes se veían 5. Los umbrales se
+   dejan puestos antes de doblar, no en mitad del lazo. */
 export const TABS_OF: Record<Mode, string[]> = {
-  model: ['model', 'points', 'fixture'], meas: [], comp: ['comp'],
+  model: ['model', 'points', 'fixture', 'pins', 'lims', 'mach'], meas: [], comp: ['comp'],
 };
 /** Compatibilidad: la lista plana que usaba renderRight() antes de los modos. */
-export const TABS = ['model', 'points', 'fixture', 'comp'];
+export const TABS = ['model', 'points', 'fixture', 'pins', 'lims', 'mach', 'comp'];
 export const fx = (v: number | null | undefined, n: number = 2): string =>
   (v === null || v === undefined || !isFinite(v)) ? '—' : v.toFixed(n);
 /** Valor para un campo EDITABLE. Al menos `min` decimales y hasta `max`, sin

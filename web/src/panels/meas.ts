@@ -85,7 +85,9 @@ export function paneMeas(M: Model): string {
     <div class="tw"><table><thead><tr><th>${T('nBend')}</th><th>${T('ori')}</th><th>${T('dA')}</th>
       ${lote ? `<th title="${T('spreadTip')}">${T('spread')}</th>` : ''}
       <th>${T('dR')}</th><th>${T('dF')}</th><th>${T('dP')}</th></tr></thead><tbody>
-      ${M.bends.slice(0, D.dev!.angle.length).map((b, i) => `<tr class="clk ${i === ST.sel ? 'sel' : ''}" data-r="${i}"><td>B${i + 1}</td>
+      ${M.bends.slice(0, D.dev!.angle.length).map((b, i) => `<tr class="clk ${i === ST.sel ? 'sel' : ''}" data-r="${i}"
+        tabindex="0" aria-label="${T('devRowTip').replace('{b}', 'B' + (i + 1))}"
+        ${i === ST.sel ? 'aria-current="true"' : ''}><td>B${i + 1}</td>
         <td>${oriTag(ori[i])}</td>
         <td class="${cls(D.dev!.angle[i], M.tol.angle)}">${sgn(D.dev!.angle[i], 3)}</td>
         ${lote ? `<td class="v-dim">${st[i] ? '±' + fx(st[i].angle.sigma, 3) : '—'}</td>` : ''}

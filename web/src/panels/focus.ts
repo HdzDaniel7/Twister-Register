@@ -104,7 +104,7 @@ export function updateModelDerived(): boolean {
     const st = row.querySelector<HTMLInputElement>('input[data-st]');
     if (st) {
       if (st !== act) st.value = nx(BASE[i].straight);
-      st.classList.toggle('v-bad', BASE[i].straight < E.STRAIGHT_MIN_MM);
+      st.classList.toggle('v-bad', BASE[i].straight < ST.lims.straightMin);
     }
 
     put(row, 'arc', fx(LEN[i].arc, 2));

@@ -2,9 +2,11 @@
    ESQUEMA Y DOCUMENTO — el esquema `barcomp/2.3`, la lectura/escritura del
    JSON y la migración de archivos de versiones anteriores.
 
-   Es el MISMO esquema JSON que usa python/barcomp/core.py, así que los
-   archivos van y vienen entre las dos implementaciones. Los nombres son
-   camelCase de este lado y snake_case del lado Python.
+   El esquema lo escribe y lo lee una sola implementación desde el 2026-09-08:
+   el motor gemelo en Python salió del alcance. Lo que NO cambia por eso es la
+   disciplina de versionarlo — un `.json` guardado hoy se abre dentro de un año
+   con una versión distinta del visor, y ahí el número de esquema es lo único
+   que dice con qué convención se escribió.
 
    Los archivos anteriores se convierten al abrirlos — ver migrateModel():
    en barcomp/1.0 `rot` era un doblez de canto; en barcomp/2.0 era un rodado
@@ -13,6 +15,7 @@
 import { Vector3 } from 'three';
 import type {
   Bend, Model, Variant, AnchorMode, Place, Mark, Pedestal, Tweak, UiPrefs, Doc, LoadedDoc,
+  Lims, Pin, Mat, Restraint,
   Proc, Comp,
 } from '../types.ts';
 import { D2R, eye, trans, rotX, rotY, rotZ, posOf } from './math.ts';
@@ -21,6 +24,10 @@ import type { RawModel } from './bend.ts';
 import { syncDeltas } from './model.ts';
 import { ik } from './kinematics.ts';
 import { PROC_DEFAULT, COMP_DEFAULT } from './compensate.ts';
+import { normLims } from './lims.ts';
+import { normMachineFmt } from './machine.ts';
+import { PIN_DEFAULT, MAT_DEFAULT, RESTRAINT_DEFAULT } from './pins.ts';
+import type { MachineFmt } from './machine.ts';
 import { PLACE_DEFAULT } from './fitting.ts';
 import { safeColor } from '../safe.ts';
 
@@ -41,8 +48,8 @@ export const SCHEMA_LEGACY: string[] = ['barcomp/1.0', 'barcomp/2.0', 'barcomp/2
  *  cambio y aquí no se convierte nada**.
  *
  *  Lo que sí hace falta es que se note: un `2.2` puede haberse escrito antes o
- *  después del cambio, y el motor de Python puede seguir leyéndolo con la forma
- *  contraria. Se abre con la convención de hoy y se avisa. Los archivos que
+ *  después del cambio, y desde el archivo no hay forma de saber cuál de los dos.
+ *  Se abre con la convención de hoy y se avisa. Los archivos que
  *  escribe esta versión salen ya como 2.3 y no son ambiguos. */
 export const SCHEMA_AMBIGUOUS: string[] = ['barcomp/2.2'];
 
@@ -60,7 +67,12 @@ type ToDocExtra = {
   place?: Partial<Place>;
   marks?: Mark[];
   fixture?: Pedestal[];
+  pins?: Pin[];
+  restraint?: Restraint;
+  mat?: Mat;
   tweak?: Tweak[];
+  lims?: Lims;
+  mach?: MachineFmt;
   ui?: { theme?: UiPrefs['theme']; lang?: UiPrefs['lang']; mode?: UiPrefs['mode'] };
 };
 
@@ -82,6 +94,15 @@ export function toDoc(
     command: command || model.bends,
     comp: comp || { ...COMP_DEFAULT },
     proc: proc || { ...PROC_DEFAULT },
+    /* Los umbrales con los que se juzgó esta pieza. Se guardan SIEMPRE, también
+       cuando son los de fábrica: un archivo que no los trae no dice «los de
+       fábrica», dice «no se sabe», y esa diferencia es justo la que hace falta
+       para volver a explicar un rechazo de hace meses. */
+    lims: normLims(extra.lims),
+    /* El perfil con el que se exporta el comando viaja con la pieza por el
+       mismo motivo que los umbrales: un archivo de máquina de hace tres meses
+       solo se puede volver a generar igual si consta con qué perfil salió. */
+    mach: normMachineFmt(extra.mach),
     datasets: datasets.map(d => ({
       name: d.name, color: d.color, src: d.src || '',
       bends: d.model.bends, tail: d.model.tail,
@@ -108,6 +129,16 @@ export function toDoc(
       x: +f.x || 0, y: +f.y || 0, h: +f.h || 0,
       tilt: +f.tilt || 0, pad: +f.pad || 0,
     })),
+    /* Los pines van sin `id`, igual que las cotas y los pedestales: es un
+       número de orden que se reasigna al abrir. */
+    pins: (extra.pins || []).map(p => ({
+      name: p.name, visible: p.visible !== false, hold: p.hold !== false,
+      x: +p.x || 0, y: +p.y || 0, h: +p.h || 0, dia: +p.dia || 0,
+    })),
+    /* El amarre y el material viajan SIEMPRE, también apagados: un archivo que
+       no dice si la barra estaba sujeta no se puede volver a interpretar. */
+    restraint: { ...RESTRAINT_DEFAULT, ...(extra.restraint || {}) },
+    mat: { ...MAT_DEFAULT, ...(extra.mat || {}) },
     tweak: (extra.tweak || []).map(t => ({
       angle: +t.angle || 0, rot: +t.rot || 0, feed: +t.feed || 0,
     })),
@@ -195,8 +226,8 @@ export const isAmbiguousDoc = (d: Doc | null | undefined): boolean =>
 
 /** Se lanza al abrir un archivo cuyo esquema no conocemos. Antes caía al `else`
  *  de fkLegacy() y se reinterpretaba como cinemática 1.0 —o sea, un archivo del
- *  futuro, o del motor de Python desincronizado, se abría con la convención más
- *  vieja de todas y sin decir nada. */
+ *  futuro, escrito por una versión posterior del visor, se abría con la
+ *  convención más vieja de todas y sin decir nada. */
 export class UnknownSchemaError extends Error {
   readonly schema: string;
   constructor(schema: string) {
@@ -256,6 +287,12 @@ export function fromDoc(d: Doc): LoadedDoc {
     ambiguous: isAmbiguousDoc(d),
     comp: { ...COMP_DEFAULT, ...(d.comp || {}) },
     proc: { ...PROC_DEFAULT, ...(d.proc || {}) },
+    /* Un archivo sin `lims` abre con los de fábrica, que es el comportamiento
+       que tenía cuando se guardó. Uno con un umbral absurdo o corrupto lo ve
+       recortado a su rango: ver limOf() y por qué un NaN aquí apagaría la
+       guarda en silencio. */
+    lims: normLims(d.lims),
+    mach: normMachineFmt(d.mach),
     /* En un archivo anterior el `cmd` no existía, y si existiera estaría en la
        cinemática vieja: se descarta en vez de migrarlo a medias. */
     datasets: (d.datasets || []).map(x => ({
@@ -285,6 +322,18 @@ export function fromDoc(d: Doc): LoadedDoc {
       x: +f.x || 0, y: +f.y || 0, h: +f.h || 0,
       tilt: +f.tilt || 0, pad: +f.pad || 0,
     })),
+    pins: (d.pins || []).map((p, i) => ({
+      id: `pn${i + 1}`,
+      name: p.name || `Pin ${i + 1}`,
+      visible: p.visible !== false,
+      hold: p.hold !== false,
+      x: +p.x || 0, y: +p.y || 0,
+      h: +p.h || PIN_DEFAULT.h, dia: +p.dia || PIN_DEFAULT.dia,
+    })),
+    /* Un archivo anterior a los pines abre con el amarre APAGADO, que es como
+       se comportaba cuando se guardó. */
+    restraint: { ...RESTRAINT_DEFAULT, ...(d.restraint || {}) },
+    mat: { ...MAT_DEFAULT, ...(d.mat || {}) },
     tweak: (d.tweak || []).map(t => ({
       angle: +t.angle || 0, rot: +t.rot || 0, feed: +t.feed || 0,
     })),

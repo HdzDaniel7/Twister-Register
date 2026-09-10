@@ -7,10 +7,12 @@
    un solo sentido —este archivo no importa doc.ts— asi que no hay ciclo.
    ========================================================================= */
 import { Vector3 } from 'three';
+import type { Lims } from '../types.ts';
+import { LIMS_DEFAULT } from './lims.ts';
 
-/** Lee puntos de un CSV. Gemelo exacto de `read_points_csv()` del motor de
- *  Python, hasta la regla rara: de cada linea se toman **las tres ultimas
- *  columnas numericas**, y la linea que no tenga tres se descarta sola.
+/** Lee puntos de un CSV con una regla que suena rara: de cada linea se toman
+ *  **las tres ultimas columnas numericas**, y la linea que no tenga tres se
+ *  descarta sola.
  *
  *  Suena laxo y es deliberado. Un volcado de GOM llega con encabezado, con una
  *  columna de indice o de nombre delante, separado por comas, por punto y coma
@@ -44,25 +46,15 @@ export type CsvParse = {
   near: number[];
 };
 
-/** Distancia mínima entre dos PI consecutivos para creerle la dirección al
- *  segmento que los une.
- *
- *  `ik()` normaliza `w = P[i+1] - P[i]` y solo se protege de que el largo sea
- *  CERO exacto. Dos puntos a 0.3 mm pasan esa guarda y dan una dirección que es
- *  casi todo ruido de medición: de ahí sale un doblez inventado, y como lo que
- *  se guarda es el GIRO respecto de la estación anterior, la fila siguiente
- *  hereda la basura. Es el mismo mecanismo que AXIS_MIN_DEG, un escalón antes.
- *
- *  VALOR PROVISIONAL, por el mismo motivo que AXIS_MIN_DEG: la regla es `5σ` y
- *  σ no está medida (`.auditoria/solicitud-datos.md`, punto A.6). 1.0 mm es
- *  conservador y no puede rechazar una pieza sana: entre dos PI de verdad hay
- *  la recta más los dos trims —decenas de milímetros— y un PI a 1 mm del
- *  anterior implicaría una recta muy negativa, que es geometría imposible.
- *
- *  Se rechaza el archivo ENTERO en vez de fusionar los puntos: dos PI pegados
- *  significan que la extracción de la nube salió mal, y una pieza importada a
- *  medias es peor que ninguna —se compensa contra ella sin que nadie lo note. */
-export const PI_MIN_MM = 1.0;
+/* La distancia mínima entre dos PI (`lims.piMin`) y la escala mínima de la
+   nube (`lims.scaleMin`) se teclean en la pestaña «Límites» y viajan en el
+   JSON: ver engine/lims.ts, que explica los dos.
+
+   Lo que NO es configurable, porque no es un umbral sino una decisión: con dos
+   PI pegados se rechaza el archivo ENTERO en vez de fusionar los puntos. Dos PI
+   pegados significan que la extracción de la nube salió mal, y una pieza
+   importada a medias es peor que ninguna — se compensa contra ella sin que
+   nadie lo note. */
 
 /** Lee puntos de un CSV, y dice qué encontró.
  *
@@ -85,10 +77,8 @@ export const PI_MIN_MM = 1.0;
  *
  *  Sigue sin adivinar el separador decimal, pero ahora lo DETECTA y lo dice.
  *
- *  NOTA: `read_points_csv()` del motor de Python es el gemelo de esta función y
- *  todavía tiene la regla vieja. Hay que llevarle el mismo cambio.
  */
-export function parsePointsCsv(txt: string): CsvParse {
+export function parsePointsCsv(txt: string, lims: Lims = LIMS_DEFAULT): CsvParse {
   const lines = String(txt).split(/\r?\n/);
   const numsOf = (line: string): number[] => line.trim().split(/[,;\t ]+/)
     .filter(t => t !== '' && isFinite(Number(t)))
@@ -130,7 +120,7 @@ export function parsePointsCsv(txt: string): CsvParse {
      PI a décimas de milímetro está mal extraído y no hay nada que salvar. */
   const near: number[] = [];
   for (let i = 1; i < pts.length; i++) {
-    if (pts[i].distanceTo(pts[i - 1]) < PI_MIN_MM) near.push(i);
+    if (pts[i].distanceTo(pts[i - 1]) < lims.piMin) near.push(i);
   }
   if (near.length) return { pts: [], reason: 'coincident', cols, skipped, near };
 
@@ -139,14 +129,15 @@ export function parsePointsCsv(txt: string): CsvParse {
 
 /** Solo los puntos. Se mantiene porque es lo que consumen los sitios a los que
  *  no les toca decidir qué hacer con un archivo malo. */
-export const readPointsCsv = (txt: string): Vector3[] => parsePointsCsv(txt).pts;
+export const readPointsCsv = (txt: string, lims: Lims = LIMS_DEFAULT): Vector3[] =>
+  parsePointsCsv(txt, lims).pts;
 
 export const writePointsCsv = (pts: Vector3[]): string =>
   'idx,x,y,z\n' + pts.map((p, i) =>
     `${i},${p.x.toFixed(4)},${p.y.toFixed(4)},${p.z.toFixed(4)}`).join('\n');
 
-/** Cuánto puede encogerse la nube importada respecto del nominal antes de que
- *  deje de ser creíble que sean la misma pieza.
+/* `lims.scaleMin` — cuánto puede encogerse la nube importada respecto del
+   nominal antes de que deje de ser creíble que sean la misma pieza.
  *
  *  NO es una tolerancia. La tolerancia de la pieza se mide en otro sitio y en
  *  milímetros; esto es un detector de error grosero, y por eso el margen es
@@ -169,7 +160,6 @@ export const writePointsCsv = (pts: Vector3[]): string =>
  *  medio MAYOR que el nominal. Eso no es un archivo malo —es una pieza medida a
  *  medias, y ya lo dice el informe del lote— así que por arriba no se rechaza
  *  nada. */
-export const SCALE_MIN_RATIO = 0.25;
 
 /** El paso medio entre PI consecutivos. Media y no largo total: si al escaneo
  *  le faltan puntos, el largo total cae en proporción a lo que falta, pero la
@@ -190,8 +180,9 @@ export const piStep = (p: Vector3[]): number => {
  *
  *  Con un nominal degenerado (sin dos puntos, o de largo cero) devuelve `true`:
  *  sin nada contra qué comparar, esta guarda no opina, y las otras siguen. */
-export function csvScaleOk(pts: Vector3[], nominal: Vector3[]): boolean {
+export function csvScaleOk(pts: Vector3[], nominal: Vector3[],
+                           lims: Lims = LIMS_DEFAULT): boolean {
   const nom = piStep(nominal);
   if (!(nom > 0)) return true;
-  return piStep(pts) >= nom * SCALE_MIN_RATIO;
+  return piStep(pts) >= nom * lims.scaleMin;
 }

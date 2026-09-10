@@ -25,6 +25,8 @@
      El 3D y la cinta LEEN estos tokens en tiempo de ejecución, así que aquí
      está el color de la aplicación entera, tema por tema. */
   --vpbg:#080A0E; --grid1:#2A3546; --grid2:#1A212C; --fixture:#3A4658;
+  /* el pin lateral, y la forma que toma la barra al quedar sujeta por él */
+  --pincol:#57C8D6; --held:#F5A9E0;
   --inputbg:#0C1017; --inputbg2:#0E141D; --inputHovBd:#3C4759;
   --sel:#12324B; --selBd:#1E5C86; --selTxt:#9FD4FA; --selHov:#17415F;
   --btnHov:#28313F; --btnHovBd:#455065; --dcolbg:#0F1620;
@@ -51,6 +53,7 @@
   --ok:#0F7A52; --warn:#9A6B00; --bad:#C42133; --synthetic:#7A3FB0;
   --warnTxt:#6B4A00; --warnBd:#C79A2E; --warnBg:#FFC53D24;
   --vpbg:#EDF0F4; --grid1:#C2CBD8; --grid2:#D9DFE7; --fixture:#AEB9C8;
+  --pincol:#1E8FA0; --held:#B33C8C;
   --inputbg:#FFFFFF; --inputbg2:#F7F9FC; --inputHovBd:#A6B2C2;
   --sel:#D5E7F8; --selBd:#8CBCE4; --selTxt:#0A4B87; --selHov:#C2DCF4;
   --btnHov:#DCE3EC; --btnHovBd:#A6B2C2; --dcolbg:#EDF3F9;
@@ -69,6 +72,7 @@
     --ok:#0F7A52; --warn:#9A6B00; --bad:#C42133; --synthetic:#7A3FB0;
     --warnTxt:#6B4A00; --warnBd:#C79A2E; --warnBg:#FFC53D24;
     --vpbg:#EDF0F4; --grid1:#C2CBD8; --grid2:#D9DFE7; --fixture:#AEB9C8;
+    --pincol:#1E8FA0; --held:#B33C8C;
     --inputbg:#FFFFFF; --inputbg2:#F7F9FC; --inputHovBd:#A6B2C2;
     --sel:#D5E7F8; --selBd:#8CBCE4; --selTxt:#0A4B87; --selHov:#C2DCF4;
     --btnHov:#DCE3EC; --btnHovBd:#A6B2C2; --dcolbg:#EDF3F9;
@@ -89,6 +93,11 @@ button,input,select,textarea{font-family:inherit;font-size:inherit;color:inherit
 ::-webkit-scrollbar-thumb{background:var(--line2);border-radius:5px}
 ::-webkit-scrollbar-thumb:hover{background:var(--scroll)}
 :focus-visible{outline:2px solid var(--nominal);outline-offset:1px}
+/* Una fila de la tabla de desviacion enfocada. El outline va HACIA DENTRO
+   (offset negativo): hacia fuera lo recorta el contenedor .tw, que tiene
+   overflow, y el anillo se veria a medias justo en la fila de arriba y en la
+   de abajo. */
+tbody tr[tabindex]:focus-visible{outline:2px solid var(--nominal);outline-offset:-2px}
 
 /* ---------- shell ---------- */
 /* Tres bandas apiladas: la de arriba se reparte en tres columnas (paneles,
@@ -213,12 +222,26 @@ button,input,select,textarea{font-family:inherit;font-size:inherit;color:inherit
 .layer{display:flex;align-items:center;gap:7px;padding:4px 3px;border-radius:3px;cursor:default}
 .layer:hover{background:var(--panel2)}
 .layer .nm{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:11.5px}
-.layer input[type=checkbox]{accent-color:var(--nominal);width:13px;height:13px;cursor:pointer}
+/* La casilla en si no puede crecer sin desmontar la lista de capas, asi que
+   quien crece es la FILA: el area sensible de un <label> es la etiqueta
+   entera, y con 24 px de alto la casilla de 14 se puede pulsar con el dedo o
+   con un raton impreciso. */
+.layer{min-height:24px}
+.layer input[type=checkbox]{accent-color:var(--nominal);width:14px;height:14px;cursor:pointer;
+  flex:none}
 .sw{width:15px;height:15px;border-radius:3px;border:1px solid #0006;cursor:pointer;
   padding:0;flex:none;overflow:hidden}
 .sw::-webkit-color-swatch-wrapper{padding:0}.sw::-webkit-color-swatch{border:0;border-radius:2px}
-.xbtn{background:none;border:0;color:var(--dim2);cursor:pointer;padding:0 3px;line-height:1}
-.xbtn:hover{color:var(--bad)}
+/* Blanco de clic de 24x24, que es el minimo de WCAG 2.5.8 (AA). El glifo
+   sigue siendo pequenio —la X y el simbolo de duplicar se leen mejor finos—
+   pero la zona que responde es la caja entera: antes eran ~10x12 px, y fallar
+   el boton de borrar en una lista de trece piezas es una prueba y error con
+   consecuencias. El ancho que esto le quita al nombre del modelo se recupera
+   con min-width:0 en el campo, que ya estaba. */
+.xbtn{background:none;border:0;color:var(--dim2);cursor:pointer;padding:0;line-height:1;
+  min-width:24px;height:24px;display:inline-flex;align-items:center;justify-content:center;
+  border-radius:3px;flex:none}
+.xbtn:hover{color:var(--bad);background:var(--panel3)}
 
 /* datasets */
 .ds{border:1px solid var(--line);border-radius:4px;padding:6px 7px;margin-bottom:6px;
