@@ -89,9 +89,13 @@ export function layerPins(ctx: SceneCtx): void {
       transparent: !pin.hold, opacity: pin.hold ? 1 : .45,
     });
     const col = new Mesh(new CylinderGeometry(pin.dia / 2, pin.dia / 2, pin.h, 16), mat);
-    /* el cilindro de three nace con el eje en +y; el pin sube en +z */
-    col.rotation.x = Math.PI / 2;
-    col.position.set(pin.x, pin.y, E.TABLE_Z + pin.h / 2);
+    /* El cilindro de three nace con el eje en +y. Se lleva al eje REAL del pin,
+       que ya no tiene por qué ser +z: desde que se pueden inclinar, la
+       orientación sale de `pinAxis()` y no de una rotación fija. Con `tilt` a 0
+       esto da exactamente la rotación de antes. */
+    const ax = E.pinAxis(pin);
+    col.quaternion.setFromUnitVectors(new Vector3(0, 1, 0), ax.dir);
+    col.position.copy(ax.base).addScaledVector(ax.dir, pin.h / 2);
     groups.pins.add(col);
   }
 }
@@ -109,12 +113,21 @@ export function layerHeld(ctx: SceneCtx): void {
   const R = heldResult();
   if (!R.iters && !R.held.length) return;
   const col = cssVar('--held', '#F5A9E0');
-  /* La BARRA sujeta en alambre, no su eje en una línea de un píxel: al lado de
-     la pieza sólida una línea suelta no se ve, y lo que hay que poder juzgar de
-     un vistazo es cuánto se separan las dos. `ghost()` es lo mismo que usa el
-     nominal cuando hay una pieza medida encima, y por el mismo motivo. */
+  /* La BARRA sujeta, no su eje en una línea de un píxel: al lado de la pieza
+     sólida una línea suelta no se ve, y lo que hay que poder juzgar de un
+     vistazo es cuánto se separan las dos.
+     · con la libre en pantalla, va en ALAMBRE — dos sólidos superpuestos se
+       leen sucios, que es la misma razón por la que el nominal se vuelve
+       alambre cuando hay una pieza medida encima;
+     · con la libre apagada es la ÚNICA barra que queda, así que va SÓLIDA: un
+       alambre solo en pantalla no se lee como una pieza. */
   const geo = barGeometry(E.buildPath(R.model), M.section, null);
-  const alambre = ghost(geo, col, .9);
+  if (!L.nom.on) {
+    const m = new Mesh(geo, solidMat());
+    m.applyMatrix4(Axf);
+    groups.held.add(m);
+  }
+  const alambre = ghost(geo, col, L.nom.on ? .9 : .5);
   alambre.applyMatrix4(Axf);
   groups.held.add(alambre);
 

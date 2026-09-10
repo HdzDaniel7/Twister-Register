@@ -82,6 +82,13 @@ export type Pin = {
   h: number;
   /** diámetro del pin, mm: la barra toca su superficie, no su eje */
   dia: number;
+  /** Inclinación del poste respecto de la vertical, °. `0` = a plomo, que es
+   *  como estaba todo hasta que hizo falta poder girarlos. */
+  tilt: number;
+  /** Hacia dónde se inclina, medido en planta desde +x, °. Sin `tilt` no
+   *  significa nada: un cilindro vertical girado sobre su propio eje es el
+   *  mismo cilindro. */
+  yaw: number;
   /** De qué LADO de la barra está montado: +1 o −1 sobre la normal en planta,
    *  y `0` = «decídelo por la geometría».
    *

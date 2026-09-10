@@ -21,14 +21,14 @@ import { fx, esc, cls, nfield } from './fmt.ts';
  *  el bucle dentro del panel se pasa de las 60 líneas de la regla. */
 function pinRow(M: Model, i: number, f: E.PinFit | null, sujeta: boolean): string {
   const p = ST.pins[i];
-  const num = (k: 'x' | 'y' | 'h' | 'dia', fmt = '1') =>
+  const num = (k: 'x' | 'y' | 'h' | 'dia' | 'tilt' | 'yaw', fmt = '1') =>
     `<td>${nfield(fmt, `data-pn="${p.id}" data-k="${k}"`, p[k])}</td>`;
   /* Sin barra que mirar, las columnas derivadas dicen «—» y no «0»: un cero se
      lee como «tocando justo», que es lo contrario de «no se sabe». */
   const der = !f
     ? `<td class="v-dim" colspan="4">—</td>`
     : `<td class="v-dim">${fx(f.s, 0)}</td>
-       <td class="v-dim">${fx(f.plan, 1)}</td>
+       <td class="v-dim">${fx(f.dist, 1)}</td>
        <td class="${cls(f.gap, Math.max(M.tol.point, ST.restraint.tol))}">${fx(f.gap, 2)}</td>
        <td class="${f.reach ? 'v-dim' : 'v-bad'}" title="${esc(T('pinReachTip'))}">${
          f.reach ? T('pinYes') : T('pinNo')}</td>`;
@@ -38,7 +38,7 @@ function pinRow(M: Model, i: number, f: E.PinFit | null, sujeta: boolean): strin
       title="${esc(T('pinHoldTip'))}"></td>
     <td><input type="text" data-pn="${p.id}" data-k="name" value="${esc(p.name)}"
       style="min-width:64px"></td>
-    ${num('x')}${num('y')}${num('h')}${num('dia', '1')}
+    ${num('x')}${num('y')}${num('h')}${num('dia', '1')}${num('tilt', '5')}${num('yaw', '15')}
     <td><select data-pns="${p.id}" title="${esc(T('pinSideTip'))}">
       <option value="0" ${!p.side ? 'selected' : ''}>${T('pinSideAuto')}</option>
       <option value="1" ${p.side > 0 ? 'selected' : ''}>+</option>
@@ -106,6 +106,12 @@ export function panePins(M: Model): string {
         <input type="checkbox" data-rs="doRot" ${ST.restraint.doRot ? 'checked' : ''}>
         <span class="nm">${T('pinDoRot')}</span></label>
     </div>
+    ${on ? `<div class="row mt6"><span class="tag">${T('pinShow')}</span>
+      <div class="seg" title="${esc(T('pinShowTip'))}">
+        <button data-hv="free" class="${ST.layers.nom.on && !ST.layers.held.on ? 'on' : ''}">${T('pinShowFree')}</button>
+        <button data-hv="held" class="${!ST.layers.nom.on && ST.layers.held.on ? 'on' : ''}">${T('pinShowHeld')}</button>
+        <button data-hv="both" class="${ST.layers.nom.on && ST.layers.held.on ? 'on' : ''}">${T('pinShowBoth')}</button>
+      </div></div>` : ''}
     <div class="fgrid pair mt6">
       <label title="${esc(T('pinTolTip'))}">${T('pinTol')} (mm)</label>
       ${nfield('.01', 'data-rs="tol"', ST.restraint.tol)}
@@ -120,8 +126,10 @@ export function panePins(M: Model): string {
     ${ST.pins.length ? `<div class="tw mt6"><table class="marks"><thead><tr>
       <th></th><th title="${esc(T('pinHoldTip'))}">${T('pinHold')}</th><th>${T('name')}</th>
       <th>${T('x')}</th><th>${T('y')}</th><th>${T('pedH')}</th><th>${T('pinDia')}</th>
+      <th title="${esc(T('pinTiltTip'))}">${T('pinTilt')}</th>
+      <th title="${esc(T('pinYawTip'))}">${T('pinYaw')}</th>
       <th title="${esc(T('pinSideTip'))}">${T('pinSide')}</th>
-      <th>${T('pedS')}</th><th>${T('pedPlan')}</th><th>${T('pinGap')}</th>
+      <th>${T('pedS')}</th><th title="${esc(T('pinDistTip'))}">${T('pinDist')}</th><th>${T('pinGap')}</th>
       <th>${T('pinReach')}</th><th>${T('pinState')}</th><th></th></tr></thead>
       <tbody>${rows}</tbody></table></div>`
     : `<div class="hintline">${T('pinEmpty')}</div>`}

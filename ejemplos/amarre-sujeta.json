@@ -1,6 +1,6 @@
 {
  "schema": "barcomp/2.3",
- "saved": "2026-09-10T05:55:44.817Z",
+ "saved": "2026-09-10T06:10:50.178Z",
  "model": {
   "name": "AMARRE — sujeta",
   "section": {
@@ -543,18 +543,22 @@
    "hold": true,
    "x": 207.93,
    "y": 38.75,
-   "h": 280,
+   "h": 300,
    "dia": 20,
+   "tilt": 0,
+   "yaw": 0,
    "side": 1
   },
   {
    "name": "Pin 2",
    "visible": true,
    "hold": true,
-   "x": 551.14,
-   "y": -22.61,
-   "h": 366.94,
+   "x": 551.15,
+   "y": -22.59,
+   "h": 386.94,
    "dia": 20,
+   "tilt": 0,
+   "yaw": 0,
    "side": -1
   },
   {
@@ -563,19 +567,11 @@
    "hold": true,
    "x": 737.43,
    "y": -255.36,
-   "h": 41.8,
+   "h": 61.8,
    "dia": 20,
+   "tilt": 0,
+   "yaw": 0,
    "side": 1
-  },
-  {
-   "name": "Pin 4",
-   "visible": true,
-   "hold": true,
-   "x": 365.28,
-   "y": -435.05,
-   "h": 20,
-   "dia": 20,
-   "side": -1
   }
  ],
  "restraint": {

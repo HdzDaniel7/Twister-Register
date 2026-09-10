@@ -102,7 +102,8 @@ tiene internet.
   elástico se alcanza — pasado el 100 %, la barra no vuelve al soltarla y la
   pieza que sale no es la del modelo. Se enciende y se apaga con un
   interruptor, y apagado el programa se comporta exactamente como si los pines
-  no existieran. La FORMA que toma la barra sujeta no depende del módulo
+  no existieran. Los postes se pueden **inclinar** en el espacio, y un selector
+  elige qué barra se dibuja: la libre, la sujeta, o las dos superpuestas. La FORMA que toma la barra sujeta no depende del módulo
   elástico: con sección constante se cancela, y el material solo hace falta
   para el esfuerzo.
 - **El comando sale a la máquina en un archivo**, con el formato a la vista:
@@ -264,9 +265,9 @@ cd web
 npm install          # una sola vez: three + esbuild
 npm run check        # typecheck -> pruebas -> build -> banco de interfaz
 npm run typecheck    # tsc --noEmit, con strict
-npm test             # 436 pruebas del motor y del i18n
+npm test             # 443 pruebas del motor y del i18n
 npm run build        # regenera index.html (y web/barcomp_viewer.html en local)
-npm run test:ui      # 217 pasos de interfaz en Edge headless, por CDP
+npm run test:ui      # 219 pasos de interfaz en Edge headless, por CDP
 npm run demo:amarre  # cinco escenarios del amarre, con las cifras a la vista
 npm run demo:archivos # regenera ejemplos/amarre-{libre,sujeta}.json
 ```

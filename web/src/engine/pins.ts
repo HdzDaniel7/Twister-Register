@@ -47,13 +47,14 @@ import { clamp, solveDense, D2R, R2D } from './math.ts';
 import { buildPath, rowLengths, tailStraight } from './kinematics.ts';
 import { normalizeModel } from './bend.ts';
 import { TABLE_Z, sectionDrop } from './fixture.ts';
-import { sampleAt, nearestOnPath } from './path.ts';
+import { sampleAt } from './path.ts';
+import { halfExtent, nearestToSegment } from './contact.ts';
 import type { Model, PathSample, Section, Pin, Mat, Restraint } from '../types.ts';
 
 /** Un pin recién nacido, y la lista blanca de sus campos escribibles. Mismo
  *  trato que `PED_DEFAULT`: la whitelist del `change` sale de aquí. */
 export const PIN_DEFAULT: Readonly<Omit<Pin, 'id' | 'name'>> = Object.freeze({
-  visible: true, hold: true, x: 0, y: 0, h: 120, dia: 20,
+  visible: true, hold: true, x: 0, y: 0, h: 120, dia: 20, tilt: 0, yaw: 0,
   /* 0 = «decídelo por la geometría la primera vez». Ver el tipo Pin. */
   side: 0,
 });
@@ -97,19 +98,41 @@ export const RESTRAINT_DEFAULT: Readonly<Restraint> = Object.freeze({
 export type PinFit = {
   /** longitud desarrollada del punto de la barra que pasa más cerca, mm */
   s: number;
-  /** distancia EN PLANTA del eje del pin al eje de la barra, mm */
-  plan: number;
-  /** lo que hace falta para que se toquen: radio del pin + medio ancho de la
-   *  sección visto en planta, mm */
+  /** distancia entre el EJE del pin y el eje de la barra en el punto donde más
+   *  se acercan, mm. En el espacio, no en planta: desde que un pin se puede
+   *  inclinar, la planta ya no dice la verdad */
+  dist: number;
+  /** lo que hace falta para que se toquen: radio del pin + lo que asoma la
+   *  sección en la dirección en la que se tocan */
   need: number;
-  /** `plan - need`. >0 la barra NO llega al pin (hay aire), <0 el pin está
+  /** `dist - need`. >0 la barra NO llega al pin (hay aire), <0 el pin está
    *  metido dentro de donde iría la barra y la empuja */
   gap: number;
-  /** de qué lado de la barra cae el pin: +1 o −1 sobre la normal en planta */
+  /** de qué lado de la barra cae el pin: +1 o −1 sobre la dirección de contacto */
   side: number;
-  /** ¿el pin llega a la altura de la barra? Uno demasiado bajo no sujeta nada */
+  /** dónde se tocan a lo largo del PIN: 0 en la base, 1 en la punta */
+  t: number;
+  /** ¿se tocan por el CUERPO del poste? Si el punto más cercano cae en la punta,
+   *  la barra pasa por encima y ese pin no sujeta de lado, por bien puesto que
+   *  esté */
   reach: boolean;
+  /** la dirección de contacto escrita en el marco de la SECCIÓN: `[a, b]` sobre
+   *  (y, z). Va aquí porque es lo que el solver congela para que el residuo
+   *  tenga signo estable mientras la barra se mueve */
+  local: [number, number];
 };
+
+/** El eje del pin como segmento: de dónde sale y a dónde llega.
+ *
+ *  Un pin a plomo (`tilt` 0) sube en +z desde la mesa, que es lo único que
+ *  existía antes. Con `tilt` se tumba hacia el rumbo `yaw`, que se mide en
+ *  planta desde +x igual que el rumbo de la barra en `pedestalFit()`. */
+export function pinAxis(pin: Pin): { base: Vector3; tip: Vector3; dir: Vector3 } {
+  const t = (pin.tilt || 0) * D2R, y = (pin.yaw || 0) * D2R;
+  const dir = new Vector3(Math.sin(t) * Math.cos(y), Math.sin(t) * Math.sin(y), Math.cos(t));
+  const base = new Vector3(pin.x, pin.y, TABLE_Z);
+  return { base, tip: base.clone().addScaledVector(dir, pin.h), dir };
+}
 
 /** Media anchura de la sección medida EN PLANTA y perpendicular a la barra.
  *
@@ -138,22 +161,46 @@ export function planNormal(q: PathSample): Vector3 | null {
  *  importa dónde está la pieza de verdad. */
 export function pinFit(samples: PathSample[], sec: Section, pin: Pin): PinFit | null {
   if (!samples.length) return null;
-  /* Sobre la POLILÍNEA y no sobre las muestras: `buildPath()` no pone ninguna a
-     lo largo de una recta, así que un pin en mitad de una recta larga daba como
-     punto más cercano el final de esa recta —a medio metro— y de ahí salía que
-     no tocaba nada. Ver engine/path.ts. */
-  const { s: sc, d: bd } = nearestOnPath(samples, pin.x, pin.y);
+  /* Contra el SEGMENTO del pin y contra la POLILÍNEA de la barra. Las dos cosas
+     tienen su motivo y las dos costaron un fallo:
+       · la polilínea, porque buildPath() no pone ninguna muestra a lo largo de
+         una recta y el punto más cercano salía a medio metro (engine/path.ts);
+       · el segmento, porque desde que un pin puede inclinarse, dos rectas
+         cruzadas se acercan en UN punto y la planta ya no lo dice. */
+  const { base, tip } = pinAxis(pin);
+  const { s: sc, t, d } = nearestToSegment(samples, base, tip);
   const q = sampleAt(samples, sc);
-  const n = planNormal(q);
-  const need = pin.dia / 2 + (n ? planHalfWidth(q, sec, n) : sec.width / 2);
-  const off = n ? new Vector3(pin.x - q.p.x, pin.y - q.p.y, 0).dot(n) : 0;
-  const low = q.p.z - sectionDrop(q, sec);
+  /* La dirección en la que se tocan: del eje de la barra al eje del poste, sin
+     la componente a lo largo de la barra —esa no separa nada—. Con el poste
+     justo encima del eje no hay dirección definida y se cae a la normal
+     horizontal, que es lo que había antes. */
+  const pOn = base.clone().lerp(tip, t);
+  const v = pOn.clone().sub(q.p);
+  const u = v.clone().addScaledVector(q.x, -v.dot(q.x));
+  if (u.lengthSq() < 1e-12) {
+    const n = planNormal(q);
+    if (n) u.copy(n); else u.copy(q.z);
+  }
+  u.normalize();
+  /* EL LADO MONTADO MANDA SOBRE EL LEÍDO. La dirección de contacto sale de la
+     forma que la barra tiene AHORA, y si un ángulo la ha llevado más allá del
+     poste, esa lectura apunta al revés: el solver cerraría el contacto por la
+     cara de atrás, o sea con la barra habiendo atravesado el pin. Con el lado
+     guardado, la dirección se voltea y el residuo vuelve a decir la verdad.
+     Ver el campo `side` del tipo Pin, y la prueba de los 3°. */
+  const nrm = planNormal(q);
+  const lado = nrm ? (u.dot(nrm) >= 0 ? 1 : -1) : 1;
+  if (pin.side && nrm && lado !== pin.side) u.negate();
+  const need = pin.dia / 2 + halfExtent(q, sec, u);
   return {
-    s: sc, plan: bd, need, gap: bd - need,
-    side: off >= 0 ? 1 : -1,
-    /* el pin tiene que llegar a la cara de abajo de la barra; por arriba no se
-       exige nada, que un pin más alto de la cuenta sujeta igual */
-    reach: TABLE_Z + pin.h >= low,
+    s: sc, t, dist: d, need, gap: d - need,
+    side: pin.side || lado,
+    /* Se tocan por el CUERPO del poste, no por su punta. Con el pin a plomo esto
+       es exactamente lo de antes —«el pin llega a la altura de la barra»— y con
+       el pin tumbado sigue significando lo mismo sin tener que hablar de
+       alturas. El margen evita que un contacto justo en el borde parpadee. */
+    reach: t < 0.999,
+    local: [u.dot(q.y), u.dot(q.z)],
   };
 }
 
@@ -169,13 +216,18 @@ export function pinFit(samples: PathSample[], sec: Section, pin: Pin): PinFit | 
  *  negativo y el solver vuelve por donde vino.
  *
  *  Positivo = sobra aire · negativo = el pin está metido dentro de la barra. */
-function gapAt(samples: PathSample[], sec: Section, pin: Pin, s: number, side: number): number {
+function gapAt(samples: PathSample[], sec: Section, pin: Pin,
+               s: number, t: number, local: [number, number]): number {
   const q = sampleAt(samples, s);
-  const n = planNormal(q);
-  const need = pin.dia / 2 + (n ? planHalfWidth(q, sec, n) : sec.width / 2);
-  const off = n ? (pin.x - q.p.x) * n.x + (pin.y - q.p.y) * n.y
-                : Math.hypot(q.p.x - pin.x, q.p.y - pin.y);
-  return side * off - need;
+  /* La dirección de contacto se reconstruye en el marco de la SECCIÓN, con las
+     dos componentes congeladas: así gira con la barra —que es lo que hace de
+     verdad— y su signo no depende de dónde haya quedado la pieza. */
+  const u = q.y.clone().multiplyScalar(local[0]).addScaledVector(q.z, local[1]);
+  if (u.lengthSq() < 1e-12) return 0;
+  u.normalize();
+  const { base, tip } = pinAxis(pin);
+  const pOn = base.clone().lerp(tip, t);
+  return pOn.clone().sub(q.p).dot(u) - (pin.dia / 2 + halfExtent(q, sec, u));
 }
 
 /** El tramo libre asociado a cada estación, mm: la recta que entra más la que
@@ -264,7 +316,7 @@ export function restrain(model: Model, pins: Pin[], sec: Section,
      además tienen algo que cerrar: uno con hueco a favor no empuja nada. Un pin
      que no toca NO es un error —el fixture puede tener más pines de los que
      esta pieza usa— y por eso se ignora en silencio. */
-  const act: { k: number; s: number; side: number; pin: Pin }[] = [];
+  const act: { k: number; s: number; t: number; local: [number, number]; pin: Pin }[] = [];
   pins.forEach((pin, k) => {
     if (!pin.hold) return;
     const f = pinFit(path0, sec, pin);
@@ -274,7 +326,7 @@ export function restrain(model: Model, pins: Pin[], sec: Section,
        —un pin recién puesto a mano, o un archivo anterior a este campo— se cae
        a la lectura, que es lo que había antes y sirve mientras la barra no
        rebase el poste. */
-    act.push({ k, s: f.s, side: pin.side || f.side, pin });
+    act.push({ k, s: f.s, t: f.t, local: f.local, pin });
   });
   if (!act.length) return free;
 
@@ -294,7 +346,7 @@ export function restrain(model: Model, pins: Pin[], sec: Section,
 
   const resid = (m: Model): number[] => {
     const p = place(buildPath(m, 8).samples);
-    return act.map(a => gapAt(p, sec, a.pin, a.s, a.side));
+    return act.map(a => gapAt(p, sec, a.pin, a.s, a.t, a.local));
   };
 
   const du = new Array<number>(nu).fill(0);
@@ -398,15 +450,26 @@ export function seedPins(samples: PathSample[], sec: Section, n = 4,
       if (d < bd) { bd = d; bi = i; }
     }
     const q = samples[bi];
+    /* Un poste sale de la MESA hacia arriba: donde la barra pasa por debajo del
+       plano de la mesa no hay pin que valga, y sembrar uno ahí solo produce una
+       fila en rojo que alguien tiene que borrar. Se salta esa estación y salen
+       menos pines, que es la respuesta honesta. */
+    if (q.p.z <= TABLE_Z + 10) continue;
     const nrm = planNormal(q) || new Vector3(0, 1, 0);
     const side = k % 2 ? -1 : 1;
     const d = dia / 2 + planHalfWidth(q, sec, nrm);
     const cand = {
       x: +(q.p.x + nrm.x * d * side).toFixed(2),
       y: +(q.p.y + nrm.y * d * side).toFixed(2),
-      h: +clamp(q.p.z - TABLE_Z + 20, 20, 400).toFixed(2),
-      /* el lado queda GUARDADO al sembrar: es el que se acaba de montar */
-      dia, visible: true, hold: true, side,
+      /* La punta queda POR ENCIMA del eje de la barra, no a su altura: el
+         contacto se resuelve entre segmentos, y un poste que termina justo
+         donde pasa la barra la toca por su punta —que no sujeta de lado— en vez
+         de por el cuerpo. */
+      h: +clamp(q.p.z - TABLE_Z + 40, 40, 600).toFixed(2),
+      /* el lado queda GUARDADO al sembrar: es el que se acaba de montar. Los
+         pines sembrados nacen A PLOMO: inclinarlos es una decisión, no algo que
+         el programa deba adivinar. */
+      dia, visible: true, hold: true, side, tilt: 0, yaw: 0,
     };
     /* Un paso de corrección contra la barra de verdad, por el mismo motivo que
        en `seedPedestals()`: el pin se coloca a partir de una MUESTRA y el
@@ -414,7 +477,11 @@ export function seedPins(samples: PathSample[], sec: Section, n = 4,
        dentro. Sin esto un pin sembrado nace con unas décimas de hueco y no
        sujeta hasta que alguien lo corrige a mano. */
     const fit = pinFit(samples, sec, { id: '', name: '', ...cand });
-    if (fit) {
+    /* La corrección solo vale si el contacto sigue siendo el que se buscaba: si
+       el punto más cercano se ha ido a otro tramo de la barra —pasa cuando la
+       pieza dobla sobre sí misma— corregir por ese hueco mandaría el pin lejos
+       en vez de acercarlo. */
+    if (fit && Math.abs(fit.s - q.s) < 50) {
       cand.x = +(cand.x - nrm.x * fit.gap * side).toFixed(2);
       cand.y = +(cand.y - nrm.y * fit.gap * side).toFixed(2);
     }

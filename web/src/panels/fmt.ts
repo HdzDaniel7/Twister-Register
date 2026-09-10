@@ -9,7 +9,7 @@ import { T } from '../i18n.ts';
 import type { Mode, Orientation } from '../types.ts';
 
 /** i18n.ts no exporta `I18nKey`: se deriva aquí del propio parámetro de T()
- *  para no duplicar la lista de 367 claves y para que tsc siga comprobando
+ *  para no duplicar la lista de 378 claves y para que tsc siga comprobando
  *  contra la misma unión si esa lista cambia. */
 export type I18nKey = Parameters<typeof T>[0];
 

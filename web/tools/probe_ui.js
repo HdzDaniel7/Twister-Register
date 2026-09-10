@@ -1911,6 +1911,35 @@ step('el material no mueve un solo punto, y el aviso lo dice', () => {
   if (d > 1e-9) throw new Error('cambiar E movió la forma: ' + d);
   setval('#panes [data-mt="E"]', '69000');
 });
+step('se elige qué barra se ve: libre, sujeta o las dos', () => {
+  const B = window.BARCOMP;
+  click('#panes [data-hv="held"]');
+  if (S().layers.nom.on || !S().layers.held.on) throw new Error('«sujeta» no apagó la libre');
+  const cuenta = () => { let n = 0; B.scene.traverse(() => n++); return n; };
+  const soloSujeta = cuenta();
+  click('#panes [data-hv="free"]');
+  if (!S().layers.nom.on || S().layers.held.on) throw new Error('«libre» no apagó la sujeta');
+  const soloLibre = cuenta();
+  click('#panes [data-hv="both"]');
+  if (!S().layers.nom.on || !S().layers.held.on) throw new Error('«las dos» no encendió las dos');
+  /* Con las dos hay más que dibujar que con la libre sola: la sujeta añade su
+     alambre y los segmentos de desplazamiento. Contra «sujeta sola» no vale
+     comparar, porque ahí la sujeta pasa a sólida y suma un objeto propio. */
+  if (!(cuenta() > soloLibre)) throw new Error('con las dos no hay más que dibujar');
+  if (soloSujeta === soloLibre) throw new Error('las dos vistas dibujan lo mismo');
+});
+step('un pin se puede inclinar y el contacto lo nota', () => {
+  const B = window.BARCOMP;
+  const id = S().pins[0].id;
+  const antes = B.E.pinFit(B.placedPath(), S().model.section, S().pins[0]).gap;
+  setval(`#panes [data-pn="${id}"][data-k="tilt"]`, '2');
+  if (S().pins[0].tilt !== 2) throw new Error('no se escribió la inclinación');
+  const ahora = B.E.pinFit(B.placedPath(), S().model.section, S().pins[0]).gap;
+  if (Math.abs(ahora - antes) < .5) {
+    throw new Error(`inclinar no cambió el contacto: ${antes.toFixed(2)} -> ${ahora.toFixed(2)}`);
+  }
+  setval(`#panes [data-pn="${id}"][data-k="tilt"]`, '0');
+});
 step('el lado del pin es dato del fixture y se puede fijar a mano', () => {
   const id = S().pins[0].id;
   const antes = S().pins[0].side;

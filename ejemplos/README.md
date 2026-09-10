@@ -26,19 +26,27 @@ Lo que aparece en el segundo y no en el primero:
   libre— y la de alambre rosa es **donde acaba de verdad al estar sujeta**. Los
   segmentos rosas unen cada punto con su sitio nuevo: ahí se ve *dónde* cedió.
 - **La barra de estado**, arriba a la derecha del pie: `Barra sujeta por los
-  pines · 2 · 20% del límite`.
+  pines · 2 · 21% del límite`.
 - **La pestaña Amarre**, con las cifras:
 
 | | valor que tiene que salir |
 |---|---|
-| pines sujetando | 2 de 4 |
-| punta | ≈ 20.5 mm |
+| pines sujetando | 2 de 3 |
+| punta | ≈ 21.6 mm |
 | peor codo | B6 |
-| esfuerzo | ≈ 20 % del límite elástico |
+| esfuerzo | ≈ 21 % del límite elástico |
 
-Solo dos de los cuatro pines sujetan, y eso es correcto: **un pin empuja, no
-tira**. Los otros dos se quedaron con aire delante cuando la barra se movió, y
-un pin con hueco a favor no hace nada. La columna «Hueco» de la tabla lo dice.
+Solo dos de los tres pines sujetan, y eso es correcto: **un pin empuja, no
+tira**. El otro se quedó con aire delante cuando la barra se movió, y un pin con
+hueco a favor no hace nada. La columna «Hueco» de la tabla lo dice.
+
+Son tres y no cuatro porque en un tramo la barra pasa por debajo del plano de la
+mesa, y ahí no se puede montar un poste: sembrar salta esa estación en vez de
+dejar una fila en rojo que alguien tenga que borrar.
+
+**Elige qué barra ves** con el selector **Ver: Libre · Sujeta · Las dos**, arriba
+de la pestaña. Con una sola en pantalla se dibuja sólida; con las dos, la sujeta
+va en alambre para poder ver cómo se separan.
 
 ## Qué tocar para convencerte de que no es un dibujo
 
@@ -48,6 +56,11 @@ un pin con hueco a favor no hace nada. La columna «Hueco» de la tabla lo dice.
 - **Apaga la casilla «Sujeta»** de uno de los dos pines que están sujetando (los
   marcados en la columna «Estado»). El reparto de la deformación cambia y la
   punta se mueve. Si el amarre fuera un adorno, no cambiaría nada.
+- **Inclina un pin**: las columnas «Inclin.» y «Rumbo» tumban el poste en el
+  espacio. Un grado sobre un poste de 300 mm son 5 mm de punta, y la barra tiene
+  12 de espesor: con muy poco ya cambia el contacto. El cálculo se hace entre los
+  dos ejes en el espacio, no en planta, así que un poste tumbado toca donde de
+  verdad toca.
 - **Baja la altura de un pin** a 5 mm. La columna «Llega» se pone en rojo y ese
   pin deja de sujetar: un poste más bajo que la barra no la toca por bien puesto
   que esté.

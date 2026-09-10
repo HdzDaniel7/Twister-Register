@@ -84,7 +84,9 @@ web/                        ← motor TypeScript + visor three.js
                                barra toma sujeta y lo que le cuesta deformarse
     engine/path.ts             mirar la barra en un punto que NO es una muestra:
                                sampleAt() y nearestOnPath()
-  src/i18n.ts               ← barril de i18n/: keys.ts (la unión de 367 claves) + es · en · de.
+    engine/contact.ts          distancia entre segmentos y cuánto asoma la
+                               sección: el contacto con un poste inclinado
+  src/i18n.ts               ← barril de i18n/: keys.ts (la unión de 378 claves) + es · en · de.
                               T() y LANG. La paridad es error de COMPILACIÓN, no solo de prueba.
   src/state.ts              ← ST: variantes, referencia, anclaje, capas, piezas medidas,
                               cotas y el fixture. placedPath() es la trayectoria colocada.
@@ -737,9 +739,9 @@ punteada. Deja ver de un vistazo cuál doblez está fuera. Es clicable.
 ```bash
 cd web && npm run check            # typecheck -> pruebas -> build -> banco, de una
 cd web && npm run typecheck        # tsc --noEmit, con strict
-cd web && node test_motor.js       # 436 pruebas; todas deben pasar
+cd web && node test_motor.js       # 443 pruebas; todas deben pasar
 cd web && node build.mjs           # regenera index.html y barcomp_viewer.html
-cd web && node tools/ui_test.mjs   # 217 pasos de interfaz en Edge headless
+cd web && node tools/ui_test.mjs   # 219 pasos de interfaz en Edge headless
 ```
 
 Dos herramientas más, que no son pruebas sino evidencia:
@@ -1343,6 +1345,23 @@ que ya había:**
   El lado pasa a ser DATO del fixture (`Pin.side`, con `auto` para lo de antes).
 
 Los dos tienen prueba de motor propia.
+
+**Los pines se pueden inclinar, y por eso el contacto es 3D.** Mientras un pin
+era vertical bastaba la planta —dos rectas verticales guardan la misma distancia
+a cualquier altura—. Con `tilt` y `yaw` eso deja de valer: dos rectas cruzadas se
+acercan en UN punto, así que el contacto se resuelve entre el segmento del poste
+y la polilínea de la barra (`engine/contact.ts`), y lo que asoma de la sección se
+mide en la dirección en la que de verdad se tocan y no sobre la normal
+horizontal. Un pin a plomo da exactamente lo de antes. La columna «Dist.» pasa a
+ser la distancia en el espacio, y la nueva columna del ajuste dice si se tocan
+por el CUERPO del poste o por su punta — que es lo que antes decía «Llega».
+
+**Qué barra se enseña se elige en la pestaña**, con `Ver: Libre · Sujeta · Las
+dos`. Mueve las capas `nom` y `held`, que siguen estando en la paleta para quien
+las quiera por separado; lo que aporta es contestar la pregunta «¿cuál de las dos
+estoy mirando?» donde se hace. Con una sola en pantalla la barra va sólida; con
+las dos, la sujeta pasa a alambre — dos sólidos encajados se leen sucios, que es
+la misma regla que ya seguía el nominal con una pieza medida encima.
 
 **Lo que falta y no se ha hecho:** el lazo de compensación sigue comparando
 contra la pieza LIBRE. Con el amarre puesto eso significa que el lazo corrige

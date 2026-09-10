@@ -194,6 +194,7 @@ export function addPin(p: Partial<Pin> = {}): Pin {
     hold: p.hold !== false,
     x: +p.x! || 0, y: +p.y! || 0,
     h: +p.h! || E.PIN_DEFAULT.h, dia: +p.dia! || E.PIN_DEFAULT.dia,
+    tilt: +p.tilt! || 0, yaw: +p.yaw! || 0,
     side: p.side! > 0 ? 1 : p.side! < 0 ? -1 : 0,
   };
   ST.pins.push(d);

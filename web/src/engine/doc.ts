@@ -134,6 +134,7 @@ export function toDoc(
     pins: (extra.pins || []).map(p => ({
       name: p.name, visible: p.visible !== false, hold: p.hold !== false,
       x: +p.x || 0, y: +p.y || 0, h: +p.h || 0, dia: +p.dia || 0,
+      tilt: +p.tilt || 0, yaw: +p.yaw || 0,
       side: p.side > 0 ? 1 : p.side < 0 ? -1 : 0,
     })),
     /* El amarre y el material viajan SIEMPRE, también apagados: un archivo que
@@ -330,8 +331,9 @@ export function fromDoc(d: Doc): LoadedDoc {
       hold: p.hold !== false,
       x: +p.x || 0, y: +p.y || 0,
       h: +p.h || PIN_DEFAULT.h, dia: +p.dia || PIN_DEFAULT.dia,
-      /* Un archivo anterior a este campo abre con 0: el lado se vuelve a leer
-         de la geometría, que es como se comportaba cuando se guardó. */
+      /* Un archivo anterior a estos campos abre con 0, que es el pin a plomo y
+         el lado leído de la geometría: como se comportaba cuando se guardó. */
+      tilt: +p.tilt || 0, yaw: +p.yaw || 0,
       side: p.side > 0 ? 1 : p.side < 0 ? -1 : 0,
     })),
     /* Un archivo anterior a los pines abre con el amarre APAGADO, que es como

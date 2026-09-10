@@ -979,7 +979,7 @@ console.log('\n— idiomas —');
                    'spread',
                    /* «Ø» y «σ MPa» son símbolos: traducirlos sería inventarse
                       una notación que no usa nadie. */
-                   'pinDia', 'pinSigma',
+                   'pinDia', 'pinSigma', 'pinDist',
                    /* «auto» se escribe igual en los tres idiomas. */
                    'pinSideAuto'];
   const IGUALES = {
@@ -2158,6 +2158,10 @@ console.log('\n— los pines laterales: la barra deja de estar libre (engine/pin
   const seeds = E.seedPins(path, Mp.section, 4);
   const pins = seeds.map((q, i) => ({ ...q, id: `pn${i + 1}`, name: `Pin ${i + 1}` }));
   const fits = pins.map(q => E.pinFit(path, Mp.section, q));
+  /* Menos de los pedidos, y a propósito: donde la barra pasa por debajo del
+     plano de la mesa no se puede montar un poste. Ver seedPins(). */
+  ok('sembrar salta las estaciones donde no cabe un poste',
+     pins.length > 0 && pins.length <= 4, `${pins.length} de 4`);
   ok('los pines sembrados nacen tocando la barra',
      fits.every(f => f && Math.abs(f.gap) < .05),
      fits.map(f => f.gap.toFixed(3)).join(' '));
@@ -2275,14 +2279,61 @@ console.log('\n— los pines laterales: la barra deja de estar libre (engine/pin
        })());
   }
 
+  /* PINES INCLINADOS. Desde que un poste puede tumbarse, la planta deja de
+     decir la verdad: dos rectas cruzadas en el espacio se acercan en un punto y
+     solo en uno. */
+  {
+    const M2 = E.demoModel();
+    const p3 = E.buildPath(M2).samples;
+    const base = E.seedPins(p3, M2.section, 3)[0];
+    const recto = { ...base, id: 'pn1', name: 'Pin 1' };
+    const f0 = E.pinFit(p3, M2.section, recto);
+    ok('un pin a plomo toca por su cuerpo, no por la punta',
+       f0.reach && f0.t > 0 && f0.t < .999, `t=${f0.t.toFixed(3)}`);
+
+    /* Tumbarlo EN CONTRA de la barra lo aleja; tumbarlo HACIA ella, lo acerca.
+       Los dos con el mismo valor de inclinación y rumbos opuestos, para que la
+       comparación no dependa de ninguna otra cosa.
+       UN GRADO, no doce: sobre un poste de 300 mm, un grado son 5 mm de punta,
+       y la barra tiene 12 de espesor. Con doce grados el poste ATRAVIESA la
+       barra y sale por el otro lado, y entonces lo que se está midiendo ya no
+       es «se acercó», es otra cosa. */
+    const q = E.sampleAt(p3, f0.s);
+    const nrm = E.planNormal(q);
+    const rumbo = Math.atan2(nrm.y, nrm.x) * (180 / Math.PI);
+    const haciaFuera = E.pinFit(p3, M2.section, { ...recto, tilt: 1, yaw: rumbo });
+    const haciaDentro = E.pinFit(p3, M2.section, { ...recto, tilt: 1, yaw: rumbo + 180 });
+    ok('inclinarlo en contra de la barra abre hueco',
+       haciaFuera.gap > f0.gap + .5, `${f0.gap.toFixed(2)} -> ${haciaFuera.gap.toFixed(2)} mm`);
+    ok('e inclinarlo hacia la barra lo mete dentro',
+       haciaDentro.gap < f0.gap - .5, `${f0.gap.toFixed(2)} -> ${haciaDentro.gap.toFixed(2)} mm`);
+    /* Lo que NO cambia con una inclinación pequeña es a qué ALTURA se tocan: eso
+       lo decide por dónde pasa la barra, no la inclinación del poste. Conviene
+       dejarlo escrito para que nadie lo lea como un fallo. */
+    ok('la altura del contacto la sigue mandando la barra, no el poste',
+       Math.abs(haciaDentro.t - f0.t) < .05,
+       `t ${f0.t.toFixed(3)} -> ${haciaDentro.t.toFixed(3)}`);
+
+    /* Un poste que se queda corto toca por la PUNTA, y eso no sujeta de lado. */
+    const corto = E.pinFit(p3, M2.section, { ...recto, h: 20 });
+    ok('un pin que no llega toca por la punta y no sujeta',
+       !corto.reach || corto.gap > 1, `t=${corto.t.toFixed(3)} hueco=${corto.gap.toFixed(1)}`);
+
+    /* Y el eje del pin es el que dice la inclinación: con 90° se tumba entero. */
+    const ax = E.pinAxis({ ...recto, tilt: 90, yaw: 0 });
+    ok('pinAxis tumba el poste entero con 90°',
+       Math.abs(ax.dir.z) < 1e-9 && Math.abs(ax.dir.x - 1) < 1e-9,
+       `dir ${ax.dir.toArray().map(v => v.toFixed(3)).join(',')}`);
+  }
+
   /* El documento: los pines viajan, y un archivo anterior abre SIN amarre. */
   const doc = E.toDoc(Mp, null, null, null, [], [], null, 'start',
                       { pins, restraint: on, mat: { E: 70000, yield: 250 } });
   ok('los pines y el amarre se guardan en el documento',
-     doc.pins.length === 4 && doc.restraint.on === true && doc.mat.E === 70000);
+     doc.pins.length === pins.length && doc.restraint.on === true && doc.mat.E === 70000);
   const leido = E.fromDoc(JSON.parse(JSON.stringify(doc)));
   ok('y vuelven con su id al abrir',
-     leido.pins.length === 4 && leido.pins[0].id === 'pn1' && leido.restraint.on === true);
+     leido.pins.length === pins.length && leido.pins[0].id === 'pn1' && leido.restraint.on === true);
   const viejo = JSON.parse(JSON.stringify(doc));
   delete viejo.pins; delete viejo.restraint; delete viejo.mat;
   const v2 = E.fromDoc(viejo);
