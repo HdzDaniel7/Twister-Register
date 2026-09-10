@@ -40,5 +40,5 @@
     "allowJs": true,
     "checkJs": false
   },
-  "include": ["src/**/*", "test_motor.js", "engine_dump.js", "build.mjs"]
+  "include": ["src/**/*", "test_motor.js", "build.mjs"]
 }

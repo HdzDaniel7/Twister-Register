@@ -17,10 +17,6 @@ PROMPT_WEB_V5.md
 # Esta copia la genera el mismo build para abrirla con doble clic en local.
 web/barcomp_viewer.html
 
-# Herramientas que solo tienen sentido junto al motor Python
-web/engine_dump.js
-web/build.py
-
 # ------------------------------------------------------------ dependencias
 node_modules/
 
