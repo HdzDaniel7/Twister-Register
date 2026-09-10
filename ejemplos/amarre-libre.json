@@ -1,0 +1,598 @@
+{
+ "schema": "barcomp/2.3",
+ "saved": "2026-09-10T05:55:44.813Z",
+ "model": {
+  "name": "AMARRE — libre",
+  "section": {
+   "width": 40,
+   "thickness": 12,
+   "chamfer": 1.2,
+   "endLen": 20
+  },
+  "tol": {
+   "angle": 0.3,
+   "rot": 0.5,
+   "feed": 0.5,
+   "point": 1
+  },
+  "tail": 160,
+  "bends": [
+   {
+    "feed": 140,
+    "rot": 0,
+    "angle": 17.9,
+    "radius": 30,
+    "twist": 0,
+    "twistLen": 0
+   },
+   {
+    "feed": 92,
+    "rot": 90,
+    "angle": -37.9,
+    "radius": 45,
+    "twist": 0,
+    "twistLen": 0
+   },
+   {
+    "feed": 124,
+    "rot": -90,
+    "angle": -56.2,
+    "radius": 30,
+    "twist": 0,
+    "twistLen": 0
+   },
+   {
+    "feed": 92,
+    "rot": 0,
+    "angle": 34.8,
+    "radius": 30,
+    "twist": 0,
+    "twistLen": 0
+   },
+   {
+    "feed": 87,
+    "rot": 90,
+    "angle": 68.4,
+    "radius": 45,
+    "twist": 0,
+    "twistLen": 0
+   },
+   {
+    "feed": 121,
+    "rot": -90,
+    "angle": -35.1,
+    "radius": 30,
+    "twist": 0,
+    "twistLen": 0
+   },
+   {
+    "feed": 117,
+    "rot": 0,
+    "angle": 21.9,
+    "radius": 30,
+    "twist": 0,
+    "twistLen": 0
+   },
+   {
+    "feed": 119,
+    "rot": 90,
+    "angle": 45.6,
+    "radius": 45,
+    "twist": 0,
+    "twistLen": 0
+   },
+   {
+    "feed": 94,
+    "rot": -90,
+    "angle": -53.3,
+    "radius": 30,
+    "twist": 0,
+    "twistLen": 0
+   },
+   {
+    "feed": 100,
+    "rot": 0,
+    "angle": -25.9,
+    "radius": 30,
+    "twist": 0,
+    "twistLen": 0
+   },
+   {
+    "feed": 98,
+    "rot": 90,
+    "angle": 29.7,
+    "radius": 45,
+    "twist": 0,
+    "twistLen": 0
+   },
+   {
+    "feed": 148,
+    "rot": -90,
+    "angle": -34.1,
+    "radius": 30,
+    "twist": 0,
+    "twistLen": 0
+   },
+   {
+    "feed": 110,
+    "rot": 0,
+    "angle": 50.6,
+    "radius": 30,
+    "twist": 0,
+    "twistLen": 0
+   },
+   {
+    "feed": 149,
+    "rot": 90,
+    "angle": 57.3,
+    "radius": 45,
+    "twist": 0,
+    "twistLen": 0
+   },
+   {
+    "feed": 135,
+    "rot": -90,
+    "angle": -20.2,
+    "radius": 30,
+    "twist": 0,
+    "twistLen": 0
+   }
+  ]
+ },
+ "command": [
+  {
+   "feed": 140,
+   "rot": 0,
+   "angle": 17.9,
+   "radius": 30,
+   "twist": 0,
+   "twistLen": 0
+  },
+  {
+   "feed": 92,
+   "rot": 90,
+   "angle": -37.9,
+   "radius": 45,
+   "twist": 0,
+   "twistLen": 0
+  },
+  {
+   "feed": 124,
+   "rot": -90,
+   "angle": -56.2,
+   "radius": 30,
+   "twist": 0,
+   "twistLen": 0
+  },
+  {
+   "feed": 92,
+   "rot": 0,
+   "angle": 34.8,
+   "radius": 30,
+   "twist": 0,
+   "twistLen": 0
+  },
+  {
+   "feed": 87,
+   "rot": 90,
+   "angle": 68.4,
+   "radius": 45,
+   "twist": 0,
+   "twistLen": 0
+  },
+  {
+   "feed": 121,
+   "rot": -90,
+   "angle": -35.1,
+   "radius": 30,
+   "twist": 0,
+   "twistLen": 0
+  },
+  {
+   "feed": 117,
+   "rot": 0,
+   "angle": 21.9,
+   "radius": 30,
+   "twist": 0,
+   "twistLen": 0
+  },
+  {
+   "feed": 119,
+   "rot": 90,
+   "angle": 45.6,
+   "radius": 45,
+   "twist": 0,
+   "twistLen": 0
+  },
+  {
+   "feed": 94,
+   "rot": -90,
+   "angle": -53.3,
+   "radius": 30,
+   "twist": 0,
+   "twistLen": 0
+  },
+  {
+   "feed": 100,
+   "rot": 0,
+   "angle": -25.9,
+   "radius": 30,
+   "twist": 0,
+   "twistLen": 0
+  },
+  {
+   "feed": 98,
+   "rot": 90,
+   "angle": 29.7,
+   "radius": 45,
+   "twist": 0,
+   "twistLen": 0
+  },
+  {
+   "feed": 148,
+   "rot": -90,
+   "angle": -34.1,
+   "radius": 30,
+   "twist": 0,
+   "twistLen": 0
+  },
+  {
+   "feed": 110,
+   "rot": 0,
+   "angle": 50.6,
+   "radius": 30,
+   "twist": 0,
+   "twistLen": 0
+  },
+  {
+   "feed": 149,
+   "rot": 90,
+   "angle": 57.3,
+   "radius": 45,
+   "twist": 0,
+   "twistLen": 0
+  },
+  {
+   "feed": 135,
+   "rot": -90,
+   "angle": -20.2,
+   "radius": 30,
+   "twist": 0,
+   "twistLen": 0
+  }
+ ],
+ "comp": {
+  "gainW": 0.75,
+  "gainT": 0.75,
+  "doAngle": true,
+  "doRot": false,
+  "doFeed": false,
+  "batch": false,
+  "gainR": 0.5,
+  "gainF": 0.5,
+  "dead": 0.05,
+  "deadFeed": 0.1,
+  "maxStep": 5,
+  "maxStepFeed": 10
+ },
+ "proc": {
+  "sbW": 1.6,
+  "sbT": 1,
+  "slip": 0.12,
+  "biasRot": 0.35,
+  "noiseA": 0.04,
+  "noiseF": 0.06,
+  "noiseR": 0.04,
+  "seed": 7
+ },
+ "lims": {
+  "axisMin": 1,
+  "piMin": 1,
+  "scaleMin": 0.25,
+  "straightMin": 25
+ },
+ "mach": {
+  "cols": [
+   "n",
+   "straight",
+   "rot",
+   "angle",
+   "radius"
+  ],
+  "sep": ",",
+  "decimals": 3,
+  "header": true,
+  "crlf": true,
+  "lenUnit": "mm",
+  "angUnit": "deg",
+  "signAngle": 1,
+  "signRot": 1,
+  "rotMode": "delta",
+  "tailRow": true
+ },
+ "datasets": [],
+ "ref": "v1",
+ "anchor": "start",
+ "variants": [
+  {
+   "id": "v1",
+   "name": "AMARRE — libre",
+   "color": "#3FA9F5",
+   "visible": true,
+   "base": {
+    "name": "AMARRE — libre",
+    "section": {
+     "width": 40,
+     "thickness": 12,
+     "chamfer": 1.2,
+     "endLen": 20
+    },
+    "tol": {
+     "angle": 0.3,
+     "rot": 0.5,
+     "feed": 0.5,
+     "point": 1
+    },
+    "tail": 160,
+    "bends": [
+     {
+      "feed": 140,
+      "rot": 0,
+      "angle": 17.9,
+      "radius": 30,
+      "twist": 0,
+      "twistLen": 0
+     },
+     {
+      "feed": 92,
+      "rot": 90,
+      "angle": -37.9,
+      "radius": 45,
+      "twist": 0,
+      "twistLen": 0
+     },
+     {
+      "feed": 124,
+      "rot": -90,
+      "angle": -56.2,
+      "radius": 30,
+      "twist": 0,
+      "twistLen": 0
+     },
+     {
+      "feed": 92,
+      "rot": 0,
+      "angle": 34.8,
+      "radius": 30,
+      "twist": 0,
+      "twistLen": 0
+     },
+     {
+      "feed": 87,
+      "rot": 90,
+      "angle": 68.4,
+      "radius": 45,
+      "twist": 0,
+      "twistLen": 0
+     },
+     {
+      "feed": 121,
+      "rot": -90,
+      "angle": -35.1,
+      "radius": 30,
+      "twist": 0,
+      "twistLen": 0
+     },
+     {
+      "feed": 117,
+      "rot": 0,
+      "angle": 21.9,
+      "radius": 30,
+      "twist": 0,
+      "twistLen": 0
+     },
+     {
+      "feed": 119,
+      "rot": 90,
+      "angle": 45.6,
+      "radius": 45,
+      "twist": 0,
+      "twistLen": 0
+     },
+     {
+      "feed": 94,
+      "rot": -90,
+      "angle": -53.3,
+      "radius": 30,
+      "twist": 0,
+      "twistLen": 0
+     },
+     {
+      "feed": 100,
+      "rot": 0,
+      "angle": -25.9,
+      "radius": 30,
+      "twist": 0,
+      "twistLen": 0
+     },
+     {
+      "feed": 98,
+      "rot": 90,
+      "angle": 29.7,
+      "radius": 45,
+      "twist": 0,
+      "twistLen": 0
+     },
+     {
+      "feed": 148,
+      "rot": -90,
+      "angle": -34.1,
+      "radius": 30,
+      "twist": 0,
+      "twistLen": 0
+     },
+     {
+      "feed": 110,
+      "rot": 0,
+      "angle": 50.6,
+      "radius": 30,
+      "twist": 0,
+      "twistLen": 0
+     },
+     {
+      "feed": 149,
+      "rot": 90,
+      "angle": 57.3,
+      "radius": 45,
+      "twist": 0,
+      "twistLen": 0
+     },
+     {
+      "feed": 135,
+      "rot": -90,
+      "angle": -20.2,
+      "radius": 30,
+      "twist": 0,
+      "twistLen": 0
+     }
+    ]
+   },
+   "deltas": [],
+   "tailDelta": 0
+  }
+ ],
+ "place": {
+  "pivot": 0,
+  "x": 0,
+  "y": 0,
+  "z": 0,
+  "rx": 0,
+  "ry": 0,
+  "rz": 0
+ },
+ "marks": [],
+ "fixture": [
+  {
+   "name": "Ped 1",
+   "visible": true,
+   "x": 135.28,
+   "y": 0,
+   "h": 240,
+   "tilt": 0,
+   "pad": 60
+  },
+  {
+   "name": "Ped 2",
+   "visible": true,
+   "x": 331.44,
+   "y": 47.84,
+   "h": 322.8,
+   "tilt": 19.98,
+   "pad": 60
+  },
+  {
+   "name": "Ped 3",
+   "visible": true,
+   "x": 560.32,
+   "y": -7.13,
+   "h": 331.22,
+   "tilt": -35.58,
+   "pad": 60
+  },
+  {
+   "name": "Ped 4",
+   "visible": true,
+   "x": 744.8,
+   "y": -64.2,
+   "h": 135.55,
+   "tilt": -78.3,
+   "pad": 60
+  },
+  {
+   "name": "Ped 5",
+   "visible": true,
+   "x": 715.24,
+   "y": -235.03,
+   "h": 15.88,
+   "tilt": -20.24,
+   "pad": 60
+  },
+  {
+   "name": "Ped 6",
+   "visible": true,
+   "x": 549.86,
+   "y": -416.91,
+   "h": -12.52,
+   "tilt": -36.73,
+   "pad": 60
+  },
+  {
+   "name": "Ped 7",
+   "visible": true,
+   "x": 347.22,
+   "y": -462.37,
+   "h": -145.48,
+   "tilt": -0.86,
+   "pad": 60
+  }
+ ],
+ "pins": [
+  {
+   "name": "Pin 1",
+   "visible": true,
+   "hold": true,
+   "x": 207.93,
+   "y": 38.75,
+   "h": 280,
+   "dia": 20,
+   "side": 1
+  },
+  {
+   "name": "Pin 2",
+   "visible": true,
+   "hold": true,
+   "x": 551.14,
+   "y": -22.61,
+   "h": 366.94,
+   "dia": 20,
+   "side": -1
+  },
+  {
+   "name": "Pin 3",
+   "visible": true,
+   "hold": true,
+   "x": 737.43,
+   "y": -255.36,
+   "h": 41.8,
+   "dia": 20,
+   "side": 1
+  },
+  {
+   "name": "Pin 4",
+   "visible": true,
+   "hold": true,
+   "x": 365.28,
+   "y": -435.05,
+   "h": 20,
+   "dia": 20,
+   "side": -1
+  }
+ ],
+ "restraint": {
+  "on": false,
+  "doRot": true,
+  "tol": 0.05,
+  "damp": 0.15,
+  "iters": 6
+ },
+ "mat": {
+  "E": 69000,
+  "yield": 240
+ },
+ "tweak": [],
+ "ui": {
+  "theme": "system",
+  "lang": "es",
+  "mode": "model"
+ }
+}

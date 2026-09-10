@@ -104,13 +104,36 @@ export function layerPins(ctx: SceneCtx): void {
  *  se superponen casi por completo salvo en la punta, y dos sólidos pegados se
  *  ven sucios. */
 export function layerHeld(ctx: SceneCtx): void {
-  const { L, Axf } = ctx;
+  const { M, L, Axf } = ctx;
   if (!L.held || !L.held.on || !ST.restraint.on) return;
   const R = heldResult();
   if (!R.iters && !R.held.length) return;
-  const pts = E.applyMat(Axf, E.buildPath(R.model).samples.map(q => q.p));
-  const g = new BufferGeometry().setFromPoints(pts);
-  groups.held.add(new Line(g, new LineBasicMaterial({ color: cssVar('--held', '#F5A9E0') })));
+  const col = cssVar('--held', '#F5A9E0');
+  /* La BARRA sujeta en alambre, no su eje en una línea de un píxel: al lado de
+     la pieza sólida una línea suelta no se ve, y lo que hay que poder juzgar de
+     un vistazo es cuánto se separan las dos. `ghost()` es lo mismo que usa el
+     nominal cuando hay una pieza medida encima, y por el mismo motivo. */
+  const geo = barGeometry(E.buildPath(R.model), M.section, null);
+  const alambre = ghost(geo, col, .9);
+  alambre.applyMatrix4(Axf);
+  groups.held.add(alambre);
+
+  /* Y el desplazamiento de cada PI, de la forma libre a la sujeta. Es la
+     lectura que convierte «se movió» en «se movió AQUÍ y tanto»: sin estos
+     segmentos hay que adivinar a ojo qué parte de la barra cedió. */
+  const libre = E.applyMat(Axf, E.fk(M).pis);
+  const suj = E.applyMat(Axf, E.fk(R.model).pis);
+  const n = Math.min(libre.length, suj.length);
+  const pos: number[] = [];
+  for (let i = 0; i < n; i++) {
+    if (libre[i].distanceTo(suj[i]) < 1e-6) continue;
+    pos.push(libre[i].x, libre[i].y, libre[i].z, suj[i].x, suj[i].y, suj[i].z);
+  }
+  if (pos.length) {
+    const g = new BufferGeometry();
+    g.setAttribute('position', new Float32BufferAttribute(pos, 3));
+    groups.held.add(new LineSegments(g, new LineBasicMaterial({ color: col })));
+  }
 }
 
 /* --- modelo activo: sólido, es el que se está editando ---------------- */

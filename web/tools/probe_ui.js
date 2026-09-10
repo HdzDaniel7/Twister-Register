@@ -1875,6 +1875,24 @@ step('mover un ángulo con la barra sujeta la DEFORMA en vez de moverla libre', 
   /* y la pestaña lo dice con números, no solo por dentro */
   if (!/\d/.test(q('#panes .chip').textContent)) throw new Error('el costo no se enseña');
 });
+step('la barra sujeta se DIBUJA: la escena crece al encender su capa', () => {
+  const B = window.BARCOMP;
+  const cuenta = () => { let n = 0; B.scene.traverse(() => n++); return n; };
+  S().layers.held.on = false;
+  B.rebuildScene();
+  const sin = cuenta();
+  S().layers.held.on = true;
+  B.rebuildScene();
+  const con = cuenta();
+  if (!(con > sin)) throw new Error(`la capa no dibuja nada: ${sin} -> ${con}`);
+  /* y los pines también: son cilindros en el mundo, no en la pieza */
+  S().layers.pins.on = false;
+  B.rebuildScene();
+  const sinPines = cuenta();
+  S().layers.pins.on = true;
+  B.rebuildScene();
+  if (!(cuenta() > sinPines)) throw new Error('los pines no se dibujan');
+});
 step('apagar el amarre devuelve la pieza libre', () => {
   const B = window.BARCOMP;
   check('#panes [data-rs="on"]', false);

@@ -113,6 +113,8 @@ web/                        ← motor TypeScript + visor three.js
   tools/                    ← banco de interfaz y sondas. AHORA SÍ versionado.
     demo_amarre.mjs            EL BANCO DEL AMARRE: cinco escenarios con las
                                cifras a la vista (npm run demo:amarre).
+    make_demo_amarre.mjs       escribe ejemplos/amarre-{libre,sujeta}.json para
+                               VERLO en el visor (npm run demo:archivos).
     ui_test.mjs                lanza Edge headless y corre probe_ui.js dentro de la página.
     probe_ui.js                140 pasos de interfaz, cada uno en su try/catch.
     ui_shot.mjs · setup_shot.js  captura PNG tras un guion de preparación.
@@ -737,7 +739,7 @@ cd web && npm run check            # typecheck -> pruebas -> build -> banco, de 
 cd web && npm run typecheck        # tsc --noEmit, con strict
 cd web && node test_motor.js       # 436 pruebas; todas deben pasar
 cd web && node build.mjs           # regenera index.html y barcomp_viewer.html
-cd web && node tools/ui_test.mjs   # 216 pasos de interfaz en Edge headless
+cd web && node tools/ui_test.mjs   # 217 pasos de interfaz en Edge headless
 ```
 
 Dos herramientas más, que no son pruebas sino evidencia:
@@ -1301,6 +1303,13 @@ ni plastificación parcial de la sección. Es un modelo de vigas con codos
 elásticos en las estaciones que ya existen. Es lo que se puede sostener con los
 datos que hay; cuando llegue el material confirmado y una pieza medida CON el
 fixture puesto, se contrasta contra ella.
+
+**Cómo se ve, sin tener que montar la escena a mano:** `ejemplos/` trae la misma
+pieza dos veces, con los mismos pines y el mismo ángulo movido, y una sola
+diferencia entre las dos — el interruptor. Se abren con «Abrir» y el segundo
+enseña las dos formas superpuestas. `ejemplos/README.md` lleva el guion y las
+cifras que tienen que salir, para poder contrastar lo que dice la pantalla.
+Los archivos son sintéticos y se regeneran con `npm run demo:archivos`.
 
 **Cómo se comprueba que funciona, sin creerse el comentario.** `npm run
 demo:amarre` corre cinco escenarios y enseña las cifras:

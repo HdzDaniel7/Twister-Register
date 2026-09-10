@@ -12,6 +12,7 @@
     "test": "node test_motor.js",
     "test:ui": "node tools/ui_test.mjs",
     "demo:amarre": "node tools/demo_amarre.mjs",
+    "demo:archivos": "node tools/make_demo_amarre.mjs",
     "typecheck": "tsc --noEmit",
     "check": "npm run typecheck && npm test && npm run build && npm run test:ui"
   },

@@ -51,6 +51,11 @@ export function openJson(): void {
       setPins(d.pins);
       Object.assign(ST.restraint, d.restraint);
       Object.assign(ST.mat, d.mat);
+      /* Un archivo guardado con la barra sujeta tiene que ABRIRSE enseñándolo:
+         las capas no viajan en el JSON, así que sin esto el amarre queda
+         encendido y en el 3D no se ve ni un pin — que se lee como que el
+         archivo no traía nada. Mismo gesto que al encender el interruptor. */
+      if (ST.restraint.on) { ST.layers.pins.on = true; ST.layers.held.on = true; }
       ST.place = { ...E.PLACE_DEFAULT, ...(d.place || {}) };
       setMarks(d.marks);
       setPedestals(d.fixture);
