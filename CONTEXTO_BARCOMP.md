@@ -86,7 +86,7 @@ web/                        ← motor TypeScript + visor three.js
                                sampleAt() y nearestOnPath()
     engine/contact.ts          distancia entre segmentos y cuánto asoma la
                                sección: el contacto con un poste inclinado
-  src/i18n.ts               ← barril de i18n/: keys.ts (la unión de 378 claves) + es · en · de.
+  src/i18n.ts               ← barril de i18n/: keys.ts (la unión de 380 claves) + es · en · de.
                               T() y LANG. La paridad es error de COMPILACIÓN, no solo de prueba.
   src/state.ts              ← ST: variantes, referencia, anclaje, capas, piezas medidas,
                               cotas y el fixture. placedPath() es la trayectoria colocada.
@@ -739,9 +739,9 @@ punteada. Deja ver de un vistazo cuál doblez está fuera. Es clicable.
 ```bash
 cd web && npm run check            # typecheck -> pruebas -> build -> banco, de una
 cd web && npm run typecheck        # tsc --noEmit, con strict
-cd web && node test_motor.js       # 443 pruebas; todas deben pasar
+cd web && node test_motor.js       # 445 pruebas; todas deben pasar
 cd web && node build.mjs           # regenera index.html y barcomp_viewer.html
-cd web && node tools/ui_test.mjs   # 219 pasos de interfaz en Edge headless
+cd web && node tools/ui_test.mjs   # 220 pasos de interfaz en Edge headless
 ```
 
 Dos herramientas más, que no son pruebas sino evidencia:
@@ -1362,6 +1362,24 @@ las quiera por separado; lo que aporta es contestar la pregunta «¿cuál de las
 estoy mirando?» donde se hace. Con una sola en pantalla la barra va sólida; con
 las dos, la sujeta pasa a alambre — dos sólidos encajados se leen sucios, que es
 la misma regla que ya seguía el nominal con una pieza medida encima.
+
+**Contra qué referencia se compara, se elige.** Comparar dos modelos pide decidir
+contra qué, y con el amarre puesto hay dos respuestas y las dos son legítimas:
+contra la forma LIBRE del otro modelo —el diseño, la pieza fuera del fixture— o
+contra la que de verdad toma MONTADA. La primera dice en qué se diferencian los
+diseños; la segunda, en qué se diferencian las piezas que van a salir. El
+selector está en la pestaña Amarre y viaja en el JSON (`restraint.refHeld`).
+
+`heldFor(slot, …)` sustituye a la caché única: con la referencia comparable
+sujeta hay DOS formas sujetas vivas a la vez —la activa y la referencia— y una
+sola caché las haría turnarse, resolviendo las dos en cada repintado.
+
+**Y una regla que rompe una recursión, escrita donde duele:** el pivote de la
+colocación sale de la referencia **LIBRE**, no de la elegida para comparar. Si
+saliera de la sujeta, calcular esa forma pediría la colocación —para saber dónde
+están los pines— que pediría el pivote, que pediría la forma sujeta. Se muerde la
+cola y el navegador contesta con un desbordamiento de pila. Pasó al montarlo.
+El fixture se monta contra el nominal: esa es la lectura física de la misma regla.
 
 **Lo que falta y no se ha hecho:** el lazo de compensación sigue comparando
 contra la pieza LIBRE. Con el amarre puesto eso significa que el lazo corrige

@@ -102,6 +102,8 @@ export const de: Record<I18nKey, string> = {
  pinReach: 'Erreicht', pinReachTip: 'Ein Bolzen, der niedriger ist als die Unterseite der Stange, berührt sie nie, so gut er auch steht: er hält nichts.',
  pinYes: 'ja', pinNo: 'nein',
  pinHold: 'Hält', pinHoldTip: 'Ein Bolzen kann montiert sein und trotzdem außen vor bleiben: ausgeschaltet bleibt er in der 3D-Ansicht sichtbar, ohne zu wirken — so findet man heraus, welcher Bolzen was verursacht.',
+ pinRef: 'Vergleichen mit',
+ pinRefTip: 'Mit welcher Form der REFERENZ die übrigen Modelle verglichen werden: der freien — dem Entwurf, dem Teil außerhalb der Vorrichtung — oder der, die es unter den Bolzen tatsächlich annimmt. Beide Fragen sind berechtigt und liefern verschiedene Zahlen: die erste sagt, wie sich die Entwürfe unterscheiden, die zweite, wie sich die entstehenden Teile unterscheiden. Es verschiebt die Ausrichtung, die Versatz-Ebene und die Werte auf jeder Modellkarte.',
  pinShow: 'Zeigen', pinShowFree: 'Frei', pinShowHeld: 'Gehalten', pinShowBoth: 'Beide',
  pinShowTip: 'Welche Stange gezeichnet wird: die der Tabelle (frei im Raum), die tatsächliche unter den Bolzen, oder beide übereinander, um sie auseinanderlaufen zu sehen. Allein wird eine Stange massiv gezeichnet; bei beiden geht die gehaltene ins Drahtgitter — zwei ineinander liegende Volumen sehen matschig aus.',
  pinTilt: 'Neigung', pinTiltTip: 'Wie weit der Bolzen aus der Senkrechten kippt, in Grad. 0 = lotrecht. Ein geneigter Bolzen berührt die Stange an anderer Stelle und aus anderer Richtung: der Kontakt wird zwischen beiden Achsen im Raum gelöst, nicht im Grundriss.',

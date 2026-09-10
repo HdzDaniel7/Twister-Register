@@ -96,6 +96,8 @@ export const es: Record<I18nKey, string> = {
  pinReach: 'Llega', pinReachTip: 'Un pin más bajo que la cara inferior de la barra no la toca por mucho que esté en su sitio: no sujeta nada.',
  pinYes: 'sí', pinNo: 'no',
  pinHold: 'Sujeta', pinHoldTip: 'Un pin puede estar montado y no querer contarse: apagarlo deja verlo en el 3D sin que entre en la cuenta, que es como se comprueba qué pin está causando qué.',
+ pinRef: 'Comparar contra',
+ pinRefTip: 'Con qué forma de la REFERENCIA se comparan los demás modelos: la libre —el diseño, la pieza fuera del fixture— o la que de verdad toma sujeta por los pines. Las dos preguntas son legítimas y dan números distintos: la primera dice en qué se diferencian los diseños, la segunda en qué se diferencian las piezas que van a salir. Mueve el anclaje, la capa de desplazamiento y las cifras de cada tarjeta de modelo.',
  pinShow: 'Ver', pinShowFree: 'Libre', pinShowHeld: 'Sujeta', pinShowBoth: 'Las dos',
  pinShowTip: 'Qué barra se dibuja: la que describe la tabla (libre en el espacio), la que de verdad queda al estar sujeta por los pines, o las dos superpuestas para verlas separarse. Con una sola en pantalla se dibuja sólida; con las dos, la sujeta va en alambre — dos sólidos encajados se leen sucios.',
  pinTilt: 'Inclin.', pinTiltTip: 'Cuánto se tumba el poste respecto de la vertical, en grados. 0 = a plomo. Un pin inclinado toca la barra en un punto distinto y con otra dirección: el contacto se resuelve entre los dos ejes en el espacio, no en planta.',

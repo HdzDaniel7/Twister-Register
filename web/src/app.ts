@@ -31,7 +31,10 @@
    ========================================================================= */
 import * as E from './engine.ts';
 import { I18N, LANG } from './i18n.ts';
-import { ST, REF, loadModel, commandModel, placedPath, shownModel, heldResult } from './state.ts';
+import {
+  ST, REF, loadModel, commandModel, placedPath, shownModel, heldResult,
+  refModel, refModelFree,
+} from './state.ts';
 import {
   initScene, fitView, setOnPick, setOnResize, markDirty, rebuildScene, renderer, scene,
   drawGizmo, drawLabels, groupHost,
@@ -129,6 +132,10 @@ type DebugExports = {
   placedPath: typeof placedPath;
   shownModel: typeof shownModel;
   heldResult: typeof heldResult;
+  /* Las dos referencias, para poder comprobar desde el banco que elegir «sujeta»
+     cambia de verdad contra qué se compara. */
+  refModel: typeof refModel;
+  refModelFree: typeof refModelFree;
   /* tampoco puede provocar un archivo roto desde el disco: la clasificacion
      del fallo al abrir se ejercita llamando aqui con el error ya construido. */
   openError: typeof openError;
@@ -138,7 +145,7 @@ type DebugExports = {
 if (typeof window !== 'undefined') (window as unknown as { BARCOMP: DebugExports }).BARCOMP = {
   ST, E, I18N, LANG, renderAll, refresh, REF, drawGizmo, drawLabels, groupHost,
   rebuildScene, markDirty, importCsvText, importCsvBatch, openError, commandModel,
-  placedPath, shownModel, heldResult,
+  placedPath, shownModel, heldResult, refModel, refModelFree,
   get renderer() { return renderer; },
   get scene() { return scene; },
 };

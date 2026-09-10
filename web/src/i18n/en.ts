@@ -94,6 +94,8 @@ export const en: Record<I18nKey, string> = {
  pinReach: 'Reaches', pinReachTip: 'A pin shorter than the underside of the bar never touches it, however well placed it is: it holds nothing.',
  pinYes: 'yes', pinNo: 'no',
  pinHold: 'Holds', pinHoldTip: 'A pin can be mounted and still be left out of the count: switching it off keeps it visible in the 3D view without letting it act, which is how you find out which pin causes what.',
+ pinRef: 'Compare against',
+ pinRefTip: 'Which shape of the REFERENCE the other models are compared with: the free one — the design, the part outside the fixture — or the one it actually takes held by the pins. Both questions are legitimate and give different numbers: the first says how the designs differ, the second how the parts that will come out differ. It moves the anchoring, the shift layer and the figures on every model card.',
  pinShow: 'Show', pinShowFree: 'Free', pinShowHeld: 'Held', pinShowBoth: 'Both',
  pinShowTip: 'Which bar gets drawn: the one the table describes (free in space), the one it actually settles into when the pins hold it, or both overlaid to watch them separate. Alone, a bar is drawn solid; with both on, the held one goes wireframe — two solids inside each other read as mud.',
  pinTilt: 'Tilt', pinTiltTip: 'How far the post leans from vertical, in degrees. 0 = plumb. A leaning pin touches the bar at a different point and from a different direction: the contact is solved between the two axes in space, not in plan.',

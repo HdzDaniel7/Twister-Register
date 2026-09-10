@@ -97,6 +97,17 @@ export type Restraint = {
   damp: number;
   /** iteraciones del solver */
   iters: number;
+  /** ¿la REFERENCIA se compara sujeta o libre?
+   *
+   *  Comparar dos modelos pide decidir contra qué se comparan, y con el amarre
+   *  puesto hay dos respuestas distintas y las dos son legítimas: contra la
+   *  forma que el otro modelo tendría LIBRE —el diseño— o contra la que de
+   *  verdad toma MONTADO en el fixture. La primera dice en qué se diferencian
+   *  los diseños; la segunda, en qué se diferencian las piezas que van a salir.
+   *
+   *  Opcional y `false` por defecto: un archivo anterior compara contra la libre,
+   *  que es como se comportaba cuando se guardó. */
+  refHeld?: boolean;
 };
 
 /** Lo que devuelve `deviations()`: una pieza medida contra su nominal. */

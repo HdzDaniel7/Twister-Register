@@ -106,6 +106,11 @@ export function panePins(M: Model): string {
         <input type="checkbox" data-rs="doRot" ${ST.restraint.doRot ? 'checked' : ''}>
         <span class="nm">${T('pinDoRot')}</span></label>
     </div>
+    ${on ? `<div class="row mt6"><span class="tag" title="${esc(T('pinRefTip'))}">${T('pinRef')}</span>
+      <div class="seg" title="${esc(T('pinRefTip'))}">
+        <button data-rh="0" class="${ST.restraint.refHeld ? '' : 'on'}">${T('pinShowFree')}</button>
+        <button data-rh="1" class="${ST.restraint.refHeld ? 'on' : ''}">${T('pinShowHeld')}</button>
+      </div></div>` : ''}
     ${on ? `<div class="row mt6"><span class="tag">${T('pinShow')}</span>
       <div class="seg" title="${esc(T('pinShowTip'))}">
         <button data-hv="free" class="${ST.layers.nom.on && !ST.layers.held.on ? 'on' : ''}">${T('pinShowFree')}</button>

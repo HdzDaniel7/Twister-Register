@@ -91,6 +91,8 @@ export const RESTRAINT_DEFAULT: Readonly<Restraint> = Object.freeze({
   damp: 0.15,
   /** iteraciones del solver */
   iters: 6,
+  /** la referencia se compara LIBRE mientras no se diga otra cosa */
+  refHeld: false,
 });
 
 /** Lo que se deduce de un pin contra la barra. No se guarda: sale del modelo

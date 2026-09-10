@@ -1911,6 +1911,20 @@ step('el material no mueve un solo punto, y el aviso lo dice', () => {
   if (d > 1e-9) throw new Error('cambiar E movió la forma: ' + d);
   setval('#panes [data-mt="E"]', '69000');
 });
+step('la referencia se puede comparar sujeta, no solo libre', () => {
+  const B = window.BARCOMP;
+  /* De partida se compara contra la LIBRE: las dos referencias coinciden. */
+  const dif = () => B.E.fk(B.refModel()).pis.reduce(
+    (m, p, i) => Math.max(m, p.distanceTo(B.E.fk(B.refModelFree()).pis[i])), 0);
+  click('#panes [data-rh="0"]');
+  if (dif() !== 0) throw new Error('con «libre» la referencia no es la libre');
+  click('#panes [data-rh="1"]');
+  if (!S().restraint.refHeld) throw new Error('no se guardó la elección');
+  if (!(dif() > .5)) throw new Error('elegir «sujeta» no cambió la referencia: ' + dif().toFixed(3));
+  /* y vuelve, que un interruptor que no vuelve no es un interruptor */
+  click('#panes [data-rh="0"]');
+  if (S().restraint.refHeld || dif() !== 0) throw new Error('no volvió a la libre');
+});
 step('se elige qué barra se ve: libre, sujeta o las dos', () => {
   const B = window.BARCOMP;
   click('#panes [data-hv="held"]');

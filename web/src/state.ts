@@ -65,7 +65,26 @@ let varSeq = 1, dsSeq = 0, markSeq = 0, pedSeq = 0, pinSeq = 0;
 /* -------------------------------------------------------------- variantes */
 export const V = () => ST.variants.find(v => v.id === ST.active) || ST.variants[0];
 export const REF = () => ST.variants.find(v => v.id === ST.ref) || ST.variants[0];
-export const refModel = () => E.effectiveModel(REF());
+/** La referencia SIN amarre: el modelo tal cual, libre en el espacio.
+ *
+ *  Existe aparte de `refModel()` porque hace falta un suelo sin recursión: la
+ *  forma sujeta depende de dónde esté colocada la pieza, la colocación depende
+ *  del anclaje, y el anclaje se mide CONTRA la referencia. Si la referencia
+ *  sujeta se anclara contra sí misma sujeta, el cálculo se mordería la cola.
+ *
+ *  La regla que rompe el lazo, y es física: **el fixture se monta contra el
+ *  nominal**. Los pines están atornillados a la mesa y la pieza se coloca
+ *  respecto de la referencia LIBRE; lo que el amarre cambia es la forma que la
+ *  pieza toma ahí, no dónde se decide que va. */
+export const refModelFree = () => E.effectiveModel(REF());
+
+/** La referencia con la que se compara todo: la libre, o la que de verdad
+ *  queda sujeta por los pines si se ha elegido así en la pestaña Amarre. */
+export const refModel = (): Model => (
+  ST.restraint.on && ST.restraint.refHeld
+    ? heldFor('ref', refModelFree(), refModelFree()).model
+    : refModelFree()
+);
 
 /** Refresca la caché tras cualquier edición de la variante activa. */
 export function syncModel(): Model {
@@ -106,9 +125,18 @@ export function loadModel(
 }
 
 /* ------------------------------------------------------------- colocación */
-/** Punto sobre el que pivota la colocación: un PI del modelo de referencia. */
+/** Punto sobre el que pivota la colocación: un PI del modelo de referencia.
+ *
+ *  De la referencia LIBRE, siempre, y no de la que se haya elegido para
+ *  comparar. Dos motivos, y el segundo es el que manda:
+ *
+ *  · la colocación es dónde se pone la pieza en la mesa, no con qué se compara;
+ *  · y si el pivote saliera de la referencia SUJETA, calcular esa forma pediría
+ *    la colocación —para saber dónde están los pines— que pediría el pivote, que
+ *    pediría la forma sujeta. El cálculo se muerde la cola, y el navegador lo
+ *    dice con un desbordamiento de pila. Pasó, y por eso está escrito aquí. */
 export function pivotPoint(): Vector3 {
-  const P = E.fk(refModel()).pis;
+  const P = E.fk(refModelFree()).pis;
   return P[E.clamp(ST.place.pivot | 0, 0, P.length - 1)];
 }
 /** Matriz que acomoda TODA la escena. Identidad si no se ha tocado nada. */
@@ -227,21 +255,41 @@ export function seedPinsFor(n?: number): Pin[] {
  *  La `place` que se le pasa es la MISMA que usa `placedPath()`: los pines
  *  están atornillados a la mesa, así que miran a la pieza donde de verdad está,
  *  no donde la dibujaría el modelo en el origen. */
-let heldKey = '';
+/** Una caché por RANURA —'act' para la variante que se edita, 'ref' para la
+ *  referencia— porque desde que la referencia se puede comparar sujeta hay dos
+ *  formas sujetas vivas a la vez, y una sola caché las haría turnarse: cada
+ *  repintado tiraría la de la otra y volvería a resolver las dos. */
+const heldCache = new Map<string, { key: string; res: Restrained }>();
+
+function heldFor(slot: string, M: Model, refM: Model): Restrained {
+  if (!ST.restraint.on) { heldCache.delete(slot); return E.restrainedFree(M); }
+  const key = JSON.stringify([M.bends, M.tail, M.section, ST.pins, ST.restraint, ST.mat,
+                              ST.place, ST.anchor, refM.bends, refM.tail]);
+  const hit = heldCache.get(slot);
+  if (hit && hit.key === key) return hit.res;
+  /* Colocada donde de verdad está: el anclaje contra la referencia LIBRE (ver
+     refModelFree()) y encima la colocación. Los pines son físicos y miran a la
+     pieza en la mesa, no al modelo dibujado en el origen. */
+  const P = placeMatrix().multiply(E.anchorTransform(M, refM, ST.anchor));
+  const res = E.restrain(M, ST.pins, M.section, ST.restraint, ST.mat,
+                         s => E.placePath(P, s));
+  heldCache.set(slot, { key, res });
+  return res;
+}
+
 export function heldResult(): Restrained {
   const M = ST.model;
   if (!M) return E.restrainedFree(E.emptyModel());
-  if (!ST.restraint.on) { ST.held = null; heldKey = ''; return E.restrainedFree(M); }
-  const key = JSON.stringify([M.bends, M.tail, M.section, ST.pins, ST.restraint, ST.mat,
-                              ST.place, ST.anchor, ST.ref]);
-  if (ST.held && key === heldKey) return ST.held;
-  const A = E.anchorTransform(M, refModel(), ST.anchor);
-  const P = placeMatrix().multiply(A);
-  ST.held = E.restrain(M, ST.pins, M.section, ST.restraint, ST.mat,
-                       s => E.placePath(P, s));
-  heldKey = key;
-  return ST.held;
+  const res = heldFor('act', M, refModelFree());
+  /* `ST.held` sigue siendo la forma sujeta de la ACTIVA, que es la que dibuja la
+     escena y la que mide la pestaña. La de la referencia vive solo en la caché:
+     no se enseña, se usa para comparar. */
+  ST.held = ST.restraint.on ? res : null;
+  return res;
 }
+
+/** La forma sujeta de la REFERENCIA, para quien quiera enseñarla o medirla. */
+export const heldRef = (): Restrained => heldFor('ref', refModelFree(), refModelFree());
 
 /** El modelo que hay que DIBUJAR y MEDIR: el sujeto si el amarre está puesto, y
  *  el libre si no. Un solo sitio donde se decide, para que la escena, la tabla

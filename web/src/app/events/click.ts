@@ -5,7 +5,7 @@ import { ST } from '../../state.ts';
 import { setLang } from '../../i18n.ts';
 import { fitView, setView, rebuildScene } from '../../scene.ts';
 import { drawRibbon } from '../../ribbon.ts';
-import { renderShell, renderLeft, renderRight, renderPanels } from '../../panels.ts';
+import { renderShell, renderLeft, renderRight, renderStatus, renderPanels } from '../../panels.ts';
 import type { DatumMode, Mode } from '../../types.ts';
 import type { ViewName } from '../../scene.ts';
 import { $ } from '../../dom.ts';
@@ -48,7 +48,7 @@ function onClick(e: MouseEvent): void {
     }
     const t = (e.target as HTMLElement).closest(
       '[data-a],[data-v],[data-dm],[data-l],[data-th],[data-md],[data-dr],[data-dx],[data-dsel],[data-cm],[data-mx],[data-px],' +
-      '[data-vsel],[data-vx],[data-vd],[data-vr],[data-r],[data-pnx],[data-hv]') as HTMLElement | null;
+      '[data-vsel],[data-vx],[data-vd],[data-vr],[data-r],[data-pnx],[data-hv],[data-rh]') as HTMLElement | null;
     if (!t) return;
     const d = t.dataset;
     if (d.l !== undefined) { setLang(d.l); renderAll(); return; }
@@ -73,6 +73,14 @@ function onClick(e: MouseEvent): void {
     /* borrar un pedestal. No renumera los que quedan: el nombre es del taller
        —está escrito en el pedestal— y renumerarlo aquí lo despegaría del que
        hay atornillado a la mesa. */
+    /* Contra QUÉ referencia se compara: la libre o la sujeta. Cambia el
+       anclaje, la capa de desplazamiento y las cifras de la tarjeta de cada
+       modelo, así que se repinta todo. */
+    if (d.rh !== undefined) {
+      ST.restraint.refHeld = d.rh === '1';
+      renderShell(); renderLeft(); renderRight(); renderStatus(); rebuildScene(); drawRibbon();
+      return;
+    }
     /* Qué barra se enseña con el amarre puesto. No es una capa más: es la
        pregunta «¿cuál de las dos estoy mirando?», y por eso vive en la pestaña
        del amarre y no en la paleta de capas — aunque lo que mueva sean las dos

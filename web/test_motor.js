@@ -2329,6 +2329,22 @@ console.log('\n— los pines laterales: la barra deja de estar libre (engine/pin
   /* El documento: los pines viajan, y un archivo anterior abre SIN amarre. */
   const doc = E.toDoc(Mp, null, null, null, [], [], null, 'start',
                       { pins, restraint: on, mat: { E: 70000, yield: 250 } });
+  /* La elección de contra qué referencia se compara viaja con el resto del
+     amarre: sin ella, un archivo guardado comparando contra la pieza SUJETA se
+     vuelve a abrir comparando contra la libre y las cifras cambian sin que
+     nadie haya tocado nada. */
+  {
+    const dRef = E.toDoc(Mp, null, null, null, [], [], null, 'start',
+                         { restraint: { ...on, refHeld: true } });
+    ok('la referencia sujeta/libre se guarda y vuelve',
+       dRef.restraint.refHeld === true
+       && E.fromDoc(JSON.parse(JSON.stringify(dRef))).restraint.refHeld === true);
+    const viejoRef = JSON.parse(JSON.stringify(dRef));
+    delete viejoRef.restraint.refHeld;
+    ok('y un archivo anterior a la opción compara contra la LIBRE, como hacía',
+       E.fromDoc(viejoRef).restraint.refHeld === false);
+  }
+
   ok('los pines y el amarre se guardan en el documento',
      doc.pins.length === pins.length && doc.restraint.on === true && doc.mat.E === 70000);
   const leido = E.fromDoc(JSON.parse(JSON.stringify(doc)));
