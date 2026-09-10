@@ -70,6 +70,23 @@ function bindDevRows(): void {
   document.body.addEventListener('keydown', e => {
     const fila = (e.target as HTMLElement).closest('tr[data-r]') as HTMLTableRowElement | null;
     if (!fila) return;
+    /* SOLO cuando el foco está en la FILA, no en algo que haya dentro.
+     *
+     * `data-r` no es exclusivo de la tabla de desviación: la del modelo y la de
+     * compensación también lo llevan, y ahí dentro hay celdas editables. Sin
+     * esta línea, un Enter para confirmar una Δ subía hasta aquí, seleccionaba
+     * la fila y reconstruía #panes ENTERO — con lo que el <input> que tenía el
+     * texto recién escrito desaparecía a media edición. El resultado era el
+     * peor posible: el valor llegaba a escribirse (el navegador dispara
+     * `change` al arrancar del documento un campo sucio) pero el panel se
+     * repintaba con la instantánea de ANTES, así que la geometría cambiaba y la
+     * casilla se quedaba en 0.00. Había que teclear el mismo número dos veces
+     * para verlo, y la segunda no movía nada. Lo reportó el taller.
+     *
+     * Enfocable solo lo es la fila de desviación (`tabindex` en panels/meas.ts),
+     * así que exigir que el objetivo SEA la fila deja fuera a las otras dos
+     * tablas sin tener que nombrarlas. */
+    if (e.target !== fila) return;
     const i = +(fila.dataset.r as string);
     if (e.key === 'Enter' || e.key === ' ') {
       e.preventDefault();

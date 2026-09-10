@@ -33,8 +33,32 @@ export function renderSide(): void {
 export function renderRight(): void {
   /* Medir no tiene bloque de abajo: lo suyo vive en el lateral. */
   if (ST.mode === 'meas') return;
-  const M = ST.model, host = $('#panes'), keep = host ? host.scrollTop : 0;
+  const host = $('#panes'), keep = host ? host.scrollTop : 0;
   const f = saveFocus();
+  /* CONFIRMAR ANTES DE MIRAR EL MODELO, y esto no es una precaución: es una
+   * corrección.
+   *
+   * Un campo con texto sin confirmar no ha escrito nada todavía —la tabla usa
+   * `change`, que salta al SALIR de la celda— así que si aquí se pinta sin más,
+   * se pinta con el valor de antes. Y peor: la asignación de `innerHTML`
+   * arranca ese campo del documento, eso dispara su `blur`, el `blur` dispara
+   * el `change`, el `change` escribe el valor y manda repintar... todo desde
+   * DENTRO de la asignación que aún no ha terminado. El navegador lo dice tal
+   * cual: «the node to be removed is no longer a child of this node. Perhaps it
+   * was moved in a blur event handler?».
+   *
+   * Lo que se veía era esto: se escribía −0.7 en una casilla, la geometría
+   * cambiaba y la casilla se quedaba en 0.00, porque el HTML que acababa de
+   * instalarse se había armado ANTES de que el valor existiera. Había que
+   * teclear el mismo número dos veces.
+   *
+   * Soltar el campo aquí ordena las tres cosas: se confirma, se pinta con el
+   * dato ya escrito, y `restoreFocus()` devuelve el cursor donde estaba. La
+   * llamada anidada que provoque ese `change` se completa entera antes de que
+   * esta siga, porque para entonces ya no queda nada enfocado que soltar. */
+  const act = document.activeElement as HTMLElement | null;
+  if (act && host && act !== host && host.contains(act)) act.blur();
+  const M = ST.model;
   /* la sub-pestaña tiene que existir DENTRO del modo: un archivo guardado en
      'meas', o en 'comp' mientras se modela, cae en la primera del modo */
   const tabs = TABS_OF[ST.mode];

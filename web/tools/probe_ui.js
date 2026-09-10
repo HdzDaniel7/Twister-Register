@@ -1811,6 +1811,68 @@ step('las flechas suben y bajan por la tabla sin salirse', () => {
    pinte: es que el interruptor sea de verdad un interruptor —apagado, la pieza
    tiene que ser la misma que antes de que los pines existieran— y que con él
    puesto la forma CAMBIE, porque si no cambia nada el amarre es un adorno. */
+step('un Δ escrito y confirmado con Enter se guarda Y se queda a la vista', () => {
+  /* Lo reportó el taller: se escribía −0.7 en una casilla de compensación, la
+     geometría cambiaba y la casilla se quedaba en 0.00; había que teclear el
+     mismo número otra vez para verlo, y esa segunda vez ya no movía nada.
+     La causa era que Enter subía hasta el manejador de la tabla de DESVIACIÓN
+     —`data-r` lo llevan las tres tablas— que seleccionaba la fila y
+     reconstruía #panes entero a media edición. Ver bindDevRows(). */
+  click('[data-md="model"]');
+  click('#tabs [data-t="model"]');
+  const vr = () => S().variants.find(x => x.id === S().active);
+  const selAntes = S().sel;
+  const el = q('#panes input[data-bd="5"][data-k="angle"]');
+  el.focus();                       // el foco selecciona el contenido: teclear reemplaza
+  typeIn(el, '-0.7');
+  key(el, 'Enter');
+  if (Math.abs(vr().deltas[5].angle + 0.7) > 1e-9) {
+    throw new Error('el Δ no se guardó: ' + vr().deltas[5].angle);
+  }
+  const vivo = q('#panes input[data-bd="5"][data-k="angle"]');
+  if (Math.abs(parseFloat(vivo.value) + 0.7) > 1e-9) {
+    throw new Error('el Δ se aplicó pero la casilla se quedó en ' + vivo.value);
+  }
+  if (S().sel !== selAntes) throw new Error('Enter seleccionó la fila en vez de confirmar la celda');
+  /* y baja a la celda de abajo, que es lo que Enter tiene que hacer en una tabla */
+  const foco = document.activeElement;
+  if (!foco || foco.dataset.bd !== '6') throw new Error('Enter no bajó de fila');
+  /* se deja como estaba: los pasos que vienen detrás miran esta misma pieza */
+  const otra = q('#panes input[data-bd="5"][data-k="angle"]');
+  otra.focus();
+  typeIn(otra, '0');
+  otra.dispatchEvent(new Event('change', { bubbles: true }));
+  if (vr().deltas[5].angle !== 0) throw new Error('no se pudo dejar el Δ a cero');
+});
+
+step('repintar con una celda a medio escribir la CONFIRMA y la deja a la vista', () => {
+  /* La otra mitad del mismo fallo. Reconstruir #panes arranca del documento el
+     campo enfocado; eso dispara su `blur`, el `blur` dispara el `change` y el
+     `change` manda repintar — desde dentro de la asignación de innerHTML que
+     todavía no ha terminado. El navegador lanzaba «the node to be removed is no
+     longer a child of this node», y el HTML que quedaba puesto se había armado
+     ANTES de que el valor existiera. Ver renderRight(). */
+  click('[data-md="model"]');
+  click('#tabs [data-t="model"]');
+  const vr = () => S().variants.find(x => x.id === S().active);
+  const el = q('#panes input[data-bd="8"][data-k="angle"]');
+  el.focus();
+  typeIn(el, '-0.4');
+  click('#tabs [data-t="fixture"]');            // repinta sin haber confirmado
+  if (Math.abs(vr().deltas[8].angle + 0.4) > 1e-9) {
+    throw new Error('lo escrito se perdió al repintar: ' + vr().deltas[8].angle);
+  }
+  click('#tabs [data-t="model"]');
+  const vivo = q('#panes input[data-bd="8"][data-k="angle"]');
+  if (Math.abs(parseFloat(vivo.value) + 0.4) > 1e-9) {
+    throw new Error('el Δ se aplicó pero la casilla enseña ' + vivo.value);
+  }
+  vivo.focus();
+  typeIn(vivo, '0');
+  vivo.dispatchEvent(new Event('change', { bubbles: true }));
+  vivo.blur();
+});
+
 step('la pestaña Fixture dice la flecha por gravedad de cada tramo', () => {
   click('[data-md="model"]');
   click('#tabs [data-t="fixture"]');
@@ -2035,10 +2097,15 @@ step('resolver el amarre cuesta menos que repintar la escena', () => {
   log.push(`     amarre: ${ms.toFixed(1)} ms · ${S().pins.length} pines · ${S().model.bends.length} dobleces`);
   if (!(ms < 250)) throw new Error('el amarre va a tirones: ' + ms.toFixed(0) + ' ms');
   /* Y la caché tiene que servir de algo: la segunda llamada no vuelve a
-     resolver, devuelve lo mismo. */
+     resolver, devuelve lo mismo.
+     El suelo de medio milisegundo NO es holgura: con tres pines el amarre se
+     resuelve en 0.0 ms, así que «menos de la mitad de 0.0» es una comparación
+     contra el ruido de `performance.now()` y fallaba una de cada tres veces sin
+     que nada estuviera roto. Una prueba que falla al azar enseña a no leer los
+     fallos, que es peor que no tenerla. */
   const t1 = performance.now();
   const again = B.heldResult();
-  if (performance.now() - t1 > ms / 2) throw new Error('la caché no está sirviendo');
+  if (performance.now() - t1 > Math.max(ms / 2, 0.5)) throw new Error('la caché no está sirviendo');
   if (again !== S().held) throw new Error('la caché devolvió otra cosa');
 });
 step('la barra de estado avisa de que la pieza está sujeta', () => {

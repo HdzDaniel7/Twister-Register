@@ -744,7 +744,7 @@ cd web && npm run check            # typecheck -> pruebas -> build -> banco, de 
 cd web && npm run typecheck        # tsc --noEmit, con strict
 cd web && node test_motor.js       # 480 pruebas; todas deben pasar
 cd web && node build.mjs           # regenera index.html y barcomp_viewer.html
-cd web && node tools/ui_test.mjs   # 228 pasos de interfaz en Edge headless
+cd web && node tools/ui_test.mjs   # 230 pasos de interfaz en Edge headless
 ```
 
 Dos herramientas más, que no son pruebas sino evidencia:
@@ -1514,6 +1514,49 @@ cosa que se vuelve a romper:
 **Una limitación que conviene saber:** un apoyo puesto en el primer tramo lee
 0 N. Ese tramo no se mueve —la raíz lo sujeta— y en este modelo lo que no se
 hunde no empuja. Hay prueba de ello, por lo mismo que del punto ciego.
+
+### La casilla que se quedaba en 0.00 — 2026-09-10
+
+Lo reportó el taller: se escribía −0.7 en una casilla de compensación de la
+pestaña Modelo, **la geometría cambiaba y la casilla se quedaba en 0.00**. Había
+que teclear el mismo número una segunda vez para verlo, y esa segunda vez ya no
+movía nada — porque el valor ya estaba puesto.
+
+Eran DOS fallos encadenados, los dos en el camino «confirmar una celda».
+
+**Uno: Enter no confirmaba, seleccionaba la fila.** `bindDevRows()` escucha
+Enter y las flechas sobre `tr[data-r]` para que la tabla de DESVIACIÓN se pueda
+recorrer sin ratón. Pero `data-r` lo llevan las tres tablas —modelo,
+compensación y desviación— y en las dos primeras hay celdas editables dentro. Un
+Enter para confirmar subía hasta ahí, seleccionaba el doblez y reconstruía
+`#panes` entero a media edición. La corrección es exigir que el objetivo SEA la
+fila: enfocable solo lo es la de desviación (`tabindex` en `panels/meas.ts`), así
+que la condición deja fuera a las otras dos sin tener que nombrarlas.
+
+**Dos: repintar con una celda sucia se muerde la cola.** Asignar `innerHTML`
+arranca del documento el campo enfocado; eso dispara su `blur`, el `blur`
+dispara el `change`, el `change` escribe el valor y manda repintar — todo desde
+DENTRO de la asignación que aún no ha terminado. El navegador lo dice tal cual:
+«the node to be removed is no longer a child of this node. Perhaps it was moved
+in a blur event handler?». Y el HTML que quedaba instalado se había armado ANTES
+de que el valor existiera, que es exactamente el 0.00 de la pantalla con la
+geometría ya cambiada.
+
+`renderRight()` ahora **suelta el campo enfocado antes de mirar el modelo**: se
+confirma, se pinta con el dato ya escrito, y `restoreFocus()` devuelve el cursor
+donde estaba. Es la tercera capa de la disciplina del foco que ya había
+(actualización dirigida · guardar y restaurar · **confirmar antes de repintar**),
+y la única que además arregla lo que se PINTA y no solo dónde queda el cursor.
+
+Dos pasos de banco nuevos, uno por fallo, y los dos escriben de verdad
+(`execCommand insertText`): asignar `.value` por script no marca el campo sucio
+y entonces el navegador no dispara `change` al desenfocar, que es justo el camino
+que había que probar.
+
+De paso, una prueba de banco que fallaba una de cada tres veces sin que nada
+estuviera roto: comparaba el coste de la caché del amarre contra «la mitad de
+0.0 ms», o sea contra el ruido de `performance.now()`. Ahora lleva un suelo de
+medio milisegundo. Una prueba que falla al azar enseña a no leer los fallos.
 
 ### Diferido a después de beta 1.0
 
