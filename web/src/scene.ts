@@ -16,7 +16,7 @@ export type { ViewName } from './scene/types.ts';
 export {
   renderer, scene, camera, controls,
   setOnPick, markDirty, cssVar, devThreeColor, devCssColor,
-  groupHost, applyTheme, initScene, setOnResize, onResize,
+  groups, groupHost, applyTheme, initScene, setOnResize, onResize,
   drawGizmo, drawLabels,
 } from './scene/stage.ts';
 export { barGeometry } from './scene/geometry.ts';

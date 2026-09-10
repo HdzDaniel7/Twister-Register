@@ -1925,6 +1925,30 @@ step('la referencia se puede comparar sujeta, no solo libre', () => {
   click('#panes [data-rh="0"]');
   if (S().restraint.refHeld || dif() !== 0) throw new Error('no volvió a la libre');
 });
+step('con DOS modelos y «sujeta», la referencia se dibuja SUJETA', () => {
+  const B = window.BARCOMP;
+  /* El fallo que esto vigila: el selector cambiaba con qué se MIDE, pero la
+     escena seguía dibujando las otras variantes libres. Se veía la activa
+     sujeta y la referencia libre al lado, que es media comparación. */
+  drawer('models');
+  click('#lf [data-a="vardup"]');
+  if (S().variants.length < 2) throw new Error('no se duplicó el modelo');
+  drawer('models');
+  click('#tabs [data-t="pins"]');
+  click('#panes [data-hv="held"]');
+  B.rebuildScene();
+  if (S().layers.var.on) throw new Error('las otras variantes siguen dibujándose libres');
+  /* Y la capa de sujetas tiene que traer UNA por variante visible, no solo la
+     activa: el fixture sujeta a la pieza que haya montada, sea cuál sea. */
+  const nHeld = B.groups.held.children.length;
+  const visibles = S().variants.filter(v => v.visible).length;
+  if (nHeld < visibles) {
+    throw new Error(`la capa sujeta trae ${nHeld} objetos para ${visibles} variantes`);
+  }
+  click('#panes [data-hv="both"]');
+  B.rebuildScene();
+  if (!S().layers.var.on) throw new Error('«las dos» no devolvió las libres');
+});
 step('se elige qué barra se ve: libre, sujeta o las dos', () => {
   const B = window.BARCOMP;
   click('#panes [data-hv="held"]');

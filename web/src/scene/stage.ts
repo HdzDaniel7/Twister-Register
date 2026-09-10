@@ -36,6 +36,8 @@ export let renderer: WebGLRenderer, scene: Scene, camera: PerspectiveCamera, con
    mover la pieza en el espacio no toca ni un dato del modelo: es una sola
    matriz sobre la escena entera, y la comparación entre modelos no cambia. */
 export let root: Group, world: Group;
+/* Exportado, y el banco lo usa: contar lo que cuelga de UNA capa es la única
+   forma de comprobar desde fuera que esa capa dibujó algo. */
 export const groups: Record<string, Group> = {};
 let labelHost: HTMLElement | null, gizmoHost: HTMLElement | null, dirty = true;
 export const extraLabels: ExtraLabel[] = [];

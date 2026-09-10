@@ -741,7 +741,7 @@ cd web && npm run check            # typecheck -> pruebas -> build -> banco, de 
 cd web && npm run typecheck        # tsc --noEmit, con strict
 cd web && node test_motor.js       # 445 pruebas; todas deben pasar
 cd web && node build.mjs           # regenera index.html y barcomp_viewer.html
-cd web && node tools/ui_test.mjs   # 220 pasos de interfaz en Edge headless
+cd web && node tools/ui_test.mjs   # 221 pasos de interfaz en Edge headless
 ```
 
 Dos herramientas más, que no son pruebas sino evidencia:
@@ -1369,6 +1369,16 @@ contra la forma LIBRE del otro modelo —el diseño, la pieza fuera del fixture�
 contra la que de verdad toma MONTADA. La primera dice en qué se diferencian los
 diseños; la segunda, en qué se diferencian las piezas que van a salir. El
 selector está en la pestaña Amarre y viaja en el JSON (`restraint.refHeld`).
+
+**Y el amarre se dibuja en TODAS las variantes visibles, no solo en la activa.**
+El fixture sujeta a la pieza que haya montada, sea cuál sea: enseñar una sujeta y
+la otra libre no compara nada, es la mitad de cada cosa. El selector `Ver` apaga
+también la capa `var` —las otras variantes libres— cuando se pide «sujeta», y la
+capa `held` dibuja una por variante, cada una en SU color. La capa `diff` compara
+lo que se está viendo, y las tarjetas de modelo miden la variante sujeta cuando
+la referencia se compara sujeta: medir una libre contra otra sujeta mezcla la
+diferencia de diseño con lo que el fixture le hace a la barra, y el número no
+contesta ninguna de las dos preguntas.
 
 `heldFor(slot, …)` sustituye a la caché única: con la referencia comparable
 sujeta hay DOS formas sujetas vivas a la vez —la activa y la referencia— y una

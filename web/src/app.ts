@@ -37,7 +37,7 @@ import {
 } from './state.ts';
 import {
   initScene, fitView, setOnPick, setOnResize, markDirty, rebuildScene, renderer, scene,
-  drawGizmo, drawLabels, groupHost,
+  drawGizmo, drawLabels, groupHost, groups,
 } from './scene.ts';
 import { drawRibbon, bindRibbon, setOnRibbonSelect } from './ribbon.ts';
 import { renderAll, refresh, selectBend } from './app/render.ts';
@@ -113,6 +113,9 @@ type DebugExports = {
   ST: typeof ST; E: typeof E; I18N: typeof I18N; LANG: typeof LANG;
   renderAll: typeof renderAll; refresh: typeof refresh; REF: typeof REF;
   drawGizmo: typeof drawGizmo; drawLabels: typeof drawLabels; groupHost: typeof groupHost;
+  /* Los grupos por capa: contar lo que cuelga de UNA es la única forma de
+     comprobar desde el banco que esa capa dibujó lo que dice. */
+  groups: typeof groups;
   rebuildScene: typeof rebuildScene; markDirty: typeof markDirty;
   get renderer(): typeof renderer;
   /* la escena entera, para poder CONTAR lo que cuelga de ella. renderer.info
@@ -143,7 +146,7 @@ type DebugExports = {
 /* `renderer` se lee por getter porque initScene() lo asigna DESPUÉS de que
    este módulo se evalúe: copiarlo aquí guardaría el undefined de arranque. */
 if (typeof window !== 'undefined') (window as unknown as { BARCOMP: DebugExports }).BARCOMP = {
-  ST, E, I18N, LANG, renderAll, refresh, REF, drawGizmo, drawLabels, groupHost,
+  ST, E, I18N, LANG, renderAll, refresh, REF, drawGizmo, drawLabels, groupHost, groups,
   rebuildScene, markDirty, importCsvText, importCsvBatch, openError, commandModel,
   placedPath, shownModel, heldResult, refModel, refModelFree,
   get renderer() { return renderer; },

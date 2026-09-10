@@ -114,7 +114,7 @@ export function panePins(M: Model): string {
     ${on ? `<div class="row mt6"><span class="tag">${T('pinShow')}</span>
       <div class="seg" title="${esc(T('pinShowTip'))}">
         <button data-hv="free" class="${ST.layers.nom.on && !ST.layers.held.on ? 'on' : ''}">${T('pinShowFree')}</button>
-        <button data-hv="held" class="${!ST.layers.nom.on && ST.layers.held.on ? 'on' : ''}">${T('pinShowHeld')}</button>
+        <button data-hv="held" class="${!ST.layers.nom.on && !ST.layers.var.on && ST.layers.held.on ? 'on' : ''}">${T('pinShowHeld')}</button>
         <button data-hv="both" class="${ST.layers.nom.on && ST.layers.held.on ? 'on' : ''}">${T('pinShowBoth')}</button>
       </div></div>` : ''}
     <div class="fgrid pair mt6">

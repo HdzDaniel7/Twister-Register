@@ -6,7 +6,7 @@
 import * as E from '../engine.ts';
 import { T } from '../i18n.ts';
 import type { Place, Variant } from '../types.ts';
-import { ST, LAYER_DEF, refModel } from '../state.ts';
+import { ST, LAYER_DEF, refModel, heldOfVariant } from '../state.ts';
 import { $, fx, esc, cls, nfield, srcTag } from './fmt.ts';
 import type { I18nKey } from './fmt.ts';
 
@@ -17,7 +17,12 @@ import type { I18nKey } from './fmt.ts';
 function vcard(v: Variant): string {
   const ref = refModel();
   const act = v.id === ST.active, isref = v.id === ST.ref;
-  const vm = E.effectiveModel(v);
+  /* Con «comparar contra: sujeta», ESTA variante también se mide sujeta. Medir
+     una libre contra otra sujeta mezcla dos cosas —la diferencia de diseño y lo
+     que el fixture le hace a la barra— y el número resultante no contesta
+     ninguna de las dos preguntas. */
+  const vm = ST.restraint.on && ST.restraint.refHeld
+    ? heldOfVariant(v).model : E.effectiveModel(v);
   const nd = v.deltas.reduce((a, d) => a + E.DELTA_KEYS.filter(k => d[k]).length, 0);
   let shift = 0;
   if (!isref) {

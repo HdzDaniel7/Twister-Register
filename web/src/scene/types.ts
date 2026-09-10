@@ -33,5 +33,9 @@ export type SceneCtx = {
      usó la construcción de `shown`, no contra lo que diga ST más tarde. */
   ref: Model; anchor: AnchorMode;
   shown: ShownEntry[]; act: ShownEntry | null;
+  /* Las mismas variantes visibles, pero con la forma que toman SUJETAS por los
+     pines. Vacío con el amarre apagado o con su capa apagada: calcular la forma
+     sujeta de cada variante cuesta, y no se hace para no dibujarla. */
+  held: ShownEntry[];
   Axf: Matrix4; nomPis: Vector3[]; hasMeas: boolean;
 };

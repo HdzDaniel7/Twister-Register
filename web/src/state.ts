@@ -291,6 +291,15 @@ export function heldResult(): Restrained {
 /** La forma sujeta de la REFERENCIA, para quien quiera enseñarla o medirla. */
 export const heldRef = (): Restrained => heldFor('ref', refModelFree(), refModelFree());
 
+/** La forma sujeta de UNA VARIANTE cualquiera, con su propia ranura de caché.
+ *
+ *  Hace falta porque el fixture es uno solo y sujeta a la pieza que haya
+ *  montada, sea cual sea: si se están comparando dos modelos y el amarre está
+ *  puesto, los DOS quedan sujetos. Enseñar uno sujeto y el otro libre no compara
+ *  nada — es la mitad de cada cosa. */
+export const heldOfVariant = (v: Variant): Restrained =>
+  heldFor(`v-${v.id}`, E.effectiveModel(v), refModelFree());
+
 /** El modelo que hay que DIBUJAR y MEDIR: el sujeto si el amarre está puesto, y
  *  el libre si no. Un solo sitio donde se decide, para que la escena, la tabla
  *  y el reporte no puedan discrepar. */
@@ -429,7 +438,11 @@ export function commandModel(): Model {
 export function activeShift(): number {
   if (ST.active === ST.ref) return 0;
   try {
-    const sh = E.piShift(ST.model!, refModel(), ST.anchor);
+    /* Como en las tarjetas de modelo: si la referencia se compara sujeta, esta
+       también, o el número mezcla la diferencia de diseño con lo que el fixture
+       le hace a la barra. */
+    const mine = ST.restraint.on && ST.restraint.refHeld ? heldResult().model : ST.model!;
+    const sh = E.piShift(mine, refModel(), ST.anchor);
     return ST.anchor === 'end' ? sh[0] : sh[sh.length - 1];
   } catch { return 0; }
 }

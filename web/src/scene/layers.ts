@@ -108,8 +108,22 @@ export function layerPins(ctx: SceneCtx): void {
  *  se superponen casi por completo salvo en la punta, y dos sólidos pegados se
  *  ven sucios. */
 export function layerHeld(ctx: SceneCtx): void {
-  const { M, L, Axf } = ctx;
-  if (!L.held || !L.held.on || !ST.restraint.on) return;
+  const { M, L, Axf, held } = ctx;
+  if (!L.held || !L.held.on || !ST.restraint.on || !held.length) return;
+
+  /* Cada variante visible, con la forma que toma SUJETA y en SU color: si todas
+     salieran del mismo color rosa no se sabría cuál es cuál, y con dos modelos
+     comparándose eso es justo lo que hay que distinguir. La activa se dibuja
+     aparte, más abajo, porque además lleva el sólido y los desplazamientos. */
+  for (const e of held) {
+    if (e.v.id === ST.active) continue;
+    const g = barGeometry(e.path, e.m.section, null);
+    const w = ghost(g, e.v.color, .85);
+    w.applyMatrix4(e.A);
+    groups.held.add(w);
+    g.dispose();
+  }
+
   const R = heldResult();
   if (!R.iters && !R.held.length) return;
   const col = cssVar('--held', '#F5A9E0');
@@ -223,7 +237,12 @@ export function layerPredicted(ctx: SceneCtx): void {
    cuánto se movió. La escala es relativa al MAYOR desplazamiento del cuadro,
    no a la tolerancia: aquí se comparan diseños, no piezas contra tolerancia. */
 export function layerDiff(ctx: SceneCtx): void {
-  const { shown, L, ref, anchor } = ctx;
+  const { L, ref, anchor, held } = ctx;
+  /* Compara lo que se está VIENDO: con las formas libres en pantalla, los
+     diseños; con solo las sujetas, las piezas tal como quedan montadas. Un
+     desplazamiento medido entre dos formas que no son las dibujadas es un
+     número que nadie puede comprobar mirando. */
+  const shown = (!L.nom.on && held.length) ? held : ctx.shown;
   if (L.diff.on && shown.length > 1) {
     /* shown.find() puede no hallar coincidencia; el objeto de respaldo se
        afirma con `pis` opcional para tipar el `.pis` sin tocar su valor. */

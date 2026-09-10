@@ -87,6 +87,11 @@ function onClick(e: MouseEvent): void {
        capas de siempre, que siguen ahí para quien las quiera por separado. */
     if (d.hv !== undefined) {
       ST.layers.nom.on = d.hv !== 'held';
+      /* Y las OTRAS variantes con la activa: su capa es independiente, así que
+         sin esto elegir «sujeta» dejaba la activa sujeta y la referencia
+         dibujada LIBRE al lado. Eso no compara nada — es la mitad de cada
+         cosa— y es justo lo que se veía en pantalla. */
+      ST.layers.var.on = d.hv !== 'held';
       ST.layers.held.on = d.hv !== 'free';
       renderShell(); renderRight(); rebuildScene();
       return;
