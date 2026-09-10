@@ -126,6 +126,8 @@ export function panePins(M: Model): string {
       ${nfield('1000', 'data-mt="E"', ST.mat.E)}
       <label title="${esc(T('matTip'))}">${T('matYield')} (MPa)</label>
       ${nfield('10', 'data-mt="yield"', ST.mat.yield)}
+      <label title="${esc(T('matRhoTip'))}">${T('matRho')} (kg/m³)</label>
+      ${nfield('50', 'data-mt="rho"', ST.mat.rho ?? 0)}
     </div>
     <div class="hintline">${T('matProv')}</div>
     ${ST.pins.length ? `<div class="tw mt6"><table class="marks"><thead><tr>

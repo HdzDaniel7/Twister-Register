@@ -1811,6 +1811,25 @@ step('las flechas suben y bajan por la tabla sin salirse', () => {
    pinte: es que el interruptor sea de verdad un interruptor —apagado, la pieza
    tiene que ser la misma que antes de que los pines existieran— y que con él
    puesto la forma CAMBIE, porque si no cambia nada el amarre es un adorno. */
+step('la pestaña Fixture dice la flecha por gravedad de cada tramo', () => {
+  click('[data-md="model"]');
+  click('#tabs [data-t="fixture"]');
+  click('#panes [data-a="seedped"]');
+  const chips = [...document.querySelectorAll('#panes .chip')].map(c => c.textContent);
+  if (!chips.some(c => /mm/.test(c))) throw new Error('no hay resumen de flecha: ' + chips.join(' | '));
+  const cols = [...document.querySelectorAll('#panes table.marks thead th')].map(t => t.textContent);
+  if (cols.length < 14) throw new Error('falta la columna de flecha: ' + cols.length);
+});
+step('sin densidad la flecha dice que falta el material, no un cero', () => {
+  const B = window.BARCOMP;
+  const antes = S().mat.rho;
+  S().mat.rho = 0;
+  B.renderAll();
+  const txt = q('#panes').textContent;
+  if (!/material|Material/.test(txt)) throw new Error('no avisa de que falta el material');
+  S().mat.rho = antes;
+  B.renderAll();
+});
 step('la pestaña Amarre existe y arranca con el amarre apagado', () => {
   click('[data-md="model"]');
   click('#tabs [data-t="pins"]');

@@ -108,6 +108,12 @@ tiene internet.
   comparan los demás modelos es la libre o la que de verdad queda sujeta. La FORMA que toma la barra sujeta no depende del módulo
   elástico: con sección constante se cancela, y el material solo hace falta
   para el esfuerzo.
+- **La flecha por gravedad**, tramo a tramo: cuánto se cuelga la barra por su
+  propio peso entre dos apoyos del fixture. Importa porque la pieza se MIDE
+  montada, así que un vano largo mete en la medición un error que no es de
+  doblado y que el lazo intentará corregir sin poder. Los voladizos de las
+  puntas son lo que más se cuelga, y la orientación pesa más que el vano: de
+  plano se cuelga once veces más que de canto con una sección de 40×12.
 - **El comando sale a la máquina en un archivo**, con el formato a la vista:
   columnas y su orden, separador, decimales, mm o pulgadas, grados o radianes,
   el signo del ángulo y el del rodado, y el rodado como incremento o como eje
@@ -267,9 +273,9 @@ cd web
 npm install          # una sola vez: three + esbuild
 npm run check        # typecheck -> pruebas -> build -> banco de interfaz
 npm run typecheck    # tsc --noEmit, con strict
-npm test             # 445 pruebas del motor y del i18n
+npm test             # 458 pruebas del motor y del i18n
 npm run build        # regenera index.html (y web/barcomp_viewer.html en local)
-npm run test:ui      # 221 pasos de interfaz en Edge headless, por CDP
+npm run test:ui      # 223 pasos de interfaz en Edge headless, por CDP
 npm run demo:amarre  # cinco escenarios del amarre, con las cifras a la vista
 npm run demo:archivos # regenera ejemplos/amarre-{libre,sujeta}.json
 ```

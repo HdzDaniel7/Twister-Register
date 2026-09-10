@@ -82,6 +82,10 @@ export type Mat = {
   E: number;
   /** límite elástico, MPa. Pasarlo significa que la pieza no vuelve al soltarla */
   yield: number;
+  /** densidad, kg/m³. Solo la usa la flecha por gravedad: el peso propio de la
+   *  barra. Opcional — un archivo anterior abre sin ella y la flecha dice que
+   *  falta el dato en vez de inventarse un número. */
+  rho?: number;
 };
 
 /** EL AMARRE: qué se hace con los pines laterales. Ver engine/pins.ts. */

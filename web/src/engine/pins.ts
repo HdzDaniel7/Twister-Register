@@ -72,6 +72,8 @@ export const MAT_DEFAULT: Readonly<Mat> = Object.freeze({
   E: 69000,
   /** límite elástico, MPa */
   yield: 240,
+  /** densidad, kg/m³ — 6061-T6 de manual, provisional como los otros dos */
+  rho: 2700,
 });
 
 export const RESTRAINT_DEFAULT: Readonly<Restraint> = Object.freeze({

@@ -366,14 +366,29 @@ Lo que se hizo, que es todo lo que no dependía de una respuesta:
       **Regla de flujo que esto impone**, escrita en el workflow y en el README: los dos
       commits de un cambio —la fuente y el «build: regenerar»— se empujan JUNTOS. El
       disparador de push evalúa la punta.
-- [ ] **[M6] Medir la flecha por gravedad · [—]** — ⛔ sigue dependiendo de **A.5**,
-      pero ya no de todo: la geometría del fixture está modelada (ver arriba) y
-      el vano entre apoyos se lee en la tabla. Lo que falta es lo que no se
-      puede calcular: **un escaneo de una barra recta certificada montada en el
-      fixture**, que da la flecha medida, o el módulo elástico y la densidad del
-      material, que darían la calculada. Con cualquiera de los dos, esto pasa a
-      ser un offset del nominal. Probablemente explica el estancamiento a ~5 mm
-      en la punta.
+- [x] **[M6] Medir la flecha por gravedad · [O]** — **calculada el 2026-09-10**,
+      por la segunda de las dos vías que este punto daba: el módulo elástico y la
+      densidad, que llegaron con el bloque de material del amarre y están
+      marcados provisionales. `engine/sag.ts`, columna por tramo en la pestaña
+      del fixture.
+
+      **Y el resultado desmiente la hipótesis de este mismo punto.** Con la
+      pieza de demostración la peor flecha va de 0.002 mm (7 apoyos) a 0.125 mm
+      (3 apoyos): dos órdenes por debajo de la tolerancia de punto y tres por
+      debajo de los 5 mm de la punta. **La flecha no explica ese estancamiento**
+      —al menos con una pieza que va mayormente de canto— y E y ρ del aluminio
+      son buenos a un ±5 %, no a un factor 50, así que la conclusión aguanta
+      aunque el certificado traiga otros números.
+
+      Lo que sí puede dar flecha del orden de la tolerancia: una pieza que vaya
+      de PLANO en un vano largo —once veces más con 40×12— o un fixture con dos
+      apoyos mal repartidos. Por eso el número se enseña por tramo y no como
+      total.
+
+      **Sigue pendiente A.5** para contrastar: un escaneo de barra recta
+      certificada montada en el fixture convierte la estimación en medida. Lo
+      que ha cambiado es que ahora hay una predicción concreta que ese escaneo
+      puede desmentir.
 - [x] **[M16 / D4] Dónde viven los JSON de piezas reales · [—]** — resuelto
       2026-09-08. El repo es público y sirve `index.html` por Pages; un `.json`
       de BARCOMP lleva la geometría del cliente y las nubes medidas, y publicarlo

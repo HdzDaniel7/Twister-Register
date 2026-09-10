@@ -86,7 +86,8 @@ web/                        ← motor TypeScript + visor three.js
                                sampleAt() y nearestOnPath()
     engine/contact.ts          distancia entre segmentos y cuánto asoma la
                                sección: el contacto con un poste inclinado
-  src/i18n.ts               ← barril de i18n/: keys.ts (la unión de 380 claves) + es · en · de.
+    engine/sag.ts              M6 · la flecha por gravedad entre apoyos
+  src/i18n.ts               ← barril de i18n/: keys.ts (la unión de 388 claves) + es · en · de.
                               T() y LANG. La paridad es error de COMPILACIÓN, no solo de prueba.
   src/state.ts              ← ST: variantes, referencia, anclaje, capas, piezas medidas,
                               cotas y el fixture. placedPath() es la trayectoria colocada.
@@ -739,9 +740,9 @@ punteada. Deja ver de un vistazo cuál doblez está fuera. Es clicable.
 ```bash
 cd web && npm run check            # typecheck -> pruebas -> build -> banco, de una
 cd web && npm run typecheck        # tsc --noEmit, con strict
-cd web && node test_motor.js       # 445 pruebas; todas deben pasar
+cd web && node test_motor.js       # 458 pruebas; todas deben pasar
 cd web && node build.mjs           # regenera index.html y barcomp_viewer.html
-cd web && node tools/ui_test.mjs   # 221 pasos de interfaz en Edge headless
+cd web && node tools/ui_test.mjs   # 223 pasos de interfaz en Edge headless
 ```
 
 Dos herramientas más, que no son pruebas sino evidencia:
@@ -1396,6 +1397,54 @@ contra la pieza LIBRE. Con el amarre puesto eso significa que el lazo corrige
 hacia una forma que la barra sujeta no puede tomar. Hacerlo bien pide decidir qué
 es el nominal cuando la barra está sujeta —¿la forma que se quiere al soltarla, o
 la que se quiere montada?— y esa pregunta es del taller, no del programa.
+
+### M6 · La flecha por gravedad — 2026-09-10
+
+Llevaba abierto desde la auditoría, y **no estaba bloqueado por falta de fórmula
+sino por falta de material**: meterle un módulo elástico inventado a un número
+que luego alguien resta del nominal es lo que este proyecto no hace. Con el
+bloque de material del amarre —editable y marcado provisional— se puede dar con
+la misma disciplina: la geometría con confianza, la magnitud con el aviso.
+
+`engine/sag.ts`. Cada tramo entre apoyos como viga **biapoyada**
+(`δ = 5wL⁴/384EI`) y cada voladizo de punta como **ménsula** (`δ = wL⁴/8EI`).
+Una viga continua sobre varios apoyos es MÁS rígida que una cadena de tramos
+sueltos, así que esto **sobreestima**: el lado seguro, y evita tener que decidir
+qué apoyo es fijo y cuál desliza, que es un dato del fixture que nadie ha medido.
+
+**La orientación manda más que el vano.** `I` no es una constante de la barra:
+de plano se cuelga `(ancho/espesor)²` veces más que de canto — con 40×12, once
+veces—. `sagI()` proyecta la vertical sobre las dos direcciones principales de la
+sección y devuelve la inercia efectiva; con la barra a plomo devuelve infinito,
+porque una columna no se cuelga.
+
+**Y el resultado contradice a la auditoría, que es lo que había que averiguar.**
+El plan decía que la flecha «probablemente explica el estancamiento a ~5 mm en la
+punta». Con la pieza de demostración y el material provisional:
+
+| apoyos | peor flecha |
+|---|---|
+| 7 | 0.002 mm |
+| 5 | 0.007 mm |
+| 3 | 0.125 mm |
+| 2 | 0.046 mm |
+
+Dos órdenes de magnitud por debajo de la tolerancia de punto, y tres por debajo
+de los 5 mm. **La flecha no explica ese estancamiento**, al menos con esta pieza
+—que va mayormente de canto— y con E y ρ de manual, que para el aluminio son
+buenos a un ±5 % y no a un factor 50. Lo que sí puede: una pieza que vaya de
+plano en un vano largo, o un fixture con dos apoyos mal puestos. Por eso el
+número se enseña por TRAMO y no como un total: el que importa es el peor, y
+suele estar en un voladizo.
+
+La cadena de unidades está escrita en `lineLoad()` y comprobada contra algo que
+se puede hacer a mano: la barra de 1.7 m pesa 2.2 kg. Sin eso, el resultado sale
+mil o mil millones de veces mayor y nadie lo nota.
+
+**Sigue pendiente lo que no se puede calcular:** el escaneo de una barra recta
+certificada montada en el fixture (punto A.5). Con él, esto se contrasta contra
+la flecha MEDIDA y deja de ser una estimación. Lo que ha cambiado es que ahora
+hay un número contra el que contrastar, y una predicción que se puede desmentir.
 
 ### Diferido a después de beta 1.0
 

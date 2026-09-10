@@ -6,7 +6,7 @@
    ========================================================================= */
 export type Lang = 'es' | 'en' | 'de';
 
-/** Las 380 claves que deben existir en LOS TRES diccionarios. */
+/** Las 388 claves que deben existir en LOS TRES diccionarios. */
 export type I18nKey =
   | 'sub' | 'bNew' | 'bOpen' | 'bSave' | 'bRep' | 'bDemo' | 'layers' | 'datasets'
   | 'model' | 'meas' | 'thSys' | 'thLight' | 'thDark' | 'comp' | 'points' | 'lNom'
@@ -38,7 +38,8 @@ export type I18nKey =
   | 'pinNote' | 'pinOffNote' | 'pinNoneHold' | 'pinHeldN' | 'pinTip' | 'pinTipTip'
   | 'pinWorstKink' | 'pinStress' | 'pinOfYield' | 'pinYield' | 'pinYieldTip'
   | 'pinOpen' | 'pinOpenTip' | 'pinKink' | 'pinCurv' | 'pinSigma'
-  | 'matE' | 'matYield' | 'matTip' | 'matProv'
+  | 'matE' | 'matYield' | 'matTip' | 'matProv' | 'matRho' | 'matRhoTip'
+  | 'sag' | 'sagTip' | 'sagNote' | 'sagBad' | 'sagNoMat' | 'sagNoMatTip'
   | 'devRowTip'
   | 'mach' | 'machTitle' | 'machCols' | 'machAxis' | 'machSep' | 'machDec'
   | 'machLen' | 'machAng' | 'machSignA' | 'machSignR' | 'machSignTip'

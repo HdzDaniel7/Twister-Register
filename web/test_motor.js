@@ -2357,5 +2357,97 @@ console.log('\n— los pines laterales: la barra deja de estar libre (engine/pin
      v2.pins.length === 0 && v2.restraint.on === false && v2.mat.E === E.MAT_DEFAULT.E);
 }
 
+/* ======================================================================== */
+console.log('\n— la flecha por gravedad (M6, engine/sag.ts) —');
+{
+  const sec = { width: 40, thickness: 12, chamfer: 1.2, endLen: 20 };
+  const mat = { E: 69000, yield: 240, rho: 2700 };
+
+  /* La cadena de unidades es donde esto se rompe sin que nadie lo note: kg/m³,
+     mm² y mm/s² tienen que salir en N/mm. Se comprueba contra el peso de la
+     barra, que se puede hacer a mano: 40×12×1700 mm³ a 2.7 g/cm³ son 2.2 kg. */
+  const wq = E.lineLoad(sec, mat);
+  const kg = wq * 1700 / 9.81;
+  ok('la carga por milímetro da el peso real de la barra',
+     Math.abs(kg - 2.2) < .05, `${kg.toFixed(2)} kg`);
+  ok('sin densidad no hay carga', E.lineLoad(sec, { E: 69000, yield: 240 }) === 0);
+
+  /* La inercia efectiva: de plano hunde con la del espesor, de canto con la del
+     ancho, y la razón entre las dos es (ancho/espesor)² — once veces con 40×12.
+     Es la cifra que decide más que ninguna otra en esta cuenta. */
+  const V = (x, y, z) => new Vector3(x, y, z);
+  const plano = { p: V(0, 0, 0), x: V(1, 0, 0), y: V(0, 0, 1), z: V(0, 1, 0), s: 0 };
+  const canto = { p: V(0, 0, 0), x: V(1, 0, 0), y: V(0, 1, 0), z: V(0, 0, 1), s: 0 };
+  const Ip = E.sagI(plano, sec), Ic = E.sagI(canto, sec);
+  ok('de plano la inercia es la del espesor', Math.abs(Ip - 40 * 12 ** 3 / 12) < 1e-9, `${Ip}`);
+  ok('de canto es la del ancho', Math.abs(Ic - 12 * 40 ** 3 / 12) < 1e-9, `${Ic}`);
+  ok('y la razón entre las dos es (ancho/espesor)²',
+     Math.abs(Ic / Ip - (40 / 12) ** 2) < 1e-9, `${(Ic / Ip).toFixed(2)}`);
+  /* Una barra a plomo no se cuelga: una columna no es una viga. */
+  ok('con la barra vertical no hay flecha que calcular',
+     E.sagI({ ...plano, x: V(0, 0, 1), y: V(1, 0, 0), z: V(0, 1, 0) }, sec) === Infinity);
+
+  /* Una viga de las de libro: biapoyada, de plano, 500 mm. δ = 5wL⁴/384EI. */
+  const M3 = E.normalizeModel({ name: 'RECTA', tail: 1000, section: sec,
+    bends: [E.newBend({ feed: 500, rot: 0, angle: 0, radius: 30 })] });
+  const path3 = E.buildPath(M3).samples;
+  /* La barra arranca DE CANTO: `fk()` pone el ancho en `z`, que es la vertical
+     del taller, así que la que resiste el peso es la inercia del ancho —64000
+     mm⁴— y no la del espesor. Escribirlo aquí evita la trampa de comprobar la
+     fórmula contra un número que sale de suponer la barra de plano: son once
+     veces de diferencia, y esa es justo la cifra que más manda en esta cuenta. */
+  const Icanto = 12 * 40 ** 3 / 12;
+  ok('la barra de la prueba está de canto, que es como nace',
+     Math.abs(E.sagI(E.sampleAt(path3, 500), sec) - Icanto) < 1e-9);
+  const aMano = 5 * wq * 500 ** 4 / (384 * mat.E * Icanto);
+  const apoyoEn = (path, x, id) => {
+    const p = { id, name: id, visible: true, x, y: 0, h: 0, tilt: 0, pad: 60 };
+    /* a la altura que la barra pide: si no apoya, no cuenta como apoyo */
+    const f = E.pedestalFit(path, sec, p);
+    return { ...p, h: +(p.h + f.gap).toFixed(4) };
+  };
+  const dosApoyos = [apoyoEn(path3, 250, 'a'), apoyoEn(path3, 750, 'b')];
+  const r3 = E.gravitySag(M3, path3, sec, dosApoyos, mat);
+  const centro = r3.spans.find(sp => !sp.free && Math.abs(sp.L - 500) < 1);
+  ok('el tramo biapoyado da la flecha del libro',
+     !!centro && Math.abs(centro.sag - aMano) < 1e-9,
+     `${centro ? centro.sag.toFixed(4) : '—'} vs ${aMano.toFixed(4)} mm`);
+  ok('los dos extremos entran como voladizo',
+     r3.spans.filter(sp => sp.free).length === 2, `${r3.spans.length} tramos`);
+
+  /* Y el voladizo se cuelga 9.6 veces más que el tramo del mismo largo: la
+     razón entre 1/8 y 5/384. Es el motivo de que la punta sea lo que hay que
+     mirar y no el centro. */
+  const vol = r3.spans.find(sp => sp.free && Math.abs(sp.L - 250) < 1);
+  const mismo = 5 * wq * 250 ** 4 / (384 * mat.E * Icanto);
+  ok('una ménsula se cuelga 9.6 veces más que un tramo igual',
+     !!vol && Math.abs(vol.sag / mismo - (1 / 8) / (5 / 384)) < 1e-6,
+     vol ? `${(vol.sag / mismo).toFixed(2)}x` : 'sin voladizo');
+
+  /* Sin material no se inventa un número: se dice que falta. */
+  const sinMat = E.gravitySag(M3, path3, sec, dosApoyos, { E: 69000, yield: 240 });
+  ok('sin densidad la flecha dice que falta el dato, no cero',
+     sinMat.noMat === true && sinMat.spans.length === 0);
+
+  /* Doblar la longitud del vano multiplica la flecha por dieciséis: la cuarta
+     potencia es lo que hace que un apoyo de más cambie tanto. */
+  const M4 = E.normalizeModel({ ...M3, tail: 1500,
+    bends: [E.newBend({ feed: 250, rot: 0, angle: 0, radius: 30 })] });
+  const path4 = E.buildPath(M4).samples;
+  const r4 = E.gravitySag(M4, path4, sec, [apoyoEn(path4, 250, 'a'), apoyoEn(path4, 1250, 'b')], mat);
+  const mil = r4.spans.find(sp => !sp.free && Math.abs(sp.L - 1000) < 1);
+  ok('doblar el vano multiplica la flecha por 16',
+     !!mil && !!centro && Math.abs(mil.sag / centro.sag - 16) < .01,
+     mil && centro ? `${(mil.sag / centro.sag).toFixed(2)}x` : 'sin tramo');
+
+  /* Un pedestal que no toca la barra no es un apoyo, por mucho que esté en la
+     lista: es la misma lectura que la tabla pinta en rojo. */
+  const flotando = dosApoyos.map(p => ({ ...p, h: p.h - 50 }));
+  const rF = E.gravitySag(M3, path3, sec, flotando, mat);
+  ok('un pedestal que no apoya no cuenta como apoyo',
+     rF.spans.length === 1 && rF.spans[0].free,
+     `${rF.spans.length} tramo(s)`);
+}
+
 console.log(`\n${fails ? fails + ' PRUEBA(S) FALLARON' : 'todas las pruebas pasaron'}\n`);
 process.exit(fails ? 1 : 0);
