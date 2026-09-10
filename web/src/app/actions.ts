@@ -245,7 +245,9 @@ function fixtureAction(a: string, M: Model): boolean {
     if (q && n) {
       const d = dia / 2 + E.planHalfWidth(q, M.section, n);
       addPin({ x: +(q.p.x + n.x * d).toFixed(2), y: +(q.p.y + n.y * d).toFixed(2),
-               h: +E.clamp(q.p.z - E.TABLE_Z + 20, 20, 400).toFixed(2), dia });
+               h: +E.clamp(q.p.z - E.TABLE_Z + 20, 20, 400).toFixed(2), dia,
+               /* nace montado del lado en el que se acaba de poner */
+               side: 1 });
     } else {
       addPin({});
     }

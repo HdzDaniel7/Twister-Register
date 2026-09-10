@@ -179,7 +179,7 @@ function onModelField(t: HTMLInputElement, d: DOMStringMap): boolean {
   }
   if (d.pr !== undefined) { setNum(ST.proc, PROC_KEYS, d.pr, t.value); return true; }
   if (d.pn !== undefined || d.pnv !== undefined || d.pnh !== undefined
-      || d.rs !== undefined || d.mt !== undefined) return onPin(t, d);
+      || d.pns !== undefined || d.rs !== undefined || d.mt !== undefined) return onPin(t, d);
   if (d.mc !== undefined || d.mf !== undefined) return onMachine(t, d);
   if (d.lm !== undefined) {
     if (!LIMS_KEYS.has(d.lm)) return true;
@@ -220,6 +220,13 @@ function onPin(t: HTMLInputElement, d: DOMStringMap): boolean {
   if (d.pnv !== undefined) {
     const p = ST.pins.find(x => x.id === d.pnv);
     if (p) { p.visible = t.checked; rebuildScene(); }
+    return true;
+  }
+  if (d.pns !== undefined) {
+    const p = ST.pins.find(x => x.id === d.pns);
+    /* El lado es del FIXTURE, no de la forma: cambiarlo puede cambiar por qué
+       cara se cierra el contacto, así que se repinta todo. */
+    if (p) { p.side = t.value === '1' ? 1 : t.value === '-1' ? -1 : 0; pintar(); }
     return true;
   }
   if (d.pnh !== undefined) {

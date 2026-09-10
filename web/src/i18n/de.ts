@@ -102,6 +102,8 @@ export const de: Record<I18nKey, string> = {
  pinReach: 'Erreicht', pinReachTip: 'Ein Bolzen, der niedriger ist als die Unterseite der Stange, berührt sie nie, so gut er auch steht: er hält nichts.',
  pinYes: 'ja', pinNo: 'nein',
  pinHold: 'Hält', pinHoldTip: 'Ein Bolzen kann montiert sein und trotzdem außen vor bleiben: ausgeschaltet bleibt er in der 3D-Ansicht sichtbar, ohne zu wirken — so findet man heraus, welcher Bolzen was verursacht.',
+ pinSide: 'Seite', pinSideAuto: 'auto',
+ pinSideTip: 'Auf welcher Seite der Stange der Bolzen MONTIERT ist. Eine Angabe der Vorrichtung, keine Messung: liest man sie aus der aktuellen Form, kippt sie, sobald ein Winkel die Stange über die Bolzenachse hinaus schickt, und der Kontakt schließt an der falschen Fläche — es wird also ein Teil gerechnet, das durch den Bolzen ging. "auto" entscheidet beim ersten Mal aus der Geometrie, so wie es vorher war.',
  pinState: 'Zustand', pinHolding: 'hält',
  pinEmpty: 'Keine Bolzen. "Säen" verteilt einige entlang der Stange, abwechselnd von beiden Seiten anliegend — so wird eine Stange wirklich gehalten: alle auf einer Seite ließen sie darauf schwenken.',
  addPin: '+ Bolzen', seedPin: 'Bolzen säen', clearPin: 'Alle entfernen',

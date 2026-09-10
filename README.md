@@ -264,9 +264,10 @@ cd web
 npm install          # una sola vez: three + esbuild
 npm run check        # typecheck -> pruebas -> build -> banco de interfaz
 npm run typecheck    # tsc --noEmit, con strict
-npm test             # 431 pruebas del motor y del i18n
+npm test             # 436 pruebas del motor y del i18n
 npm run build        # regenera index.html (y web/barcomp_viewer.html en local)
-npm run test:ui      # 215 pasos de interfaz en Edge headless, por CDP
+npm run test:ui      # 216 pasos de interfaz en Edge headless, por CDP
+npm run demo:amarre  # cinco escenarios del amarre, con las cifras a la vista
 ```
 
 Tres redes, y ninguna fase cierra con una en rojo: los tipos, las pruebas del

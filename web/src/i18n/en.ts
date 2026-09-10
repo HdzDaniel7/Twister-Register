@@ -94,6 +94,8 @@ export const en: Record<I18nKey, string> = {
  pinReach: 'Reaches', pinReachTip: 'A pin shorter than the underside of the bar never touches it, however well placed it is: it holds nothing.',
  pinYes: 'yes', pinNo: 'no',
  pinHold: 'Holds', pinHoldTip: 'A pin can be mounted and still be left out of the count: switching it off keeps it visible in the 3D view without letting it act, which is how you find out which pin causes what.',
+ pinSide: 'Side', pinSideAuto: 'auto',
+ pinSideTip: 'Which side of the bar the pin is MOUNTED on. Fixture data, not a reading: read off the current shape, the moment an angle sends the bar past the post the reading flips and the contact closes on the wrong face — that is, it solves a part that went through the pin. "auto" decides from the geometry the first time, which is what it did before.',
  pinState: 'State', pinHolding: 'holding',
  pinEmpty: 'No pins. "Seed" lays a few along the bar touching from alternating sides, which is how a bar is really held: all on one side would let it pivot on them.',
  addPin: '+ Pin', seedPin: 'Seed pins', clearPin: 'Remove all',

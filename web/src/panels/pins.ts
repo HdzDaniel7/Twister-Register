@@ -39,6 +39,11 @@ function pinRow(M: Model, i: number, f: E.PinFit | null, sujeta: boolean): strin
     <td><input type="text" data-pn="${p.id}" data-k="name" value="${esc(p.name)}"
       style="min-width:64px"></td>
     ${num('x')}${num('y')}${num('h')}${num('dia', '1')}
+    <td><select data-pns="${p.id}" title="${esc(T('pinSideTip'))}">
+      <option value="0" ${!p.side ? 'selected' : ''}>${T('pinSideAuto')}</option>
+      <option value="1" ${p.side > 0 ? 'selected' : ''}>+</option>
+      <option value="-1" ${p.side < 0 ? 'selected' : ''}>−</option>
+    </select></td>
     ${der}
     <td class="${sujeta ? 'v-ok' : 'v-dim'}">${sujeta ? T('pinHolding') : '—'}</td>
     <td><button class="xbtn" data-pnx="${p.id}" title="${T('del')}"
@@ -115,6 +120,7 @@ export function panePins(M: Model): string {
     ${ST.pins.length ? `<div class="tw mt6"><table class="marks"><thead><tr>
       <th></th><th title="${esc(T('pinHoldTip'))}">${T('pinHold')}</th><th>${T('name')}</th>
       <th>${T('x')}</th><th>${T('y')}</th><th>${T('pedH')}</th><th>${T('pinDia')}</th>
+      <th title="${esc(T('pinSideTip'))}">${T('pinSide')}</th>
       <th>${T('pedS')}</th><th>${T('pedPlan')}</th><th>${T('pinGap')}</th>
       <th>${T('pinReach')}</th><th>${T('pinState')}</th><th></th></tr></thead>
       <tbody>${rows}</tbody></table></div>`

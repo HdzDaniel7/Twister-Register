@@ -1893,6 +1893,15 @@ step('el material no mueve un solo punto, y el aviso lo dice', () => {
   if (d > 1e-9) throw new Error('cambiar E movió la forma: ' + d);
   setval('#panes [data-mt="E"]', '69000');
 });
+step('el lado del pin es dato del fixture y se puede fijar a mano', () => {
+  const id = S().pins[0].id;
+  const antes = S().pins[0].side;
+  setval(`#panes [data-pns="${id}"]`, '-1');
+  if (S().pins[0].side !== -1) throw new Error('no se guardó el lado: ' + S().pins[0].side);
+  setval(`#panes [data-pns="${id}"]`, '0');
+  if (S().pins[0].side !== 0) throw new Error('no volvió a auto');
+  setval(`#panes [data-pns="${id}"]`, String(antes || 1));
+});
 step('un pin se puede desactivar sin borrarlo', () => {
   const id = S().pins[0].id;
   check(`#panes [data-pnh="${id}"]`, false);

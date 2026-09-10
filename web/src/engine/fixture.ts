@@ -25,6 +25,7 @@
    ========================================================================= */
 import { Matrix4 } from 'three';
 import { clamp, R2D } from './math.ts';
+import { sampleAt, nearestOnPath } from './path.ts';
 import type { PathSample, Section, Pedestal } from '../types.ts';
 
 /** La cota de la mesa del fixture, mm.
@@ -116,22 +117,6 @@ export function placePath(M: Matrix4, samples: PathSample[]): PathSample[] {
 export const sectionDrop = (q: PathSample, sec: Section): number =>
   Math.abs((sec.thickness / 2) * q.y.z) + Math.abs((sec.width / 2) * q.z.z);
 
-/** La muestra de la barra que pasa más cerca del pie, mirada en planta.
- *
- *  En planta y no en el espacio: el pedestal sube a plomo, así que lo que
- *  decide a qué punto de la barra sirve es dónde cae su pie, no a qué distancia
- *  está la barra. Si la pieza dobla sobre sí misma puede haber dos tramos
- *  encima del mismo pie; se queda con el más cercano y la columna `plan` deja
- *  ver que ahí hay algo raro. */
-function nearestInPlan(samples: PathSample[], x: number, y: number): { i: number; d: number } {
-  let bi = -1, bd = Infinity;
-  for (let i = 0; i < samples.length; i++) {
-    const d = Math.hypot(samples[i].p.x - x, samples[i].p.y - y);
-    if (d < bd) { bd = d; bi = i; }
-  }
-  return { i: bi, d: bd };
-}
-
 /** Qué le pasa a un pedestal con la barra que tiene encima.
  *
  *  `samples` tiene que venir YA colocada (ver `placePath`): el fixture es
@@ -140,15 +125,20 @@ function nearestInPlan(samples: PathSample[], x: number, y: number): { i: number
 export function pedestalFit(samples: PathSample[], sec: Section,
                             ped: Pedestal): PedFit | null {
   if (!samples.length) return null;
-  const { i, d } = nearestInPlan(samples, ped.x, ped.y);
-  const q = samples[i];
+  /* Sobre la POLILÍNEA, no sobre las muestras: `buildPath()` no reparte
+     ninguna a lo largo de una recta, así que un pedestal en mitad de una recta
+     larga daba como punto más cercano el final de esa recta y salía como que la
+     barra no le pasa por encima. Se cazó con el banco del amarre, y es el mismo
+     fallo aquí. Ver engine/path.ts. */
+  const { s: sc, d } = nearestOnPath(samples, ped.x, ped.y);
+  const q = sampleAt(samples, sc);
   const low = q.p.z - sectionDrop(q, sec);
   /* `x.z` es el seno del ángulo que forma el eje de la barra con la horizontal:
      la base viene normalizada, así que el clamp es solo contra el ruido de
      coma flotante que puede sacarlo de [-1,1] por un epsilon. */
   const want = Math.asin(clamp(q.x.z, -1, 1)) * R2D;
   return {
-    s: q.s, plan: d, low,
+    s: sc, plan: d, low,
     gap: low - (TABLE_Z + ped.h),
     want, dTilt: ped.tilt - want,
     head: Math.atan2(q.x.y, q.x.x) * R2D,
@@ -197,12 +187,24 @@ export function seedPedestals(samples: PathSample[], sec: Section,
       if (d < bd) { bd = d; bi = i; }
     }
     const q = samples[bi];
-    out.push({
+    const cand = {
       x: +q.p.x.toFixed(2), y: +q.p.y.toFixed(2),
       h: +(q.p.z - sectionDrop(q, sec) - TABLE_Z).toFixed(2),
       tilt: +(Math.asin(clamp(q.x.z, -1, 1)) * R2D).toFixed(2),
       pad, visible: true,
-    });
+    };
+    /* Un paso de corrección contra la barra DE VERDAD, no contra la muestra.
+       El pie se pone bajo una muestra, pero el punto de la barra que le queda
+       encima es el de la polilínea, y en mitad de un arco esos dos no son el
+       mismo: la cuerda pasa por dentro. Sin esto, un pedestal recién sembrado
+       nacía con unas centésimas de hueco y con la inclinación de la muestra en
+       vez de la que la barra pide en su sitio. */
+    const fit = pedestalFit(samples, sec, { id: '', name: '', ...cand });
+    if (fit) {
+      cand.h = +(cand.h + fit.gap).toFixed(2);
+      cand.tilt = +fit.want.toFixed(2);
+    }
+    out.push(cand);
   }
   return out;
 }

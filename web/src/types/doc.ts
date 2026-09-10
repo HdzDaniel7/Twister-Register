@@ -82,6 +82,17 @@ export type Pin = {
   h: number;
   /** diámetro del pin, mm: la barra toca su superficie, no su eje */
   dia: number;
+  /** De qué LADO de la barra está montado: +1 o −1 sobre la normal en planta,
+   *  y `0` = «decídelo por la geometría».
+   *
+   *  Es dato del fixture y no una lectura, y ahí está el motivo de que exista.
+   *  Leerlo de la forma de cada momento funciona mientras la barra esté cerca
+   *  del pin, pero en cuanto un ángulo la manda MÁS ALLÁ del eje del poste, la
+   *  lectura sale invertida y el solver cierra el contacto por la cara
+   *  equivocada: o sea, resuelve una pieza que atravesó el pin. Lo cazó el
+   *  banco del amarre con un ángulo movido 3°. Guardado, el lado es el que
+   *  alguien montó y no cambia porque la pieza se deforme. */
+  side: number;
 };
 
 /** Una pieza medida. `model` son sus parámetros; `dev`, su comparación. */

@@ -96,6 +96,8 @@ export const es: Record<I18nKey, string> = {
  pinReach: 'Llega', pinReachTip: 'Un pin más bajo que la cara inferior de la barra no la toca por mucho que esté en su sitio: no sujeta nada.',
  pinYes: 'sí', pinNo: 'no',
  pinHold: 'Sujeta', pinHoldTip: 'Un pin puede estar montado y no querer contarse: apagarlo deja verlo en el 3D sin que entre en la cuenta, que es como se comprueba qué pin está causando qué.',
+ pinSide: 'Lado', pinSideAuto: 'auto',
+ pinSideTip: 'De qué lado de la barra está MONTADO el pin. Es dato del fixture, no una lectura: si se lee de la forma de cada momento, en cuanto un ángulo manda la barra más allá del eje del poste la lectura sale invertida y el contacto se cierra por la cara equivocada — o sea, se resuelve una pieza que atravesó el pin. «auto» lo decide por la geometría la primera vez, que es lo que hacía antes.',
  pinState: 'Estado', pinHolding: 'sujetando',
  pinEmpty: 'Sin pines. «Sembrar» reparte unos cuantos tocando de lado y alternando de lado, que es como se sujeta una barra de verdad: todos del mismo lado la dejarían girar sobre ellos.',
  addPin: '+ Pin', seedPin: 'Sembrar pines', clearPin: 'Quitar todos',

@@ -82,7 +82,9 @@ web/                        ← motor TypeScript + visor three.js
                                qué vano queda entre uno y otro (TABLE_Z)
     engine/pins.ts             EL AMARRE: los pines laterales, la forma que la
                                barra toma sujeta y lo que le cuesta deformarse
-  src/i18n.ts               ← barril de i18n/: keys.ts (la unión de 364 claves) + es · en · de.
+    engine/path.ts             mirar la barra en un punto que NO es una muestra:
+                               sampleAt() y nearestOnPath()
+  src/i18n.ts               ← barril de i18n/: keys.ts (la unión de 367 claves) + es · en · de.
                               T() y LANG. La paridad es error de COMPILACIÓN, no solo de prueba.
   src/state.ts              ← ST: variantes, referencia, anclaje, capas, piezas medidas,
                               cotas y el fixture. placedPath() es la trayectoria colocada.
@@ -109,6 +111,8 @@ web/                        ← motor TypeScript + visor three.js
   test_motor.js             ← 163 pruebas del motor y del i18n, en Node sin navegador.
   barcomp_viewer.html       ← SALIDA. Generado. No editar.
   tools/                    ← banco de interfaz y sondas. AHORA SÍ versionado.
+    demo_amarre.mjs            EL BANCO DEL AMARRE: cinco escenarios con las
+                               cifras a la vista (npm run demo:amarre).
     ui_test.mjs                lanza Edge headless y corre probe_ui.js dentro de la página.
     probe_ui.js                140 pasos de interfaz, cada uno en su try/catch.
     ui_shot.mjs · setup_shot.js  captura PNG tras un guion de preparación.
@@ -731,9 +735,9 @@ punteada. Deja ver de un vistazo cuál doblez está fuera. Es clicable.
 ```bash
 cd web && npm run check            # typecheck -> pruebas -> build -> banco, de una
 cd web && npm run typecheck        # tsc --noEmit, con strict
-cd web && node test_motor.js       # 431 pruebas; todas deben pasar
+cd web && node test_motor.js       # 436 pruebas; todas deben pasar
 cd web && node build.mjs           # regenera index.html y barcomp_viewer.html
-cd web && node tools/ui_test.mjs   # 215 pasos de interfaz en Edge headless
+cd web && node tools/ui_test.mjs   # 216 pasos de interfaz en Edge headless
 ```
 
 Dos herramientas más, que no son pruebas sino evidencia:
@@ -1297,6 +1301,39 @@ ni plastificación parcial de la sección. Es un modelo de vigas con codos
 elásticos en las estaciones que ya existen. Es lo que se puede sostener con los
 datos que hay; cuando llegue el material confirmado y una pieza medida CON el
 fixture puesto, se contrasta contra ella.
+
+**Cómo se comprueba que funciona, sin creerse el comentario.** `npm run
+demo:amarre` corre cinco escenarios y enseña las cifras:
+
+1. **La prueba de la servilleta.** Una barra de un doblez, un pin contra la cola
+   y el eje congelado: hay una incógnita y un contacto, así que la única forma
+   de volver a tocar el pin es deshacer el ángulo. Predicción escrita antes de
+   calcular —`codo = −δ`— y sale con error de 0.001° a 0.004°. Si esto no
+   saliera, el solver no estaría resolviendo lo que dice.
+2. **Un pin empuja, no tira.** Con el ángulo movido al otro lado, la barra se
+   separa del poste y no se deforma nada. Que esto NO haga nada importa tanto
+   como que lo otro sí: un modelo que arrastrara la barra de vuelta se estaría
+   inventando una fuerza que el fixture no puede hacer.
+3. **El interruptor**, con los PI comparados uno a uno exigiendo cero.
+4. **El material no mueve la barra**: PI idénticos a 1e-9, esfuerzo escalado
+   exactamente por la razón de módulos.
+5. **Falsable**: apagar el pin que empuja tiene que cambiar el resultado, y un
+   pin más bajo que la barra no puede sujetar nada.
+
+**Dos fallos que cazó ese banco, y que no habría cazado ninguna prueba de las
+que ya había:**
+
+- **El contacto se buscaba sobre las MUESTRAS.** `buildPath()` no reparte
+  ninguna a lo largo de una recta, así que un pin —o un PEDESTAL, el mismo fallo
+  estaba ahí desde la herramienta de fixture— en mitad de una recta larga daba
+  como punto más cercano el final de esa recta, a medio metro, y de ahí salía
+  que no tocaba. Ahora se proyecta sobre la polilínea: `engine/path.ts`.
+- **El lado del pin se leía de la forma deformada.** Con un ángulo movido 3° la
+  barra rebasa el eje del poste, la lectura se invierte y el solver cierra el
+  contacto por la cara de atrás: una pieza que atravesó el pin, dada por buena.
+  El lado pasa a ser DATO del fixture (`Pin.side`, con `auto` para lo de antes).
+
+Los dos tienen prueba de motor propia.
 
 **Lo que falta y no se ha hecho:** el lazo de compensación sigue comparando
 contra la pieza LIBRE. Con el amarre puesto eso significa que el lazo corrige

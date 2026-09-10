@@ -47,12 +47,15 @@ import { clamp, solveDense, D2R, R2D } from './math.ts';
 import { buildPath, rowLengths, tailStraight } from './kinematics.ts';
 import { normalizeModel } from './bend.ts';
 import { TABLE_Z, sectionDrop } from './fixture.ts';
+import { sampleAt, nearestOnPath } from './path.ts';
 import type { Model, PathSample, Section, Pin, Mat, Restraint } from '../types.ts';
 
 /** Un pin recién nacido, y la lista blanca de sus campos escribibles. Mismo
  *  trato que `PED_DEFAULT`: la whitelist del `change` sale de aquí. */
 export const PIN_DEFAULT: Readonly<Omit<Pin, 'id' | 'name'>> = Object.freeze({
   visible: true, hold: true, x: 0, y: 0, h: 120, dia: 20,
+  /* 0 = «decídelo por la geometría la primera vez». Ver el tipo Pin. */
+  side: 0,
 });
 
 /** El material de la barra. **PROVISIONAL, y lo dice la pantalla.**
@@ -129,52 +132,24 @@ export function planNormal(q: PathSample): Vector3 | null {
   return new Vector3(-h.y, h.x, 0);
 }
 
-/** La muestra a una longitud desarrollada `s`, interpolando entre las dos
- *  vecinas.
- *
- *  Existe porque el solver necesita mirar SIEMPRE el mismo punto de la barra
- *  mientras mueve los ángulos. Buscar cada vez la muestra más cercana al pin
- *  haría que el residuo saltara de una muestra a otra, y un residuo a saltos no
- *  se puede derivar: el jacobiano saldría de ruido y el solver perseguiría su
- *  propia discretización. */
-export function sampleAt(samples: PathSample[], s: number): PathSample {
-  const n = samples.length;
-  if (!n) throw new Error('sampleAt sin muestras');
-  if (s <= samples[0].s) return samples[0];
-  if (s >= samples[n - 1].s) return samples[n - 1];
-  let lo = 0, hi = n - 1;
-  while (hi - lo > 1) {
-    const mid = (lo + hi) >> 1;
-    if (samples[mid].s <= s) lo = mid; else hi = mid;
-  }
-  const a = samples[lo], b = samples[hi];
-  const t = (b.s - a.s) > 1e-9 ? (s - a.s) / (b.s - a.s) : 0;
-  const mix = (u: Vector3, v: Vector3) => u.clone().lerp(v, t).normalize();
-  return {
-    p: a.p.clone().lerp(b.p, t),
-    x: mix(a.x, b.x), y: mix(a.y, b.y), z: mix(a.z, b.z),
-    s,
-  };
-}
-
 /** Qué le pasa a un pin con la barra que tiene al lado.
  *
  *  `samples` viene YA colocada, como en `pedestalFit()`: el pin es físico y le
  *  importa dónde está la pieza de verdad. */
 export function pinFit(samples: PathSample[], sec: Section, pin: Pin): PinFit | null {
   if (!samples.length) return null;
-  let bi = -1, bd = Infinity;
-  for (let i = 0; i < samples.length; i++) {
-    const d = Math.hypot(samples[i].p.x - pin.x, samples[i].p.y - pin.y);
-    if (d < bd) { bd = d; bi = i; }
-  }
-  const q = samples[bi];
+  /* Sobre la POLILÍNEA y no sobre las muestras: `buildPath()` no pone ninguna a
+     lo largo de una recta, así que un pin en mitad de una recta larga daba como
+     punto más cercano el final de esa recta —a medio metro— y de ahí salía que
+     no tocaba nada. Ver engine/path.ts. */
+  const { s: sc, d: bd } = nearestOnPath(samples, pin.x, pin.y);
+  const q = sampleAt(samples, sc);
   const n = planNormal(q);
   const need = pin.dia / 2 + (n ? planHalfWidth(q, sec, n) : sec.width / 2);
   const off = n ? new Vector3(pin.x - q.p.x, pin.y - q.p.y, 0).dot(n) : 0;
   const low = q.p.z - sectionDrop(q, sec);
   return {
-    s: q.s, plan: bd, need, gap: bd - need,
+    s: sc, plan: bd, need, gap: bd - need,
     side: off >= 0 ? 1 : -1,
     /* el pin tiene que llegar a la cara de abajo de la barra; por arriba no se
        exige nada, que un pin más alto de la cuenta sujeta igual */
@@ -182,23 +157,25 @@ export function pinFit(samples: PathSample[], sec: Section, pin: Pin): PinFit | 
   };
 }
 
-/** El hueco en el punto de contacto CONGELADO `s`. Es el residuo que el solver
- *  quiere llevar a cero.
+/** El hueco CON SIGNO en el punto de contacto congelado `s`. Es el residuo que
+ *  el solver quiere llevar a cero.
  *
- *  No lleva el lado dentro, y eso no es un olvido: la distancia en planta es
- *  siempre positiva, así que el residuo ya dice lo que hace falta —negativo, el
- *  pin está metido dentro de la barra y la empuja; positivo, sobra aire— sin
- *  que importe por qué lado esté el pin. El lado se guarda en el `PinFit` para
- *  enseñarlo, y para poder ver que un fixture imposible pone la barra al otro
- *  lado del pin: ahí este residuo pasa por cero por el sitio equivocado y se
- *  queda sin cerrar, que es exactamente lo que hay que ver.
+ *  El signo lo pone el LADO, congelado con `s` al empezar, y eso no es un
+ *  adorno: con la distancia a secas —siempre positiva— el residuo también se
+ *  anula con la barra CRUZADA al otro lado del pin, y el solver se va
+ *  tranquilamente a esa solución, que es la barra atravesando el poste. Se cazó
+ *  con el banco del amarre: un ángulo movido 3° salía «resuelto» con la pieza
+ *  del otro lado. Con el lado dentro, cruzar hace el residuo cada vez MÁS
+ *  negativo y el solver vuelve por donde vino.
  *
- *  Lo que sí se congela es `s`: ver `sampleAt()`. */
-function gapAt(samples: PathSample[], sec: Section, pin: Pin, s: number): number {
+ *  Positivo = sobra aire · negativo = el pin está metido dentro de la barra. */
+function gapAt(samples: PathSample[], sec: Section, pin: Pin, s: number, side: number): number {
   const q = sampleAt(samples, s);
   const n = planNormal(q);
   const need = pin.dia / 2 + (n ? planHalfWidth(q, sec, n) : sec.width / 2);
-  return Math.hypot(q.p.x - pin.x, q.p.y - pin.y) - need;
+  const off = n ? (pin.x - q.p.x) * n.x + (pin.y - q.p.y) * n.y
+                : Math.hypot(q.p.x - pin.x, q.p.y - pin.y);
+  return side * off - need;
 }
 
 /** El tramo libre asociado a cada estación, mm: la recta que entra más la que
@@ -293,7 +270,11 @@ export function restrain(model: Model, pins: Pin[], sec: Section,
     const f = pinFit(path0, sec, pin);
     if (!f || !f.reach) return;
     if (f.gap > opt.tol) return;
-    act.push({ k, s: f.s, side: f.side, pin });
+    /* El lado MONTADO manda sobre el leído: ver el tipo Pin. Con `side` a 0
+       —un pin recién puesto a mano, o un archivo anterior a este campo— se cae
+       a la lectura, que es lo que había antes y sirve mientras la barra no
+       rebase el poste. */
+    act.push({ k, s: f.s, side: pin.side || f.side, pin });
   });
   if (!act.length) return free;
 
@@ -313,7 +294,7 @@ export function restrain(model: Model, pins: Pin[], sec: Section,
 
   const resid = (m: Model): number[] => {
     const p = place(buildPath(m, 8).samples);
-    return act.map(a => gapAt(p, sec, a.pin, a.s));
+    return act.map(a => gapAt(p, sec, a.pin, a.s, a.side));
   };
 
   const du = new Array<number>(nu).fill(0);
@@ -420,12 +401,24 @@ export function seedPins(samples: PathSample[], sec: Section, n = 4,
     const nrm = planNormal(q) || new Vector3(0, 1, 0);
     const side = k % 2 ? -1 : 1;
     const d = dia / 2 + planHalfWidth(q, sec, nrm);
-    out.push({
+    const cand = {
       x: +(q.p.x + nrm.x * d * side).toFixed(2),
       y: +(q.p.y + nrm.y * d * side).toFixed(2),
       h: +clamp(q.p.z - TABLE_Z + 20, 20, 400).toFixed(2),
-      dia, visible: true, hold: true,
-    });
+      /* el lado queda GUARDADO al sembrar: es el que se acaba de montar */
+      dia, visible: true, hold: true, side,
+    };
+    /* Un paso de corrección contra la barra de verdad, por el mismo motivo que
+       en `seedPedestals()`: el pin se coloca a partir de una MUESTRA y el
+       contacto se mide contra la polilínea, que en mitad de un arco pasa por
+       dentro. Sin esto un pin sembrado nace con unas décimas de hueco y no
+       sujeta hasta que alguien lo corrige a mano. */
+    const fit = pinFit(samples, sec, { id: '', name: '', ...cand });
+    if (fit) {
+      cand.x = +(cand.x - nrm.x * fit.gap * side).toFixed(2);
+      cand.y = +(cand.y - nrm.y * fit.gap * side).toFixed(2);
+    }
+    out.push(cand);
   }
   return out;
 }

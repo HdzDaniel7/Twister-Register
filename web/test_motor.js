@@ -979,7 +979,9 @@ console.log('\n— idiomas —');
                    'spread',
                    /* «Ø» y «σ MPa» son símbolos: traducirlos sería inventarse
                       una notación que no usa nadie. */
-                   'pinDia', 'pinSigma'];
+                   'pinDia', 'pinSigma',
+                   /* «auto» se escribe igual en los tres idiomas. */
+                   'pinSideAuto'];
   const IGUALES = {
     /* «fixture» y «pedestal» son las palabras del taller y se dicen igual en
        español que en inglés —así las escribe quien monta la pieza— pero NO en
@@ -2222,6 +2224,56 @@ console.log('\n— los pines laterales: la barra deja de estar libre (engine/pin
   const hw = E.planHalfWidth(q0, { width: 40, thickness: 12, chamfer: 0, endLen: 0 }, n0);
   ok('la media anchura en planta está entre el medio espesor y el medio ancho',
      hw >= 6 - 1e-9 && hw <= 20 + 1e-9, hw.toFixed(2));
+
+  /* DOS FALLOS QUE CAZÓ EL BANCO DEL AMARRE (tools/demo_amarre.mjs), y que aquí
+     quedan vigilados para siempre. */
+
+  /* 1 · El contacto se buscaba sobre las MUESTRAS, y buildPath() no pone
+     ninguna a lo largo de una recta: un pin en mitad de una recta larga daba
+     como punto más cercano el final de esa recta, a medio metro. */
+  {
+    const recta = E.normalizeModel({ name: 'UNA RECTA', tail: 600,
+      bends: [E.newBend({ feed: 500, rot: 0, angle: 30, radius: 30 })] });
+    const p2 = E.buildPath(recta).samples;
+    const q = E.sampleAt(p2, p2[p2.length - 1].s * 0.85);
+    const nrm = E.planNormal(q);
+    const dd = 10 + E.planHalfWidth(q, recta.section, nrm);
+    const pin = { id: 'p1', name: 'p', visible: true, hold: true, dia: 20, side: 1,
+                  x: q.p.x + nrm.x * dd, y: q.p.y + nrm.y * dd,
+                  h: q.p.z - E.TABLE_Z + 30 };
+    ok('el contacto se mide sobre la BARRA, no sobre las muestras',
+       Math.abs(E.pinFit(p2, recta.section, pin).gap) < .01,
+       `hueco ${E.pinFit(p2, recta.section, pin).gap.toFixed(3)} mm`);
+    /* Y la prueba de la servilleta: un doblez, un pin, un contacto. La única
+       forma de volver a tocar el pin es deshacer el ángulo. */
+    for (const delta of [0.5, 3]) {
+      const mov = E.normalizeModel({ ...recta,
+        bends: [{ ...recta.bends[0], angle: recta.bends[0].angle + delta }] });
+      const Rr = E.restrain(mov, [pin], recta.section,
+                            { ...E.RESTRAINT_DEFAULT, on: true, doRot: false });
+      ok(`con δ=${delta}° el codo deshace el ángulo movido`,
+         Math.abs(Rr.kink[0].angle + delta) < .05,
+         `codo ${Rr.kink[0].angle.toFixed(3)}° vs ${(-delta).toFixed(3)}°`);
+    }
+    /* 2 · El lado es dato del FIXTURE. Sin guardarlo, a 3° la barra rebasa el
+       eje del poste, la lectura se invierte y el solver cierra el contacto por
+       la cara de atrás: una pieza que atravesó el pin. */
+    const mov3 = E.normalizeModel({ ...recta,
+      bends: [{ ...recta.bends[0], angle: recta.bends[0].angle + 3 }] });
+    const auto = E.restrain(mov3, [{ ...pin, side: 0 }], recta.section,
+                            { ...E.RESTRAINT_DEFAULT, on: true, doRot: false });
+    ok('sin lado guardado, la lectura invertida da otra solución (por eso existe el campo)',
+       Math.abs(auto.kink[0].angle + 3) > .5,
+       `codo ${auto.kink[0].angle.toFixed(3)}°`);
+    ok('un pin empuja y no TIRA: si la barra se separa, no deforma nada',
+       (() => {
+         const lejos = E.normalizeModel({ ...recta,
+           bends: [{ ...recta.bends[0], angle: recta.bends[0].angle - 2 }] });
+         const Rr = E.restrain(lejos, [pin], recta.section,
+                               { ...E.RESTRAINT_DEFAULT, on: true });
+         return Rr.held.length === 0 && E.kinkOf(Rr.kink[0]) === 0;
+       })());
+  }
 
   /* El documento: los pines viajan, y un archivo anterior abre SIN amarre. */
   const doc = E.toDoc(Mp, null, null, null, [], [], null, 'start',
