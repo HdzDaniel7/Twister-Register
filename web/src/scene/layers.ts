@@ -12,7 +12,7 @@ import {
   Color, Vector3,
 } from 'three';
 import * as E from '../engine.ts';
-import { ST, placedPath, heldResult } from '../state.ts';
+import { ST, placedPath, heldResult, heldOn } from '../state.ts';
 import { groups, cssVar, devThreeColor, ghost, solidMat, extraLabels } from './stage.ts';
 import { barGeometry } from './geometry.ts';
 import type { SceneCtx } from './types.ts';
@@ -109,7 +109,7 @@ export function layerPins(ctx: SceneCtx): void {
  *  ven sucios. */
 export function layerHeld(ctx: SceneCtx): void {
   const { M, L, Axf, held } = ctx;
-  if (!L.held || !L.held.on || !ST.restraint.on || !held.length) return;
+  if (!L.held || !L.held.on || !heldOn() || !held.length) return;
 
   /* Cada variante visible, con la forma que toma SUJETA y en SU color: si todas
      salieran del mismo color rosa no se sabría cuál es cuál, y con dos modelos

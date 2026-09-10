@@ -12,7 +12,7 @@ import type {
   Lims, Mat, Restraint, State, Tweak, Variant, Springback,
 } from './types.ts';
 import type { Matrix4, Vector3 } from 'three';
-import type { Restrained } from './engine/pins.ts';
+import type { Settled } from './engine/load.ts';
 
 export const LAYER_DEF = [
   ['nom', 'lNom', '#3FA9F5'], ['var', 'lVar', '#8CD65A'], ['diff', 'lDiff', '#E15FA0'],
@@ -39,6 +39,7 @@ export const ST: State = {
   lims: { ...E.LIMS_DEFAULT },
   pins: [],
   restraint: { ...E.RESTRAINT_DEFAULT },
+  load: { ...E.LOAD_DEFAULT },
   mat: { ...E.MAT_DEFAULT },
   held: null,
   mach: { ...E.MACHINE_DEFAULT, cols: [...E.MACHINE_DEFAULT.cols] },
@@ -78,10 +79,20 @@ export const REF = () => ST.variants.find(v => v.id === ST.ref) || ST.variants[0
  *  pieza toma ahí, no dónde se decide que va. */
 export const refModelFree = () => E.effectiveModel(REF());
 
+/** ¿La pieza que se dibuja y se mide es distinta de la que dice la tabla?
+ *
+ *  Lo es en cuanto ALGUNO de los dos interruptores esté puesto: los pines la
+ *  sujetan, la carga la cuelga, y cualquiera de las dos cosas por separado ya
+ *  cambia la forma. Existe como una sola función porque media docena de sitios
+ *  —la escena, el estado, el reporte, las tarjetas— tienen que estar de acuerdo
+ *  en esto, y con la condición escrita seis veces solo hace falta olvidarse una
+ *  para que la pantalla enseñe una pieza y la tabla mida otra. */
+export const heldOn = (): boolean => ST.restraint.on || ST.load.on;
+
 /** La referencia con la que se compara todo: la libre, o la que de verdad
  *  queda sujeta por los pines si se ha elegido así en la pestaña Amarre. */
 export const refModel = (): Model => (
-  ST.restraint.on && ST.restraint.refHeld
+  heldOn() && ST.restraint.refHeld
     ? heldFor('ref', refModelFree(), refModelFree()).model
     : refModelFree()
 );
@@ -259,11 +270,16 @@ export function seedPinsFor(n?: number): Pin[] {
  *  referencia— porque desde que la referencia se puede comparar sujeta hay dos
  *  formas sujetas vivas a la vez, y una sola caché las haría turnarse: cada
  *  repintado tiraría la de la otra y volvería a resolver las dos. */
-const heldCache = new Map<string, { key: string; res: Restrained }>();
+const heldCache = new Map<string, { key: string; res: Settled }>();
 
-function heldFor(slot: string, M: Model, refM: Model): Restrained {
-  if (!ST.restraint.on) { heldCache.delete(slot); return E.restrainedFree(M); }
+function heldFor(slot: string, M: Model, refM: Model): Settled {
+  if (!heldOn()) { heldCache.delete(slot); return E.settledFree(M, ST.pins.length, ST.fixture.length); }
+  /* `fixture` entra en la firma desde que hay carga: sin peso un pedestal no
+     sostiene nada y por eso el amarre lo ignora, pero con peso es lo único que
+     hay debajo de la pieza. Sin esta clave, mover un pedestal dejaba en pantalla
+     la forma calculada con el anterior. */
   const key = JSON.stringify([M.bends, M.tail, M.section, ST.pins, ST.restraint, ST.mat,
+                              ST.load, ST.fixture,
                               ST.place, ST.anchor, refM.bends, refM.tail]);
   const hit = heldCache.get(slot);
   if (hit && hit.key === key) return hit.res;
@@ -271,25 +287,29 @@ function heldFor(slot: string, M: Model, refM: Model): Restrained {
      refModelFree()) y encima la colocación. Los pines son físicos y miran a la
      pieza en la mesa, no al modelo dibujado en el origen. */
   const P = placeMatrix().multiply(E.anchorTransform(M, refM, ST.anchor));
-  const res = E.restrain(M, ST.pins, M.section, ST.restraint, ST.mat,
-                         s => E.placePath(P, s));
+  /* Una sola llamada para los dos casos: con carga, `settle()` resuelve el
+     EQUILIBRIO —apoyos unilaterales, peso propio—; sin ella devuelve
+     `restrain()` sin tocar un número. El interruptor se decide en el motor, no
+     aquí, que es donde hay una prueba que lo vigila. */
+  const res = E.settle(M, ST.pins, ST.fixture, M.section, ST.restraint, ST.mat,
+                       ST.load, s => E.placePath(P, s));
   heldCache.set(slot, { key, res });
   return res;
 }
 
-export function heldResult(): Restrained {
+export function heldResult(): Settled {
   const M = ST.model;
-  if (!M) return E.restrainedFree(E.emptyModel());
+  if (!M) return E.settledFree(E.emptyModel(), ST.pins.length, ST.fixture.length);
   const res = heldFor('act', M, refModelFree());
   /* `ST.held` sigue siendo la forma sujeta de la ACTIVA, que es la que dibuja la
      escena y la que mide la pestaña. La de la referencia vive solo en la caché:
      no se enseña, se usa para comparar. */
-  ST.held = ST.restraint.on ? res : null;
+  ST.held = heldOn() ? res : null;
   return res;
 }
 
 /** La forma sujeta de la REFERENCIA, para quien quiera enseñarla o medirla. */
-export const heldRef = (): Restrained => heldFor('ref', refModelFree(), refModelFree());
+export const heldRef = (): Settled => heldFor('ref', refModelFree(), refModelFree());
 
 /** La forma sujeta de UNA VARIANTE cualquiera, con su propia ranura de caché.
  *
@@ -297,13 +317,13 @@ export const heldRef = (): Restrained => heldFor('ref', refModelFree(), refModel
  *  montada, sea cual sea: si se están comparando dos modelos y el amarre está
  *  puesto, los DOS quedan sujetos. Enseñar uno sujeto y el otro libre no compara
  *  nada — es la mitad de cada cosa. */
-export const heldOfVariant = (v: Variant): Restrained =>
+export const heldOfVariant = (v: Variant): Settled =>
   heldFor(`v-${v.id}`, E.effectiveModel(v), refModelFree());
 
 /** El modelo que hay que DIBUJAR y MEDIR: el sujeto si el amarre está puesto, y
  *  el libre si no. Un solo sitio donde se decide, para que la escena, la tabla
  *  y el reporte no puedan discrepar. */
-export const shownModel = (): Model => (ST.restraint.on ? heldResult().model : ST.model!);
+export const shownModel = (): Model => (heldOn() ? heldResult().model : ST.model!);
 
 /* ------------------------------------------------- ajuste de compensación */
 export function syncTweak(n: number): Tweak[] {
@@ -441,7 +461,7 @@ export function activeShift(): number {
     /* Como en las tarjetas de modelo: si la referencia se compara sujeta, esta
        también, o el número mezcla la diferencia de diseño con lo que el fixture
        le hace a la barra. */
-    const mine = ST.restraint.on && ST.restraint.refHeld ? heldResult().model : ST.model!;
+    const mine = heldOn() && ST.restraint.refHeld ? heldResult().model : ST.model!;
     const sh = E.piShift(mine, refModel(), ST.anchor);
     return ST.anchor === 'end' ? sh[0] : sh[sh.length - 1];
   } catch { return 0; }

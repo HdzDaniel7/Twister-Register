@@ -59,7 +59,8 @@ function snapshot(): string {
                       { place: ST.place, marks: ST.marks, fixture: ST.fixture,
                         tweak: hayAjuste ? ST.tweak : [], lims: ST.lims,
                         mach: ST.mach,
-                        pins: ST.pins, restraint: ST.restraint, mat: ST.mat });
+                        pins: ST.pins, restraint: ST.restraint, load: ST.load,
+                        mat: ST.mat });
   /* `saved` es la hora de guardado, y cambia en cada llamada: si se queda, dos
      documentos idénticos salen distintos, la comparación de commit() no sirve
      de nada y CUALQUIER clic gasta un paso de deshacer. */
@@ -141,6 +142,7 @@ function restore(text: string): void {
     Object.assign(ST.mach, d.mach);
     setPins(d.pins);
     Object.assign(ST.restraint, d.restraint);
+    Object.assign(ST.load, d.load);
     Object.assign(ST.mat, d.mat);
     ST.place = { ...E.PLACE_DEFAULT, ...(d.place || {}) };
     setMarks(d.marks);

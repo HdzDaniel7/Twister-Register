@@ -220,8 +220,8 @@ export function pinFit(samples: PathSample[], sec: Section, pin: Pin): PinFit | 
  *  negativo y el solver vuelve por donde vino.
  *
  *  Positivo = sobra aire · negativo = el pin está metido dentro de la barra. */
-function gapAt(samples: PathSample[], sec: Section, pin: Pin,
-               s: number, t: number, local: [number, number]): number {
+export function gapAt(samples: PathSample[], sec: Section, pin: Pin,
+                      s: number, t: number, local: [number, number]): number {
   const q = sampleAt(samples, s);
   /* La dirección de contacto se reconstruye en el marco de la SECCIÓN, con las
      dos componentes congeladas: así gira con la barra —que es lo que hace de
@@ -285,8 +285,9 @@ export function restrainedFree(model: Model): Restrained {
   };
 }
 
-/** Aplica los deltas de parámetros a una copia del modelo. */
-function withDelta(model: Model, du: number[], doRot: boolean): Model {
+/** Aplica los deltas de parámetros a una copia del modelo. Los deltas van en
+ *  GRADOS, como todo lo que sale y entra del motor. */
+export function withDelta(model: Model, du: number[], doRot: boolean): Model {
   const bends = model.bends.map((b, i) => ({
     ...b,
     angle: b.angle + du[doRot ? 2 * i : i],

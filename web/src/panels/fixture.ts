@@ -11,12 +11,13 @@ import * as E from '../engine.ts';
 import { T } from '../i18n.ts';
 import type { Model } from '../types.ts';
 import type { PedFit } from '../engine.ts';
-import { ST, placedPath } from '../state.ts';
+import { ST, placedPath, heldResult } from '../state.ts';
 import { fx, esc, cls, nfield } from './fmt.ts';
 
 /** Una fila. Sale aparte porque la de un pedestal tiene trece columnas y
  *  `paneFixture` se pasaba de las 60 líneas de la regla con el bucle dentro. */
-function pedRow(M: Model, i: number, f: PedFit | null, vano: number, flecha: number): string {
+function pedRow(M: Model, i: number, f: PedFit | null, vano: number, flecha: number,
+                reac: number): string {
   const p = ST.fixture[i];
   const num = (k: 'x' | 'y' | 'h' | 'pad' | 'tilt', fmt = '1') =>
     `<td>${nfield(fmt, `data-pd="${p.id}" data-k="${k}"`, p[k])}</td>`;
@@ -29,6 +30,7 @@ function pedRow(M: Model, i: number, f: PedFit | null, vano: number, flecha: num
       <td class="v-bad" colspan="5" title="${esc(T('pedOffTip'))}">${T('pedOff')}</td>
       <td class="v-dim">${isFinite(vano) ? fx(vano, 0) : '—'}</td>
       <td class="v-dim">—</td>
+      ${ST.load.on ? '<td class="v-dim">—</td>' : ''}
       <td><button class="xbtn" data-px="${p.id}" title="${T('del')}"
         aria-label="${esc(T('del'))}">✕</button></td></tr>`;
   }
@@ -43,6 +45,8 @@ function pedRow(M: Model, i: number, f: PedFit | null, vano: number, flecha: num
     <td class="v-dim">${isFinite(vano) ? fx(vano, 0) : '—'}</td>
     <td class="${isFinite(flecha) ? cls(flecha, M.tol.point) : 'v-dim'}"
       title="${esc(T('sagTip'))}">${isFinite(flecha) ? fx(flecha, 3) : '—'}</td>
+    ${ST.load.on ? `<td class="${reac > 0 ? 'v-ok' : 'v-dim'}"
+      title="${esc(T('loadNTip'))}">${reac > 0 ? fx(reac, 1) : '—'}</td>` : ''}
     <td><button class="xbtn" data-px="${p.id}" title="${T('del')}"
       aria-label="${esc(T('del'))}">✕</button></td></tr>`;
 }
@@ -57,7 +61,12 @@ export function paneFixture(M: Model): string {
      que de verdad apoyan, no con los que hay en la lista. */
   const sag = E.gravitySag(M, path, M.section, ST.fixture, ST.mat);
   const flechas = E.sagByPedestal(sag, path, M.section, ST.fixture);
-  const rows = ST.fixture.map((_, i) => pedRow(M, i, fits[i], vanos[i], flechas[i])).join('');
+  /* Con la pieza cargada, cada pedestal lleva una parte del peso: es la
+     columna que dice cuáles están trabajando y cuáles solo están puestos. Con
+     la carga quitada no hay fuerzas y la columna ni aparece. */
+  const reac = heldResult().pedN;
+  const rows = ST.fixture.map((_, i) =>
+    pedRow(M, i, fits[i], vanos[i], flechas[i], reac[i] || 0)).join('');
   /* El vano más largo es el número que decide la flecha, así que va arriba y
      no escondido en una columna: es lo único de esta tabla que se mira sin
      tener que leerla entera. */
@@ -72,7 +81,9 @@ export function paneFixture(M: Model): string {
       <th>${T('pedH')}</th><th>${T('pedPad')}</th><th>${T('pedTilt')}</th>
       <th>${T('pedWant')}</th><th>Δ</th><th>${T('pedS')}</th><th>${T('pedPlan')}</th>
       <th>${T('pedGap')}</th><th>${T('pedSpan')}</th>
-      <th title="${esc(T('sagTip'))}">${T('sag')}</th><th></th></tr></thead>
+      <th title="${esc(T('sagTip'))}">${T('sag')}</th>
+      ${ST.load.on ? `<th title="${esc(T('loadNTip'))}">${T('loadN')}</th>` : ''}
+      <th></th></tr></thead>
       <tbody>${rows}</tbody></table></div>
     <div class="row mt6">
       <span class="chip ${isFinite(peor) ? '' : 'dim'}">${T('pedWorst')}: ${isFinite(peor) ? fx(peor, 0) + ' mm' : '—'}</span>

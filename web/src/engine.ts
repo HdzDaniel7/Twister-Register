@@ -28,3 +28,4 @@ export * from './engine/path.ts';
 export * from './engine/fixture.ts';
 export * from './engine/pins.ts';
 export * from './engine/sag.ts';
+export * from './engine/load.ts';

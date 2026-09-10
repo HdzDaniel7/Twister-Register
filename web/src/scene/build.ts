@@ -6,7 +6,7 @@
    ========================================================================= */
 import { Matrix4 } from 'three';
 import * as E from '../engine.ts';
-import { ST, refModel, refModelFree, placeMatrix, heldOfVariant } from '../state.ts';
+import { ST, refModel, refModelFree, placeMatrix, heldOfVariant, heldOn } from '../state.ts';
 import { groups, root, clearGroup, clearLabels, markDirty } from './stage.ts';
 import {
   layerGrid, layerFixtures, layerPins, layerActive, layerVariants, layerMeasured,
@@ -45,7 +45,7 @@ export function rebuildScene(): void {
      Se anclan contra la referencia LIBRE, igual que la colocación y por el
      mismo motivo (ver refModelFree()): el fixture se monta contra el nominal. */
   const held: ShownEntry[] = [];
-  if (ST.restraint.on && L.held.on) {
+  if (heldOn() && L.held.on) {
     for (const e of shown) {
       const hm = heldOfVariant(e.v).model;
       const A = E.anchorTransform(hm, refModelFree(), anchor);

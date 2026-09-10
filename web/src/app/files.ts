@@ -26,7 +26,7 @@ export function saveJson(): void {
                       ST.variants, ST.ref, ST.anchor,
                       { place: ST.place, marks: ST.marks, fixture: ST.fixture, tweak: ST.tweak,
                         lims: ST.lims, mach: ST.mach,
-                        pins: ST.pins, restraint: ST.restraint, mat: ST.mat,
+                        pins: ST.pins, restraint: ST.restraint, load: ST.load, mat: ST.mat,
                         ui: { theme: ST.theme, lang: LANG.cur, mode: ST.mode } });
   download(safeName(ST.model!.name) + '.json', JSON.stringify(doc, null, 1));
   /* A partir de aquí el trabajo está en disco: el aviso al cerrar deja de
@@ -50,12 +50,13 @@ export function openJson(): void {
          se vuelve a abrir sujeta, o los números que trae no se explican. */
       setPins(d.pins);
       Object.assign(ST.restraint, d.restraint);
+      Object.assign(ST.load, d.load);
       Object.assign(ST.mat, d.mat);
       /* Un archivo guardado con la barra sujeta tiene que ABRIRSE enseñándolo:
          las capas no viajan en el JSON, así que sin esto el amarre queda
          encendido y en el 3D no se ve ni un pin — que se lee como que el
          archivo no traía nada. Mismo gesto que al encender el interruptor. */
-      if (ST.restraint.on) { ST.layers.pins.on = true; ST.layers.held.on = true; }
+      if (ST.restraint.on || ST.load.on) { ST.layers.pins.on = true; ST.layers.held.on = true; }
       ST.place = { ...E.PLACE_DEFAULT, ...(d.place || {}) };
       setMarks(d.marks);
       setPedestals(d.fixture);

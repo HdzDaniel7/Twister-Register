@@ -114,6 +114,24 @@ export type Restraint = {
   refHeld?: boolean;
 };
 
+/** LA CARGA: el peso propio de la pieza, y el empuje con el que se la prueba.
+ *  Ver engine/load.ts — y sobre todo el punto ciego que ahí queda escrito. */
+export type Load = {
+  /** ¿la pieza tiene peso? Apagada, el programa da exactamente lo que daba
+   *  antes de que esto existiera, y hay una prueba que lo compara PI a PI */
+  on: boolean;
+  /** múltiplo de la gravedad. 1 = el peso de verdad; 0 = ingravidez */
+  g: number;
+  /** hacia dónde tira la carga. (0,0,−1) es abajo, que es lo que hace la
+   *  gravedad; se puede apuntar a otro lado para empujar la pieza contra un
+   *  amarre concreto y ver si aguanta */
+  dx: number;
+  dy: number;
+  dz: number;
+  /** empuje extra en el extremo libre, N, en la misma dirección */
+  tip: number;
+};
+
 /** Lo que devuelve `deviations()`: una pieza medida contra su nominal. */
 export type Deviations = {
   /** los PI de la medida, ya alineados según el datum */

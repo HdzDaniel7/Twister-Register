@@ -3,10 +3,10 @@
  * localStorage ni sessionStorage.
  */
 import type { Bend, Model, Variant, AnchorMode, DatumMode } from './model.ts';
-import type { Comp, Lims, Mat, Proc, Restraint } from './process.ts';
+import type { Comp, Lims, Load, Mat, Proc, Restraint } from './process.ts';
 import type { MachineFmt } from '../engine/machine.ts';
 import type { Dataset, Place, Mark, Pedestal, Pin, Tweak, Mode } from './doc.ts';
-import type { Restrained } from '../engine/pins.ts';
+import type { Settled } from '../engine/load.ts';
 
 /* ------------------------------------------------------------ estado global */
 
@@ -95,13 +95,16 @@ export type State = {
   pins: Pin[];
   /** si la barra se considera sujeta, y con qué ajustes */
   restraint: Restraint;
+  /** el peso de la pieza y el empuje de prueba. Ver engine/load.ts */
+  load: Load;
   /** el material, para pasar deformación a esfuerzo */
   mat: Mat;
-  /** la pieza tal como la dejan los pines, y lo que costó llegar ahí. `null`
-   *  con el amarre apagado: entonces la pieza sujeta ES la libre y guardar una
-   *  copia solo daría ocasión de que las dos se separaran. Es CACHÉ —sale de
-   *  `model` + `pins`— y por eso no viaja en el JSON ni entra en el deshacer. */
-  held: Restrained | null;
+  /** la pieza tal como la dejan los pines Y LA CARGA, y lo que costó llegar
+   *  ahí. `null` con los dos apagados: entonces la pieza sujeta ES la libre, y
+   *  guardar una copia solo daría ocasión de que las dos se separaran. Es CACHÉ
+   *  —sale de `model` + `pins` + `load`— y por eso no viaja en el JSON ni entra
+   *  en el deshacer. */
+  held: Settled | null;
   /** ajuste manual sobre lo que calcula el lazo, por doblez */
   tweak: Tweak[];
 };

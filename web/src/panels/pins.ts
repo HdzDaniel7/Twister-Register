@@ -19,7 +19,8 @@ import { fx, esc, cls, nfield } from './fmt.ts';
 
 /** Una fila de pin. Aparte, como `pedRow()`, porque con las columnas derivadas
  *  el bucle dentro del panel se pasa de las 60 líneas de la regla. */
-function pinRow(M: Model, i: number, f: E.PinFit | null, sujeta: boolean): string {
+function pinRow(M: Model, i: number, f: E.PinFit | null, sujeta: boolean,
+                reac: number): string {
   const p = ST.pins[i];
   const num = (k: 'x' | 'y' | 'h' | 'dia' | 'tilt' | 'yaw', fmt = '1') =>
     `<td>${nfield(fmt, `data-pn="${p.id}" data-k="${k}"`, p[k])}</td>`;
@@ -46,6 +47,8 @@ function pinRow(M: Model, i: number, f: E.PinFit | null, sujeta: boolean): strin
     </select></td>
     ${der}
     <td class="${sujeta ? 'v-ok' : 'v-dim'}">${sujeta ? T('pinHolding') : '—'}</td>
+    ${ST.load.on ? `<td class="${reac > 0 ? 'v-ok' : 'v-dim'}"
+      title="${esc(T('loadNTip'))}">${reac > 0 ? fx(reac, 1) : '—'}</td>` : ''}
     <td><button class="xbtn" data-pnx="${p.id}" title="${T('del')}"
       aria-label="${esc(T('del'))}">✕</button></td></tr>`;
 }
@@ -89,12 +92,61 @@ function costo(M: Model): string {
     </tbody></table></div>`;
 }
 
+/** LA CARGA — el peso propio de la pieza y el empuje con el que se la prueba.
+ *
+ *  Va en esta pestaña y no en la del fixture porque contesta a la misma
+ *  pregunta que los pines: ¿dónde acaba de verdad la barra? Los pines dicen a
+ *  dónde no la dejan ir; la carga dice hacia dónde se cae sola.
+ *
+ *  Lo que hay que leer aquí son DOS cifras, y no las de la tabla: cuánto de la
+ *  pieza llevan los apoyos y cuánto se queda aguantando la mordaza. Si la
+ *  segunda se lleva casi todo, lo que se está mirando es una pieza en voladizo,
+ *  y eso es una respuesta —«hacen falta más pedestales»— y no un error. */
+function carga(M: Model): string {
+  const on = ST.load.on;
+  const R = heldResult();
+  const num = (k: 'g' | 'tip' | 'dx' | 'dy' | 'dz', step: string) =>
+    nfield(step, `data-ld="${k}"`, ST.load[k]);
+  /* Con la mitad del peso o más colgando de la mordaza, la pieza no está
+     apoyada: está en voladizo. Se avisa con un número, no con un adjetivo. */
+  const colgando = on && !R.noMat && R.weight > 0 && R.root > 0.5 * R.weight;
+  return `<div class="grp">
+    <div class="eyebrow">${T('load')}</div><div class="body">
+    <div class="row">
+      <label class="layer" title="${esc(T('loadOnTip'))}">
+        <input type="checkbox" data-ld="on" ${on ? 'checked' : ''}>
+        <span class="nm"><b>${T('loadOn')}</b></span></label>
+    </div>
+    ${on ? `<div class="fgrid pair mt6">
+      <label title="${esc(T('loadGTip'))}">${T('loadG')}</label>${num('g', '.25')}
+      <label title="${esc(T('loadTipTip'))}">${T('loadTipF')} (N)</label>${num('tip', '5')}
+      <label title="${esc(T('loadDirTip'))}">${T('loadDir')} X</label>${num('dx', '.25')}
+      <label title="${esc(T('loadDirTip'))}">${T('loadDir')} Y</label>${num('dy', '.25')}
+      <label title="${esc(T('loadDirTip'))}">${T('loadDir')} Z</label>${num('dz', '.25')}
+    </div>
+    ${R.noMat ? `<div class="warnbox mt6">${T('loadNoMat')}</div>` : `<div class="row mt6">
+      <span class="chip" title="${esc(T('loadWeightTip'))}">${T('loadWeight')}: ${
+        fx(R.weight, 1)} N</span>
+      <span class="chip ${colgando ? '' : 'ok'}" title="${esc(T('loadCarriedTip'))}">${
+        T('loadCarried')}: ${fx(R.carried, 1)} N</span>
+      <span class="chip ${colgando ? 'bad' : ''}" title="${esc(T('loadRootTip'))}">${
+        T('loadRoot')}: ${fx(R.root, 1)} N</span>
+      <span class="chip ${R.drop > M.tol.point ? 'bad' : ''}" title="${esc(T('loadDropTip'))}">${
+        T('loadDrop')}: ${fx(R.drop, 2)} mm${R.dropAt >= 0 ? ` · PI${R.dropAt + 1}` : ''}</span>
+      <span class="chip ${R.pene > ST.restraint.tol ? 'bad' : 'dim'}"
+        title="${esc(T('loadPeneTip'))}">${T('loadPene')}: ${fx(R.pene, 4)} mm</span>
+    </div>
+    ${colgando ? `<div class="warnbox mt6">${T('loadHang')}</div>` : ''}`}` : ''}
+    <div class="hintline">${T('loadNote')}</div>
+  </div></div>`;
+}
+
 export function panePins(M: Model): string {
   const path = ST.pins.length ? placedPath() : [];
   const fits = ST.pins.map(p => (path.length ? E.pinFit(path, M.section, p) : null));
   const R = heldResult();
   const rows = ST.pins.map((_, i) =>
-    pinRow(M, i, fits[i], ST.restraint.on && R.held.includes(i))).join('');
+    pinRow(M, i, fits[i], ST.restraint.on && R.held.includes(i), R.pinN[i] || 0)).join('');
   const on = ST.restraint.on;
   return `<div class="pane on"><div class="grp">
     <div class="eyebrow">${T('pins')}<span class="n">${ST.pins.length}</span></div><div class="body">
@@ -137,7 +189,9 @@ export function panePins(M: Model): string {
       <th title="${esc(T('pinYawTip'))}">${T('pinYaw')}</th>
       <th title="${esc(T('pinSideTip'))}">${T('pinSide')}</th>
       <th>${T('pedS')}</th><th title="${esc(T('pinDistTip'))}">${T('pinDist')}</th><th>${T('pinGap')}</th>
-      <th>${T('pinReach')}</th><th>${T('pinState')}</th><th></th></tr></thead>
+      <th>${T('pinReach')}</th><th>${T('pinState')}</th>
+      ${ST.load.on ? `<th title="${esc(T('loadNTip'))}">${T('loadN')}</th>` : ''}
+      <th></th></tr></thead>
       <tbody>${rows}</tbody></table></div>`
     : `<div class="hintline">${T('pinEmpty')}</div>`}
     <div class="row mt6"><button class="btn sm" data-a="addpin">${T('addPin')}</button>
@@ -147,5 +201,5 @@ export function panePins(M: Model): string {
     </div>
     ${costo(M)}
     <div class="hintline">${T('pinNote')}</div>
-  </div></div></div>`;
+  </div></div>${carga(M)}</div>`;
 }

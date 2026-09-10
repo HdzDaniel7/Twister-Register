@@ -55,6 +55,7 @@ const PIN_NUM = new Set(Object.keys(E.PIN_DEFAULT).filter(k => k !== 'visible' &
 const PIN_KEYS = new Set(['name', ...PIN_NUM]);
 const RS_NUM = new Set(Object.keys(E.RESTRAINT_DEFAULT).filter(k => k !== 'on' && k !== 'doRot'));
 const MAT_KEYS = new Set(Object.keys(E.MAT_DEFAULT));
+const LOAD_NUM = new Set(Object.keys(E.LOAD_DEFAULT).filter(k => k !== 'on'));
 const MACH_KEYS = new Set(Object.keys(E.MACHINE_DEFAULT).filter(k => k !== 'cols'));
 
 /** Un numero que se puede escribir en el modelo, o null.
@@ -179,7 +180,8 @@ function onModelField(t: HTMLInputElement, d: DOMStringMap): boolean {
   }
   if (d.pr !== undefined) { setNum(ST.proc, PROC_KEYS, d.pr, t.value); return true; }
   if (d.pn !== undefined || d.pnv !== undefined || d.pnh !== undefined
-      || d.pns !== undefined || d.rs !== undefined || d.mt !== undefined) return onPin(t, d);
+      || d.pns !== undefined || d.rs !== undefined || d.mt !== undefined
+      || d.ld !== undefined) return onPin(t, d);
   if (d.mc !== undefined || d.mf !== undefined) return onMachine(t, d);
   if (d.lm !== undefined) {
     if (!LIMS_KEYS.has(d.lm)) return true;
@@ -249,10 +251,28 @@ function onPin(t: HTMLInputElement, d: DOMStringMap): boolean {
     pintar();
     return true;
   }
+  if (d.ld !== undefined) {
+    if (d.ld === 'on') {
+      ST.load.on = t.checked;
+      /* Encender la carga enciende las capas del amarre, como el interruptor de
+         al lado: si no, se activa y en el 3D no cambia nada visible, que se lee
+         como que no funcionó. Los pedestales también, que con peso pasan a ser
+         parte del cálculo y no un adorno. */
+      if (t.checked) {
+        ST.layers.held.on = true;
+        ST.layers.fix.on = true;
+      }
+    } else if (!setNum(ST.load, LOAD_NUM, d.ld, t.value)) return true;
+    pintar();
+    return true;
+  }
   if (d.mt !== undefined) {
-    /* El material NO mueve un PI —ver engine/pins.ts— así que aquí basta con
-       repintar la tabla: reconstruir la escena no cambiaría un píxel. */
-    if (setNum(ST.mat, MAT_KEYS, d.mt, t.value)) renderRight();
+    /* El material NO mueve un PI CON LA CARGA QUITADA —ver engine/pins.ts— pero
+       en cuanto la pieza pesa, E y ρ deciden cuánto se cuelga y la escena sí
+       cambia. Por eso el reparto: sin carga basta con repintar la tabla. */
+    if (setNum(ST.mat, MAT_KEYS, d.mt, t.value)) {
+      if (ST.load.on) pintar(); else renderRight();
+    }
     return true;
   }
   return false;

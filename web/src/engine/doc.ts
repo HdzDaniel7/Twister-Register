@@ -15,7 +15,7 @@
 import { Vector3 } from 'three';
 import type {
   Bend, Model, Variant, AnchorMode, Place, Mark, Pedestal, Tweak, UiPrefs, Doc, LoadedDoc,
-  Lims, Pin, Mat, Restraint,
+  Lims, Pin, Mat, Restraint, Load,
   Proc, Comp,
 } from '../types.ts';
 import { D2R, eye, trans, rotX, rotY, rotZ, posOf } from './math.ts';
@@ -27,6 +27,7 @@ import { PROC_DEFAULT, COMP_DEFAULT } from './compensate.ts';
 import { normLims } from './lims.ts';
 import { normMachineFmt } from './machine.ts';
 import { PIN_DEFAULT, MAT_DEFAULT, RESTRAINT_DEFAULT } from './pins.ts';
+import { normLoad } from './load.ts';
 import type { MachineFmt } from './machine.ts';
 import { PLACE_DEFAULT } from './fitting.ts';
 import { safeColor } from '../safe.ts';
@@ -69,6 +70,7 @@ type ToDocExtra = {
   fixture?: Pedestal[];
   pins?: Pin[];
   restraint?: Restraint;
+  load?: Load;
   mat?: Mat;
   tweak?: Tweak[];
   lims?: Lims;
@@ -140,6 +142,9 @@ export function toDoc(
     /* El amarre y el material viajan SIEMPRE, también apagados: un archivo que
        no dice si la barra estaba sujeta no se puede volver a interpretar. */
     restraint: { ...RESTRAINT_DEFAULT, ...(extra.restraint || {}) },
+    /* La carga viaja igual que el amarre y por lo mismo: un archivo que no dice
+       si la pieza estaba pesando no explica los números que trae. */
+    load: normLoad(extra.load),
     mat: { ...MAT_DEFAULT, ...(extra.mat || {}) },
     tweak: (extra.tweak || []).map(t => ({
       angle: +t.angle || 0, rot: +t.rot || 0, feed: +t.feed || 0,
@@ -339,6 +344,9 @@ export function fromDoc(d: Doc): LoadedDoc {
     /* Un archivo anterior a los pines abre con el amarre APAGADO, que es como
        se comportaba cuando se guardó. */
     restraint: { ...RESTRAINT_DEFAULT, ...(d.restraint || {}) },
+    /* Un archivo anterior a la carga abre con la carga APAGADA, que es como se
+       comportaba cuando se guardó. */
+    load: normLoad(d.load),
     mat: { ...MAT_DEFAULT, ...(d.mat || {}) },
     tweak: (d.tweak || []).map(t => ({
       angle: +t.angle || 0, rot: +t.rot || 0, feed: +t.feed || 0,

@@ -8,7 +8,7 @@
  */
 import type { Vector3 } from 'three';
 import type { Bend, Model, Variant, AnchorMode } from './model.ts';
-import type { Comp, Lims, Mat, Proc, Restraint, Deviations } from './process.ts';
+import type { Comp, Lims, Load, Mat, Proc, Restraint, Deviations } from './process.ts';
 import type { MachineFmt } from '../engine/machine.ts';
 
 /* -------------------------------------------------------------- documento */
@@ -221,6 +221,8 @@ export type Doc = {
   pins?: Omit<Pin, 'id'>[];
   /** el amarre: si la barra se considera sujeta y con qué ajustes */
   restraint?: Restraint;
+  /** la carga: el peso de la pieza y el empuje con el que se la prueba */
+  load?: Load;
   /** el material, para pasar de deformación a esfuerzo */
   mat?: Mat;
   tweak?: Tweak[];
@@ -258,6 +260,7 @@ export type LoadedDoc = {
   fixture: Pedestal[];
   pins: Pin[];
   restraint: Restraint;
+  load: Load;
   mat: Mat;
   tweak: Tweak[];
   /** null = el archivo no dijo nada: no se pisa la preferencia actual */

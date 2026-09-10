@@ -4,7 +4,7 @@
    así que el archivo se puede guardar y llevar tal cual.                    */
 import * as E from './engine.ts';
 import { T } from './i18n.ts';
-import { ST, activeDataset, REF, heldResult } from './state.ts';
+import { ST, activeDataset, REF, heldResult, heldOn } from './state.ts';
 import { captureViews, devCssColor } from './scene.ts';
 import { fx, esc } from './panels.ts';
 
@@ -70,7 +70,7 @@ export function makeReport(): void {
     <!-- El amarre va en la CABECERA del reporte, no en una nota al pie: un
          reporte impreso que no diga que la barra estaba sujeta describe una
          pieza que no es la que se midió. -->
-    <div><span>${T('pinOn')}</span> ${ST.restraint.on
+    <div><span>${T('pinOn')}</span> ${heldOn()
       ? `${T('pinYes')} · ${heldResult().held.length} · ${fx(heldResult().worst * 100, 0)}% ${T('pinOfYield')}`
       : T('pinNo')}</div></div>
   ${shots.map(([, u]) => `<img src="${u}">`).join('')}

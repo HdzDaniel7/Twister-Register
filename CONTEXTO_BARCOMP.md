@@ -87,7 +87,9 @@ web/                        ← motor TypeScript + visor three.js
     engine/contact.ts          distancia entre segmentos y cuánto asoma la
                                sección: el contacto con un poste inclinado
     engine/sag.ts              M6 · la flecha por gravedad entre apoyos
-  src/i18n.ts               ← barril de i18n/: keys.ts (la unión de 388 claves) + es · en · de.
+    engine/load.ts             la carga: el peso propio y el empuje de prueba,
+                               contra apoyos que empujan pero no tiran
+  src/i18n.ts               ← barril de i18n/: keys.ts (la unión de 412 claves) + es · en · de.
                               T() y LANG. La paridad es error de COMPILACIÓN, no solo de prueba.
   src/state.ts              ← ST: variantes, referencia, anclaje, capas, piezas medidas,
                               cotas y el fixture. placedPath() es la trayectoria colocada.
@@ -740,9 +742,9 @@ punteada. Deja ver de un vistazo cuál doblez está fuera. Es clicable.
 ```bash
 cd web && npm run check            # typecheck -> pruebas -> build -> banco, de una
 cd web && npm run typecheck        # tsc --noEmit, con strict
-cd web && node test_motor.js       # 458 pruebas; todas deben pasar
+cd web && node test_motor.js       # 480 pruebas; todas deben pasar
 cd web && node build.mjs           # regenera index.html y barcomp_viewer.html
-cd web && node tools/ui_test.mjs   # 223 pasos de interfaz en Edge headless
+cd web && node tools/ui_test.mjs   # 228 pasos de interfaz en Edge headless
 ```
 
 Dos herramientas más, que no son pruebas sino evidencia:
@@ -1445,6 +1447,73 @@ mil o mil millones de veces mayor y nadie lo nota.
 certificada montada en el fixture (punto A.5). Con él, esto se contrasta contra
 la flecha MEDIDA y deja de ser una estimación. Lo que ha cambiado es que ahora
 hay un número contra el que contrastar, y una predicción que se puede desmentir.
+
+### La carga — 2026-09-10
+
+Lo pidió el taller con una observación que el programa no sabía contestar: «ya
+tengo mis amarres bien anotados, pero algunos dobleces alejan la pieza de ellos
+y por gravedad la pieza tiende a irse hacia ellos, no a quedarse en el espacio».
+Las dos mitades de esa frase eran agujeros distintos del modelo:
+
+· **La pieza no pesaba.** El amarre resuelve un problema geométrico —los pines
+  están, la barra tiene que tocarlos— y en un problema geométrico no hay
+  fuerzas. Por eso la forma sujeta no dependía de E, cosa que hay probada.
+· **Y los contactos TIRABAN.** El amarre cierra el contacto como una igualdad:
+  si un doblez alejaba la pieza de un pin, el solver la traía de vuelta. Un
+  poste no tiene imán. Eso no es una imprecisión, es el signo cambiado.
+
+`engine/load.ts`. Se minimiza la energía potencial total —muelle de las
+estaciones, más el trabajo de la carga, más un muelle de contacto que SOLO
+empuja— con las mismas incógnitas del amarre, así que lo que sale sigue siendo
+una pieza que la cinemática sabe describir. Los pedestales entran en la cuenta
+por primera vez: sin fuerzas no sostienen nada, con peso son lo único que hay
+debajo. Newton amortiguado, con el jacobiano del contacto y el gradiente de la
+carga sacados de las mismas trayectorias perturbadas: la carga no cuesta ni una
+construcción más que el amarre.
+
+**Con una fuerza aplicada, E deja de cancelarse**, y esa es la diferencia
+práctica con el archivo de al lado: la forma SUJETA no depende del material y la
+forma CARGADA sí, al doble de caída por cada mitad de módulo. Hay una prueba de
+cada cosa, y siguen siendo compatibles.
+
+**Las dos cifras que hay que leer** no están en la tabla de pines: son cuánto
+del peso llevan los apoyos y cuánto se queda aguantando la mordaza. Si la
+segunda se lo lleva casi todo, lo que hay en pantalla es un voladizo y no una
+pieza montada — que es exactamente la pregunta «¿me hacen falta pedestales?»,
+contestada con un número en newton en vez de con una opinión.
+
+**El punto ciego, escrito antes de que alguien lea un cero:** las incógnitas son
+los codos de las ESTACIONES, así que en este modelo **una recta no se cuelga por
+el medio**; esa parte la da `engine/sag.ts` (M6), aparte y al lado. Hay una
+prueba que lo afirma en positivo, para que la limitación sea un hecho conocido y
+no un descubrimiento. Y la rigidez de una estación se toma como `EI/L`, que para
+un voladizo es unas cuatro veces más blanda que la exacta: esto da el ORDEN y la
+DIRECCIÓN, no una flecha certificada.
+
+**Lo que se pudo comprobar a mano**, que es lo que licencia enseñar los números:
+una pieza de una sola estación tiene un grado de libertad y se resuelve en una
+servilleta. El voladizo pide a la estación un momento `w·a²/2`, el muelle vale
+`EI/L`, y de ahí salen 0.229° de cedida y 2.00 mm de caída de la punta — que es
+lo que devuelve el solver hasta la quinta cifra. Con un tope debajo de la punta,
+la reacción sale `w·a/2` y no depende de la rigidez, que es lo que la hace buena
+prueba. La suma de reacciones más lo que aguanta la raíz da el peso, siempre.
+
+**Dos fallos del solver que costaron encontrar**, los dos del mismo sitio —qué
+apoyos entran en el hessiano— y anotados en el código porque son la clase de
+cosa que se vuelve a romper:
+
+· con un apoyo que todavía no toca fuera del hessiano, el paso de Newton sale
+  como si no existiera: la pieza vuela dos milímetros dentro del pedestal, la
+  energía del muelle se dispara, la búsqueda parte el paso ocho veces y se rinde
+  sin haberse movido — cero iteraciones con un tope justo debajo de la punta;
+· y al meterlo en el hessiano SIN su mitad del gradiente, pasa lo contrario: el
+  paso sale frenado por un muro que aún no está ahí y la pieza avanza micras por
+  iteración. Un apoyo activo aporta `½·κ·(gap₀ + J·Δ)²`: las dos mitades o
+  ninguna.
+
+**Una limitación que conviene saber:** un apoyo puesto en el primer tramo lee
+0 N. Ese tramo no se mueve —la raíz lo sujeta— y en este modelo lo que no se
+hunde no empuja. Hay prueba de ello, por lo mismo que del punto ciego.
 
 ### Diferido a después de beta 1.0
 

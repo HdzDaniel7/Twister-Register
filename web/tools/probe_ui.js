@@ -2057,6 +2057,53 @@ step('quitar todos los pines deja el amarre sin nada que sujetar', () => {
   if (S().pins.length) throw new Error('quedaron pines');
 });
 
+step('la carga arranca apagada y tiene su interruptor', () => {
+  click('#tabs [data-t="pins"]');
+  if (S().load.on) throw new Error('la carga nace encendida');
+  if (!q('#panes [data-ld="on"]')) throw new Error('no está el interruptor de la carga');
+});
+step('encender la carga cuelga la pieza por su propio peso', () => {
+  const B = window.BARCOMP;
+  const libre = B.E.fk(S().model).pis;
+  check('#panes [data-ld="on"]', true);
+  if (!S().load.on) throw new Error('no se encendió');
+  /* las capas se encienden solas, igual que con el amarre: encender algo y que
+     el 3D siga idéntico se lee como que no funcionó */
+  if (!S().layers.held.on || !S().layers.fix.on) throw new Error('las capas siguen apagadas');
+  const R = B.heldResult();
+  if (!(R.weight > 0)) throw new Error('la pieza no pesa nada');
+  if (Math.abs(R.carried + R.root - R.weight) > 1e-6) throw new Error('la cuenta no cierra');
+  const d = B.E.fk(R.model).pis.reduce((m, x, i) => Math.max(m, x.distanceTo(libre[i])), 0);
+  if (!(d > 0)) throw new Error('la carga no movió un solo punto');
+});
+step('sin pedestales la pieza cuelga entera de la mordaza', () => {
+  click('#tabs [data-t="fixture"]');
+  click('#panes [data-a="clearped"]');
+  const R = window.BARCOMP.heldResult();
+  if (R.carried !== 0) throw new Error('algo la sostiene sin haber apoyos: ' + R.carried);
+  if (Math.abs(R.root - R.weight) > 1e-9) throw new Error('la raíz no lleva el peso entero');
+});
+step('sembrar pedestales le quita ese peso de encima', () => {
+  click('#panes [data-a="seedped"]');
+  const R = window.BARCOMP.heldResult();
+  const suma = R.pedN.reduce((a, b) => a + b, 0);
+  if (!(suma > 0)) throw new Error('ningún pedestal carga nada');
+  if (!(R.root < R.weight)) throw new Error('la raíz sigue con todo');
+  /* y la columna de reacción aparece en la tabla: el número tiene que estar
+     donde se teclean los pedestales, no solo en un chip */
+  if (!/data-a="clearped"/.test(q('#panes').innerHTML)) throw new Error('no es la pestaña del fixture');
+  const ths = [...document.querySelectorAll('#panes table.marks th')].length;
+  if (ths < 15) throw new Error('la tabla no creció con la reacción: ' + ths);
+});
+step('apagar la carga devuelve la pieza libre', () => {
+  const B = window.BARCOMP;
+  click('#tabs [data-t="pins"]');
+  check('#panes [data-ld="on"]', false);
+  const d = B.E.fk(B.shownModel()).pis.reduce(
+    (m, x, i) => Math.max(m, x.distanceTo(B.E.fk(S().model).pis[i])), 0);
+  if (d !== 0) throw new Error('la pieza no volvió a su sitio: ' + d);
+});
+
 step('modelo nuevo y demo', () => {
   drawer('file'); click('[data-a="new"]'); click('[data-a="demo"]'); });
 step('demo limpia las cotas', () => { if (S().marks.length) throw new Error('quedaron cotas'); });

@@ -4,7 +4,7 @@
    ========================================================================= */
 import * as E from '../engine.ts';
 import { T } from '../i18n.ts';
-import { ST, activeDataset, activeShift, heldResult } from '../state.ts';
+import { ST, activeDataset, activeShift, heldResult, heldOn } from '../state.ts';
 import { $, fx, cls, esc } from './fmt.ts';
 
 /* ---------------------------------------------------------------- versión --
@@ -35,7 +35,7 @@ export const buildTag = (): string => BUILD.sha + (BUILD.sucio ? '+sucio' : '');
  *  Lleva el peor esfuerzo en el mismo chip: el número que decide si la pieza
  *  vuelve al soltarla o se queda deformada. */
 function held(): string {
-  if (!ST.restraint.on) return '';
+  if (!heldOn()) return '';
   const R = heldResult();
   const malo = R.worst >= 1;
   return `<div class="c"><span class="chip ${malo ? 'bad' : ''}"

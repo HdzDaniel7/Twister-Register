@@ -114,6 +114,14 @@ tiene internet.
   doblado y que el lazo intentará corregir sin poder. Los voladizos de las
   puntas son lo que más se cuelga, y la orientación pesa más que el vano: de
   plano se cuelga once veces más que de canto con una sección de 40×12.
+- **La carga**: la pieza pesa, y se cae hacia donde tira la gravedad hasta que
+  algo la para. Los apoyos EMPUJAN pero no TIRAN, así que si un doblez separa la
+  pieza de un pin, se separa — y si el peso la devuelve a él, vuelve. Cada apoyo
+  dice con cuántos newton está trabajando, y dos cifras contestan la pregunta
+  que importa: cuánto del peso llevan los apoyos y cuánto se queda aguantando la
+  mordaza. Si es lo segundo, lo que se está mirando es un voladizo y faltan
+  pedestales. Se puede apuntar la carga a donde se quiera —o añadir un empuje en
+  la punta— para probar si un amarre concreto aguanta.
 - **El comando sale a la máquina en un archivo**, con el formato a la vista:
   columnas y su orden, separador, decimales, mm o pulgadas, grados o radianes,
   el signo del ángulo y el del rodado, y el rodado como incremento o como eje
@@ -273,9 +281,9 @@ cd web
 npm install          # una sola vez: three + esbuild
 npm run check        # typecheck -> pruebas -> build -> banco de interfaz
 npm run typecheck    # tsc --noEmit, con strict
-npm test             # 458 pruebas del motor y del i18n
+npm test             # 480 pruebas del motor y del i18n
 npm run build        # regenera index.html (y web/barcomp_viewer.html en local)
-npm run test:ui      # 223 pasos de interfaz en Edge headless, por CDP
+npm run test:ui      # 228 pasos de interfaz en Edge headless, por CDP
 npm run demo:amarre  # cinco escenarios del amarre, con las cifras a la vista
 npm run demo:archivos # regenera ejemplos/amarre-{libre,sujeta}.json
 ```

@@ -2355,6 +2355,30 @@ console.log('\n— los pines laterales: la barra deja de estar libre (engine/pin
   const v2 = E.fromDoc(viejo);
   ok('un archivo anterior a los pines abre con el amarre APAGADO',
      v2.pins.length === 0 && v2.restraint.on === false && v2.mat.E === E.MAT_DEFAULT.E);
+
+  /* La carga, igual que el amarre: viaja SIEMPRE, tambien apagada y tambien en
+     valores de fabrica. Un archivo que no dice si la pieza estaba pesando no
+     explica los numeros que trae. */
+  {
+    const dc = E.toDoc(Mp, null, null, null, [], [], null, 'start',
+                       { load: { on: true, g: 2, dx: 0, dy: 1, dz: 0, tip: 35 } });
+    const rc = E.fromDoc(JSON.parse(JSON.stringify(dc)));
+    ok('la carga se guarda y vuelve entera',
+       dc.load.on === true && rc.load.g === 2 && rc.load.dy === 1 && rc.load.tip === 35);
+    const dv = E.toDoc(Mp, null, null, null, [], [], null, 'start', {});
+    ok('y se guarda tambien en valores de fabrica',
+       dv.load !== undefined && dv.load.on === false && dv.load.dz === -1);
+    const viejoC = JSON.parse(JSON.stringify(dc));
+    delete viejoC.load;
+    ok('un archivo anterior a la carga abre SIN peso, como se comportaba',
+       E.fromDoc(viejoC).load.on === false);
+    /* Y lo que venga roto se sanea en vez de envenenar el solver. */
+    const malo = JSON.parse(JSON.stringify(dc));
+    malo.load = { on: true, g: 'x', dx: 0, dy: 0, dz: 0, tip: 1e9 };
+    const rm = E.fromDoc(malo).load;
+    ok('una carga imposible se sanea al abrirla',
+       rm.g === 1 && rm.dz === -1 && rm.tip === 1000);
+  }
 }
 
 /* ======================================================================== */
@@ -2447,6 +2471,125 @@ console.log('\n— la flecha por gravedad (M6, engine/sag.ts) —');
   ok('un pedestal que no apoya no cuenta como apoyo',
      rF.spans.length === 1 && rF.spans[0].free,
      `${rF.spans.length} tramo(s)`);
+}
+
+/* ======================================================================== */
+console.log('\n— la carga: el peso propio y el empuje (engine/load.ts) —');
+{
+  const sec = { width: 40, thickness: 12, chamfer: 1.2, endLen: 20 };
+  const mat = { E: 69000, yield: 240, rho: 2700 };
+  /* Una pieza de una sola estación, y ahí está la gracia: con un solo grado de
+     libertad la respuesta se puede hacer a mano y comparar cifra a cifra.
+     `rot` decide en qué plano cede ese codo — con 0 cede en horizontal y con 90
+     en vertical— así que la misma pieza sirve para probar la gravedad y para
+     probar un empuje de lado. */
+  const mk = rot => E.normalizeModel({
+    name: 'CARGA', tail: 500, section: sec,
+    bends: [E.newBend({ feed: 500, rot, angle: 0, radius: 30 })],
+  });
+  const VERT = mk(90), HORZ = mk(0);
+  const RS = { ...E.RESTRAINT_DEFAULT, on: false, doRot: false, iters: 8 };
+  const cae = (M, mt, load, pins = [], peds = [], rs = RS) =>
+    E.settle(M, pins, peds, sec, rs, mt, { ...E.LOAD_DEFAULT, on: true, ...load });
+
+  /* El interruptor, primero: con la carga quitada esto TIENE que ser el amarre
+     de siempre, y no «parecido». */
+  {
+    const pin = { id: 'n1', name: 'N1', visible: true, hold: true, x: 1000, y: 16,
+                  h: 300, dia: 20, tilt: 0, yaw: 0, side: 0 };
+    const con = { ...RS, on: true };
+    const a = E.settle(HORZ, [pin], [], sec, con, mat, E.LOAD_DEFAULT);
+    const b = E.restrain(HORZ, [pin], sec, con, mat);
+    const pa = E.fk(a.model).pis, pb = E.fk(b.model).pis;
+    const dif = Math.max(0, ...pa.map((q, i) => q.distanceTo(pb[i])));
+    ok('con la carga APAGADA la pieza es exactamente la del amarre',
+       dif === 0 && a.weight === 0, `${dif.toExponential(1)} mm`);
+  }
+
+  /* Una carga sin dirección no es «sin carga»: es una división por cero. */
+  ok('una dirección nula se cae a la gravedad',
+     E.normLoad({ on: true, dx: 0, dy: 0, dz: 0 }).dz === -1);
+  ok('la gravedad se topa por arriba', E.normLoad({ g: 500 }).g === 20);
+  ok('la dirección sale unitaria',
+     Math.abs(E.loadDir({ ...E.LOAD_DEFAULT, dx: 3, dy: 4, dz: 0 }).length() - 1) < 1e-12);
+
+  /* EL PUNTO CIEGO, y se prueba a propósito para que nadie lo descubra por su
+     cuenta leyendo un cero: las incógnitas son los codos de las estaciones, así
+     que una recta no se cuelga por el medio. Esa parte la da engine/sag.ts. */
+  ok('una recta no se cuelga por el medio: no tiene grado de libertad',
+     cae(HORZ, mat, {}).drop === 0);
+
+  /* LA ESTÁTICA, a mano. El voladizo de 500 mm pesa w·a y su centro está a a/2,
+     así que pide a la estación un momento w·a²/2. La estación es un muelle de
+     EI/L. De ahí sale el ángulo, y de ahí la caída de la punta. */
+  const w = E.lineLoad(sec, mat);
+  const a = 500, Ia = sec.width * sec.thickness ** 3 / 12;
+  const K = mat.E * Ia / E.stationSpans(VERT)[0];
+  const th = (w * a * a / 2) / K;                    // radianes
+  const r1 = cae(VERT, mat, {});
+  ok('la estación cede lo que pide la estática',
+     Math.abs(r1.kink[0].angle - th * 180 / Math.PI) < 1e-3,
+     `${r1.kink[0].angle.toFixed(5)}° vs ${(th * 180 / Math.PI).toFixed(5)}°`);
+  ok('y la punta se cae dos milímetros',
+     Math.abs(r1.drop - th * a) < 1e-3, `${r1.drop.toFixed(4)} mm`);
+  ok('sin nada debajo, el peso entero se queda en la mordaza',
+     r1.carried === 0 && Math.abs(r1.root - w * 1000) < 1e-9,
+     `${r1.root.toFixed(3)} N`);
+
+  ok('doblar la gravedad dobla lo que se cae',
+     Math.abs(cae(VERT, mat, { g: 2 }).drop / r1.drop - 2) < 1e-3);
+  /* Y AQUÍ LA DIFERENCIA CON EL AMARRE, que es lo que hay que entender de este
+     archivo: con una fuerza aplicada, E deja de cancelarse. La forma SUJETA no
+     depende del material y hay una prueba de ello; la forma CARGADA sí. */
+  ok('con carga, la mitad de módulo elástico es el doble de caída',
+     Math.abs(cae(VERT, { ...mat, E: mat.E / 2 }, {}).drop / r1.drop - 2) < 1e-3);
+
+  /* UN TOPE DEBAJO DE LA PUNTA. Momentos respecto de la estación: la reacción
+     por su brazo tiene que igualar al peso del voladizo por el suyo, o sea
+     R·a = w·a²/2. Sale la mitad del peso de ese voladizo y no depende de la
+     rigidez, que es lo que la hace una buena prueba. */
+  const tope = { id: 'p1', name: 'P1', visible: true, x: 1000, y: 0, h: 240, tilt: 0, pad: 60 };
+  const r2 = cae(VERT, mat, {}, [], [tope]);
+  ok('un tope bajo la punta se lleva medio voladizo',
+     Math.abs(r2.pedN[0] - w * a / 2) < 1e-3, `${r2.pedN[0].toFixed(4)} N`);
+  ok('lo que llevan los apoyos y lo que aguanta la raíz suman el peso',
+     Math.abs(r2.carried + r2.root - r2.weight) < 1e-9);
+  ok('con el tope puesto, la punta ya no se cae', r2.drop < 0.01,
+     `${r2.drop.toFixed(4)} mm`);
+  /* El contacto es un muelle, no una pared: lo que se hunde es el error de esa
+     aproximación y tiene que salir en micras. */
+  ok('el apoyo se hunde micras, no décimas', r2.pene > 0 && r2.pene < 1e-3,
+     `${(r2.pene * 1000).toFixed(3)} µm`);
+
+  /* Un apoyo puesto en el tramo que NO se mueve lee cero. Es una limitación del
+     modelo y está escrita: la raíz es rígida, y lo que no se hunde no empuja. */
+  const arriba = { ...tope, id: 'p2', x: 250, h: 240 };
+  ok('un apoyo en el tramo rígido lee cero: lo aguanta la raíz',
+     cae(VERT, mat, {}, [], [arriba]).pedN[0] === 0);
+
+  /* EMPUJA PERO NO TIRA. El mismo pin, el mismo empuje, y solo cambia hacia
+     dónde: contra el pin lo frena, en contra lo deja irse. Un pin bilateral
+     —el del amarre— habría frenado las dos. */
+  {
+    const pin = { id: 'n1', name: 'N1', visible: true, hold: true, x: 1000, y: 26,
+                  h: 300, dia: 20, tilt: 0, yaw: 0, side: 0 };
+    const hueco = E.pinFit(E.buildPath(HORZ).samples, sec, pin).gap;
+    const con = { ...RS, on: true };
+    const push = d => cae(HORZ, mat, { g: 0, tip: 20, dx: 0, dy: d, dz: 0 }, [pin], [], con);
+    const contra = push(1), lejos = push(-1);
+    ok('empujada CONTRA el pin, la pieza se para al tocarlo',
+       Math.abs(contra.drop - hueco) < 0.02 && contra.pinN[0] > 0,
+       `${contra.drop.toFixed(3)} mm de ${hueco.toFixed(3)} · ${contra.pinN[0].toFixed(2)} N`);
+    ok('empujada al revés, el pin no la retiene: no tiene imán',
+       lejos.drop > 5 * hueco / 4 && lejos.pinN[0] === 0,
+       `${lejos.drop.toFixed(3)} mm · ${lejos.pinN[0]} N`);
+  }
+
+  /* Sin material no se inventa un número: se dice que falta, y mientras tanto
+     se devuelve la pieza del amarre. */
+  const sinRho = cae(VERT, { E: 69000, yield: 240 }, {});
+  ok('sin densidad la carga dice que falta el dato, no cero',
+     sinRho.noMat === true && sinRho.drop === 0 && sinRho.weight === 0);
 }
 
 console.log(`\n${fails ? fails + ' PRUEBA(S) FALLARON' : 'todas las pruebas pasaron'}\n`);

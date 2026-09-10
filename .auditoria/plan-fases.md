@@ -635,6 +635,45 @@ que el plan siga siendo el único sitio donde está todo. Detalle completo en
 
 ---
 
+## Alcance NUEVO — la carga: la pieza pesa (2026-09-10)
+
+**Tampoco sale de la auditoría**: lo pidió el taller, con una observación que el
+programa no sabía contestar — «algunos dobleces alejan la pieza de mis amarres,
+pero por gravedad tiende a irse hacia ellos, no a quedarse en el espacio».
+Detalle completo en `CONTEXTO_BARCOMP.md`, «La carga».
+
+- [x] **Equilibrio con apoyos unilaterales · [O]** — `engine/load.ts`. Se
+      minimiza la energía potencial: muelle de las estaciones, trabajo de la
+      carga y muelle de contacto que SOLO empuja. Los pedestales entran en la
+      cuenta por primera vez — sin fuerzas no sostienen nada.
+- [x] **Interruptor, y que sea de verdad un interruptor · [O]** — apagada,
+      `settle()` devuelve `restrain()` sin tocar un número. Prueba de motor con
+      diferencia CERO en los PI, y paso de banco.
+- [x] **Reacciones en newton, y la cuenta que cierra · [O]** — cuánto lleva cada
+      apoyo, cuánto llevan todos y cuánto se queda en la mordaza. La suma da el
+      peso siempre, y contra ese invariante hay prueba.
+- [x] **Comprobado contra la servilleta · [O]** — pieza de una estación, un solo
+      grado de libertad: 0.229° de cedida, 2.00 mm de punta y `w·a/2` de
+      reacción, todo verificable a mano y todo coincidiendo hasta la quinta
+      cifra. También la propiedad que separa este archivo del amarre: **con
+      carga, media E es el doble de caída**.
+- [x] **Panel, tabla, JSON y deshacer · [O]** — bloque en la pestaña Amarre,
+      columna de reacción en Amarre y en Fixture, la carga viaja en el documento
+      también apagada, y lo que venga roto se sanea al abrirlo.
+- [ ] **Contrastar contra una pieza real · [—]** — ⛔ mismo dato que espera el
+      amarre y que espera M6: un escaneo con el fixture puesto. Va en el mismo
+      correo. Lo que se puede contrastar hoy es la coherencia interna (estática,
+      invariantes, orden de magnitud), no la pieza.
+- [ ] **Quitar el punto ciego de los tramos rectos · [—]** — hoy las incógnitas
+      son los codos de las ESTACIONES, así que una recta no se cuelga por el
+      medio y esa parte la da `engine/sag.ts` aparte. Cerrarlo pide incógnitas
+      dentro de los tramos, que la cinemática LRA no sabe describir sin inventar
+      dobleces que no existen. **No se hace mientras no haya una medida que lo
+      exija**: el número que falta ya se está dando, en otra columna y con su
+      nombre.
+
+---
+
 ## Retirada del motor de Python — 2026-09-08
 
 **Decisión del dueño del proyecto**, tomada después de cerrar la Fase 3: lo que importa es
