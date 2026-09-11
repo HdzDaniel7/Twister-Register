@@ -12,7 +12,7 @@ import {
   Color, Vector3,
 } from 'three';
 import * as E from '../engine.ts';
-import { ST, placedPath, heldResult, heldOn } from '../state.ts';
+import { ST, shownPath, heldResult, heldOn } from '../state.ts';
 import { groups, cssVar, devThreeColor, ghost, solidMat, extraLabels } from './stage.ts';
 import { barGeometry } from './geometry.ts';
 import type { SceneCtx } from './types.ts';
@@ -42,7 +42,10 @@ export function layerFixtures(ctx: SceneCtx): void {
   const { M, L } = ctx;
   if (!L.fix.on || !ST.fixture.length) return;
   const ok = cssVar('--fixture', '#3A4658'), bad = cssVar('--bad', '#FF4D5E');
-  const path = placedPath();
+  /* La misma pieza que mide la tabla —la sujeta, si algún interruptor está
+     puesto—: este color y esa columna prometen ser la misma información, y lo
+     serían solo por accidente si cada uno mirase una barra distinta. */
+  const path = shownPath();
   for (const ped of ST.fixture) {
     if (!ped.visible || !(ped.h > 1)) continue;
     const f = E.pedestalFit(path, M.section, ped);
@@ -78,7 +81,10 @@ export function layerPins(ctx: SceneCtx): void {
   const { M, L } = ctx;
   if (!L.pins || !L.pins.on || !ST.pins.length) return;
   const ok = cssVar('--pincol', '#57C8D6'), bad = cssVar('--bad', '#FF4D5E');
-  const path = placedPath();
+  /* La misma pieza que mide la tabla —la sujeta, si algún interruptor está
+     puesto—: este color y esa columna prometen ser la misma información, y lo
+     serían solo por accidente si cada uno mirase una barra distinta. */
+  const path = shownPath();
   for (const pin of ST.pins) {
     if (!pin.visible || !(pin.h > 1)) continue;
     const f = E.pinFit(path, M.section, pin);

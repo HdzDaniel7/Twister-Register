@@ -189,10 +189,42 @@ export function setMarks(list: Partial<Mark>[] | null | undefined): Mark[] {
  *  transformación de anclaje de su variante. Con solo la colocación, cambiar de
  *  anclaje movía la barra y dejaba los pedestales donde estaban, que es
  *  exactamente el error que un fixture no puede tener. */
+/** La matriz que lleva la pieza a donde de verdad está: el anclaje contra la
+ *  referencia LIBRE, y encima la colocación.
+ *
+ *  Contra la referencia libre, y esto NO es un detalle: la referencia sujeta
+ *  depende del fixture, así que anclar contra ella cerraba un lazo —mover un
+ *  pedestal cambiaba la referencia sujeta, la referencia cambiaba el anclaje, y
+ *  el anclaje movía la barra ENTERA y con ella todas las lecturas del fixture—.
+ *  Se veía como que tocar la altura de un pedestal recorría la pieza. La regla
+ *  que rompe el lazo está escrita arriba, en `refModelFree()`, y es física: el
+ *  fixture se monta contra el nominal. Lo que el amarre cambia es la forma que
+ *  la pieza toma en la mesa, no dónde se decide que va.
+ *
+ *  Una sola matriz para la tabla, la escena y el solver. Las tres tienen que
+ *  colocar la pieza en el mismo sitio o no están hablando de la misma pieza. */
+const placeAt = (): Matrix4 =>
+  placeMatrix().multiply(E.anchorTransform(ST.model!, refModelFree(), ST.anchor));
+
 export function placedPath(): PathSample[] {
-  const M = ST.model!;
-  const A = E.anchorTransform(M, refModel(), ST.anchor);
-  return E.placePath(placeMatrix().multiply(A), E.buildPath(M).samples);
+  return E.placePath(placeAt(), E.buildPath(ST.model!).samples);
+}
+
+/** La trayectoria de la pieza QUE DE VERDAD HAY AHÍ, colocada.
+ *
+ *  `placedPath()` da la LIBRE, y eso es lo que tiene que comer el solver: los
+ *  contactos candidatos se congelan con la pieza sin sujetar, porque un contacto
+ *  que dependiera de la respuesta haría que el problema se mordiese la cola. Pero
+ *  la TABLA no está resolviendo nada: está contestando «¿qué está haciendo este
+ *  pedestal ahora mismo?», y la barra que tiene encima es la sujeta. Medir la
+ *  tabla contra la libre mientras el 3D dibuja la sujeta era describir una barra
+ *  que no está en pantalla — y era también el motivo de que elegir «ver sujeta»
+ *  no cambiara ni una cifra del fixture.
+ *
+ *  La matriz es la MISMA que la de `placedPath()`: lo único que cambia es qué
+ *  forma se coloca con ella. */
+export function shownPath(): PathSample[] {
+  return E.placePath(placeAt(), E.buildPath(shownModel()).samples);
 }
 
 export function addPedestal(p: Partial<Pedestal> = {}): Pedestal {

@@ -43,12 +43,19 @@ export function rebuildScene(): void {
      sujeta y la otra libre no compara nada: es la mitad de cada cosa.
 
      Se anclan contra la referencia LIBRE, igual que la colocación y por el
-     mismo motivo (ver refModelFree()): el fixture se monta contra el nominal. */
+     mismo motivo (ver refModelFree()): el fixture se monta contra el nominal.
+
+     Y se ancla la forma LIBRE —`e.m`, no `hm`— aplicando su matriz a la forma
+     sujeta, que es exactamente lo que hace `heldFor()` en state.ts. Anclar la
+     forma sujeta contra sí misma la vuelve a ajustar cada vez que cambia: con
+     anclaje «mejor ajuste», tocar un pedestal recolocaba la barra COMPLETA y se
+     veía como que el fixture arrastraba la pieza. La colocación la decide el
+     nominal; el amarre solo decide la forma que toma ahí. */
   const held: ShownEntry[] = [];
   if (heldOn() && L.held.on) {
     for (const e of shown) {
       const hm = heldOfVariant(e.v).model;
-      const A = E.anchorTransform(hm, refModelFree(), anchor);
+      const A = E.anchorTransform(e.m, refModelFree(), anchor);
       held.push({ v: e.v, m: hm, A, path: E.buildPath(hm), pis: E.applyMat(A, E.fk(hm).pis) });
     }
   }

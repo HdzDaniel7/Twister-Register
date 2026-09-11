@@ -32,7 +32,7 @@
 import * as E from './engine.ts';
 import { I18N, LANG } from './i18n.ts';
 import {
-  ST, REF, loadModel, commandModel, placedPath, shownModel, heldResult,
+  ST, REF, loadModel, commandModel, placedPath, shownPath, shownModel, heldResult,
   refModel, refModelFree,
 } from './state.ts';
 import {
@@ -133,6 +133,10 @@ type DebugExports = {
      lo que los pines le hacen a la barra. El banco las necesita para comprobar
      que el interruptor de verdad devuelve la pieza libre. */
   placedPath: typeof placedPath;
+  /* Y la de la pieza que DE VERDAD hay ahí: es la que miden las tablas del
+     fixture y del amarre, así que el banco tiene que poder comprobar que no es
+     la libre cuando un interruptor está puesto. */
+  shownPath: typeof shownPath;
   shownModel: typeof shownModel;
   heldResult: typeof heldResult;
   /* Las dos referencias, para poder comprobar desde el banco que elegir «sujeta»
@@ -148,7 +152,7 @@ type DebugExports = {
 if (typeof window !== 'undefined') (window as unknown as { BARCOMP: DebugExports }).BARCOMP = {
   ST, E, I18N, LANG, renderAll, refresh, REF, drawGizmo, drawLabels, groupHost, groups,
   rebuildScene, markDirty, importCsvText, importCsvBatch, openError, commandModel,
-  placedPath, shownModel, heldResult, refModel, refModelFree,
+  placedPath, shownPath, shownModel, heldResult, refModel, refModelFree,
   get renderer() { return renderer; },
   get scene() { return scene; },
 };
