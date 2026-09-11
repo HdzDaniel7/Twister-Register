@@ -2590,6 +2590,65 @@ console.log('\n— la carga: el peso propio y el empuje (engine/load.ts) —');
   const sinRho = cae(VERT, { E: 69000, yield: 240 }, {});
   ok('sin densidad la carga dice que falta el dato, no cero',
      sinRho.noMat === true && sinRho.drop === 0 && sinRho.weight === 0);
+
+  /* ---- que `ok` diga la verdad (X-01a) --------------------------------
+     El criterio de parada es RELATIVO al gradiente del primer paso, así que
+     `ok` significa lo que dice: se llegó a un mínimo. Antes era absoluto y
+     salía al revés —truncar decía «bien», converger decía «mal»— que es la
+     peor forma de equivocarse, porque el único caso que hay que diagnosticar
+     era justo el que se pintaba en verde. */
+  {
+    const corto = cae(VERT, mat, {}, [], [], { ...RS, iters: 1 });   // maxIt = 2
+    const largo = cae(VERT, mat, {}, [], [], { ...RS, iters: 8 });   // maxIt = 16
+    ok('truncar por iteraciones NO se declara convergido',
+       corto.ok === false && corto.iters === 2, `ok=${corto.ok} it=${corto.iters}`);
+    ok('converger sí se declara convergido, y sobran iteraciones',
+       largo.ok === true && largo.iters < 16, `ok=${largo.ok} it=${largo.iters}`);
+    /* Y el corte por convergencia es también el que le quita las iteraciones
+       de más al bucle: antes gastaba las 16 siempre (PERF-01). */
+    ok('la misma respuesta con y sin iteraciones de sobra',
+       Math.abs(largo.drop - cae(VERT, mat, {}, [], [], { ...RS, iters: 32 }).drop) < 1e-9);
+  }
+
+  /* ---- «no toca» y «no se puede saber» no son lo mismo (X-02) ---------
+     Las incógnitas son los codos, así que un apoyo que cae en un tramo rígido
+     no depende de ninguna: su hueco no se mueve por mucho que la pieza ceda.
+     Lo que se lea ahí no es una reacción, y el motor lo dice en vez de dejar
+     un cero que se lee como «este apoyo sobra». */
+  {
+    const rigido = cae(VERT, mat, {}, [], [{ ...tope, id: 'p2', x: 250, h: 240 }]);
+    ok('un apoyo en el tramo rígido se marca indeterminable, no cero',
+       rigido.pedBlind[0] === true && rigido.pedN[0] === 0);
+    /* Y el de la punta, que sí depende de la estación, no se marca: ahí un
+       cero querría decir de verdad que la pieza no lo está tocando. */
+    const bajo = cae(VERT, mat, {}, [], [{ ...tope, h: 230 }]);
+    ok('un apoyo que la pieza no alcanza lee cero, pero es legible',
+       bajo.pedBlind[0] === false && bajo.pedN[0] === 0);
+    ok('y el que trabaja tampoco se marca',
+       cae(VERT, mat, {}, [], [tope]).pedBlind[0] === false);
+    /* Lo indeterminable no entra en la suma: ni en lo que llevan los apoyos ni
+       en la penetración. Un número inventado que además cuadre es peor. */
+    ok('un apoyo indeterminable no suma a lo que llevan los apoyos',
+       rigido.carried === 0 && Math.abs(rigido.root - rigido.weight) < 1e-9,
+       `${rigido.carried.toFixed(4)} N`);
+  }
+
+  /* ---- lo que pesa no es una incógnita (X-06) --------------------------
+     Una barra recta no tiene estaciones y este modelo no la sabe colgar; lo
+     que pesa, en cambio, es densidad por sección por largo. Decir «0.0 N»
+     porque no hay nada que resolver era confundir las dos cosas. */
+  {
+    const recta = E.normalizeModel({ name: 'RECTA', tail: 1700, section: sec, bends: [] });
+    const r = cae(recta, mat, {});
+    const esperado = E.lineLoad(sec, mat) * 1700;
+    ok('una barra recta pesa lo que pesa, aunque no haya nada que resolver',
+       r.noDof === true && Math.abs(r.weight - esperado) < 1e-6,
+       `${r.weight.toFixed(2)} N`);
+    ok('y sin incógnitas todo el peso queda en la raíz',
+       r.carried === 0 && Math.abs(r.root - esperado) < 1e-9);
+    ok('el empuje de punta también cuenta sin dobleces',
+       Math.abs(cae(recta, mat, { g: 0, tip: 40 }).weight - 40) < 1e-9);
+  }
 }
 
 console.log(`\n${fails ? fails + ' PRUEBA(S) FALLARON' : 'todas las pruebas pasaron'}\n`);

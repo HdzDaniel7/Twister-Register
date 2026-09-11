@@ -674,6 +674,207 @@ Detalle completo en `CONTEXTO_BARCOMP.md`, «La carga».
 
 ---
 
+## Fase 5 · Lo que destapó la auditoría del 2026-09-10
+
+Origen: [`informe-2026-09-10.md`](informe-2026-09-10.md). Panel de seis (FIS · UX · ARQ en
+Opus; PERF · FRONT · QA en Sonnet) sobre el alcance nuevo: fixture, amarre, carga y flecha.
+
+> Nota de numeración: «Fase 4» fue el nombre informal del trabajo del 2026-09-08 (umbrales,
+> comando a la máquina, accesibilidad, pines laterales), que quedó repartido dentro de las
+> Fases 2 y 3. Esta es la primera fase con número propio desde entonces.
+
+**El diagnóstico en una frase:** lo construido está bien hecho por dentro y mal contado por
+fuera. El motor calcula bien —unidades correctas, contacto bien dimensionado, 14.3 ms de camino
+crítico contra 250 ms de presupuesto— pero la pantalla afirma cosas que el modelo no sostiene.
+Casi todo lo de abajo es **declaración**, no cálculo.
+
+**Reparto de esta fase** (mismas marcas de arriba: [O] Opus, [S] Sonnet):
+Opus se queda con lo que exige criterio numérico o de dominio —el criterio de convergencia, el
+punto ciego, el equilibrio, el predicado de apoyo—. Sonnet se queda con lo que es aplicar un
+patrón que **ya está escrito en este repo** y solo hay que extender: la disciplina de foco, las
+listas blancas, los sanitizadores, las unidades en los encabezados, los pasos de banco. La regla
+sigue siendo la de siempre: si hay que decidir algo, es de Opus; si el arreglo se describe en una
+frase sin ambigüedad y no toca números que van a la máquina, es de Sonnet.
+
+### Fase 5.T · Lo que contó el taller el 2026-09-10, y que la auditoría no vio
+
+El dueño del proyecto lo dijo así: «a la hora de mover los fixtures solo me toma en cuenta las
+secciones de los fixtures contra los modelos libres y originales; si cambio a los sujetados no me
+deja usarlos y siempre usa los modelos libres, por lo que si un fixture mueve una de sus
+geometrías, recorre y mueve las geometrías de las barras». Son **dos** defectos, y el primero es
+más grave que cualquier cosa del informe: ninguna de las seis lentes lo encontró porque solo se ve
+moviendo un pedestal con el anclaje en «mejor ajuste».
+
+- [x] **[T-01] El anclaje se medía contra la referencia SUJETA, que depende del fixture · [O]** —
+      `state.ts:194` usaba `refModel()` donde `heldFor()` usa `refModelFree()`. Eso cerraba un
+      lazo: mover un pedestal cambia la referencia sujeta, la referencia cambia el anclaje, y el
+      anclaje mueve la barra ENTERA junto con todas las lecturas del fixture. La regla que rompe el
+      lazo ya estaba escrita en el propio repo —«el fixture se monta contra el nominal»,
+      `refModelFree()`— y este sitio no la cumplía. Segunda cara, en `scene/build.ts:51`: la barra
+      sujeta se anclaba ajustando **su propia forma deformada**, así que con «mejor ajuste» tocar un
+      pedestal recolocaba la pieza completa en pantalla. Ahora las tres —tabla, escena y solver—
+      comparten una sola matriz, `placeAt()`.
+      Cierre: paso de banco «mover un pedestal no recorre la barra entera», con anclaje «mejor
+      ajuste» y referencia sujeta. **Comprobado que falla sin el arreglo** (0.0002 mm en la pieza
+      de demostración) y pasa con él, exigiendo cero exacto.
+- [x] **[T-02] Las tablas del fixture y del amarre medían siempre la barra LIBRE · [O]** —
+      `placedPath()` la alimentaba todo: `pedestalFit`, `pinFit`, los vanos, la flecha y el color de
+      los apoyos en el 3D. Con un interruptor puesto, la tabla describía una barra que no era la de
+      la pantalla, y por eso elegir «ver sujeta» no cambiaba ni una cifra. Nuevo `shownPath()`: la
+      misma matriz, la forma que de verdad hay. El solver sigue congelando sus contactos contra la
+      libre, que es lo correcto —un contacto que dependiera de la respuesta se muerde la cola— y eso
+      queda escrito donde se decide.
+      Esto **absorbe la mitad de X-05**: `gravitySag` ya recibe la pieza asentada, así que las dos
+      columnas de apoyo miran la misma barra. Lo que sigue pendiente de X-05 es exportar UN
+      predicado de «apoya» desde `fixture.ts`, que depende de la pregunta 3 del taller.
+      Cierre: dos pasos de banco — «la tabla del fixture mide la barra que HAY, no la libre» y «un
+      pedestal hundido en la barra no puede leer cero».
+
+### Fase 5.0 · Contención — los cuatro Críticos
+
+Objetivo: que la pantalla deje de afirmar lo que el motor no sostiene, y que no se pueda perder
+trabajo del usuario en silencio.
+
+- [x] **[X-01a] Criterio de convergencia de verdad en `settle()` · [O]** — gradiente
+      **relativo** (`|grad| ≤ 1e-6·|grad₀|`) con corte por convergencia, y `stuck = true` en los
+      dos `break` por sistema singular (`load.ts:365`, `:373`). Hoy el criterio absoluto deja `ok`
+      **invertido**: medido, truncar por `maxIt` da `ok=true` y converger da `ok=false`. Arregla
+      de paso PERF-01 (12 iteraciones siempre). · S · Va primero: X-01b no significa nada hasta
+      que `ok` diga la verdad.
+      Cierre: una prueba que fije `ok=false` al truncar y `ok=true` al converger.
+- [x] **[X-01b] Que la pantalla lea `ok` · [S]** — chip `bad` + `warnbox` con causa y acción
+      cuando `!R.ok`, en `panels/pins.ts::carga()`. Molde exacto: el par chip+warnbox de
+      `pinOpen`/`pinYield` (`panels/pins.ts:77-80`). Falta una clave i18n en es/en/de. · S
+      Cierre: paso de banco con carga puesta sin apoyos que exija ver el aviso.
+- [x] **[X-02] El primer tramo no puede flectar: decirlo en la celda · [O]** — filtrar contactos
+      con jacobiano nulo (`J[·][k] ≡ 0`, ya calculado en `load.ts:324`) y pintarlos «n/d ·
+      indeterminado», no «0.0» en verde. Corregir `loadNTip`, que hoy afirma la causa contraria.
+      Medido: con entrada recta de 700 mm son **dos** pedestales a 0.00 N. · M
+      Cierre: prueba de motor con entrada recta que distinga «no toca» de «no se puede saber».
+- [ ] **[X-03] Extender la disciplina de foco a `renderLeft()` y `renderSide()` · [S con revisión
+      de O]** — mismo patrón ya escrito y comentado en `renderRight()` (`panels/render.ts:36-71`).
+      Reproducido en Edge: con un campo del cajón a medio escribir, Ctrl+Z deja el valor sin
+      confirmar, no baja la pila de deshacer y **vacía el rehacer**, sin error en consola. · S
+      Cierre: paso de banco permanente con ese escenario exacto — hoy no existe ninguno que cubra
+      deshacer con el foco fuera de `#panes`.
+- [ ] **[QA-01] Que la prueba de regresión falle de verdad · [S]** — el paso de
+      `probe_ui.js:1834` reporta `ok` con el bug presente; lo que salva hoy a `npm run check` es
+      el detector genérico de excepciones. Añadir aserción explícita. Plantilla: el paso hermano
+      de la línea 1811, que sí falla por sí solo. · S
+      Cierre: revertir el fix de `render.ts` hace fallar **ese** paso por su nombre.
+
+**Criterio de cierre de la fase:** ningún número del panel de carga se presenta sin que el
+programa sepa —y diga— si puede sostenerlo; y `npm run check` detiene por su nombre las dos
+regresiones del 09-10.
+
+### Fase 5.1 · Ganancias rápidas — alto impacto, esfuerzo S
+
+- [ ] **[X-08] `CELL_ATTRS` con las cinco tablas nuevas · [S]** — faltan `pd`, `pn`, `rs`, `ld`,
+      `mt` en `panels/focus.ts:17`, así que `saveFocus()` devuelve null y el foco se va a `BODY`
+      en cada confirmación de Fixture y Amarre. Es **una línea**; el mecanismo entero ya existe. · S
+- [ ] **[X-07] `normMat()` · [S]** — `mat` es el único campo del fixture sin sanitizador
+      (`doc.ts:350`). Con `yield:"abc"` el programa informa «0 % del límite elástico» con esfuerzo
+      real alto, porque `NaN > 0` es `false`. Molde literal: `normLoad()` (`load.ts:105-124`). · S
+- [x] **[X-06] El peso no depende de las incógnitas · [O]** — mover el cálculo de `weight` antes
+      del `return` temprano y añadir un flag `noDof`. Hoy una recta de 1700 mm dice «Peso: 0.0 N»
+      cuando pesa 21.6 N. · S
+- [ ] **[X-09] Dos rótulos para el chip de estado · [S]** — `panels/status.ts:37-44` dice «Barra
+      sujeta por los pines · 0» con cero pines y la carga puesta. `ST.restraint.on` y `ST.load.on`
+      ya están separados. Y hacer el chip un enlace a Modelar/Amarre: en Compensar es la única
+      señal y no hay pestaña para llegar al interruptor. · S
+- [x] **[FIS-06] La alarma de pines abiertos, solo cuando penetran · [S]** — con carga puesta,
+      contar solo `res < −tol`. Hoy un pin legítimamente separado dispara «fixture imposible».
+      Es un signo. · S
+- [ ] **[ARQ-02] Colisión de `data-mc` · [S]** — el color de las cotas (`points.ts:56`) lo come
+      `onMachine` y lo descarta en silencio. Renombrar a `data-mkc` **y** añadir una prueba que
+      falle si dos paneles emiten el mismo prefijo. · S
+- [ ] **[UX-06] Decir en Fixture que la pieza pesa · [S]** — la columna «Reacción» aparece por un
+      interruptor de otra pestaña y el texto de Fixture no menciona la carga en ningún sitio.
+      `heldResult()` ya está importado ahí. · S
+- [ ] **[QA-04 + QA-05] Los dos pasos de prueba que faltan · [S]** — deshacer para `data-ld` y
+      `data-mt` (copiar `probe_ui.js:2078`), y una llamada a `restrain()` con `bends: []`. · S
+- [ ] **[ARQ-04 recortado] Purgar las ranuras `v-${id}` de `heldCache` · [S]** — solo la fuga.
+      **La parte de coste queda descartada**: PERF midió la clave en 0.006 ms contra 14–100 ms del
+      solver. · S
+
+**Criterio de cierre:** editar un fixture completo con el teclado, de principio a fin, sin que el
+foco se pierda ni una vez; y ningún archivo de entrada puede producir un veredicto de seguridad
+falso.
+
+### Fase 5.2 · Estructural
+
+- [ ] **[X-05] Un solo predicado de «apoya» · [O]** — `sag` usa `|gap| ≤ tol.point` y `load` usa
+      penetración > 0; medido, a **0.9 mm** de diferencia una columna dice que apoya y la de al
+      lado da 0.00 N, y se pintan juntas. Exportar el criterio desde `fixture.ts` y alimentar
+      `gravitySag` con `heldResult().model` en vez de con la barra libre. · M
+      ⚠️ Depende de la pregunta abierta nº 3 (¿es `tol.point` la tolerancia correcta, o hace falta
+      una holgura de fixture propia?).
+- [ ] **[X-04] Residuo de equilibrio, y `root` que no tire hacia abajo · [O]** — medido: dos
+      pedestales suman **117 % del peso** y `root` sale **−3.52 N**. La prueba que debía cazarlo
+      (`test_motor.js:2556`) es una tautología: `root` está definido como `weight − carried`.
+      Mostrar `|Σ reacciones·d̂ − peso|` y avisar con `root < 0`. · S
+      ⚠️ **Bloqueado por la pregunta al taller**: si no hay mordaza en el primer extremo, `root` es
+      ficción y esto sube a Crítico, con otro arreglo.
+- [ ] **[ARQ-03] Que `tsc` vigile la persistencia · [S]** — hacer requeridas en `Doc` las claves
+      que `toDoc()` siempre escribe, y un único `currentDoc()` compartido por `snapshot()` y
+      `files.ts`. Hoy las tres listas están sincronizadas a mano y el compilador no avisaría si la
+      próxima capa se olvida en `history.ts`. · S
+- [ ] **[ARQ-06] `elasticReport()` y `sectionI()` compartidas · [S]** — `kink`, `curv`, `cOf`,
+      `stress`, `worst`, `worstAt` están escritos dos veces idénticos en `pins.ts:411-431` y
+      `load.ts:430-442`. Los tests existentes son la red. · S
+- [ ] **[ARQ-05] Partir `settle()` y corregir el README · [S]** — contactos / bucle Newton /
+      reacciones. **Después de X-01, nunca a la vez**: refactorizar y cambiar comportamiento en la
+      misma pasada hace imposible saber cuál rompió qué. Y `README.md:271` afirma un límite de 400
+      líneas que seis archivos ya no cumplen. · S
+
+**Criterio de cierre:** las dos columnas de apoyo de la pestaña Fixture no pueden contradecirse, y
+el compilador —no la memoria— es quien vigila que una capa nueva entre en el guardado y en el
+deshacer.
+
+### Fase 5.3 · Que se pueda leer
+
+- [ ] **[X-10] Unidades en los quince encabezados · [S]** — Fixture y Amarre mezclan mm, grados y
+      newton sin una sola unidad; 12 de 15 `<th>` sin `title`; `<th>Δ</th>` sin clave i18n. Molde:
+      `${T('pinTol')} (mm)`. · M
+- [ ] **[UX-07] Lo que falta de accesibilidad · [S]** — `aria-label` en `nfield` (nombre de fila +
+      columna), `scope="col"` en los `<th>`, y `role="alert"` en `.warnbox`: hoy 49 de 49 campos de
+      Fixture no tienen nombre accesible y un aviso que aparece es mudo. · M
+- [ ] **[UX-08] Que la guía se pueda leer · [S]** — `.hintline` es 10 px sobre `--dim2`; ahí viven
+      todas las notas **y los estados vacíos**, que son la única orientación cuando no hay nada
+      puesto. Subir a 11-12 px con `--dim` y sacar los vacíos de esa clase. · S
+- [ ] **[FIS-07] Escribir el número junto al 0.5 · [S]** — para 40×12, `GJ/EIz = 1.19`. Medido: la
+      caída va de 0.0117 a 0.0207 mm y el reparto de reacciones se mueve <5 %, así que **el 0.5 se
+      queda**; lo que falta es que el comentario diga cuánto se aparta y de qué. · S
+
+**Criterio de cierre:** alguien que no escribió esto puede leer las tablas de Fixture y Amarre sin
+preguntar qué unidad es cada columna.
+
+### Preguntas para el taller (bloquean o cierran tareas de arriba)
+
+1. **¿El fixture real tiene mordaza en el primer extremo?** Decide si X-04 es una imprecisión del
+   17 % o un número inventado. Dos minutos con el fixture delante.
+2. **¿Cuántos dobleces tiene la pieza más grande que pasa de verdad?** Si no supera ~30, PERF-01
+   se cierra sin tocar código.
+3. **¿`tol.point` = 1 mm es la tolerancia para decidir si un pedestal apoya**, o hace falta una
+   holgura de fixture aparte? Bloquea el diseño de X-05.
+4. **Con la carga puesta, ¿la desviación se compara contra la forma libre o contra la asentada?**
+   Segunda cara de la pregunta que sigue abierta desde el 09-09.
+
+### Fuera de alcance de la Fase 5
+
+- **Optimizar el rendimiento.** Medido: 14.3 ms de camino crítico con la pieza real contra 250 ms
+  de presupuesto, arranque en frío de 234 ms en el peor caso (Edge headless sin GPU), sin fugas de
+  three.js. El 71.5 % del bundle es three.js sin grasa, y los tres idiomas no se pueden separar
+  sin romper la regla del archivo único. **No se toca nada de esto**, igual que se descartó
+  `rebuildGroup(k)` en su día: optimizar contra una carga imaginaria.
+- **El mecanismo de clave de `heldCache`.** ARQ lo pidió, PERF lo midió en 0.02 % del coste. Gana
+  la medida.
+- **Quitar el punto ciego de los tramos rectos.** Sigue diferido por lo mismo que el 09-10: pide
+  incógnitas dentro de los tramos, que la cinemática LRA no sabe describir. Lo que **sí** entra en
+  esta fase es dejar de mentir sobre él (X-02, X-06).
+
+---
+
 ## Retirada del motor de Python — 2026-09-08
 
 **Decisión del dueño del proyecto**, tomada después de cerrar la Fase 3: lo que importa es

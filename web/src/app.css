@@ -437,6 +437,12 @@ td.dcol input[type=text]{text-align:right}
    el TRAZO del borde, que es el otro canal que no es color. */
 input.v-bad,input.v-warn{border-style:dashed}
 .v-dim{color:var(--dim2)}
+/* «n/d» no es una cifra fuera de tolerancia: es la AUSENCIA de cifra, y hay
+   sitios donde el modelo no puede dar ninguna. Va en el color del aviso para
+   que nadie la lea como un dato, pero sin el `!` de v-warn, que promete un
+   umbral rebasado que aquí no existe. El texto ya viaja por los tres canales:
+   dice «n/d» y no un número. */
+.v-nd{color:var(--warn)}
 .chip{display:inline-block;padding:0 5px;border-radius:8px;font-size:10px;border:1px solid}
 .chip.ok{color:var(--ok);border-color:#2C6B4C;background:#3FD68C14}
 .chip.bad{color:var(--bad);border-color:#7A2C36;background:#FF4D5E14}

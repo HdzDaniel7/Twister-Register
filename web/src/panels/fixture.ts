@@ -11,13 +11,13 @@ import * as E from '../engine.ts';
 import { T } from '../i18n.ts';
 import type { Model } from '../types.ts';
 import type { PedFit } from '../engine.ts';
-import { ST, placedPath, heldResult } from '../state.ts';
-import { fx, esc, cls, nfield } from './fmt.ts';
+import { ST, shownPath, shownModel, heldResult } from '../state.ts';
+import { fx, esc, cls, nfield, reacCell } from './fmt.ts';
 
 /** Una fila. Sale aparte porque la de un pedestal tiene trece columnas y
  *  `paneFixture` se pasaba de las 60 líneas de la regla con el bucle dentro. */
 function pedRow(M: Model, i: number, f: PedFit | null, vano: number, flecha: number,
-                reac: number): string {
+                reac: number, ciego: boolean): string {
   const p = ST.fixture[i];
   const num = (k: 'x' | 'y' | 'h' | 'pad' | 'tilt', fmt = '1') =>
     `<td>${nfield(fmt, `data-pd="${p.id}" data-k="${k}"`, p[k])}</td>`;
@@ -45,28 +45,35 @@ function pedRow(M: Model, i: number, f: PedFit | null, vano: number, flecha: num
     <td class="v-dim">${isFinite(vano) ? fx(vano, 0) : '—'}</td>
     <td class="${isFinite(flecha) ? cls(flecha, M.tol.point) : 'v-dim'}"
       title="${esc(T('sagTip'))}">${isFinite(flecha) ? fx(flecha, 3) : '—'}</td>
-    ${ST.load.on ? `<td class="${reac > 0 ? 'v-ok' : 'v-dim'}"
-      title="${esc(T('loadNTip'))}">${reac > 0 ? fx(reac, 1) : '—'}</td>` : ''}
+    ${ST.load.on ? reacCell(reac, ciego) : ''}
     <td><button class="xbtn" data-px="${p.id}" title="${T('del')}"
       aria-label="${esc(T('del'))}">✕</button></td></tr>`;
 }
 
 export function paneFixture(M: Model): string {
   /* La MISMA trayectoria colocada que usa la escena: si la tabla calculara la
-     suya, un cambio de anclaje las separaría sin que nada avisara. */
-  const path = ST.fixture.length ? placedPath() : [];
+     suya, un cambio de anclaje las separaría sin que nada avisara.
+     Y la de la pieza QUE HAY —la sujeta, si algún interruptor está puesto— y no
+     la libre: lo que esta tabla contesta es qué está haciendo cada pedestal
+     contra la barra que se ve, no contra la que habría sin fixture. Para leer
+     la libre se apagan los interruptores, igual que con «Se movió». */
+  const path = ST.fixture.length ? shownPath() : [];
   const fits = ST.fixture.map(p => E.pedestalFit(path, M.section, p));
   const vanos = E.pedestalSpans(fits);
   /* La flecha por gravedad de cada tramo (M6). Se calcula con los pedestales
-     que de verdad apoyan, no con los que hay en la lista. */
-  const sag = E.gravitySag(M, path, M.section, ST.fixture, ST.mat);
+     que de verdad apoyan, no con los que hay en la lista, y sobre la misma
+     pieza que la columna de la reacción de al lado: mientras una mirara la libre
+     y la otra la sujeta, las dos columnas podían contradecirse —una decía que el
+     pedestal apoya y la otra daba 0.0 N— y se pintaban juntas. */
+  const SM = shownModel();
+  const sag = E.gravitySag(SM, path, M.section, ST.fixture, ST.mat);
   const flechas = E.sagByPedestal(sag, path, M.section, ST.fixture);
   /* Con la pieza cargada, cada pedestal lleva una parte del peso: es la
      columna que dice cuáles están trabajando y cuáles solo están puestos. Con
      la carga quitada no hay fuerzas y la columna ni aparece. */
-  const reac = heldResult().pedN;
+  const R = heldResult();
   const rows = ST.fixture.map((_, i) =>
-    pedRow(M, i, fits[i], vanos[i], flechas[i], reac[i] || 0)).join('');
+    pedRow(M, i, fits[i], vanos[i], flechas[i], R.pedN[i] || 0, !!R.pedBlind[i])).join('');
   /* El vano más largo es el número que decide la flecha, así que va arriba y
      no escondido en una columna: es lo único de esta tabla que se mira sin
      tener que leerla entera. */

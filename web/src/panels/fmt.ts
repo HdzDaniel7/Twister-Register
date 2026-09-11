@@ -6,6 +6,9 @@
    insignia W/T y con signo.
    ========================================================================= */
 import { T } from '../i18n.ts';
+/* `esc` se reexporta más abajo para los paneles, pero un reexport no la trae al
+   ámbito de este archivo y aquí también se usa. */
+import { esc } from '../safe.ts';
 import type { Mode, Orientation } from '../types.ts';
 
 /** i18n.ts no exporta `I18nKey`: se deriva aquí del propio parámetro de T()
@@ -66,6 +69,20 @@ export const nfield = (
    era la vía corta a que una se quedara sin una comilla. */
 export { esc, safeColor } from '../safe.ts';
 export const cls = (v: number, t: number): string => Math.abs(v) <= t ? 'v-ok' : Math.abs(v) <= 2 * t ? 'v-warn' : 'v-bad';
+/** La casilla de la reacción de un apoyo, que tiene TRES estados y no dos.
+ *
+ *  Un número es una reacción. Un guion es «la pieza no lo está tocando», que es
+ *  una respuesta legítima con apoyos que empujan pero no tiran. Y «n/d» es «ese
+ *  apoyo cae en un tramo que el modelo no sabe doblar, así que aquí no se puede
+ *  decir nada» — que no es lo mismo ni de lejos, y hasta hoy se pintaba como un
+ *  0.0 en verde, o sea como «este apoyo sobra». Ver `pedBlind` en
+ *  engine/load.ts. La usan la tabla del fixture y la de pines, y va aquí para
+ *  que las dos no se separen. */
+export const reacCell = (reac: number, ciego: boolean): string =>
+  ciego
+    ? `<td class="v-nd" title="${esc(T('loadNdTip'))}">${T('loadNd')}</td>`
+    : `<td class="${reac > 0 ? 'v-ok' : 'v-dim'}" title="${esc(T('loadNTip'))}">${
+        reac > 0 ? fx(reac, 1) : '—'}</td>`;
 /** Insignia W/T. La letra sola no dice nada a quien llega nuevo: el tooltip
  *  lleva la explicación larga, que ya estaba traducida en los tres idiomas. */
 export const oriTag = (o: Orientation): string => `<span class="ori ${o}" title="${T(('or' + o) as I18nKey)}">${o}</span>`;

@@ -45,6 +45,8 @@ export type I18nKey =
   | 'loadCarried' | 'loadCarriedTip' | 'loadRoot' | 'loadRootTip'
   | 'loadDrop' | 'loadDropTip' | 'loadPene' | 'loadPeneTip'
   | 'loadN' | 'loadNTip' | 'loadNote' | 'loadNoMat' | 'loadHang'
+  | 'loadStuck' | 'loadStuckTip' | 'loadStuckWarn'
+  | 'loadNd' | 'loadNdTip' | 'loadNoDof'
   | 'devRowTip'
   | 'mach' | 'machTitle' | 'machCols' | 'machAxis' | 'machSep' | 'machDec'
   | 'machLen' | 'machAng' | 'machSignA' | 'machSignR' | 'machSignTip'

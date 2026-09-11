@@ -2162,6 +2162,82 @@ step('sembrar pedestales le quita ese peso de encima', () => {
   const ths = [...document.querySelectorAll('#panes table.marks th')].length;
   if (ths < 15) throw new Error('la tabla no creció con la reacción: ' + ths);
 });
+/* --- la pieza que MIDE la tabla del fixture --------------------------------
+   Los cuatro pasos de aquí abajo son del informe del 2026-09-10 y de lo que el
+   taller contó encima: la tabla del fixture medía SIEMPRE la barra libre
+   mientras el 3D dibujaba la sujeta, y el anclaje se medía contra la referencia
+   sujeta —que depende del fixture— así que tocar un pedestal recolocaba la
+   pieza entera. */
+step('la tabla del fixture mide la barra que HAY, no la libre', () => {
+  const B = window.BARCOMP;
+  const libre = B.placedPath(), puesta = B.shownPath();
+  if (libre.length !== puesta.length) throw new Error('las dos trayectorias no son comparables');
+  const d = libre.reduce((m, s, i) => Math.max(m, s.p.distanceTo(puesta[i].p)), 0);
+  if (!(d > 1e-6)) throw new Error('con la carga puesta la tabla sigue midiendo la pieza libre');
+  /* Y el hueco lo nota, en un pedestal que de verdad esté trabajando: en el
+     tramo rígido las dos trayectorias coinciden y ahí no probaría nada. */
+  const R = B.heldResult(), sec = S().model.section;
+  const k = R.pedN.findIndex(v => v > 0);
+  if (k < 0) throw new Error('ningún pedestal lleva carga: el paso no prueba nada');
+  const a = B.E.pedestalFit(libre, sec, S().fixture[k]);
+  const b = B.E.pedestalFit(puesta, sec, S().fixture[k]);
+  if (!a || !b) throw new Error('ese pedestal no tiene lectura');
+  if (Math.abs(a.gap - b.gap) < 1e-9) throw new Error('el hueco no cambió al medir la pieza puesta');
+});
+step('mover un pedestal no recorre la barra entera', () => {
+  const B = window.BARCOMP;
+  /* El caso exacto que lo destapó: anclaje por MEJOR AJUSTE y la referencia
+     comparada SUJETA. Así la referencia sujeta depende del fixture, y con el
+     anclaje medido contra ella subir un pedestal recolocaba la pieza completa en
+     vez de cambiar solo la forma que toma en la mesa. */
+  const anchor0 = S().anchor, ref0 = S().restraint.refHeld;
+  S().anchor = 'best'; S().restraint.refHeld = true;
+  B.renderAll();
+  const pts = p => p.map(s => [s.p.x, s.p.y, s.p.z]);
+  const antes = pts(B.placedPath());
+  const ped = S().fixture[0], h0 = ped.h;
+  ped.h = h0 + 5;
+  B.renderAll();
+  const ahora = pts(B.placedPath());
+  const d = antes.reduce((m, p, i) => Math.max(m,
+    Math.abs(p[0] - ahora[i][0]), Math.abs(p[1] - ahora[i][1]), Math.abs(p[2] - ahora[i][2])), 0);
+  ped.h = h0; S().anchor = anchor0; S().restraint.refHeld = ref0;
+  B.renderAll();
+  if (d !== 0) throw new Error('subir un pedestal movió la colocación: ' + d.toFixed(4) + ' mm');
+});
+step('un pedestal hundido en la barra no puede leer cero', () => {
+  const B = window.BARCOMP;
+  const path = B.shownPath(), sec = S().model.section, R = B.heldResult();
+  S().fixture.forEach((p, k) => {
+    const f = B.E.pedestalFit(path, sec, p);
+    /* La contradicción que se pintaba en dos columnas pegadas: la barra metida
+       dentro de la cuna y la reacción a cero. O apoya, o no apoya. */
+    if (!f || !f.over || R.pedBlind[k]) return;
+    if (f.gap < -1e-6 && !(R.pedN[k] > 0)) {
+      throw new Error(p.name + ' hundido ' + f.gap.toFixed(4) + ' mm y sin llevar nada');
+    }
+  });
+});
+step('un apoyo que el modelo no puede juzgar dice n/d, no 0.0', () => {
+  const B = window.BARCOMP;
+  const M = S().model, sec = M.section;
+  /* Dentro del primer tramo, que es rígido: las incógnitas son los codos de las
+     estaciones y ahí no hay ninguna. */
+  const s0 = B.E.bendStations(M)[0] * 0.4;
+  const sm = B.E.sampleAt(B.placedPath(), s0);
+  const ped = S().fixture[0], guarda = { x: ped.x, y: ped.y, h: ped.h };
+  ped.x = sm.p.x; ped.y = sm.p.y;
+  ped.h = sm.p.z - B.E.sectionDrop(sm, sec) - B.E.TABLE_Z;
+  B.renderAll();
+  const R = B.heldResult();
+  const fila = document.querySelectorAll('#panes table.marks tbody tr')[0];
+  const nd = fila && fila.querySelector('td.v-nd');
+  const ciego = R.pedBlind[0];
+  Object.assign(ped, guarda); B.renderAll();
+  if (!ciego) throw new Error('el motor no marcó indeterminable un apoyo del tramo rígido');
+  if (!nd) throw new Error('la casilla de la reacción no se marcó como indeterminable');
+  if (/^\s*0/.test(nd.textContent)) throw new Error('la casilla sigue diciendo cero');
+});
 step('apagar la carga devuelve la pieza libre', () => {
   const B = window.BARCOMP;
   click('#tabs [data-t="pins"]');

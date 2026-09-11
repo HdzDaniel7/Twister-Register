@@ -100,6 +100,28 @@ export const CONTACT_K = 1e5;
  *  y el número no se puede defender de todos modos. */
 export const REACH = 20;
 
+/** Cuánto tiene que bajar el gradiente para dar la búsqueda por terminada.
+ *
+ *  RELATIVO al del primer paso, y ahí está todo el asunto: el gradiente viaja
+ *  en N·mm/grado, así que su tamaño depende del peso de la pieza y de su
+ *  largo. Un umbral absoluto —que es lo que había— no significa lo mismo para
+ *  una pletina de medio kilo que para una barra de veinte, y dejaba `ok` al
+ *  revés: truncar por iteraciones decía «bien» y converger decía «mal». */
+export const GRAD_TOL = 1e-4;
+
+/** Y el suelo, para que una pieza sin carga apreciable no gire en vano. */
+const GRAD_ABS = 1e-9;
+
+/** El otro criterio: un paso aceptado más pequeño que esto, en grados, no mueve
+ *  nada que nadie pueda medir —1e-5° sobre un metro de brazo son 0.17 µm, menos
+ *  de lo que se hunde un contacto— y la búsqueda terminó aunque el gradiente
+ *  numérico, que sale de diferencias finitas, no siga bajando. */
+const STEP_TOL = 1e-5;
+
+/** Por debajo de esto, un contacto no se entera de que las estaciones se
+ *  mueven: su hueco no cambia con NINGUNA incógnita. Ver `pinBlind`. */
+const BLIND_J = 1e-6;
+
 /** Sanea una carga venida de un archivo. Mismo trato que `normLims()`: lo que
  *  no se entienda vuelve al valor de fábrica en vez de envenenar el solver. */
 export function normLoad(o: Partial<Load> | null | undefined): Load {
@@ -155,6 +177,24 @@ export type Settled = Restrained & {
   root: number;
   /** ¿falta material para poder decir un número? */
   noMat: boolean;
+  /** ¿la pieza no tiene NINGUNA incógnita con la que ceder?
+   *
+   *  Una barra recta no tiene estaciones, así que este modelo no la puede
+   *  colgar: lo que pesa sí se sabe —y se dice—, pero el reparto entre apoyos
+   *  no. Es el PUNTO CIEGO de la cabecera, puesto en un campo para que la
+   *  pantalla lo pueda decir en vez de enseñar ceros. */
+  noDof: boolean;
+  /** por cada PIN, ¿su reacción es indeterminable?
+   *
+   *  Un apoyo que cae en un tramo recto antes del primer doblez no se mueve por
+   *  mucho que cedan las estaciones: su hueco no depende de ninguna incógnita.
+   *  Lo que salga ahí no es una reacción resuelta —es la interferencia con la
+   *  que se dibujó la pieza— así que se pone a cero, se saca de la suma y se
+   *  marca aquí. Un 0 N en verde diría «este apoyo sobra», que es lo contrario
+   *  de «este apoyo no se puede juzgar». */
+  pinBlind: boolean[];
+  /** lo mismo para cada PEDESTAL */
+  pedBlind: boolean[];
 };
 
 /** Un contacto candidato, congelado con la pieza sin cargar. */
@@ -171,12 +211,19 @@ type Touch = {
   local: [number, number];
 };
 
-/** El resultado sin carga, con los campos de la carga a cero. */
-function noLoad(r: Restrained, nPin: number, nPed: number, noMat: boolean): Settled {
+/** El resultado sin carga, con los campos de la carga a cero.
+ *
+ *  `weight` es la excepción y va aparte: lo que pesa la pieza no depende de que
+ *  el solver tenga algo que resolver. Una recta de 1700 mm pesa 21.6 N tanto si
+ *  este archivo sabe repartirlos como si no. */
+function noLoad(r: Restrained, nPin: number, nPed: number, noMat: boolean,
+                weight = 0, noDof = false): Settled {
   return {
     ...r,
     pinN: new Array<number>(nPin).fill(0), pedN: new Array<number>(nPed).fill(0),
-    pene: 0, drop: 0, dropAt: -1, weight: 0, carried: 0, root: 0, noMat,
+    pinBlind: new Array<boolean>(nPin).fill(noDof),
+    pedBlind: new Array<boolean>(nPed).fill(noDof),
+    pene: 0, drop: 0, dropAt: -1, weight, carried: 0, root: weight, noMat, noDof,
   };
 }
 
@@ -198,19 +245,11 @@ export function settle(model: Model, pins: Pin[], peds: Pedestal[], sec: Section
                        load: Load = LOAD_DEFAULT,
                        place: (s: PathSample[]) => PathSample[] = s => s): Settled {
   const held = () => restrain(model, opt.on ? pins : [], sec, opt, mat, place);
-  if (!load.on || !model.bends.length) return noLoad(held(), pins.length, peds.length, false);
+  if (!load.on) return noLoad(held(), pins.length, peds.length, false);
 
   const E0 = mat.E || 0;
   const w = lineLoad(sec, mat) * (load.g || 0);
   const tip = +load.tip || 0;
-  /* Sin módulo elástico no hay rigidez que repartir, y sin densidad no hay
-     peso: en cualquiera de los dos casos se devuelve el amarre de siempre y se
-     dice que falta el dato, que es lo mismo que hace la flecha. */
-  if (!(E0 > 0) || (!(mat.rho || 0) && !tip)) {
-    return noLoad(held(), pins.length, peds.length, true);
-  }
-  if (!w && !tip) return noLoad(held(), pins.length, peds.length, false);
-
   const doRot = !!opt.doRot;
   const nb = model.bends.length;
   const nu = doRot ? 2 * nb : nb;
@@ -218,6 +257,21 @@ export function settle(model: Model, pins: Pin[], peds: Pedestal[], sec: Section
   const path0 = place(buildPath(model, 8).samples);
   if (!path0.length) return noLoad(held(), pins.length, peds.length, false);
   const total = path0[path0.length - 1].s;
+  /* Lo que pesa se calcula ANTES de cualquier salida temprana: es un dato de la
+     pieza —densidad por sección por largo, más el empuje de punta— y no una
+     incógnita del solver. Salir antes con «Peso: 0.0 N» era decir que una barra
+     recta no pesa. */
+  const weight = Math.abs(w) * total + Math.abs(tip);
+
+  /* Sin módulo elástico no hay rigidez que repartir, y sin densidad no hay
+     peso: en cualquiera de los dos casos se devuelve el amarre de siempre y se
+     dice que falta el dato, que es lo mismo que hace la flecha. */
+  if (!(E0 > 0) || (!(mat.rho || 0) && !tip)) {
+    return noLoad(held(), pins.length, peds.length, true, weight);
+  }
+  if (!w && !tip) return noLoad(held(), pins.length, peds.length, false, weight);
+  /* Y sin estaciones no hay incógnitas: el peso se sabe, el reparto no. */
+  if (!nu) return noLoad(held(), pins.length, peds.length, false, weight, true);
 
   /* --- los apoyos que pueden llegar a tocar ------------------------------
      Congelados aquí, con la pieza sin cargar, y a diferencia del amarre SIN
@@ -310,7 +364,14 @@ export function settle(model: Model, pins: Pin[], peds: Pedestal[], sec: Section
   let F = phi(u, P);
   const H = 0.02;                       // grados de perturbación
   const maxIt = Math.max(2, 2 * Math.max(1, opt.iters));
-  let it = 0, stuck = false;
+  /* `stuck` empieza PUESTO y solo lo quita haber llegado a un mínimo. Al revés
+     —que es como estaba— agotar las iteraciones sin converger salía como «bien»
+     por no haber pasado por ninguna rama que lo desmintiera. */
+  let it = 0, stuck = true, gRef = 0;
+  /* Qué contactos no dependen de ninguna incógnita. Se decide en la primera
+     vuelta, con el jacobiano que ya está calculado, y no cambia después: la
+     estructura de la pieza es la que es. */
+  const blind = cs.map(() => false);
   for (; it < maxIt; it++) {
     const g0 = cs.map(c => gapOf(P, c));
     const V0 = potential(P);
@@ -323,9 +384,34 @@ export function settle(model: Model, pins: Pin[], peds: Pedestal[], sec: Section
       dV.push((potential(pp) - V0) / H);
       J.push(cs.map((c, k) => (gapOf(pp, c) - g0[k]) / H));
     }
+    /* Un apoyo cuyo hueco no se mueve con NINGUNA incógnita es un apoyo que
+       este modelo no puede juzgar: está en un tramo rígido, típicamente antes
+       del primer doblez. No hay nada que resolver ahí y lo que se lea es la
+       interferencia de partida, no una reacción. */
+    if (!it) cs.forEach((_, k) => { blind[k] = J.every(row => Math.abs(row[k]) <= BLIND_J); });
+
     /* Lo que no depende de contra qué se choque: el muelle de las estaciones y
        la carga. */
     const grad0 = K.map((k, i) => k * u[i] + dV[i]);
+
+    /* El gradiente COMPLETO en el punto actual: lo de arriba MÁS lo que aportan
+       los apoyos que de verdad están apretando. Los dos términos o ninguno —en
+       el equilibrio se cancelan entre sí, y mirar solo el primero es medir
+       cuánto empuja el peso, que no baja nunca por mucho que la búsqueda
+       converja. Ese era el error del criterio anterior. */
+    const gradWith = (act: boolean[]): number[] => {
+      const g = grad0.slice();
+      for (let k = 0; k < cs.length; k++) {
+        if (!act[k]) continue;
+        for (let i = 0; i < nu; i++) g[i] += kap * g0[k] * J[i][k];
+      }
+      return g;
+    };
+    const aprieta = g0.map((g, k) => g <= 0 && !blind[k]);
+    const gn = Math.max(...gradWith(aprieta).map(Math.abs));
+    if (!it) gRef = gn;
+    /* Criterio primero: el gradiente bajó lo que tenía que bajar. */
+    if (gn <= GRAD_ABS + GRAD_TOL * gRef) { stuck = false; break; }
 
     /* Y AHORA EL CONTACTO, que es el único sitio delicado de todo esto.
        Un apoyo activo aporta ½·κ·(gap₀ + J·Δ)², o sea gradiente `κ·gap₀·J` y
@@ -344,27 +430,26 @@ export function settle(model: Model, pins: Pin[], peds: Pedestal[], sec: Section
        ese tanteo, y se vuelve a resolver contándolos. Cuesta una eliminación
        densa más y ni una construcción de trayectoria, que es lo caro. */
     const solveWith = (act: boolean[]): number[] | null => {
+      const g = gradWith(act);
       const A: number[][] = [];
       const b: number[] = [];
       for (let i = 0; i < nu; i++) {
         const row = new Array<number>(nu).fill(0);
-        let gi = grad0[i];
         for (let k = 0; k < cs.length; k++) {
           if (!act[k]) continue;
-          gi += kap * g0[k] * J[i][k];
           for (let j = 0; j < nu; j++) row[j] += kap * J[i][k] * J[j][k];
         }
         row[i] += K[i] * (1 + Math.max(1e-3, opt.damp));
         A.push(row);
-        b.push(-gi);
+        b.push(-g[i]);
       }
       return solveDense(A, b);
     };
-    const aprieta = g0.map(g => g <= 0);
     const tanteo = solveWith(aprieta);
     if (!tanteo) break;
     const llega = g0.map((g, k) => {
       if (aprieta[k]) return true;
+      if (blind[k]) return false;
       let gp = g;
       for (let j = 0; j < nu; j++) gp += J[j][k] * tanteo[j];
       return gp <= 0;
@@ -389,10 +474,15 @@ export function settle(model: Model, pins: Pin[], peds: Pedestal[], sec: Section
       }
       f /= 2;
     }
-    /* Ni partiendo el paso ocho veces baja la energía: o ya se está en el
-       mínimo, o el problema está mal condicionado. Las dos cosas se paran aquí,
-       y `ok` distingue la segunda de haber convergido. */
-    if (!done) { stuck = Math.max(...grad0.map(Math.abs)) > 1e-6; break; }
+    /* Ni partiendo el paso ocho veces baja la energía, y el gradiente de arriba
+       decía que todavía había por dónde bajar: eso no es un mínimo, es un
+       problema mal condicionado. Se para y se dice. */
+    if (!done) break;
+    /* Criterio segundo, y el que cierra la mayoría de los casos reales: si el
+       paso ACEPTADO mueve menos de lo que nadie puede medir, la búsqueda
+       terminó aunque el gradiente —que sale de diferencias finitas con H=0.02°
+       y no es exacto— no siga bajando. */
+    if (big * f <= STEP_TOL) { stuck = false; break; }
   }
 
   /* --- lo que hay que contar ---------------------------------------------
@@ -406,8 +496,14 @@ export function settle(model: Model, pins: Pin[], peds: Pedestal[], sec: Section
      Es también la comprobación de que la cuenta cierra. */
   const pinN = new Array<number>(pins.length).fill(0);
   const pedN = new Array<number>(peds.length).fill(0);
+  const pinBlind = new Array<boolean>(pins.length).fill(false);
+  const pedBlind = new Array<boolean>(peds.length).fill(false);
   let pene = 0, carried = 0;
-  for (const c of cs) {
+  for (let ci = 0; ci < cs.length; ci++) {
+    const c = cs[ci];
+    /* Los ciegos no suman: ni a su casilla, ni a lo que llevan los apoyos, ni a
+       la penetración. Lo que se sabe de ellos es que no se sabe. */
+    if (blind[ci]) { (c.pin ? pinBlind : pedBlind)[c.k] = true; continue; }
     const q0 = pen(gapOf(P, c));
     if (q0 <= 0) continue;
     if (q0 > pene) pene = q0;
@@ -451,7 +547,6 @@ export function settle(model: Model, pins: Pin[], peds: Pedestal[], sec: Section
     if (d > drop) { drop = d; dropAt = i; }
   }
 
-  const weight = Math.abs(w) * total + Math.abs(tip);
   const res = cs.filter(c => c.pin).map(c => gapOf(P, c));
   return {
     model: model2, kink, curv, stress, worst, worstAt,
@@ -460,8 +555,8 @@ export function settle(model: Model, pins: Pin[], peds: Pedestal[], sec: Section
        solución correcta y no un residuo que haya que perseguir. */
     res, ok: !stuck, iters: it,
     held: cs.filter(c => c.pin && pinN[c.k] > 0).map(c => c.k),
-    pinN, pedN, pene, drop, dropAt,
-    weight, carried, root: weight - carried, noMat: false,
+    pinN, pedN, pinBlind, pedBlind, pene, drop, dropAt,
+    weight, carried, root: weight - carried, noMat: false, noDof: false,
   };
 }
 

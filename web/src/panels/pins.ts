@@ -14,13 +14,13 @@
 import * as E from '../engine.ts';
 import { T } from '../i18n.ts';
 import type { Model } from '../types.ts';
-import { ST, placedPath, heldResult } from '../state.ts';
-import { fx, esc, cls, nfield } from './fmt.ts';
+import { ST, shownPath, heldResult } from '../state.ts';
+import { fx, esc, cls, nfield, reacCell } from './fmt.ts';
 
 /** Una fila de pin. Aparte, como `pedRow()`, porque con las columnas derivadas
  *  el bucle dentro del panel se pasa de las 60 líneas de la regla. */
 function pinRow(M: Model, i: number, f: E.PinFit | null, sujeta: boolean,
-                reac: number): string {
+                reac: number, ciego: boolean): string {
   const p = ST.pins[i];
   const num = (k: 'x' | 'y' | 'h' | 'dia' | 'tilt' | 'yaw', fmt = '1') =>
     `<td>${nfield(fmt, `data-pn="${p.id}" data-k="${k}"`, p[k])}</td>`;
@@ -47,8 +47,7 @@ function pinRow(M: Model, i: number, f: E.PinFit | null, sujeta: boolean,
     </select></td>
     ${der}
     <td class="${sujeta ? 'v-ok' : 'v-dim'}">${sujeta ? T('pinHolding') : '—'}</td>
-    ${ST.load.on ? `<td class="${reac > 0 ? 'v-ok' : 'v-dim'}"
-      title="${esc(T('loadNTip'))}">${reac > 0 ? fx(reac, 1) : '—'}</td>` : ''}
+    ${ST.load.on ? reacCell(reac, ciego) : ''}
     <td><button class="xbtn" data-pnx="${p.id}" title="${T('del')}"
       aria-label="${esc(T('del'))}">✕</button></td></tr>`;
 }
@@ -66,7 +65,15 @@ function costo(M: Model): string {
   const punta = libre.length && sujeta.length
     ? libre[libre.length - 1].distanceTo(sujeta[sujeta.length - 1]) : 0;
   const peorK = R.kink.reduce((m, k, i) => (E.kinkOf(k) > E.kinkOf(R.kink[m]) ? i : m), 0);
-  const sinCerrar = R.res.filter(v => Math.abs(v) > ST.restraint.tol).length;
+  /* Sin carga los contactos son BILATERALES —el amarre trae la barra de vuelta
+     al pin— y cualquier hueco que sobre es un contacto sin cerrar. Con la carga
+     puesta dejan de serlo: que la pieza se separe de un pin es una respuesta
+     legítima, porque un poste no tiene imán, y contarla aquí pintaba de rojo un
+     fixture correcto. Lo que sigue siendo un problema es el signo contrario, el
+     pin metido dentro de la barra. Es un signo, y decide el color. */
+  const sinCerrar = ST.load.on
+    ? R.res.filter(v => v < -ST.restraint.tol).length
+    : R.res.filter(v => Math.abs(v) > ST.restraint.tol).length;
   return `<div class="row mt6">
       <span class="chip">${T('pinHeldN').replace('{n}', String(R.held.length))}</span>
       <span class="chip ${punta > M.tol.point ? 'bad' : ''}"
@@ -107,9 +114,21 @@ function carga(M: Model): string {
   const R = heldResult();
   const num = (k: 'g' | 'tip' | 'dx' | 'dy' | 'dz', step: string) =>
     nfield(step, `data-ld="${k}"`, ST.load[k]);
+  /* ¿Llegó a correr el solver de la carga? Son exactamente las cuatro salidas
+     tempranas de `settle()`: sin carga, sin material, sin peso ni empuje, y sin
+     estaciones que ceder. Importa distinguirlo porque en esos cuatro casos `ok`
+     todavía es el del AMARRE —el que dice si los contactos cerraron— y leerlo
+     como si fuera el de la carga sería enseñar un aviso que no viene a cuento. */
+  const resuelto = on && !R.noMat && !R.noDof && R.weight > 0;
+  /* Y si corrió, si llegó a alguna parte. Un mínimo no alcanzado no es un
+     número peor: es que no hay número, y hasta hoy se pintaba igual que uno
+     bueno. Ver `ok` en engine/load.ts. */
+  const rendido = resuelto && !R.ok;
   /* Con la mitad del peso o más colgando de la mordaza, la pieza no está
-     apoyada: está en voladizo. Se avisa con un número, no con un adjetivo. */
-  const colgando = on && !R.noMat && R.weight > 0 && R.root > 0.5 * R.weight;
+     apoyada: está en voladizo. Se avisa con un número, no con un adjetivo.
+     Sin estaciones no se puede afirmar: ahí todo el peso sale en la raíz por
+     construcción, no porque la pieza esté en voladizo. */
+  const colgando = resuelto && !rendido && R.root > 0.5 * R.weight;
   return `<div class="grp">
     <div class="eyebrow">${T('load')}</div><div class="body">
     <div class="row">
@@ -124,29 +143,48 @@ function carga(M: Model): string {
       <label title="${esc(T('loadDirTip'))}">${T('loadDir')} Y</label>${num('dy', '.25')}
       <label title="${esc(T('loadDirTip'))}">${T('loadDir')} Z</label>${num('dz', '.25')}
     </div>
-    ${R.noMat ? `<div class="warnbox mt6">${T('loadNoMat')}</div>` : `<div class="row mt6">
+    ${R.noMat ? `<div class="warnbox mt6">${T('loadNoMat')}</div>`
+      /* Sin estaciones el peso SÍ se sabe —densidad por sección por largo— y lo
+         que no se sabe es cómo se reparte. Se enseña lo primero y se dice lo
+         segundo, en vez de las cinco cifras a cero que había antes. */
+      : R.noDof ? `<div class="row mt6">
       <span class="chip" title="${esc(T('loadWeightTip'))}">${T('loadWeight')}: ${
         fx(R.weight, 1)} N</span>
-      <span class="chip ${colgando ? '' : 'ok'}" title="${esc(T('loadCarriedTip'))}">${
+    </div>
+    <div class="warnbox mt6">${T('loadNoDof')}</div>`
+      : `<div class="row mt6">
+      ${rendido ? `<span class="chip bad" title="${esc(T('loadStuckTip'))}">${
+        T('loadStuck')}</span>` : ''}
+      <span class="chip" title="${esc(T('loadWeightTip'))}">${T('loadWeight')}: ${
+        fx(R.weight, 1)} N</span>
+      <span class="chip ${rendido ? 'dim' : colgando ? '' : 'ok'}" title="${esc(T('loadCarriedTip'))}">${
         T('loadCarried')}: ${fx(R.carried, 1)} N</span>
-      <span class="chip ${colgando ? 'bad' : ''}" title="${esc(T('loadRootTip'))}">${
+      <span class="chip ${rendido ? 'dim' : colgando ? 'bad' : ''}" title="${esc(T('loadRootTip'))}">${
         T('loadRoot')}: ${fx(R.root, 1)} N</span>
-      <span class="chip ${R.drop > M.tol.point ? 'bad' : ''}" title="${esc(T('loadDropTip'))}">${
+      <span class="chip ${rendido ? 'dim' : R.drop > M.tol.point ? 'bad' : ''}" title="${esc(T('loadDropTip'))}">${
         T('loadDrop')}: ${fx(R.drop, 2)} mm${R.dropAt >= 0 ? ` · PI${R.dropAt + 1}` : ''}</span>
-      <span class="chip ${R.pene > ST.restraint.tol ? 'bad' : 'dim'}"
+      <span class="chip ${!rendido && R.pene > ST.restraint.tol ? 'bad' : 'dim'}"
         title="${esc(T('loadPeneTip'))}">${T('loadPene')}: ${fx(R.pene, 4)} mm</span>
     </div>
+    ${rendido ? `<div class="warnbox mt6">${
+      T('loadStuckWarn').replace('{n}', String(R.iters))}</div>` : ''}
     ${colgando ? `<div class="warnbox mt6">${T('loadHang')}</div>` : ''}`}` : ''}
     <div class="hintline">${T('loadNote')}</div>
   </div></div>`;
 }
 
 export function panePins(M: Model): string {
-  const path = ST.pins.length ? placedPath() : [];
+  /* Contra la pieza que HAY, no contra la libre: con el amarre puesto el hueco
+     de un pin que sujeta es ~0 porque el solver lo cerró, y eso es la respuesta
+     —lo que quedó sin cerrar ya se dice aparte, en `res` y en el chip de pines
+     abiertos—. Medirlo contra la libre era contar el hueco que el amarre acaba
+     de quitar. Ver `shownPath()`. */
+  const path = ST.pins.length ? shownPath() : [];
   const fits = ST.pins.map(p => (path.length ? E.pinFit(path, M.section, p) : null));
   const R = heldResult();
   const rows = ST.pins.map((_, i) =>
-    pinRow(M, i, fits[i], ST.restraint.on && R.held.includes(i), R.pinN[i] || 0)).join('');
+    pinRow(M, i, fits[i], ST.restraint.on && R.held.includes(i),
+           R.pinN[i] || 0, !!R.pinBlind[i])).join('');
   const on = ST.restraint.on;
   return `<div class="pane on"><div class="grp">
     <div class="eyebrow">${T('pins')}<span class="n">${ST.pins.length}</span></div><div class="body">
