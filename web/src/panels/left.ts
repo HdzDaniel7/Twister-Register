@@ -8,6 +8,7 @@ import { T } from '../i18n.ts';
 import type { Place, Variant } from '../types.ts';
 import { ST, LAYER_DEF, refModel, heldOfVariant, heldOn } from '../state.ts';
 import { $, fx, esc, cls, nfield, srcTag } from './fmt.ts';
+import { saveFocus, restoreFocus, commitFocusIn } from './focus.ts';
 import type { I18nKey } from './fmt.ts';
 
 /* ---------------------------------------------------------------- ayudas -- */
@@ -66,9 +67,18 @@ export function renderLeft(): void {
      fijo. Ahora se abre sobre el 3D cuando se pide y se cierra al terminar. */
   const host = $('#lf');
   if (!host) return;
+  /* Soltar el campo ANTES de reconstruir, como renderRight(), que es donde está
+     escrito el porqué entero. El cajón tiene campos de verdad —la colocación, el
+     nombre de cada modelo— y hasta el 2026-09-12 se reconstruía con ellos
+     enfocados: su `change` saltaba desde dentro de la asignación de innerHTML,
+     escribía el valor y el cajón quedaba pintado con la instantánea de antes.
+     También al cerrarlo: vaciar el cajón arranca el campo igual que rellenarlo. */
+  const f = saveFocus();
+  commitFocusIn(host);
   if (!ST.drawer) { host.innerHTML = ''; host.hidden = true; return; }
   host.hidden = false;
   host.innerHTML = DRAWERS[ST.drawer] ? DRAWERS[ST.drawer]() : '';
+  restoreFocus(f);
 }
 
 /** Los cajones, uno por entrada de menú. La clave es la misma que va en

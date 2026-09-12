@@ -799,17 +799,35 @@ trabajo del usuario en silencio.
       indeterminado», no «0.0» en verde. Corregir `loadNTip`, que hoy afirma la causa contraria.
       Medido: con entrada recta de 700 mm son **dos** pedestales a 0.00 N. · M
       Cierre: prueba de motor con entrada recta que distinga «no toca» de «no se puede saber».
-- [ ] **[X-03] Extender la disciplina de foco a `renderLeft()` y `renderSide()` · [S con revisión
+- [x] **[X-03] Extender la disciplina de foco a `renderLeft()` y `renderSide()` · [S con revisión
       de O]** — mismo patrón ya escrito y comentado en `renderRight()` (`panels/render.ts:36-71`).
       Reproducido en Edge: con un campo del cajón a medio escribir, Ctrl+Z deja el valor sin
       confirmar, no baja la pila de deshacer y **vacía el rehacer**, sin error en consola. · S
       Cierre: paso de banco permanente con ese escenario exacto — hoy no existe ninguno que cubra
       deshacer con el foco fuera de `#panes`.
-- [ ] **[QA-01] Que la prueba de regresión falle de verdad · [S]** — el paso de
+      **Hecho el 2026-09-12, y el patrón solo no bastaba.** Soltar el campo antes de
+      repintar ordena el `change`, pero con Ctrl+Z ese `change` sigue llegando DESPUÉS de
+      `restore()` y apila el documento híbrido igual. Y no era cosa del cajón: la tabla de
+      abajo tenía el mismo camino, medido en Edge con el mismo resultado. El arreglo va en
+      dos sitios. `stepHistory()` tira el texto sin confirmar antes de restaurar —lo mismo
+      que Escape, con el `change` cortado en el propio campo—, porque confirmarlo sería
+      apilar un paso que nadie confirmó para gastar el Ctrl+Z en quitarlo. Y el paso de
+      soltar el campo sale a `commitFocusIn()` en `panels/focus.ts`, que usan ahora
+      `renderLeft()`, `renderSide()` y `renderRight()`; este último conserva su comentario
+      y su comportamiento.
+      Cierre: pasos «Ctrl+Z con un campo del cajón a medio escribir…» y «…con una celda de
+      la tabla a medio escribir hace lo mismo», que fallaban por su nombre antes del arreglo.
+- [x] **[QA-01] Que la prueba de regresión falle de verdad · [S]** — el paso de
       `probe_ui.js:1834` reporta `ok` con el bug presente; lo que salva hoy a `npm run check` es
       el detector genérico de excepciones. Añadir aserción explícita. Plantilla: el paso hermano
       de la línea 1811, que sí falla por sí solo. · S
       Cierre: revertir el fix de `render.ts` hace fallar **ese** paso por su nombre.
+      **Hecho el 2026-09-12.** El paso repintaba cambiando de pestaña y volviendo, y ese
+      segundo repintado salía limpio y tapaba el primero. Ahora repinta la MISMA tabla, mira
+      la casilla que queda puesta sin repintar otra vez, y escucha `error` mientras dura.
+      Verificado quitando `commitFocusIn(host)` de `renderRight()`: falla «el Δ se aplicó
+      pero la casilla que quedó puesta enseña 0.00», sin una sola línea ERROR del detector
+      genérico — lo para la prueba con nombre, sola. Restaurado y comprobado con `cmp`.
 
 **Criterio de cierre de la fase:** ningún número del panel de carga se presenta sin que el
 programa sepa —y diga— si puede sostenerlo; y `npm run check` detiene por su nombre las dos
@@ -817,9 +835,16 @@ regresiones del 09-10.
 
 ### Fase 5.1 · Ganancias rápidas — alto impacto, esfuerzo S
 
-- [ ] **[X-08] `CELL_ATTRS` con las cinco tablas nuevas · [S]** — faltan `pd`, `pn`, `rs`, `ld`,
+- [x] **[X-08] `CELL_ATTRS` con las cinco tablas nuevas · [S]** — faltan `pd`, `pn`, `rs`, `ld`,
       `mt` en `panels/focus.ts:17`, así que `saveFocus()` devuelve null y el foco se va a `BODY`
       en cada confirmación de Fixture y Amarre. Es **una línea**; el mecanismo entero ya existe. · S
+      **Hecho el 2026-09-12, y no eran cinco.** El lado del pin es un `<select>` (`pns`) que
+      `cellBelow()` recorre con las flechas y que `moveCell()` rebusca por su clave después
+      de repintar, así que entra también. Las casillas `pv`, `pnv` y `pnh` se quedan fuera a
+      propósito, como ya lo estaban `mv`, `vv` y `dv`; la razón está en el comentario de
+      `CELL_ATTRS`.
+      Cierre: pasos de banco que dan dos pasos seguidos en pedestal, pin, amarre y material,
+      y que fallaban con el foco en BODY.
 - [ ] **[X-07] `normMat()` · [S]** — `mat` es el único campo del fixture sin sanitizador
       (`doc.ts:350`). Con `yield:"abc"` el programa informa «0 % del límite elástico» con esfuerzo
       real alto, porque `NaN > 0` es `false`. Molde literal: `normLoad()` (`load.ts:105-124`). · S

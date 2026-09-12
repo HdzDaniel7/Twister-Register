@@ -5,7 +5,7 @@
    ========================================================================= */
 import { ST } from '../state.ts';
 import { $, TABS_OF } from './fmt.ts';
-import { saveFocus, restoreFocus } from './focus.ts';
+import { saveFocus, restoreFocus, commitFocusIn } from './focus.ts';
 import { paneModel } from './model.ts';
 import { panePoints } from './points.ts';
 import { paneFixture } from './fixture.ts';
@@ -25,8 +25,15 @@ export function renderSide(): void {
      HTML sería armar una tabla de desviación que nadie va a ver */
   if (ST.mode !== 'meas') return;
   const host = $('#rt'), keep = host ? host.scrollTop : 0;
-  $('#side')!.innerHTML = paneMeas(ST.model!);
+  /* la misma disciplina que renderRight(), y por lo mismo: el lateral también
+     tiene campos —los deslizadores del proceso— y reconstruirlo con uno
+     enfocado confirma su valor a mitad de la asignación */
+  const side = $('#side')!;
+  const f = saveFocus();
+  commitFocusIn(side);
+  side.innerHTML = paneMeas(ST.model!);
   if (host) host.scrollTop = keep;
+  restoreFocus(f);
 }
 
 /* ================================= bloque de abajo: la tabla a todo ancho = */
@@ -55,9 +62,11 @@ export function renderRight(): void {
    * Soltar el campo aquí ordena las tres cosas: se confirma, se pinta con el
    * dato ya escrito, y `restoreFocus()` devuelve el cursor donde estaba. La
    * llamada anidada que provoque ese `change` se completa entera antes de que
-   * esta siga, porque para entonces ya no queda nada enfocado que soltar. */
-  const act = document.activeElement as HTMLElement | null;
-  if (act && host && act !== host && host.contains(act)) act.blur();
+   * esta siga, porque para entonces ya no queda nada enfocado que soltar.
+   *
+   * El paso vive en commitFocusIn() porque renderLeft() y renderSide() tenían
+   * el mismo fallo y no se había visto: se curó aquí, donde se vio. */
+  commitFocusIn(host);
   const M = ST.model;
   /* la sub-pestaña tiene que existir DENTRO del modo: un archivo guardado en
      'meas', o en 'comp' mientras se modela, cae en la primera del modo */

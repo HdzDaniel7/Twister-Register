@@ -14,7 +14,31 @@ import { ST, V } from '../state.ts';
 import { $, fx, nx } from './fmt.ts';
 import { feasNote } from './model.ts';
 
-const CELL_ATTRS = ['b', 'bd', 'st', 'p', 'mk', 'tw', 'm', 's', 't', 'c', 'pr', 'pl', 'plp'];
+/* Los atributos de las celdas cuyo foco hay que devolver después de repintar.
+   Una tabla que no esté aquí pierde el cursor en cada confirmación: se va a
+   BODY, y Ctrl+↑ da un paso y el segundo ya no llega a ninguna parte. Eso les
+   pasaba a Fixture y Amarre, que se añadieron sin tocar esta lista.
+
+   Lo que entró con ellas, y por qué:
+     · `pd` y `pn` — los campos del pedestal y del pin, nombre y cifras. Llevan
+       `data-k` como las cotas, y cellKey() ya lo compone.
+     · `pns` — el lado del pin es un <select> en mitad de la fila, y cellBelow()
+       lo recorre con las flechas igual que un número. moveCell() rebusca el
+       destino por esta clave después del repintado; sin ella se quedaría con
+       el nodo que acaba de arrancarse.
+     · `rs`, `mt` y `ld` — los campos sueltos del amarre, el material y la
+       carga. `data-rs="on"` y `data-ld="on"` son casillas con el mismo
+       atributo; que recuperen el foco no estorba y no vale una regla aparte.
+   Y lo que se quedó fuera:
+     · `pv`, `pnv` y `pnh` — las casillas de visible y de sujeta. No se teclean,
+       cellBelow() se las salta, y ninguna de las casillas que ya había (`mv`,
+       `vv`, `dv`, `ly`) está en la lista. Meter solo estas haría que la tabla
+       de pines se portara distinto de la de cotas; si las casillas han de
+       conservar el foco, es para todas a la vez.
+     · `px`, `pnx`, `rh` y `hv` — son botones, y cellKey() solo mira <input> y
+       <select>: aquí no harían nada. */
+const CELL_ATTRS = ['b', 'bd', 'st', 'p', 'mk', 'tw', 'm', 's', 't', 'c', 'pr', 'pl', 'plp',
+                    'pd', 'pn', 'pns', 'rs', 'mt', 'ld'];
 
 /** Selector estable de una celda editable, o null si el nodo no lo es. */
 export function cellKey(el: Element | null): string | null {
@@ -51,6 +75,39 @@ export function restoreFocus(f: ReturnType<typeof saveFocus>): void {
     /* el nodo que devolvió cellKey() es un <input>/<select>: setSelectionRange
        solo existe en el primero, y el try/catch ya cubría eso antes */
     try { (el as HTMLInputElement).setSelectionRange(f.sel[0]!, f.sel[1]!); } catch (_) { /* nada */ }
+  }
+}
+
+/** Suelta el campo enfocado si está DENTRO de `host`, antes de reconstruirlo.
+ *
+ *  Es el paso que curó renderRight() el 2026-09-10 y el porqué entero está
+ *  escrito allí: soltarlo aquí hace que su `change` confirme el valor antes de
+ *  armar el HTML, y no desde dentro de la asignación de innerHTML. Sale a este
+ *  archivo porque los tres renders que reconstruyen con campos dentro lo
+ *  necesitan, y se aplicó solo en el que se vio fallar. */
+export function commitFocusIn(host: Element | null): void {
+  const act = document.activeElement as HTMLElement | null;
+  if (act && host && act !== host && host.contains(act)) act.blur();
+}
+
+/** Tira lo que se esté tecleando en el campo enfocado y lo suelta SIN
+ *  confirmar: es Escape y salir, en un paso.
+ *
+ *  El `change` se corta en el propio campo y no se confía en que el navegador
+ *  no lo dispare: devolver el valor por script debería dejar el campo limpio,
+ *  pero si alguno lo dispara igual, llegaría al manejador con el valor de
+ *  ENTRADA, que es el que enseñaba la celda redondeado a su formato y no
+ *  necesariamente el que guarda el documento. Eso sería otro paso apilado. */
+export function dropPendingEdit(): void {
+  const t = document.activeElement as HTMLInputElement | null;
+  if (!t || t.tagName !== 'INPUT' || t.dataset.orig === undefined) return;
+  const quieto = (ev: Event): void => ev.stopPropagation();
+  t.addEventListener('change', quieto);
+  try {
+    t.value = t.dataset.orig;
+    t.blur();
+  } finally {
+    t.removeEventListener('change', quieto);
   }
 }
 

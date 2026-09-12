@@ -1019,6 +1019,48 @@ step('una acción nueva corta la rama de rehacer', () => {
   hotkey('z', { ctrlKey: true });
   if (Math.abs(S().model.bends[1].radius - antes) > 1e-9) throw new Error('no volvió al valor previo');
 });
+/* Ctrl+Z desde DENTRO de un campo con texto sin confirmar. Lo que se deshace es
+   la edición confirmada, no lo que se está tecleando (ver bindKeyboard()), y el
+   fallo era que el texto a medio escribir se confirmaba solo DESPUÉS de
+   restaurar: el repintado arrancaba el campo, el `blur` disparaba el `change` y
+   ese `change` apilaba un documento híbrido y vaciaba el rehacer. Sin un solo
+   error en consola. Se prueba en los dos sitios donde hay campos: el cajón, que
+   es donde se reprodujo, y la tabla de abajo, que tenía el mismo camino. */
+function deshacerAMedias(sel, leer, confirmado) {
+  const antes = leer();
+  const x = q(sel);
+  typeIn(x, String(confirmado));
+  x.blur();                                   // esto sí es un paso de deshacer
+  if (Math.abs(leer() - confirmado) > 1e-9) throw new Error('no se confirmó: ' + leer());
+  const hondo = S().hist.undo;
+  const vivo = q(sel);
+  typeIn(vivo, '999');                        // y esto no: sigue sin confirmar
+  key(vivo, 'z', { ctrlKey: true });
+  if (Math.abs(leer() - antes) > 1e-9) {
+    throw new Error(`Ctrl+Z dejó ${leer()} y tenía que volver a ${antes}`);
+  }
+  if (S().hist.undo !== hondo - 1) throw new Error(`la pila de deshacer no bajó: ${hondo} -> ${S().hist.undo}`);
+  if (S().hist.redo !== 1) throw new Error('el rehacer quedó en ' + S().hist.redo + ' y debía ser 1');
+  const visto = parseFloat(q(sel).value);
+  if (Math.abs(visto - antes) > 1e-9) throw new Error('el valor volvió pero el campo enseña ' + q(sel).value);
+  hotkey('y', { ctrlKey: true });
+  if (Math.abs(leer() - confirmado) > 1e-9) throw new Error('Ctrl+Y no repuso lo confirmado: ' + leer());
+  /* se vuelve con un paso NUEVO y no con otro Ctrl+Z: el paso siguiente rehace
+     hasta la punta, y dejar el rehacer lleno le haría reponer el +confirmado */
+  if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
+  setval(sel, String(antes));
+  if (Math.abs(leer() - antes) > 1e-9) throw new Error('no se pudo dejar como estaba: ' + leer());
+}
+step('Ctrl+Z con un campo del cajón a medio escribir deshace lo confirmado y no vacía el rehacer', () => {
+  drawer('view');
+  deshacerAMedias('#lf input[data-pl="x"]', () => S().place.x, S().place.x + 77);
+});
+step('Ctrl+Z con una celda de la tabla a medio escribir hace lo mismo', () => {
+  click('[data-md="model"]');
+  click('#tabs [data-t="model"]');
+  deshacerAMedias('#panes input[data-b="4"][data-k="radius"]',
+                  () => S().model.bends[4].radius, S().model.bends[4].radius + 3);
+});
 step('el cajón de Archivo dice cuántos pasos quedan', () => {
   drawer('file');
   const b = q('#lf [data-a="undo"]');
@@ -1499,6 +1541,34 @@ step('apartarlo medio metro lo deja sin barra encima, y se dice', () => {
   }
   setval(`#panes [data-pd="${p.id}"][data-k="y"]`, antes.toFixed(1));
 });
+/* Subir un paso confirma y repinta el panel entero; si el foco no vuelve a la
+   celda, el primer paso sube y el segundo cae sobre BODY. En la tabla del
+   modelo esto nunca se vio porque sus atributos estaban en CELL_ATTRS desde el
+   principio. El gesto es el de cada sitio: dentro de una tabla, Ctrl+↑ (las
+   flechas solas navegan); en los campos sueltos, la rueda sobre el campo
+   enfocado, que es lo único que sube un paso fuera de una tabla. */
+function dosPasos(sel, leer, que) {
+  const sube = el => (el.closest('table')
+    ? key(el, 'ArrowUp', { ctrlKey: true })
+    : el.dispatchEvent(new WheelEvent('wheel', { deltaY: -1, bubbles: true, cancelable: true })));
+  const antes = leer();
+  q(sel).focus();
+  sube(q(sel));
+  const uno = leer();
+  if (!(uno > antes)) throw new Error(`${que}: el primer paso no subió (${antes} -> ${uno})`);
+  const a = document.activeElement;
+  if (!a || !a.matches(sel)) {
+    throw new Error(`${que}: tras confirmar, el foco quedó en ${a ? a.tagName : 'nada'}`);
+  }
+  sube(a);
+  if (!(leer() > uno)) throw new Error(`${que}: el segundo paso no llegó a la celda`);
+  document.activeElement.blur();
+  setval(sel, String(antes));
+}
+step('en el fixture, Ctrl+↑ dos veces sube dos pasos: el foco sobrevive a la confirmación', () => {
+  const p = S().fixture[2];
+  dosPasos(`#panes [data-pd="${p.id}"][data-k="h"]`, () => S().fixture[2].h, 'pedestal');
+});
 step('el fixture NO se mueve cuando se recoloca la pieza', () => {
   /* Es la propiedad que lo hace un fixture y no un adorno: está atornillado a
      la mesa. Lo que cambia al mover la pieza es si sigue apoyando. */
@@ -1851,22 +1921,46 @@ step('repintar con una celda a medio escribir la CONFIRMA y la deja a la vista',
      `change` manda repintar — desde dentro de la asignación de innerHTML que
      todavía no ha terminado. El navegador lanzaba «the node to be removed is no
      longer a child of this node», y el HTML que quedaba puesto se había armado
-     ANTES de que el valor existiera. Ver renderRight(). */
+     ANTES de que el valor existiera. Ver renderRight().
+
+     Esta prueba reportó `ok` con el fallo puesto: lo que paraba `npm run check`
+     era el detector genérico de excepciones, no ella. Con cambiar de pestaña y
+     volver, el segundo repintado ya salía limpio y tapaba el primero. Por eso
+     ahora mira las dos cosas que se veían en el taller justo DESPUÉS del
+     repintado que falla: que no se lanzó nada, y que la casilla que queda puesta
+     enseña lo escrito sin tener que repintar otra vez. */
   click('[data-md="model"]');
   click('#tabs [data-t="model"]');
   const vr = () => S().variants.find(x => x.id === S().active);
-  const el = q('#panes input[data-bd="8"][data-k="angle"]');
-  el.focus();
-  typeIn(el, '-0.4');
-  click('#tabs [data-t="fixture"]');            // repinta sin haber confirmado
-  if (Math.abs(vr().deltas[8].angle + 0.4) > 1e-9) {
-    throw new Error('lo escrito se perdió al repintar: ' + vr().deltas[8].angle);
+  const lanzado = [];
+  const oye = ev => lanzado.push(ev.message);
+  window.addEventListener('error', oye);
+  try {
+    const el = q('#panes input[data-bd="8"][data-k="angle"]');
+    el.focus();
+    typeIn(el, '-0.4');
+    click('#tabs [data-t="model"]');            // repinta la MISMA tabla sin haber confirmado
+    if (lanzado.length) throw new Error('repintar lanzó: ' + lanzado[0]);
+    if (Math.abs(vr().deltas[8].angle + 0.4) > 1e-9) {
+      throw new Error('lo escrito se perdió al repintar: ' + vr().deltas[8].angle);
+    }
+    const puesta = q('#panes input[data-bd="8"][data-k="angle"]');
+    if (Math.abs(parseFloat(puesta.value) + 0.4) > 1e-9) {
+      throw new Error('el Δ se aplicó pero la casilla que quedó puesta enseña ' + puesta.value);
+    }
+    /* y el camino de antes, cambiando de pestaña, que tampoco puede lanzar */
+    puesta.focus();
+    typeIn(puesta, '-0.5');
+    click('#tabs [data-t="fixture"]');
+    if (lanzado.length) throw new Error('cambiar de pestaña lanzó: ' + lanzado[0]);
+    if (Math.abs(vr().deltas[8].angle + 0.5) > 1e-9) {
+      throw new Error('lo escrito se perdió al cambiar de pestaña: ' + vr().deltas[8].angle);
+    }
+  } finally {
+    window.removeEventListener('error', oye);
   }
   click('#tabs [data-t="model"]');
   const vivo = q('#panes input[data-bd="8"][data-k="angle"]');
-  if (Math.abs(parseFloat(vivo.value) + 0.4) > 1e-9) {
-    throw new Error('el Δ se aplicó pero la casilla enseña ' + vivo.value);
-  }
   vivo.focus();
   typeIn(vivo, '0');
   vivo.dispatchEvent(new Event('change', { bubbles: true }));
@@ -2091,6 +2185,12 @@ step('un pin se puede levantar de la mesa sin alargarlo', () => {
   if (!(t1 < t0 - .05)) throw new Error(`el contacto no bajó: ${t0.toFixed(3)} -> ${t1.toFixed(3)}`);
   setval(`#panes [data-pn="${id}"][data-k="z"]`, '0');
   if (S().pins[0].z !== 0) throw new Error('no volvió a la mesa');
+});
+step('en el amarre, dos pasos seguidos llegan a la celda en el pin, el amarre y el material', () => {
+  const id = S().pins[0].id;
+  dosPasos(`#panes [data-pn="${id}"][data-k="z"]`, () => S().pins[0].z, 'pin');
+  dosPasos('#panes [data-rs="tol"]', () => S().restraint.tol, 'amarre');
+  dosPasos('#panes [data-mt="E"]', () => S().mat.E, 'material');
 });
 step('un pin se puede desactivar sin borrarlo', () => {
   const id = S().pins[0].id;

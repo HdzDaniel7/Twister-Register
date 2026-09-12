@@ -19,7 +19,7 @@ import { rebuildScene, fitView } from '../scene.ts';
 import { drawRibbon } from '../ribbon.ts';
 import {
   renderShell, renderLeft, renderSide, renderRight, renderStatus, renderPanels,
-  markRejected,
+  markRejected, saveFocus, restoreFocus, dropPendingEdit,
 } from '../panels.ts';
 import { makeReport } from '../report.ts';
 import { renderAll, refresh, refreshTable, toggleSolo } from './render.ts';
@@ -114,10 +114,28 @@ export function editPoint(i: number, key: 'x' | 'y' | 'z', val: number): void {
  *
  *  El documento vuelve entero, así que hay que repintar entero; lo que NO se
  *  toca es la cámara: `fitView()` no se llama a propósito, porque deshacer
- *  devuelve datos y no la vista desde la que se estaban mirando. */
+ *  devuelve datos y no la vista desde la que se estaban mirando.
+ *
+ *  LO QUE SE ESTÁ TECLEANDO NO ES UNA EDICIÓN, y se tira ANTES de restaurar.
+ *  Ctrl+Z vale también desde dentro de un campo (ver bindKeyboard()), y ese
+ *  campo sigue sucio. Si se deja, el repintado lo arranca del documento, su
+ *  `blur` dispara el `change`, y ese `change` escribe el texto sin confirmar
+ *  ENCIMA del documento que se acaba de restaurar y lo apila: la pila de
+ *  deshacer no baja, el rehacer se vacía y en pantalla se queda el número a
+ *  medio escribir. Sin un solo error en consola. Se reprodujo en el cajón de
+ *  colocación, y la tabla de abajo tenía el mismo camino.
+ *
+ *  Soltar el campo en el repintado, que es lo que hace renderRight(), aquí no
+ *  basta: solo ordena, y el `change` sigue llegando DESPUÉS de restaurar.
+ *  Confirmarlo antes tampoco: sería apilar un paso que nadie confirmó para
+ *  gastar el Ctrl+Z en quitarlo. Se hace lo que hace Escape —devolver el campo
+ *  a como estaba al entrar— y el cursor vuelve a su sitio, ya sobre el valor
+ *  restaurado. */
 function stepHistory(fn: () => boolean): void {
-  if (!fn()) return;
-  renderAll();
+  const f = saveFocus();
+  dropPendingEdit();
+  if (fn()) renderAll();
+  restoreFocus(f);
 }
 
 /** Guarda el ajuste manual de una celda de compensación.
