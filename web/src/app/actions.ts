@@ -7,9 +7,10 @@ import * as E from '../engine.ts';
 import { T } from '../i18n.ts';
 import type { DeltaKey, Model, Variant } from '../types.ts';
 import {
-  ST, V, VAR_COLORS, syncModel, newVid, loadModel, refModel,
+  ST, V, VAR_COLORS, syncModel, newVid, loadModel,
   activeDataset, addDataset, syncCommand, resetCommand,
-  addMark, addPedestal, setPedestals, seedFixture, placedPath, placeMatrix,
+  addMark, addPedestal, setPedestals, seedFixture, shownPath, shownPis,
+  anchoredShownPis,
   addPin, setPins, seedPinsFor,
   syncTweak, zeroTweak, compensatedCommand, loopMeasured,
   measuredSpringback,
@@ -219,11 +220,15 @@ function fixtureAction(a: string, M: Model): boolean {
     /* Nace bajo el doblez seleccionado y CON la altura y la inclinación que la
        barra pide ahí. Un pedestal que naciera en el origen y a cero no
        sostendría nada, y la fila saldría entera en rojo: eso no es un valor
-       por defecto, es una tarea. */
-    const P = E.applyMat(placeMatrix(), E.anchoredPis(M, refModel(), ST.anchor));
+       por defecto, es una tarea.
+       Bajo la barra CONTRA LA QUE SE MIDE, y con la misma matriz que la tabla:
+       los PI salían de una colocación —anclada contra la referencia elegida— y
+       la altura de otra, así que con el amarre puesto el pedestal nacía en un
+       sitio y se medía en otro. Ver `shownPis()` en state.ts. */
+    const P = shownPis();
     const q = P[E.clamp(ST.sel + 1, 0, P.length - 1)];
     const p = addPedestal({ x: q ? q.x : 0, y: q ? q.y : 0 });
-    const f = E.pedestalFit(placedPath(), M.section, p);
+    const f = E.pedestalFit(shownPath(), M.section, p);
     if (f) { p.h = +(f.low - E.TABLE_Z).toFixed(2); p.tilt = +f.want.toFixed(2); }
     showFixture();
   } else if (a === 'seedped') {
@@ -236,7 +241,7 @@ function fixtureAction(a: string, M: Model): boolean {
        motivo que un pedestal nace con la altura que la pieza pide: un pin en el
        origen y a cero no sujeta nada y su fila saldría entera en rojo. Eso no
        es un valor por defecto, es una tarea pendiente disfrazada. */
-    const path = placedPath();
+    const path = shownPath();
     const q = path.length ? path[E.clamp(Math.round((ST.sel + 1) / Math.max(1, M.bends.length)
                                                    * (path.length - 1)), 0, path.length - 1)]
                           : null;
@@ -379,8 +384,11 @@ export function action(a: string): void {
       renderLeft(); rebuildScene(); fitView(); return;
 
     case 'addmark': {
-      /* nace sobre el doblez seleccionado: es donde uno quiere acotar */
-      const P = E.anchoredPis(M, refModel(), ST.anchor);
+      /* Nace sobre el doblez seleccionado: es donde uno quiere acotar. Y sobre
+         la barra contra la que luego se va a medir, que es la misma lista que
+         lee la tabla de cotas: naciendo en la libre y midiéndose contra la
+         sujeta, una cota recién puesta ya salía con distancia. */
+      const P = anchoredShownPis();
       const q = P[E.clamp(ST.sel + 1, 0, P.length - 1)];
       addMark(q ? q.x : 0, q ? q.y : 0, q ? q.z : 0);
       renderLeft(); renderRight(); rebuildScene(); return;

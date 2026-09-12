@@ -7,7 +7,7 @@ import { Vector3 } from 'three';
 import * as E from '../engine.ts';
 import { T } from '../i18n.ts';
 import type { Model } from '../types.ts';
-import { ST, refModel } from '../state.ts';
+import { ST, refModel, anchoredShownPis } from '../state.ts';
 import { fx, esc, cls, nfield } from './fmt.ts';
 
 /* --- pestaña PUNTOS ----------------------------------------------------- */
@@ -44,8 +44,12 @@ export function panePoints(M: Model): string {
 
 /* --- puntos de referencia (dentro de la pestaña PUNTOS) ----------------- */
 export function paneMarks(M: Model): string {
-  const ref = refModel();
-  const P = E.anchoredPis(M, ref, ST.anchor);
+  /* Contra la barra CONTRA LA QUE SE MIDE. Una cota es una distancia a la pieza
+     que está en la mesa, así que con el amarre puesto tiene que medirse contra
+     la forma sujeta: mientras miró siempre la libre, poner los pines dejaba las
+     cotas contestando sobre una pieza que ya no estaba ahí. La lista sale de
+     `anchoredShownPis()`, la misma que dibuja la capa de cotas en el 3D. */
+  const P = anchoredShownPis();
   const rows = ST.marks.map(mk => {
     const q = new Vector3(mk.x, mk.y, mk.z);
     const near = E.nearestPoint(P, q);

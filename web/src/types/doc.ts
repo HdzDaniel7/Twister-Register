@@ -77,9 +77,20 @@ export type Pin = {
   /** posición del eje del pin sobre la mesa, mm */
   x: number;
   y: number;
-  /** alto desde la mesa (z = TABLE_Z), mm. Uno que no llegue a la barra no
-   *  sujeta nada, y la tabla lo dice */
+  /** LARGO del poste, mm: lo que mide el cilindro desde su base. Uno que se
+   *  quede corto no llega a la barra y no sujeta nada, y la tabla lo dice */
   h: number;
+  /** ALTURA a la que arranca la base sobre la mesa (z = TABLE_Z), mm.
+   *
+   *  `0` es el poste atornillado a la mesa, que es como estaban todos hasta que
+   *  hizo falta esto, y por eso un archivo anterior abre igual que se guardó.
+   *  Existe porque un pin alto no es lo mismo que un pin largo: para tocar una
+   *  barra que pasa arriba, alargar el poste lo hace tocar también por debajo
+   *  —donde a lo mejor pasa otro tramo de la pieza— mientras que levantarlo deja
+   *  el contacto solo donde se quiere. Lo que sujeta el poste a esa altura —un
+   *  dado, un suplemento, el cuerpo del fixture— no se modela: esto dice dónde
+   *  está el cilindro, no de qué cuelga. */
+  z: number;
   /** diámetro del pin, mm: la barra toca su superficie, no su eje */
   dia: number;
   /** Inclinación del poste respecto de la vertical, °. `0` = a plomo, que es

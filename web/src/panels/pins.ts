@@ -14,7 +14,7 @@
 import * as E from '../engine.ts';
 import { T } from '../i18n.ts';
 import type { Model } from '../types.ts';
-import { ST, shownPath, heldResult } from '../state.ts';
+import { ST, shownPath, heldResult, heldOn, refHeldOn } from '../state.ts';
 import { fx, esc, cls, nfield, reacCell } from './fmt.ts';
 
 /** Una fila de pin. Aparte, como `pedRow()`, porque con las columnas derivadas
@@ -22,7 +22,7 @@ import { fx, esc, cls, nfield, reacCell } from './fmt.ts';
 function pinRow(M: Model, i: number, f: E.PinFit | null, sujeta: boolean,
                 reac: number, ciego: boolean): string {
   const p = ST.pins[i];
-  const num = (k: 'x' | 'y' | 'h' | 'dia' | 'tilt' | 'yaw', fmt = '1') =>
+  const num = (k: 'x' | 'y' | 'h' | 'z' | 'dia' | 'tilt' | 'yaw', fmt = '1') =>
     `<td>${nfield(fmt, `data-pn="${p.id}" data-k="${k}"`, p[k])}</td>`;
   /* Sin barra que mirar, las columnas derivadas dicen «—» y no «0»: un cero se
      lee como «tocando justo», que es lo contrario de «no se sabe». */
@@ -39,7 +39,7 @@ function pinRow(M: Model, i: number, f: E.PinFit | null, sujeta: boolean,
       title="${esc(T('pinHoldTip'))}"></td>
     <td><input type="text" data-pn="${p.id}" data-k="name" value="${esc(p.name)}"
       style="min-width:64px"></td>
-    ${num('x')}${num('y')}${num('h')}${num('dia', '1')}${num('tilt', '5')}${num('yaw', '15')}
+    ${num('x')}${num('y')}${num('h')}${num('z')}${num('dia', '1')}${num('tilt', '5')}${num('yaw', '15')}
     <td><select data-pns="${p.id}" title="${esc(T('pinSideTip'))}">
       <option value="0" ${!p.side ? 'selected' : ''}>${T('pinSideAuto')}</option>
       <option value="1" ${p.side > 0 ? 'selected' : ''}>+</option>
@@ -186,6 +186,11 @@ export function panePins(M: Model): string {
     pinRow(M, i, fits[i], ST.restraint.on && R.held.includes(i),
            R.pinN[i] || 0, !!R.pinBlind[i])).join('');
   const on = ST.restraint.on;
+  /* Las dos filas de abajo cuelgan de que HAYA una forma sujeta, no de que sea
+     el amarre quien la produce: con solo la carga puesta la pieza también se
+     mueve, y con el interruptor escondido no había forma de decir contra cuál de
+     las dos se quería medir. */
+  const hay = heldOn();
   return `<div class="pane on"><div class="grp">
     <div class="eyebrow">${T('pins')}<span class="n">${ST.pins.length}</span></div><div class="body">
     <div class="row">
@@ -196,12 +201,13 @@ export function panePins(M: Model): string {
         <input type="checkbox" data-rs="doRot" ${ST.restraint.doRot ? 'checked' : ''}>
         <span class="nm">${T('pinDoRot')}</span></label>
     </div>
-    ${on ? `<div class="row mt6"><span class="tag" title="${esc(T('pinRefTip'))}">${T('pinRef')}</span>
+    ${hay ? `<div class="row mt6"><span class="tag" title="${esc(T('pinRefTip'))}">${T('pinRef')}</span>
       <div class="seg" title="${esc(T('pinRefTip'))}">
         <button data-rh="0" class="${ST.restraint.refHeld ? '' : 'on'}">${T('pinShowFree')}</button>
         <button data-rh="1" class="${ST.restraint.refHeld ? 'on' : ''}">${T('pinShowHeld')}</button>
       </div></div>` : ''}
-    ${on ? `<div class="row mt6"><span class="tag">${T('pinShow')}</span>
+    ${hay && !refHeldOn() ? `<div class="warnbox mt6">${T('pinMeasFree')}</div>` : ''}
+    ${hay ? `<div class="row mt6"><span class="tag">${T('pinShow')}</span>
       <div class="seg" title="${esc(T('pinShowTip'))}">
         <button data-hv="free" class="${ST.layers.nom.on && !ST.layers.held.on ? 'on' : ''}">${T('pinShowFree')}</button>
         <button data-hv="held" class="${!ST.layers.nom.on && !ST.layers.var.on && ST.layers.held.on ? 'on' : ''}">${T('pinShowHeld')}</button>
@@ -222,7 +228,9 @@ export function panePins(M: Model): string {
     <div class="hintline">${T('matProv')}</div>
     ${ST.pins.length ? `<div class="tw mt6"><table class="marks"><thead><tr>
       <th></th><th title="${esc(T('pinHoldTip'))}">${T('pinHold')}</th><th>${T('name')}</th>
-      <th>${T('x')}</th><th>${T('y')}</th><th>${T('pedH')}</th><th>${T('pinDia')}</th>
+      <th>${T('x')}</th><th>${T('y')}</th>
+      <th title="${esc(T('pinLenTip'))}">${T('pinLen')} (mm)</th>
+      <th title="${esc(T('pinZTip'))}">${T('pinZ')} (mm)</th><th>${T('pinDia')}</th>
       <th title="${esc(T('pinTiltTip'))}">${T('pinTilt')}</th>
       <th title="${esc(T('pinYawTip'))}">${T('pinYaw')}</th>
       <th title="${esc(T('pinSideTip'))}">${T('pinSide')}</th>

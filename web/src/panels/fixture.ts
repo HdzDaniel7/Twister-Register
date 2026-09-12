@@ -11,7 +11,7 @@ import * as E from '../engine.ts';
 import { T } from '../i18n.ts';
 import type { Model } from '../types.ts';
 import type { PedFit } from '../engine.ts';
-import { ST, shownPath, shownModel, heldResult } from '../state.ts';
+import { ST, shownPath, shownModel, heldResult, heldOn, refHeldOn } from '../state.ts';
 import { fx, esc, cls, nfield, reacCell } from './fmt.ts';
 
 /** Una fila. Sale aparte porque la de un pedestal tiene trece columnas y
@@ -53,10 +53,10 @@ function pedRow(M: Model, i: number, f: PedFit | null, vano: number, flecha: num
 export function paneFixture(M: Model): string {
   /* La MISMA trayectoria colocada que usa la escena: si la tabla calculara la
      suya, un cambio de anclaje las separaría sin que nada avisara.
-     Y la de la pieza QUE HAY —la sujeta, si algún interruptor está puesto— y no
-     la libre: lo que esta tabla contesta es qué está haciendo cada pedestal
-     contra la barra que se ve, no contra la que habría sin fixture. Para leer
-     la libre se apagan los interruptores, igual que con «Se movió». */
+     Y la de la pieza CONTRA LA QUE SE MIDE: lo que esta tabla contesta es qué
+     está haciendo cada pedestal contra la barra que hay encima, y con el amarre
+     puesto esa barra es la sujeta. Quien elige es el interruptor «Medir contra»
+     de la pestaña Amarre — aquí solo se obedece. */
   const path = ST.fixture.length ? shownPath() : [];
   const fits = ST.fixture.map(p => E.pedestalFit(path, M.section, p));
   const vanos = E.pedestalSpans(fits);
@@ -83,6 +83,7 @@ export function paneFixture(M: Model): string {
 
   return `<div class="pane on"><div class="grp">
     <div class="eyebrow">${T('fixture')}<span class="n">${ST.fixture.length}</span></div><div class="body">
+    ${heldOn() && !refHeldOn() ? `<div class="warnbox mt6">${T('pinMeasFree')}</div>` : ''}
     ${ST.fixture.length ? `<div class="tw"><table class="marks"><thead><tr>
       <th></th><th>${T('name')}</th><th>${T('x')}</th><th>${T('y')}</th>
       <th>${T('pedH')}</th><th>${T('pedPad')}</th><th>${T('pedTilt')}</th>

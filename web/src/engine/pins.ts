@@ -57,6 +57,10 @@ export const PIN_DEFAULT: Readonly<Omit<Pin, 'id' | 'name'>> = Object.freeze({
   visible: true, hold: true, x: 0, y: 0, h: 120, dia: 20, tilt: 0, yaw: 0,
   /* 0 = «decídelo por la geometría la primera vez». Ver el tipo Pin. */
   side: 0,
+  /* la base arranca EN la mesa, que es de donde salían todos los postes hasta
+     que hizo falta poder levantarlos: así un pin escrito antes de que este
+     campo existiera queda exactamente donde estaba. Ver `z` en el tipo Pin. */
+  z: 0,
 });
 
 /** El material de la barra. **PROVISIONAL, y lo dice la pantalla.**
@@ -93,8 +97,15 @@ export const RESTRAINT_DEFAULT: Readonly<Restraint> = Object.freeze({
   damp: 0.15,
   /** iteraciones del solver */
   iters: 6,
-  /** la referencia se compara LIBRE mientras no se diga otra cosa */
-  refHeld: false,
+  /** CONTRA QUÉ BARRA se mide todo: la libre o la que de verdad queda sujeta.
+   *
+   *  Arranca en «sujeta» porque con el amarre o la carga puestos la barra que
+   *  está encima del fixture ES la sujeta, y una tabla que midiera la otra
+   *  estaría describiendo una pieza que no hay —que es justo lo que el taller
+   *  reportó—. Elegir «libre» sigue siendo legítimo: es preguntar dónde estaría
+   *  la pieza sin nada que la sujetara. Pero es una pregunta hipotética y hay
+   *  que pedirla, no heredarla. Ver `refHeld` en types/process.ts. */
+  refHeld: true,
 });
 
 /** Lo que se deduce de un pin contra la barra. No se guarda: sale del modelo
@@ -116,9 +127,12 @@ export type PinFit = {
   side: number;
   /** dónde se tocan a lo largo del PIN: 0 en la base, 1 en la punta */
   t: number;
-  /** ¿se tocan por el CUERPO del poste? Si el punto más cercano cae en la punta,
-   *  la barra pasa por encima y ese pin no sujeta de lado, por bien puesto que
-   *  esté */
+  /** ¿se tocan por el CUERPO del poste? Si el punto más cercano cae en uno de
+   *  los dos extremos, la barra pasa por fuera del poste —por encima de la punta
+   *  o por debajo de la base— y ese pin no sujeta de lado, por bien puesto que
+   *  esté. Los dos extremos y no solo la punta: desde que la base se puede
+   *  levantar del suelo, un pin demasiado alto deja la barra pasando por debajo,
+   *  que es el mismo fallo del derecho */
   reach: boolean;
   /** la dirección de contacto escrita en el marco de la SECCIÓN: `[a, b]` sobre
    *  (y, z). Va aquí porque es lo que el solver congela para que el residuo
@@ -128,13 +142,23 @@ export type PinFit = {
 
 /** El eje del pin como segmento: de dónde sale y a dónde llega.
  *
- *  Un pin a plomo (`tilt` 0) sube en +z desde la mesa, que es lo único que
- *  existía antes. Con `tilt` se tumba hacia el rumbo `yaw`, que se mide en
- *  planta desde +x igual que el rumbo de la barra en `pedestalFit()`. */
+ *  Un pin a plomo (`tilt` 0) sube en +z desde donde arranca su base, que es lo
+ *  único que existía antes. Con `tilt` se tumba hacia el rumbo `yaw`, que se
+ *  mide en planta desde +x igual que el rumbo de la barra en `pedestalFit()`.
+ *
+ *  DOS cifras y no una, y conviene no confundirlas: `z` es a qué ALTURA
+ *  empieza el poste sobre la mesa y `h` es lo que MIDE de largo desde ahí. Con
+ *  `z` a cero el poste sale de la mesa y las dos daban lo mismo, que es por lo
+ *  que durante un tiempo bastó una. Dejaron de bastar en cuanto hizo falta un
+ *  pin que empieza en el aire —montado sobre un dado, un suplemento o el propio
+ *  cuerpo del fixture— para tocar una barra que pasa alta: subirlo alargando el
+ *  poste lo hacía tocar también por abajo, donde no debía. Lo que sostiene el
+ *  poste a esa altura no se modela: esto dice dónde está el cilindro, no de qué
+ *  cuelga. */
 export function pinAxis(pin: Pin): { base: Vector3; tip: Vector3; dir: Vector3 } {
   const t = (pin.tilt || 0) * D2R, y = (pin.yaw || 0) * D2R;
   const dir = new Vector3(Math.sin(t) * Math.cos(y), Math.sin(t) * Math.sin(y), Math.cos(t));
-  const base = new Vector3(pin.x, pin.y, TABLE_Z);
+  const base = new Vector3(pin.x, pin.y, TABLE_Z + (pin.z || 0));
   return { base, tip: base.clone().addScaledVector(dir, pin.h), dir };
 }
 
@@ -199,11 +223,15 @@ export function pinFit(samples: PathSample[], sec: Section, pin: Pin): PinFit | 
   return {
     s: sc, t, dist: d, need, gap: d - need,
     side: pin.side || lado,
-    /* Se tocan por el CUERPO del poste, no por su punta. Con el pin a plomo esto
-       es exactamente lo de antes —«el pin llega a la altura de la barra»— y con
-       el pin tumbado sigue significando lo mismo sin tener que hablar de
-       alturas. El margen evita que un contacto justo en el borde parpadee. */
-    reach: t < 0.999,
+    /* Se tocan por el CUERPO del poste, no por uno de sus cabos. Con el pin a
+       plomo y apoyado en la mesa esto es exactamente lo de antes —«el pin llega
+       a la altura de la barra»— y con el pin tumbado o levantado sigue
+       significando lo mismo sin tener que hablar de alturas. Se miran los DOS
+       extremos porque desde que la base se levanta los dos son alcanzables: un
+       poste demasiado alto deja la barra pasando por debajo y no sujeta más que
+       uno demasiado corto. El margen evita que un contacto justo en el borde
+       parpadee. */
+    reach: t > 0.001 && t < 0.999,
     local: [u.dot(q.y), u.dot(q.z)],
   };
 }
@@ -472,9 +500,10 @@ export function seedPins(samples: PathSample[], sec: Section, n = 4,
          de por el cuerpo. */
       h: +clamp(q.p.z - TABLE_Z + 40, 40, 600).toFixed(2),
       /* el lado queda GUARDADO al sembrar: es el que se acaba de montar. Los
-         pines sembrados nacen A PLOMO: inclinarlos es una decisión, no algo que
-         el programa deba adivinar. */
-      dia, visible: true, hold: true, side, tilt: 0, yaw: 0,
+         pines sembrados nacen A PLOMO y APOYADOS EN LA MESA: inclinar un poste o
+         levantar su base son decisiones del taller —hay un dado debajo, o no lo
+         hay— y no algo que el programa deba adivinar. */
+      dia, visible: true, hold: true, side, tilt: 0, yaw: 0, z: 0,
     };
     /* Un paso de corrección contra la barra de verdad, por el mismo motivo que
        en `seedPedestals()`: el pin se coloca a partir de una MUESTRA y el

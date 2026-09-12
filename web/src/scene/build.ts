@@ -27,12 +27,23 @@ export function rebuildScene(): void {
   const ref = refModel(), anchor = ST.anchor;
   const hasMeas = ST.datasets.some(d => d.visible);
 
-  /* --- todas las variantes visibles, ancladas al extremo elegido -------- */
+  /* --- todas las variantes visibles, ancladas al extremo elegido --------
+     Contra la referencia LIBRE, y no contra la que se haya elegido para medir.
+     Es la segunda cara del lazo que cerró T-01, y quedaba abierta justo aquí:
+     con «medir contra: sujeta», la referencia sujeta depende del fixture, así
+     que subir un pedestal cambiaba la referencia, la referencia cambiaba esta
+     matriz, y la barra LIBRE dibujada se recorría entera por la pantalla. La
+     tabla ya no lo hacía —usa `placeAt()`, que ancla contra el nominal— y el
+     resultado era peor que el fallo: el 3D y la tabla colocaban la misma pieza
+     en sitios distintos.
+     La regla, otra vez: el fixture se monta contra el nominal. Lo que el
+     interruptor cambia son las CIFRAS que se comparan, no dónde se para la
+     pieza. Ver `refModelFree()` y `placeAt()` en state.ts. */
   const shown: ShownEntry[] = [];
   for (const v of ST.variants) {
     if (!v.visible) continue;
     const vm = E.effectiveModel(v);
-    const A = E.anchorTransform(vm, ref, anchor);
+    const A = E.anchorTransform(vm, refModelFree(), anchor);
     shown.push({ v, m: vm, A, path: E.buildPath(vm), pis: E.applyMat(A, E.fk(vm).pis) });
   }
   const act = shown.find(e => e.v.id === ST.active) || null;

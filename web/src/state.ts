@@ -89,10 +89,21 @@ export const refModelFree = () => E.effectiveModel(REF());
  *  para que la pantalla enseñe una pieza y la tabla mida otra. */
 export const heldOn = (): boolean => ST.restraint.on || ST.load.on;
 
+/** ¿Se está midiendo contra la barra SUJETA?
+ *
+ *  Son dos condiciones y hacen falta las dos: que exista una forma sujeta —algún
+ *  interruptor puesto— y que se haya elegido medir contra ella. Vive aquí y no
+ *  repartida por los paneles porque es la pregunta que el taller hace con un
+ *  solo clic y espera que conteste TODA la pantalla: las dos tablas, las cotas,
+ *  el sembrado y los colores del 3D. Escrita seis veces, basta con olvidarse una
+ *  para que media pantalla mida una pieza y la otra mida otra, que es
+ *  exactamente lo que se reportó. */
+export const refHeldOn = (): boolean => heldOn() && !!ST.restraint.refHeld;
+
 /** La referencia con la que se compara todo: la libre, o la que de verdad
  *  queda sujeta por los pines si se ha elegido así en la pestaña Amarre. */
 export const refModel = (): Model => (
-  heldOn() && ST.restraint.refHeld
+  refHeldOn()
     ? heldFor('ref', refModelFree(), refModelFree()).model
     : refModelFree()
 );
@@ -210,22 +221,44 @@ export function placedPath(): PathSample[] {
   return E.placePath(placeAt(), E.buildPath(ST.model!).samples);
 }
 
-/** La trayectoria de la pieza QUE DE VERDAD HAY AHÍ, colocada.
+/** La trayectoria de la pieza CONTRA LA QUE SE MIDE, colocada.
  *
  *  `placedPath()` da la LIBRE, y eso es lo que tiene que comer el solver: los
  *  contactos candidatos se congelan con la pieza sin sujetar, porque un contacto
  *  que dependiera de la respuesta haría que el problema se mordiese la cola. Pero
  *  la TABLA no está resolviendo nada: está contestando «¿qué está haciendo este
- *  pedestal ahora mismo?», y la barra que tiene encima es la sujeta. Medir la
- *  tabla contra la libre mientras el 3D dibuja la sujeta era describir una barra
- *  que no está en pantalla — y era también el motivo de que elegir «ver sujeta»
- *  no cambiara ni una cifra del fixture.
+ *  pedestal ahora mismo?», y con el amarre puesto la barra que tiene encima es la
+ *  sujeta. Medir la tabla contra la libre mientras el 3D dibuja la sujeta era
+ *  describir una barra que no está en pantalla.
+ *
+ *  Cuál de las dos es «la que se mide» no se decide aquí: lo decide el
+ *  interruptor de la pestaña Amarre, y se lee en un solo sitio, `shownModel()`.
  *
  *  La matriz es la MISMA que la de `placedPath()`: lo único que cambia es qué
  *  forma se coloca con ella. */
 export function shownPath(): PathSample[] {
   return E.placePath(placeAt(), E.buildPath(shownModel()).samples);
 }
+
+/** Los PI de esa misma pieza, anclados pero SIN colocar.
+ *
+ *  Es el marco en el que trabajan las cotas: la colocación la lleva el nodo
+ *  `root` de la escena, así que lo que se compara contra ella tiene que quedarse
+ *  a este lado de la matriz. Existe para que la tabla de cotas y la capa que las
+ *  dibuja no calculen cada una la suya, que es como se llega a que la cifra
+ *  escrita y la línea pintada no coincidan.
+ *
+ *  Se ancla con la matriz del modelo LIBRE, igual que `placeAt()` y por lo
+ *  mismo: la forma sujeta cambia de sitio lo que el fixture le hace a la barra,
+ *  no dónde se decide que la barra va. */
+export const anchoredShownPis = (): Vector3[] =>
+  E.applyMat(E.anchorTransform(ST.model!, refModelFree(), ST.anchor),
+             E.fk(shownModel()).pis);
+
+/** Y los mismos ya puestos en la mesa, en coordenadas del taller: es lo que hay
+ *  que mirar para que un pedestal o un pin nazcan debajo de la barra de verdad. */
+export const shownPis = (): Vector3[] =>
+  E.applyMat(placeMatrix(), anchoredShownPis());
 
 export function addPedestal(p: Partial<Pedestal> = {}): Pedestal {
   pedSeq += 1;
@@ -252,7 +285,12 @@ export function setPedestals(list: Partial<Pedestal>[] | null | undefined): Pede
  *  distinguir los nuevos de los viejos. */
 export function seedFixture(n?: number): Pedestal[] {
   if (!ST.model) return ST.fixture;
-  return setPedestals(E.seedPedestals(placedPath(), ST.model.section, n));
+  /* Bajo la barra QUE HAY, no bajo la libre: un pedestal se siembra para tocar
+     la pieza que está encima de la mesa, y sembrarlo bajo una forma que no está
+     ahí lo hace nacer con el hueco puesto — catorce alturas que alguien tiene
+     que corregir a mano. Cuál es «la que hay» lo decide el mismo interruptor que
+     manda en las tablas. Ver `shownModel()`. */
+  return setPedestals(E.seedPedestals(shownPath(), ST.model.section, n));
 }
 
 /* --------------------------------------------------------- pines laterales */
@@ -265,7 +303,9 @@ export function addPin(p: Partial<Pin> = {}): Pin {
     hold: p.hold !== false,
     x: +p.x! || 0, y: +p.y! || 0,
     h: +p.h! || E.PIN_DEFAULT.h, dia: +p.dia! || E.PIN_DEFAULT.dia,
-    tilt: +p.tilt! || 0, yaw: +p.yaw! || 0,
+    /* La altura de la base va sin valor de respaldo, al revés que el largo: un
+       pin sin altura escrita está apoyado en la mesa, que es lo normal. */
+    tilt: +p.tilt! || 0, yaw: +p.yaw! || 0, z: +p.z! || 0,
     side: p.side! > 0 ? 1 : p.side! < 0 ? -1 : 0,
   };
   ST.pins.push(d);
@@ -281,7 +321,14 @@ export function setPins(list: Partial<Pin>[] | null | undefined): Pin[] {
  *  `seedFixture()` y por el mismo motivo. */
 export function seedPinsFor(n?: number): Pin[] {
   if (!ST.model) return ST.pins;
-  return setPins(E.seedPins(placedPath(), ST.model.section, n));
+  /* Contra la barra que hay, igual que el fixture y por lo mismo. Hay aquí una
+     vuelta que conviene dejar escrita: los pines que se tiran son los que
+     sostenían esa forma, así que la de después del sembrado no es exactamente la
+     de antes y los nuevos pueden nacer con unas décimas de hueco. No se esconde
+     —la columna del hueco lo dice fila a fila— y se cierra sola al repetir;
+     sembrar contra la libre, en cambio, nace equivocado a propósito siempre que
+     lo que hay encima esté deformado. */
+  return setPins(E.seedPins(shownPath(), ST.model.section, n));
 }
 
 /** La pieza tal como la dejan los pines, con caché.
@@ -352,10 +399,22 @@ export const heldRef = (): Settled => heldFor('ref', refModelFree(), refModelFre
 export const heldOfVariant = (v: Variant): Settled =>
   heldFor(`v-${v.id}`, E.effectiveModel(v), refModelFree());
 
-/** El modelo que hay que DIBUJAR y MEDIR: el sujeto si el amarre está puesto, y
- *  el libre si no. Un solo sitio donde se decide, para que la escena, la tabla
- *  y el reporte no puedan discrepar. */
-export const shownModel = (): Model => (heldOn() ? heldResult().model : ST.model!);
+/** La pieza CONTRA LA QUE SE MIDE: la sujeta o la libre, según el interruptor.
+ *
+ *  Un solo sitio donde se decide, y ahí está toda la gracia: de aquí cuelgan las
+ *  dos tablas —la del fixture y la del amarre—, las cotas, la flecha, el
+ *  sembrado y el color de los apoyos en el 3D. Mientras la respuesta estuvo
+ *  escrita en cada panel, elegir «sujeta» movía unas cifras y otras no, y la
+ *  pantalla acababa describiendo dos piezas a la vez.
+ *
+ *  Sin nada puesto —ni pines ni carga— no hay dos formas entre las que elegir y
+ *  devuelve la libre sin preguntar: `refHeldOn()` ya lo tiene en cuenta, y esa
+ *  igualdad es la que hace seguro el interruptor del amarre.
+ *
+ *  Lo que esto NO decide es qué se DIBUJA —eso es la fila «Ver» de la misma
+ *  pestaña, que mueve capas— ni dónde se coloca la pieza, que se ancla siempre
+ *  contra la referencia libre. Ver `placeAt()`. */
+export const shownModel = (): Model => (refHeldOn() ? heldResult().model : ST.model!);
 
 /* ------------------------------------------------- ajuste de compensación */
 export function syncTweak(n: number): Tweak[] {
@@ -490,11 +549,10 @@ export function commandModel(): Model {
 export function activeShift(): number {
   if (ST.active === ST.ref) return 0;
   try {
-    /* Como en las tarjetas de modelo: si la referencia se compara sujeta, esta
-       también, o el número mezcla la diferencia de diseño con lo que el fixture
-       le hace a la barra. */
-    const mine = heldOn() && ST.restraint.refHeld ? heldResult().model : ST.model!;
-    const sh = E.piShift(mine, refModel(), ST.anchor);
+    /* Como en las tarjetas de modelo: si se mide contra la sujeta, esta también,
+       o el número mezcla la diferencia de diseño con lo que el fixture le hace a
+       la barra. Que es justo lo que contesta `shownModel()`. */
+    const sh = E.piShift(shownModel(), refModel(), ST.anchor);
     return ST.anchor === 'end' ? sh[0] : sh[sh.length - 1];
   } catch { return 0; }
 }

@@ -1357,7 +1357,20 @@ y la polilínea de la barra (`engine/contact.ts`), y lo que asoma de la sección
 mide en la dirección en la que de verdad se tocan y no sobre la normal
 horizontal. Un pin a plomo da exactamente lo de antes. La columna «Dist.» pasa a
 ser la distancia en el espacio, y la nueva columna del ajuste dice si se tocan
-por el CUERPO del poste o por su punta — que es lo que antes decía «Llega».
+por el CUERPO del poste o por uno de sus cabos — que es lo que antes decía
+«Llega».
+
+**Y el poste tiene dos cifras, no una: LARGO y ALTURA.** El largo (`Pin.h`) es lo
+que mide el cilindro; la altura (`Pin.z`) es dónde ARRANCA su base sobre la mesa.
+Mientras hubo una sola, subir un pin obligaba a alargarlo, y alargándolo tocaba
+también por abajo — donde a lo mejor pasa otro tramo de la pieza. Con la altura
+aparte, un pin puede empezar en el aire: montado sobre un dado, un suplemento o el
+propio cuerpo del fixture. Lo que lo sostiene ahí no se modela, y está escrito:
+esto dice dónde está el cilindro, no de qué cuelga. Consecuencia directa en el
+motor: «Llega» pasa a mirar los DOS extremos del poste, porque desde que la base
+se levanta la barra puede pasar por DEBAJO igual que por encima, y las dos cosas
+son el mismo fallo. `z` viaja en el JSON y un archivo anterior abre con los pines
+apoyados en la mesa, que es donde estaban todos cuando se guardó.
 
 **Qué barra se enseña se elige en la pestaña**, con `Ver: Libre · Sujeta · Las
 dos`. Mueve las capas `nom` y `held`, que siguen estando en la paleta para quien
@@ -1366,12 +1379,27 @@ estoy mirando?» donde se hace. Con una sola en pantalla la barra va sólida; co
 las dos, la sujeta pasa a alambre — dos sólidos encajados se leen sucios, que es
 la misma regla que ya seguía el nominal con una pieza medida encima.
 
-**Contra qué referencia se compara, se elige.** Comparar dos modelos pide decidir
-contra qué, y con el amarre puesto hay dos respuestas y las dos son legítimas:
-contra la forma LIBRE del otro modelo —el diseño, la pieza fuera del fixture— o
-contra la que de verdad toma MONTADA. La primera dice en qué se diferencian los
-diseños; la segunda, en qué se diferencian las piezas que van a salir. El
+**Contra qué barra se MIDE, se elige — y manda sobre toda la pantalla.** Con el
+amarre o la carga puestos hay dos formas y las dos preguntas son legítimas:
+contra la LIBRE —el diseño, la pieza fuera del fixture— o contra la que de verdad
+toma MONTADA. La primera dice en qué se diferencian los diseños y dónde estaría la
+pieza sin nada que la sujetara; la segunda, qué está pasando encima de la mesa. El
 selector está en la pestaña Amarre y viaja en el JSON (`restraint.refHeld`).
+
+Nació decidiendo solo con qué forma de la REFERENCIA se comparaban las tarjetas de
+modelo, y esa media medida era el problema que reportó el taller: se elegía
+«sujeta» y el fixture, los pines y las cotas seguían contestando sobre la barra
+libre, así que la pantalla mezclaba dos piezas sin decirlo. Hoy es UN interruptor y
+de él cuelgan las dos tablas —fixture y amarre—, las cotas, la flecha, el color de
+los apoyos en el 3D, dónde nacen los pedestales y los pines sembrados y las cifras
+de cada tarjeta. Se decide en un solo sitio, `shownModel()` en `state.ts`, y el
+resto obedece. Arranca en «sujeta»: con algo puesto, la barra que hay encima del
+fixture ES la sujeta, y una tabla que midiera la otra describiría una pieza que no
+está ahí. Elegir «libre» sigue valiendo, y entonces las dos tablas lo AVISAN — es
+una pregunta hipotética, y una pantalla que no lo dice se lee como la otra.
+
+Lo único que el interruptor NO mueve es dónde se COLOCA la pieza: el anclaje se
+mide siempre contra la referencia libre. Ver la regla de más abajo.
 
 **Y el amarre se dibuja en TODAS las variantes visibles, no solo en la activa.**
 El fixture sujeta a la pieza que haya montada, sea cuál sea: enseñar una sujeta y
@@ -1379,9 +1407,18 @@ la otra libre no compara nada, es la mitad de cada cosa. El selector `Ver` apaga
 también la capa `var` —las otras variantes libres— cuando se pide «sujeta», y la
 capa `held` dibuja una por variante, cada una en SU color. La capa `diff` compara
 lo que se está viendo, y las tarjetas de modelo miden la variante sujeta cuando
-la referencia se compara sujeta: medir una libre contra otra sujeta mezcla la
+se mide contra la sujeta: medir una libre contra otra sujeta mezcla la
 diferencia de diseño con lo que el fixture le hace a la barra, y el número no
 contesta ninguna de las dos preguntas.
+
+**Y las variantes DIBUJADAS se anclan contra la referencia libre**, igual que la
+tabla. Era la segunda cara del lazo de T-01 y se quedó abierta: con «medir contra:
+sujeta», la referencia sujeta depende del fixture, así que subir un pedestal
+cambiaba la referencia, la referencia cambiaba la matriz de anclaje y la barra
+libre dibujada se recorría entera por la pantalla mientras la tabla la dejaba
+quieta. El 3D y la tabla colocando la misma pieza en sitios distintos es peor que
+el fallo original. Hay un paso de banco que lo vigila leyendo un vértice de la
+geometría, y no solo la trayectoria que mide la tabla.
 
 `heldFor(slot, …)` sustituye a la caché única: con la referencia comparable
 sujeta hay DOS formas sujetas vivas a la vez —la activa y la referencia— y una

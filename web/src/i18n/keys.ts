@@ -6,7 +6,7 @@
    ========================================================================= */
 export type Lang = 'es' | 'en' | 'de';
 
-/** Las 388 claves que deben existir en LOS TRES diccionarios. */
+/** Las 423 claves que deben existir en LOS TRES diccionarios. */
 export type I18nKey =
   | 'sub' | 'bNew' | 'bOpen' | 'bSave' | 'bRep' | 'bDemo' | 'layers' | 'datasets'
   | 'model' | 'meas' | 'thSys' | 'thLight' | 'thDark' | 'comp' | 'points' | 'lNom'
@@ -34,6 +34,7 @@ export type I18nKey =
   | 'pinRef' | 'pinRefTip'
   | 'pinShow' | 'pinShowFree' | 'pinShowHeld' | 'pinShowBoth' | 'pinShowTip'
   | 'pinTilt' | 'pinTiltTip' | 'pinYaw' | 'pinYawTip' | 'pinDist' | 'pinDistTip'
+  | 'pinLen' | 'pinLenTip' | 'pinZ' | 'pinZTip' | 'pinMeasFree'
   | 'pinState' | 'pinHolding' | 'pinEmpty' | 'addPin' | 'seedPin' | 'clearPin'
   | 'pinNote' | 'pinOffNote' | 'pinNoneHold' | 'pinHeldN' | 'pinTip' | 'pinTipTip'
   | 'pinWorstKink' | 'pinStress' | 'pinOfYield' | 'pinYield' | 'pinYieldTip'

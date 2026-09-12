@@ -2068,6 +2068,30 @@ step('el lado del pin es dato del fixture y se puede fijar a mano', () => {
   if (S().pins[0].side !== 0) throw new Error('no volvió a auto');
   setval(`#panes [data-pns="${id}"]`, String(antes || 1));
 });
+step('un pin se puede levantar de la mesa sin alargarlo', () => {
+  const B = window.BARCOMP;
+  /* Largo y altura son dos cifras distintas, y hasta hoy solo había una: para
+     subir un pin había que alargarlo, y alargándolo tocaba también por abajo.
+     El paso comprueba las dos mitades: que la base sube, y que el poste sigue
+     midiendo lo mismo. */
+  const id = S().pins[0].id;
+  const largo = S().pins[0].h;
+  const base0 = B.E.pinAxis(S().pins[0]).base.z;
+  const t0 = B.E.pinFit(B.placedPath(), S().model.section, S().pins[0]).t;
+  setval(`#panes [data-pn="${id}"][data-k="z"]`, '40');
+  if (S().pins[0].z !== 40) throw new Error('no se escribió la altura: ' + S().pins[0].z);
+  if (S().pins[0].h !== largo) throw new Error('subirlo cambió el largo del poste');
+  const ax = B.E.pinAxis(S().pins[0]);
+  if (Math.abs(ax.base.z - (base0 + 40)) > 1e-9) {
+    throw new Error(`la base no subió: ${base0.toFixed(1)} -> ${ax.base.z.toFixed(1)}`);
+  }
+  /* y el contacto lo nota: con la barra donde está, el punto donde se tocan baja
+     por el poste. Si esto no se moviera, la cifra sería un adorno. */
+  const t1 = B.E.pinFit(B.placedPath(), S().model.section, S().pins[0]).t;
+  if (!(t1 < t0 - .05)) throw new Error(`el contacto no bajó: ${t0.toFixed(3)} -> ${t1.toFixed(3)}`);
+  setval(`#panes [data-pn="${id}"][data-k="z"]`, '0');
+  if (S().pins[0].z !== 0) throw new Error('no volvió a la mesa');
+});
 step('un pin se puede desactivar sin borrarlo', () => {
   const id = S().pins[0].id;
   check(`#panes [data-pnh="${id}"]`, false);
@@ -2170,6 +2194,12 @@ step('sembrar pedestales le quita ese peso de encima', () => {
    pieza entera. */
 step('la tabla del fixture mide la barra que HAY, no la libre', () => {
   const B = window.BARCOMP;
+  /* Quien lo decide es el interruptor «Medir contra» de la pestaña Amarre, desde
+     que manda sobre toda la pantalla y no solo sobre las tarjetas de modelo. El
+     paso lo pone donde prueba algo en vez de heredar lo que dejara el anterior. */
+  click('#tabs [data-t="pins"]');
+  click('#panes [data-rh="1"]');
+  click('#tabs [data-t="fixture"]');
   const libre = B.placedPath(), puesta = B.shownPath();
   if (libre.length !== puesta.length) throw new Error('las dos trayectorias no son comparables');
   const d = libre.reduce((m, s, i) => Math.max(m, s.p.distanceTo(puesta[i].p)), 0);
@@ -2184,6 +2214,29 @@ step('la tabla del fixture mide la barra que HAY, no la libre', () => {
   if (!a || !b) throw new Error('ese pedestal no tiene lectura');
   if (Math.abs(a.gap - b.gap) < 1e-9) throw new Error('el hueco no cambió al medir la pieza puesta');
 });
+step('elegir «libre» devuelve la tabla a la barra sin sujetar', () => {
+  const B = window.BARCOMP;
+  /* La otra mitad del interruptor, que es la que el taller pidió: con «libre»
+     puesto, las tablas tienen que volver a contestar sobre la pieza que habría
+     sin nada que la sujetara. Mientras la respuesta colgó de que hubiera amarre
+     —y no de lo que se hubiera elegido— esta mitad no existía. */
+  click('#tabs [data-t="pins"]');
+  click('#panes [data-rh="0"]');
+  const d = B.placedPath().reduce((m, s, i) => Math.max(m, s.p.distanceTo(B.shownPath()[i].p)), 0);
+  if (d !== 0) throw new Error('con «libre» la tabla sigue midiendo la sujeta: ' + d);
+  /* Y se DICE: medir la libre con la carga puesta es contestar una pregunta
+     hipotética, y una pantalla que no lo avisa se lee como la otra. */
+  click('#tabs [data-t="fixture"]');
+  if (!q('#panes .warnbox')) throw new Error('no avisa de que está midiendo la libre');
+  click('#tabs [data-t="pins"]');
+  click('#panes [data-rh="1"]');
+  const d2 = B.placedPath().reduce((m, s, i) => Math.max(m, s.p.distanceTo(B.shownPath()[i].p)), 0);
+  if (!(d2 > 1e-6)) throw new Error('volver a «sujeta» no cambió nada');
+  /* y se devuelve la pestaña donde estaba: los pasos de aquí abajo leen la tabla
+     del fixture por posición, y dejarles otra tabla delante los hace fallar por
+     un motivo que no es el suyo */
+  click('#tabs [data-t="fixture"]');
+});
 step('mover un pedestal no recorre la barra entera', () => {
   const B = window.BARCOMP;
   /* El caso exacto que lo destapó: anclaje por MEJOR AJUSTE y la referencia
@@ -2194,16 +2247,30 @@ step('mover un pedestal no recorre la barra entera', () => {
   S().anchor = 'best'; S().restraint.refHeld = true;
   B.renderAll();
   const pts = p => p.map(s => [s.p.x, s.p.y, s.p.z]);
-  const antes = pts(B.placedPath());
+  /* Y la segunda cara del mismo lazo, que se quedó abierta hasta hoy: la barra
+     LIBRE que se dibuja se anclaba contra la referencia elegida, así que con
+     «sujeta» puesto subir un pedestal la recorría por la pantalla mientras la
+     tabla la dejaba quieta. El 3D y la tabla colocando la misma pieza en sitios
+     distintos es peor que el fallo original, y no había paso que lo viera. */
+  const vtx = () => {
+    const g = B.groups.nom.children.find(o =>
+      o.geometry && o.geometry.attributes && o.geometry.attributes.position);
+    if (!g) throw new Error('la capa de la barra libre no dibujó nada');
+    const a = g.geometry.attributes.position.array;
+    return [a[0], a[1], a[2]];
+  };
+  const antes = pts(B.placedPath()), vAntes = vtx();
   const ped = S().fixture[0], h0 = ped.h;
   ped.h = h0 + 5;
   B.renderAll();
-  const ahora = pts(B.placedPath());
+  const ahora = pts(B.placedPath()), vAhora = vtx();
   const d = antes.reduce((m, p, i) => Math.max(m,
     Math.abs(p[0] - ahora[i][0]), Math.abs(p[1] - ahora[i][1]), Math.abs(p[2] - ahora[i][2])), 0);
+  const dv = Math.max(...vAntes.map((v, i) => Math.abs(v - vAhora[i])));
   ped.h = h0; S().anchor = anchor0; S().restraint.refHeld = ref0;
   B.renderAll();
   if (d !== 0) throw new Error('subir un pedestal movió la colocación: ' + d.toFixed(4) + ' mm');
+  if (dv !== 0) throw new Error('subir un pedestal movió la barra dibujada: ' + dv.toFixed(4) + ' mm');
 });
 step('un pedestal hundido en la barra no puede leer cero', () => {
   const B = window.BARCOMP;
@@ -2224,7 +2291,11 @@ step('un apoyo que el modelo no puede juzgar dice n/d, no 0.0', () => {
   /* Dentro del primer tramo, que es rígido: las incógnitas son los codos de las
      estaciones y ahí no hay ninguna. */
   const s0 = B.E.bendStations(M)[0] * 0.4;
-  const sm = B.E.sampleAt(B.placedPath(), s0);
+  /* Contra la barra que MIDE la tabla, que es la que decide si el pedestal está
+     debajo de la pieza: colocarlo bajo la libre y leerlo contra la sujeta lo
+     dejaba fuera, y la fila salía en «no apoya» en vez de en «indeterminable»,
+     que es lo que este paso quiere ver. */
+  const sm = B.E.sampleAt(B.shownPath(), s0);
   const ped = S().fixture[0], guarda = { x: ped.x, y: ped.y, h: ped.h };
   ped.x = sm.p.x; ped.y = sm.p.y;
   ped.h = sm.p.z - B.E.sectionDrop(sm, sec) - B.E.TABLE_Z;

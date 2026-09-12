@@ -2324,25 +2324,64 @@ console.log('\n— los pines laterales: la barra deja de estar libre (engine/pin
     ok('pinAxis tumba el poste entero con 90°',
        Math.abs(ax.dir.z) < 1e-9 && Math.abs(ax.dir.x - 1) < 1e-9,
        `dir ${ax.dir.toArray().map(v => v.toFixed(3)).join(',')}`);
+
+    /* PINES LEVANTADOS DEL SUELO. Largo y altura son dos cifras distintas: el
+       largo es lo que mide el poste, la altura es dónde empieza. Mientras hubo
+       una sola, subir un pin obligaba a alargarlo, y alargándolo tocaba también
+       por abajo — donde a lo mejor pasa otro tramo de la pieza. */
+    const suelo = E.pinAxis(recto);
+    const aire = E.pinAxis({ ...recto, z: 50 });
+    ok('la altura sube la base y la punta con ella, sin alargar el poste',
+       Math.abs(aire.base.z - (suelo.base.z + 50)) < 1e-9
+       && Math.abs(aire.tip.z - (suelo.tip.z + 50)) < 1e-9
+       && Math.abs(aire.tip.clone().sub(aire.base).length() - recto.h) < 1e-9,
+       `base ${suelo.base.z.toFixed(1)} -> ${aire.base.z.toFixed(1)}`);
+
+    /* El corto de arriba tocaba por la PUNTA y no sujetaba. Levantándolo hasta
+       donde pasa la barra —sin darle un milímetro más de largo— pasa a tocar por
+       el cuerpo, que es la razón entera de que esta cifra exista. */
+    const q0 = E.sampleAt(p3, f0.s);
+    const alto = { ...recto, h: 60, z: q0.p.z - E.TABLE_Z - 30 };
+    const fAlto = E.pinFit(p3, M2.section, alto);
+    ok('un poste corto levantado hasta la barra sí sujeta de lado',
+       fAlto.reach && Math.abs(fAlto.gap - f0.gap) < .5,
+       `t=${fAlto.t.toFixed(3)} hueco=${fAlto.gap.toFixed(2)} mm`);
+
+    /* Y pasarse tampoco vale: con la base por encima de la barra, la pieza pasa
+       POR DEBAJO del poste. Es el mismo fallo que quedarse corto, del revés, y
+       hasta que la base se pudo levantar no era posible cometerlo. */
+    const pasado = E.pinFit(p3, M2.section, { ...recto, h: 60, z: q0.p.z - E.TABLE_Z + 40 });
+    ok('un poste levantado por encima de la barra deja de sujetar',
+       !pasado.reach, `t=${pasado.t.toFixed(3)}`);
   }
 
   /* El documento: los pines viajan, y un archivo anterior abre SIN amarre. */
   const doc = E.toDoc(Mp, null, null, null, [], [], null, 'start',
                       { pins, restraint: on, mat: { E: 70000, yield: 250 } });
-  /* La elección de contra qué referencia se compara viaja con el resto del
-     amarre: sin ella, un archivo guardado comparando contra la pieza SUJETA se
-     vuelve a abrir comparando contra la libre y las cifras cambian sin que
-     nadie haya tocado nada. */
+  /* La elección de contra qué barra se mide viaja con el resto del amarre: sin
+     ella, un archivo guardado midiendo contra la pieza SUJETA se vuelve a abrir
+     midiendo contra la libre y las cifras cambian sin que nadie haya tocado
+     nada. */
   {
     const dRef = E.toDoc(Mp, null, null, null, [], [], null, 'start',
                          { restraint: { ...on, refHeld: true } });
     ok('la referencia sujeta/libre se guarda y vuelve',
        dRef.restraint.refHeld === true
        && E.fromDoc(JSON.parse(JSON.stringify(dRef))).restraint.refHeld === true);
+    const libre = E.toDoc(Mp, null, null, null, [], [], null, 'start',
+                          { restraint: { ...on, refHeld: false } });
+    ok('y elegir la libre también vuelve, que si no sería un interruptor de ida',
+       E.fromDoc(JSON.parse(JSON.stringify(libre))).restraint.refHeld === false);
+    /* Un archivo anterior a la opción abre midiendo contra la SUJETA, y no
+       contra la libre como hacía cuando esta clave solo decidía con qué forma
+       de la referencia se comparaban las tarjetas de modelo. Hoy decide lo que
+       miden las dos tablas, las cotas y el sembrado, y con el amarre puesto la
+       barra que hay encima del fixture es la sujeta: heredar la otra es heredar
+       una pantalla que describe una pieza que no está ahí. */
     const viejoRef = JSON.parse(JSON.stringify(dRef));
     delete viejoRef.restraint.refHeld;
-    ok('y un archivo anterior a la opción compara contra la LIBRE, como hacía',
-       E.fromDoc(viejoRef).restraint.refHeld === false);
+    ok('y un archivo anterior a la opción mide contra la barra que HAY',
+       E.fromDoc(viejoRef).restraint.refHeld === true);
   }
 
   ok('los pines y el amarre se guardan en el documento',
@@ -2350,6 +2389,22 @@ console.log('\n— los pines laterales: la barra deja de estar libre (engine/pin
   const leido = E.fromDoc(JSON.parse(JSON.stringify(doc)));
   ok('y vuelven con su id al abrir',
      leido.pins.length === pins.length && leido.pins[0].id === 'pn1' && leido.restraint.on === true);
+  /* La altura de la base viaja como el resto: un pin montado sobre un dado y
+     guardado así tiene que volver montado sobre el dado, no apoyado en la mesa.
+     Y un archivo anterior al campo abre con el poste en el suelo, que es donde
+     estaban todos cuando se guardó. */
+  {
+    const conZ = E.toDoc(Mp, null, null, null, [], [], null, 'start',
+                         { pins: pins.map((p, i) => (i ? p : { ...p, z: 65 })) });
+    ok('la altura de la base del pin se guarda y vuelve',
+       conZ.pins[0].z === 65
+       && E.fromDoc(JSON.parse(JSON.stringify(conZ))).pins[0].z === 65);
+    const sinZ = JSON.parse(JSON.stringify(conZ));
+    sinZ.pins.forEach(p => { delete p.z; });
+    ok('y un archivo anterior al campo abre con los pines en la mesa',
+       E.fromDoc(sinZ).pins.every(p => p.z === 0));
+  }
+
   const viejo = JSON.parse(JSON.stringify(doc));
   delete viejo.pins; delete viejo.restraint; delete viejo.mat;
   const v2 = E.fromDoc(viejo);

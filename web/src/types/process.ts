@@ -101,16 +101,30 @@ export type Restraint = {
   damp: number;
   /** iteraciones del solver */
   iters: number;
-  /** ¿la REFERENCIA se compara sujeta o libre?
+  /** ¿se mide contra la barra SUJETA o contra la LIBRE?
    *
-   *  Comparar dos modelos pide decidir contra qué se comparan, y con el amarre
-   *  puesto hay dos respuestas distintas y las dos son legítimas: contra la
-   *  forma que el otro modelo tendría LIBRE —el diseño— o contra la que de
-   *  verdad toma MONTADO en el fixture. La primera dice en qué se diferencian
-   *  los diseños; la segunda, en qué se diferencian las piezas que van a salir.
+   *  Nació decidiendo solo contra qué forma de la REFERENCIA se comparaban los
+   *  demás modelos, y esa media medida era el problema: el taller elegía
+   *  «sujeta» y el fixture, los pines y las cotas seguían contestando sobre la
+   *  barra libre, así que la pantalla mezclaba dos piezas distintas sin decirlo.
+   *  Hoy es UN solo interruptor y manda sobre todo lo que lee la forma de la
+   *  pieza —las dos tablas del fixture y del amarre, las cotas, el sembrado, la
+   *  flecha, el color de los apoyos en el 3D y las cifras de cada tarjeta de
+   *  modelo—. Ver `shownModel()` en state.ts, que es donde se decide una vez.
    *
-   *  Opcional y `false` por defecto: un archivo anterior compara contra la libre,
-   *  que es como se comportaba cuando se guardó. */
+   *  Las dos respuestas siguen siendo legítimas y contestan preguntas distintas:
+   *  la libre dice en qué se diferencian los DISEÑOS y dónde estaría la pieza
+   *  sin nada que la sujetara; la sujeta, en qué se diferencian las piezas que
+   *  van a salir del fixture. Lo que no puede pasar es que media pantalla
+   *  conteste una y media la otra.
+   *
+   *  Lo que NO mueve, y es a propósito: dónde se COLOCA la pieza. El anclaje se
+   *  mide siempre contra la referencia libre, porque la forma sujeta depende del
+   *  fixture y anclar contra ella cierra un lazo —mover un pedestal recorría la
+   *  barra entera—. Ver `refModelFree()` y `placeAt()` en state.ts.
+   *
+   *  Opcional: un archivo anterior a la opción abre midiendo contra la barra
+   *  SUJETA, que es la que de verdad hay encima del fixture. */
   refHeld?: boolean;
 };
 

@@ -730,6 +730,54 @@ moviendo un pedestal con el anclaje en «mejor ajuste».
       Cierre: dos pasos de banco — «la tabla del fixture mide la barra que HAY, no la libre» y «un
       pedestal hundido en la barra no puede leer cero».
 
+### Fase 5.T (cont.) · Lo que contó el taller el 2026-09-11
+
+T-01 y T-02 arreglaron cada sitio por separado, y por eso quedaron dos cosas. La primera
+es que el interruptor «libre / sujeta» seguía sin mandar en todo: movía las tarjetas de
+modelo y poco más, mientras las tablas colgaban de que HUBIERA amarre y no de lo que se
+hubiera elegido. La segunda es que el anclaje contra la referencia sujeta seguía vivo en
+la escena, justo donde ninguna prueba miraba.
+
+- [x] **[T-03] «Medir contra» pasa a ser UN interruptor, y manda sobre toda la pantalla ·
+      [O]** — el dueño del proyecto lo dijo así: «al escoger piezas fijas o sujetas siempre
+      todo hace referencia a la pieza libre; quiero que cuando escojo sujetar, tooodo haga
+      referencia a la pieza sujeta». Tres caras:
+      · `shownModel()` colgaba de `heldOn()` y no de la elección, así que «libre» no
+      devolvía las lecturas libres — media pregunta sin contestar;
+      · el sembrado, el pedestal nuevo, el pin nuevo y la cota nueva nacían contra
+      `placedPath()` —la barra LIBRE— mientras la tabla los medía contra la sujeta, o sea
+      que nacían con el hueco puesto;
+      · las cotas se medían contra el nominal siempre, con amarre o sin él.
+      Ahora se decide UNA vez, en `shownModel()`, y de ahí cuelgan las dos tablas, las
+      cotas, la flecha, el sembrado y los colores del 3D. `restraint.refHeld` arranca en
+      **sujeta**: con algo puesto, la barra que hay encima del fixture ES la sujeta, y
+      medir la otra describe una pieza que no está. Elegir «libre» sigue valiendo y las dos
+      tablas lo AVISAN, porque es una pregunta hipotética y una pantalla que no lo dice se
+      lee como la otra.
+      **Y la segunda cara de T-01, que seguía abierta**: en `scene/build.ts:35` las
+      variantes DIBUJADAS se anclaban contra `refModel()`, o sea contra la referencia
+      sujeta cuando se elegía así. Mover un pedestal recorría la barra libre por la
+      pantalla mientras la tabla —que usa `placeAt()`— la dejaba quieta: el 3D y la tabla
+      colocando la misma pieza en sitios distintos, que es peor que el fallo original. La
+      regla, otra vez: el fixture se monta contra el nominal.
+      Cierre: paso de banco «elegir "libre" devuelve la tabla a la barra sin sujetar», con
+      las dos direcciones y el aviso; y el paso de T-01 ampliado para leer un VÉRTICE de la
+      geometría dibujada, no solo la trayectoria que mide la tabla.
+- [x] **[T-04] El pin tiene LARGO y ALTURA, y eran la misma cifra · [O]** — «los pines
+      siempre están contra el plano cero y todos hacen referencia empezando desde él;
+      quiero poder colocarlos a cierta altura». `Pin.h` era a la vez lo que mide el poste y
+      dónde acaba, con la base clavada en `TABLE_Z`: para subir un pin había que alargarlo,
+      y alargándolo tocaba también por abajo, donde puede pasar otro tramo de la pieza. `h`
+      pasa a llamarse **Largo** en la tabla y se añade **Altura** (`Pin.z`), que es dónde
+      arranca la base sobre la mesa. Lo que sostiene el poste a esa altura no se modela, y
+      está dicho: la cifra dice dónde está el cilindro, no de qué cuelga. Arrastra un
+      arreglo en el motor: «Llega» miraba solo la PUNTA, y desde que la base se levanta la
+      barra puede pasar por DEBAJO igual que por encima — el mismo fallo del revés. `z`
+      viaja en el JSON y un archivo anterior abre con los pines apoyados en la mesa.
+      Cierre: tres pruebas de motor —la base sube sin alargar el poste, un poste corto
+      levantado hasta la barra sí sujeta, y uno levantado por encima deja de sujetar— más
+      el paso de banco «un pin se puede levantar de la mesa sin alargarlo».
+
 ### Fase 5.0 · Contención — los cuatro Críticos
 
 Objetivo: que la pantalla deje de afirmar lo que el motor no sostiene, y que no se pueda perder

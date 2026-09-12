@@ -12,7 +12,9 @@ import {
   Color, Vector3,
 } from 'three';
 import * as E from '../engine.ts';
-import { ST, shownPath, heldResult, heldOn } from '../state.ts';
+import {
+  ST, shownPath, anchoredShownPis, refModelFree, heldResult, heldOn,
+} from '../state.ts';
 import { groups, cssVar, devThreeColor, ghost, solidMat, extraLabels } from './stage.ts';
 import { barGeometry } from './geometry.ts';
 import type { SceneCtx } from './types.ts';
@@ -252,8 +254,12 @@ export function layerDiff(ctx: SceneCtx): void {
   if (L.diff.on && shown.length > 1) {
     /* shown.find() puede no hallar coincidencia; el objeto de respaldo se
        afirma con `pis` opcional para tipar el `.pis` sin tocar su valor. */
+    /* El respaldo —la referencia oculta— se ancla como todo lo demás: contra la
+       LIBRE, que es la matriz con la que se colocaron las entradas de `shown`.
+       Anclarlo contra sí mismo lo dejaba en otro marco y el desplazamiento salía
+       con un desfase rígido de regalo en cuanto se medía contra la sujeta. */
     const rp = (shown.find(e => e.v.id === ST.ref) || {} as { pis?: Vector3[] }).pis
-      || E.anchoredPis(ref, ref, anchor);
+      || E.anchoredPis(ref, refModelFree(), anchor);
     const segs: [Vector3, Vector3][] = [], mags: number[] = [];
     for (const e of shown) {
       if (e.v.id === ST.ref) continue;
@@ -303,7 +309,12 @@ export function layerDiff(ctx: SceneCtx): void {
    y la cifra dice a cuánto quedó. Sirve para acotar contra el fixture o un
    datum de taller, no contra otro modelo. */
 export function layerMarks(ctx: SceneCtx): void {
-  const { M, nomPis, L } = ctx;
+  const { M, L } = ctx;
+  /* Contra la barra CONTRA LA QUE SE MIDE, no contra la nominal: una cota es una
+     distancia a la pieza que está en la mesa, y con el amarre puesto esa pieza
+     no es la que dibuja la tabla. La misma lista que usa `paneMarks()`, para que
+     la cifra escrita y la línea pintada no puedan discrepar. */
+  const nomPis = anchoredShownPis();
   if (L.marks.on && ST.marks.length) {
     const oct = new OctahedronGeometry(9);
     const pos = [], col = [];
