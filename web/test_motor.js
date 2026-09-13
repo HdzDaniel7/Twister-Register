@@ -10,7 +10,7 @@
  *
  * Correr esto DESPUÉS de cada cambio en src/ y ANTES de `node build.mjs`.
  */
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import { Matrix4, Euler, Vector3 } from 'three';
 import * as E from './src/engine.ts';
 import { I18N, LANGS, LANG, setLang, T } from './src/i18n.ts';
@@ -18,7 +18,8 @@ import { esc, safeColor, COLOR_FALLBACK } from './src/safe.ts';
 /* history.ts no toca el DOM —guarda documentos y los vuelve a cargar por el
    mismo camino que abrir un archivo— así que se prueba aquí y no solo en el
    banco de Edge, que corre entero o no corre. */
-import { ST, loadModel, syncModel, syncTweak, addMark, addPedestal } from './src/state.ts';
+import { ST, loadModel, syncModel, syncTweak, addMark, addPedestal,
+         heldOfVariant, heldResult, heldSlots } from './src/state.ts';
 import * as H from './src/app/history.ts';
 
 let fails = 0;
@@ -2221,6 +2222,34 @@ console.log('\n— los pines laterales: la barra deja de estar libre (engine/pin
   ok('y uno apagado tampoco cuenta, aunque esté tocando',
      E.restrain(M2, pins.map(q => ({ ...q, hold: false })), Mp.section, on).held.length === 0);
 
+  /* Sin dobleces no hay estaciones que mover, y `restrain()` sale antes de
+     construir nada. Esa guarda no la ejercitaba ninguna prueba (QA-05): si se
+     cayera, lo siguiente sería un sistema de cero incógnitas y un NaN en
+     pantalla, con los pines puestos y tocando. */
+  const sinDobleces = E.normalizeModel({ ...Mp, bends: [], tail: 400 });
+  const R0 = E.restrain(sinDobleces, pins, Mp.section, on);
+  ok('una barra sin dobleces sale del amarre tal cual, sin resolver nada',
+     R0.model === sinDobleces && R0.held.length === 0 && R0.iters === 0 && R0.ok && R0.worst === 0);
+
+  /* EL MATERIAL DE UN ARCHIVO se sanea como la carga (X-07). Lo que estaba en
+     juego era un veredicto: con `yield:"abc"` la comparación `yield > 0` daba
+     false con NaN, y el programa decía «0 % del límite» con el esfuerzo alto. */
+  const raro = E.fromDoc({ model: Mp, mat: { E: 1e15, yield: 'abc', rho: null } }).mat;
+  ok('un límite elástico ilegible vuelve al de fábrica, no a NaN',
+     raro.yield === E.MAT_DEFAULT.yield, String(raro.yield));
+  ok('un módulo absurdo se topa', raro.E === 1e6, String(raro.E));
+  ok('un null en la densidad vuelve a la de fábrica, no a cero',
+     raro.rho === E.MAT_DEFAULT.rho, String(raro.rho));
+  ok('una densidad CERO sí se respeta: es «falta el dato», y la flecha lo dice',
+     E.normMat({ rho: 0 }).rho === 0);
+  ok('un límite o un módulo a cero no pasan: con ellos todo esfuerzo sería «nada»',
+     E.normMat({ yield: 0 }).yield > 0 && E.normMat({ E: -5 }).E > 0);
+  ok('y lo tecleado como texto se lee como número',
+     E.normMat({ E: '80000' }).E === 80000);
+  const Rraro = E.restrain(M2, pins, Mp.section, on, raro);
+  ok('con ese archivo el amarre sigue diciendo cuánto se acerca al límite',
+     Rraro.worst > 0 && isFinite(Rraro.worst), Rraro.worst.toFixed(3));
+
   /* La sección vista de lado no es siempre el ancho: de canto asoma el espesor.
      Confundirlas mueve el contacto media sección. */
   const q0 = path[10];
@@ -2704,6 +2733,65 @@ console.log('\n— la carga: el peso propio y el empuje (engine/load.ts) —');
     ok('el empuje de punta también cuenta sin dobleces',
        Math.abs(cae(recta, mat, { g: 0, tip: 40 }).weight - 40) < 1e-9);
   }
+}
+
+/* ======================================================================== */
+console.log('\n— la caché de formas sujetas —');
+/* ARQ-04, solo la fuga: cada modelo abre su ranura en la caché y nada la
+   cerraba. Borrar un modelo tiene que llevarse su forma sujeta, y dejar las de
+   los que siguen. */
+{
+  loadModel(E.demoModel());
+  const otra = E.newVariant(ST.model, 'otra', '#ff8800', 'v9');
+  ST.variants.push(otra);
+  const on0 = ST.restraint.on;
+  ST.restraint.on = true;
+  heldOfVariant(ST.variants[0]);
+  heldOfVariant(otra);
+  const antes = heldSlots();
+  ST.variants = ST.variants.filter(v => v.id !== 'v9');
+  heldResult();
+  const despues = heldSlots();
+  ok('borrar un modelo tira su forma sujeta de la caché',
+     antes.includes('v-v9') && !despues.includes('v-v9'), despues.join(' '));
+  ok('y deja la de los modelos que siguen', despues.includes(`v-${ST.variants[0].id}`));
+  ST.restraint.on = on0;
+}
+
+/* ======================================================================== */
+console.log('\n— atributos de los paneles —');
+/* Los manejadores de `change` y `click` reparten por el NOMBRE del atributo
+   data-*, y el primero que lo reconoce se lo queda. Dos paneles que emiten el
+   mismo nombre para cosas distintas no dan ningún error: uno de los dos deja de
+   funcionar en silencio. Pasó con `data-mc` —columna de máquina y color de
+   cota— y el color de las cotas estuvo muerto sin que nada lo dijera (ARQ-02).
+   Los que se comparten A PROPÓSITO van en la lista, cada uno con su porqué: la
+   prueba no prohíbe compartir, obliga a decidirlo y a escribirlo. */
+{
+  const COMPARTIDOS = {
+    a: 'acciones: un solo despachador, y el valor dice cuál',
+    k: 'subclave de campo: va siempre con otro atributo que dice de quién es',
+    r: 'fila por doblez: las tablas de modelo, puntos, desviación y compensación la usan igual',
+    cell: 'celda derivada: nadie la despacha, focus.ts solo la busca para reescribirla',
+    c: 'ST.comp: las guardas del lazo se editan desde Umbrales con el mismo manejador que en Compensar',
+    t: 'pestañas (click, solo dentro de #tabs) y tolerancias (change, solo type=number): ni el evento ni el elemento coinciden',
+  };
+  const dir = new URL('./src/panels/', import.meta.url);
+  const quien = {};
+  for (const f of readdirSync(dir).filter(x => x.endsWith('.ts'))) {
+    /* sin comentarios: focus.ts nombra atributos para explicarlos, no los emite */
+    const src = readFileSync(new URL(f, dir), 'utf8')
+      .replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+    for (const a of new Set([...src.matchAll(/data-([a-z]+)=/g)].map(m => m[1]))) {
+      (quien[a] = quien[a] || []).push(f);
+    }
+  }
+  const choques = Object.entries(quien).filter(([a, fs]) => fs.length > 1 && !COMPARTIDOS[a]);
+  ok('ningún atributo data-* lo emiten dos paneles sin haberlo decidido', !choques.length,
+     choques.map(([a, fs]) => `data-${a}: ${fs.join(', ')}`).join(' · '));
+  const sobran = Object.keys(COMPARTIDOS).filter(a => !(quien[a] && quien[a].length > 1));
+  ok('y la lista de compartidos no guarda nombres que ya no se comparten', !sobran.length,
+     sobran.join(' '));
 }
 
 console.log(`\n${fails ? fails + ' PRUEBA(S) FALLARON' : 'todas las pruebas pasaron'}\n`);

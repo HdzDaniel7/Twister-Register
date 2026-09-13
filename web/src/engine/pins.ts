@@ -80,6 +80,32 @@ export const MAT_DEFAULT: Readonly<Mat> = Object.freeze({
   rho: 2700,
 });
 
+/** Sanea un material venido de un archivo o tecleado. Mismo trato que
+ *  `normLoad()`: lo que no se entienda vuelve al de fábrica.
+ *
+ *  Aquí no es higiene, es un VEREDICTO. El esfuerzo se compara con
+ *  `mat.yield > 0 ? s / mat.yield : 0`, y con un `yield` ilegible esa
+ *  comparación da `false` y el cociente sale 0: el programa decía «0 % del
+ *  límite elástico» sobre una pieza con esfuerzo alto. Por eso `E` y `yield` no
+ *  bajan de un mínimo físico —un cero en cualquiera de los dos convierte
+ *  cualquier esfuerzo en «nada»— y un módulo de 1e15 se topa en el del
+ *  diamante. `rho` sí puede ser cero: es como la flecha dice «falta el dato».
+ *
+ *  `Number.isFinite` y no el global: `isFinite(null)` es true, y un `null` en
+ *  el JSON llegaría al solver como un cero. */
+export function normMat(o: Partial<Record<keyof Mat, unknown>> | null | undefined): Mat {
+  const n = (v: unknown, d: number, lo: number, hi: number): number => {
+    const x = typeof v === 'string' ? parseFloat(v) : v;
+    return typeof x === 'number' && Number.isFinite(x) ? clamp(x, lo, hi) : d;
+  };
+  const m = o || {};
+  return {
+    E: n(m.E, MAT_DEFAULT.E, 1000, 1e6),
+    yield: n(m.yield, MAT_DEFAULT.yield, 1, 5000),
+    rho: n(m.rho, MAT_DEFAULT.rho as number, 0, 25000),
+  };
+}
+
 export const RESTRAINT_DEFAULT: Readonly<Restraint> = Object.freeze({
   /** apagado por defecto: con los pines quitados el programa se comporta
    *  EXACTAMENTE como antes de que existieran, y eso hay que poder demostrarlo */

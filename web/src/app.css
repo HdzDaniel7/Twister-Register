@@ -446,6 +446,10 @@ input.v-bad,input.v-warn{border-style:dashed}
 .chip{display:inline-block;padding:0 5px;border-radius:8px;font-size:10px;border:1px solid}
 .chip.ok{color:var(--ok);border-color:#2C6B4C;background:#3FD68C14}
 .chip.bad{color:var(--bad);border-color:#7A2C36;background:#FF4D5E14}
+/* Un chip que ES un botón —el del amarre en la barra de estado—: sin el aspecto
+   de botón del navegador, pero con cursor de enlace, porque lleva a alguna
+   parte y eso tiene que notarse antes de pulsarlo. */
+button.chip{font:inherit;font-size:10px;color:inherit;background:none;cursor:pointer}
 
 /* stats */
 .stats{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin:8px 0}

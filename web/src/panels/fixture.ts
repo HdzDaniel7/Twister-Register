@@ -80,6 +80,11 @@ export function paneFixture(M: Model): string {
   const luz = vanos.filter(isFinite);
   const peor = luz.length ? Math.max(...luz) : NaN;
   const sinApoyo = fits.filter(f => !f || !f.over).length;
+  /* La columna «Reacción» aparece y desaparece por un interruptor de OTRA
+     pestaña, y esta no lo mencionaba en ningún sitio: una columna que va y viene
+     sin que nada en pantalla lo explique se lee como un fallo. Se dice con
+     palabras, y con el peso delante, que es lo que esa columna reparte. */
+  const peso = ST.load.on ? T('fixLoadOn').replace('{w}', fx(R.weight, 1)) : T('fixLoadOff');
 
   return `<div class="pane on"><div class="grp">
     <div class="eyebrow">${T('fixture')}<span class="n">${ST.fixture.length}</span></div><div class="body">
@@ -102,7 +107,8 @@ export function paneFixture(M: Model): string {
             T('sag')}: ${fx(sag.worst, 3)} mm</span>`}
     </div>
     ${!sag.noMat && sag.worst > M.tol.point ? `<div class="warnbox mt6">${T('sagBad')}</div>` : ''}
-    <div class="hintline">${T('sagNote')}</div>` : `<div class="hintline">${T('fixEmpty')}</div>`}
+    <div class="hintline">${T('sagNote')}</div>
+    <div class="hintline">${peso}</div>` : `<div class="hintline">${T('fixEmpty')}</div>`}
     <div class="row mt6"><button class="btn sm" data-a="addped">${T('addPed')}</button>
       <button class="btn sm" data-a="seedped">${T('seedPed').replace('{n}', String(E.PEDESTALS_DEFAULT))}</button>
       <span class="grow"></span>

@@ -376,9 +376,28 @@ function heldFor(slot: string, M: Model, refM: Model): Settled {
   return res;
 }
 
+/** Tira las ranuras de modelos que ya no existen.
+ *
+ *  `heldOfVariant()` abre una por modelo y nada las cerraba: borrar un modelo,
+ *  abrir otro archivo o deshacer hasta antes de un duplicado dejaba su forma
+ *  sujeta en la caché para siempre, con la pieza entera dentro. No es lentitud
+ *  —la clave cuesta 0.006 ms, medido, y por eso no se toca— sino memoria que
+ *  solo crece. Se purga aquí, a la entrada de cada repintado, y no en cada sitio
+ *  que quita un modelo: esos ya son varios y el siguiente no se acordaría. */
+function pruneHeld(): void {
+  for (const slot of heldCache.keys()) {
+    if (slot.startsWith('v-') && !ST.variants.some(v => slot === `v-${v.id}`)) heldCache.delete(slot);
+  }
+}
+
+/** Las ranuras vivas de la caché. Solo para las pruebas: la fuga no se ve de
+ *  ninguna otra forma. */
+export const heldSlots = (): string[] => [...heldCache.keys()];
+
 export function heldResult(): Settled {
   const M = ST.model;
   if (!M) return E.settledFree(E.emptyModel(), ST.pins.length, ST.fixture.length);
+  pruneHeld();
   const res = heldFor('act', M, refModelFree());
   /* `ST.held` sigue siendo la forma sujeta de la ACTIVA, que es la que dibuja la
      escena y la que mide la pestaña. La de la referencia vive solo en la caché:

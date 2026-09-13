@@ -57,7 +57,7 @@ export function paneMarks(M: Model): string {
       : (near.i === 0 ? 'P0' : (near.i === P.length - 1 ? 'PE' : 'PI' + near.i));
     return `<tr>
       <td><input type="checkbox" data-mv="${mk.id}" ${mk.visible ? 'checked' : ''}>
-        <input type="color" class="sw" data-mc="${mk.id}" value="${mk.color}"></td>
+        <input type="color" class="sw" data-mkc="${mk.id}" value="${mk.color}"></td>
       <td><input type="text" data-mk="${mk.id}" data-k="name" value="${esc(mk.name)}" style="min-width:70px"></td>
       ${['x', 'y', 'z'].map(k =>
         `<td>${nfield('1', `data-mk="${mk.id}" data-k="${k}"`, mk[k as 'x' | 'y' | 'z'])}</td>`).join('')}

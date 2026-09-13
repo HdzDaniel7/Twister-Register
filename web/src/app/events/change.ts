@@ -271,6 +271,11 @@ function onPin(t: HTMLInputElement, d: DOMStringMap): boolean {
        en cuanto la pieza pesa, E y ρ deciden cuánto se cuelga y la escena sí
        cambia. Por eso el reparto: sin carga basta con repintar la tabla. */
     if (setNum(ST.mat, MAT_KEYS, d.mt, t.value)) {
+      /* Recortado en el acto con la misma función que sanea un archivo, como el
+         perfil de máquina: un límite tecleado a cero es el mismo veredicto falso
+         que uno leído a cero. Se repinta siempre, así la celda enseña el valor
+         que se está usando y no el que se tecleó. */
+      Object.assign(ST.mat, E.normMat(ST.mat));
       if (ST.load.on) pintar(); else renderRight();
     }
     return true;
@@ -365,8 +370,12 @@ function onMark(t: HTMLInputElement, d: DOMStringMap): boolean {
     if (mk) { mk.visible = t.checked; rebuildScene(); }
     return true;
   }
-  if (d.mc !== undefined) {
-    const mk = ST.marks.find(x => x.id === d.mc);
+  /* `data-mkc` y no `data-mc`: ese nombre ya era de las columnas de máquina, y
+     onModelField() corre antes y se lo quedaba —lo descartaba en silencio porque
+     un id de cota no es una columna—, así que este color no llegaba nunca aquí.
+     La prueba de «atributos de los paneles» en test_motor.js impide el próximo. */
+  if (d.mkc !== undefined) {
+    const mk = ST.marks.find(x => x.id === d.mkc);
     if (mk) { mk.color = safeColor(t.value, mk.color); renderRight(); rebuildScene(); }
     return true;
   }

@@ -845,30 +845,57 @@ regresiones del 09-10.
       `CELL_ATTRS`.
       Cierre: pasos de banco que dan dos pasos seguidos en pedestal, pin, amarre y material,
       y que fallaban con el foco en BODY.
-- [ ] **[X-07] `normMat()` · [S]** — `mat` es el único campo del fixture sin sanitizador
+- [x] **[X-07] `normMat()` · [S]** — `mat` es el único campo del fixture sin sanitizador
       (`doc.ts:350`). Con `yield:"abc"` el programa informa «0 % del límite elástico» con esfuerzo
       real alto, porque `NaN > 0` es `false`. Molde literal: `normLoad()` (`load.ts:105-124`). · S
+      **Hecho el 2026-09-12.** `normMat()` vive junto a `MAT_DEFAULT` en `engine/pins.ts` y lo
+      usan `toDoc()`, `fromDoc()` y la celda tecleada. Los rangos son una decisión, no un
+      molde: `E` y `yield` no bajan de un mínimo físico, porque un cero en cualquiera de los
+      dos convierte cualquier esfuerzo en «0 %» —el mismo veredicto falso que el `NaN`—; `rho`
+      sí admite cero, que es como la flecha dice «falta el dato». `Number.isFinite` y no el
+      global: `isFinite(null)` es `true`.
+      Cierre: pruebas de motor con `{E:1e15, yield:"abc", rho:null}` que exigen que el amarre
+      siga diciendo cuánto se acerca al límite.
 - [x] **[X-06] El peso no depende de las incógnitas · [O]** — mover el cálculo de `weight` antes
       del `return` temprano y añadir un flag `noDof`. Hoy una recta de 1700 mm dice «Peso: 0.0 N»
       cuando pesa 21.6 N. · S
-- [ ] **[X-09] Dos rótulos para el chip de estado · [S]** — `panels/status.ts:37-44` dice «Barra
+- [x] **[X-09] Dos rótulos para el chip de estado · [S]** — `panels/status.ts:37-44` dice «Barra
       sujeta por los pines · 0» con cero pines y la carga puesta. `ST.restraint.on` y `ST.load.on`
       ya están separados. Y hacer el chip un enlace a Modelar/Amarre: en Compensar es la única
       señal y no hay pestaña para llegar al interruptor. · S
+      **Hecho el 2026-09-12, y son tres rótulos.** Pines, carga, o los dos: «Sujeta y pesando»
+      no es ninguno de los otros. El número de pines que sujetan sale solo si hay pines. El chip
+      es un botón (`data-a="gohold"`) que lleva a Modelar › Amarre desde cualquier modo.
+      Cierre: paso de banco con solo la carga puesta que exige no ver «pines» y que, desde
+      Compensar, el chip deje en Amarre.
 - [x] **[FIS-06] La alarma de pines abiertos, solo cuando penetran · [S]** — con carga puesta,
       contar solo `res < −tol`. Hoy un pin legítimamente separado dispara «fixture imposible».
       Es un signo. · S
-- [ ] **[ARQ-02] Colisión de `data-mc` · [S]** — el color de las cotas (`points.ts:56`) lo come
+- [x] **[ARQ-02] Colisión de `data-mc` · [S]** — el color de las cotas (`points.ts:56`) lo come
       `onMachine` y lo descarta en silencio. Renombrar a `data-mkc` **y** añadir una prueba que
       falle si dos paneles emiten el mismo prefijo. · S
-- [ ] **[UX-06] Decir en Fixture que la pieza pesa · [S]** — la columna «Reacción» aparece por un
+      **Hecho el 2026-09-12.** La prueba va en `test_motor.js` y no en el banco: lee los
+      paneles sin comentarios y cruza qué archivo emite cada `data-*`. No prohíbe compartir,
+      obliga a decidirlo — `a`, `k`, `r`, `cell`, `c` y `t` están en una lista con su porqué, y
+      una segunda prueba falla si la lista guarda un nombre que ya nadie comparte. Antes del
+      renombrado falló con «data-mc: mach.ts, points.ts», y solo con eso.
+      Cierre: esa prueba, y un paso de banco que cambia el color de una cota.
+- [x] **[UX-06] Decir en Fixture que la pieza pesa · [S]** — la columna «Reacción» aparece por un
       interruptor de otra pestaña y el texto de Fixture no menciona la carga en ningún sitio.
       `heldResult()` ya está importado ahí. · S
-- [ ] **[QA-04 + QA-05] Los dos pasos de prueba que faltan · [S]** — deshacer para `data-ld` y
+      **Hecho el 2026-09-12.** Una línea bajo la flecha: sin carga dice qué interruptor
+      enciende las reacciones y dónde está; con ella, cuánto pesa la pieza en newton.
+      Cierre: paso de banco que mira las dos frases.
+- [x] **[QA-04 + QA-05] Los dos pasos de prueba que faltan · [S]** — deshacer para `data-ld` y
       `data-mt` (copiar `probe_ui.js:2078`), y una llamada a `restrain()` con `bends: []`. · S
-- [ ] **[ARQ-04 recortado] Purgar las ranuras `v-${id}` de `heldCache` · [S]** — solo la fuga.
+      **Hecho el 2026-09-12.** Paso de banco «la carga y el material también entran en el
+      deshacer», y prueba de motor «una barra sin dobleces sale del amarre tal cual».
+- [x] **[ARQ-04 recortado] Purgar las ranuras `v-${id}` de `heldCache` · [S]** — solo la fuga.
       **La parte de coste queda descartada**: PERF midió la clave en 0.006 ms contra 14–100 ms del
       solver. · S
+      **Hecho el 2026-09-12.** `pruneHeld()` a la entrada de `heldResult()`, y no en cada sitio
+      que quita un modelo: borrar, abrir y deshacer ya son tres, y el cuarto no se acordaría.
+      Cierre: prueba de motor que falla por su nombre con la purga quitada («v-v1 v-v9 act»).
 
 **Criterio de cierre:** editar un fixture completo con el teclado, de principio a fin, sin que el
 foco se pierda ni una vez; y ningún archivo de entrada puede producir un veredicto de seguridad

@@ -724,6 +724,18 @@ step('ocultar y mostrar el punto', () => {
   check('input[data-mv="mk1"]', false);
   check('input[data-mv="mk1"]', true);
 });
+step('el color de una cota se guarda', () => {
+  /* ARQ-02: este campo compartía `data-mc` con las columnas de máquina, el
+     manejador de máquina se lo quedaba antes y lo tiraba. Ninguna prueba lo
+     tocaba, así que estuvo muerto sin que nada fallara. */
+  const mk = S().marks.find(m => m.id === 'mk1');
+  const antes = mk.color;
+  setval('input[data-mkc="mk1"]', '#12ab34');
+  if (S().marks.find(m => m.id === 'mk1').color !== '#12ab34') {
+    throw new Error('el color no llegó a la cota: ' + S().marks.find(m => m.id === 'mk1').color);
+  }
+  setval('input[data-mkc="mk1"]', antes);
+});
 
 /* Bajo file:// un `<img onerror>` corre con acceso al disco del taller, y el
    nombre de una cota llega de un .json que va y viene por USB. La etiqueta del
@@ -1986,6 +1998,26 @@ step('sin densidad la flecha dice que falta el material, no un cero', () => {
   S().mat.rho = antes;
   B.renderAll();
 });
+step('la pestaña Fixture dice si la pieza pesa, cuánto, y dónde se enciende', () => {
+  /* UX-06: la columna «Reacción» aparece por un interruptor de OTRA pestaña, y
+     el texto de aquí no nombraba la carga en ningún sitio. */
+  const B = window.BARCOMP;
+  const antes = S().load.on;
+  S().load.on = false;
+  B.renderAll();
+  if (!/La pieza pesa/.test(q('#panes').textContent)) {
+    throw new Error('sin carga no dice qué interruptor enciende las reacciones');
+  }
+  S().load.on = true;
+  B.renderAll();
+  const w = B.heldResult().weight;
+  if (!(w > 0)) throw new Error('la pieza no pesa: ' + w);
+  if (!q('#panes').textContent.includes(w.toFixed(1) + ' N')) {
+    throw new Error(`con carga no dice cuánto pesa (${w.toFixed(1)} N)`);
+  }
+  S().load.on = antes;
+  B.renderAll();
+});
 step('la pestaña Amarre existe y arranca con el amarre apagado', () => {
   click('[data-md="model"]');
   click('#tabs [data-t="pins"]');
@@ -2206,6 +2238,28 @@ step('los pines y el amarre entran en el deshacer', () => {
   hotkey('z', { ctrlKey: true });
   if (S().pins.length !== n) throw new Error('deshacer no lo quitó: ' + S().pins.length);
 });
+step('la carga y el material también entran en el deshacer', () => {
+  /* QA-04: pedestales y pines tenían su paso de deshacer, y los dos grupos de
+     campos que deciden cuánto se cuelga la pieza no. Un campo que se queda
+     fuera del documento no da error: se pierde del deshacer y del guardado a la
+     vez, y eso solo lo nota quien vuelve a abrir el archivo. */
+  const E0 = S().mat.E;
+  setval('#panes [data-mt="E"]', String(E0 + 1000));
+  if (S().mat.E !== E0 + 1000) throw new Error('no se escribió E: ' + S().mat.E);
+  hotkey('z', { ctrlKey: true });
+  if (S().mat.E !== E0) throw new Error('deshacer no devolvió E: ' + S().mat.E);
+  const on0 = S().load.on;
+  if (!on0) check('#panes [data-ld="on"]', true);
+  const g0 = S().load.g;
+  setval('#panes [data-ld="g"]', String(g0 + 1));
+  if (S().load.g !== g0 + 1) throw new Error('no se escribió g: ' + S().load.g);
+  hotkey('z', { ctrlKey: true });
+  if (S().load.g !== g0) throw new Error('deshacer no devolvió g: ' + S().load.g);
+  if (!on0) {
+    hotkey('z', { ctrlKey: true });
+    if (S().load.on) throw new Error('deshacer no apagó la carga');
+  }
+});
 step('resolver el amarre cuesta menos que repintar la escena', () => {
   const B = window.BARCOMP;
   check('#panes [data-rs="on"]', true);
@@ -2252,6 +2306,24 @@ step('la carga arranca apagada y tiene su interruptor', () => {
   click('#tabs [data-t="pins"]');
   if (S().load.on) throw new Error('la carga nace encendida');
   if (!q('#panes [data-ld="on"]')) throw new Error('no está el interruptor de la carga');
+});
+step('el chip de estado dice qué interruptor está puesto y lleva a Amarre', () => {
+  /* X-09: con cero pines y solo la carga, el chip decía «Barra sujeta por los
+     pines · 0». Se leía «sujeta» donde había una pieza colgando. */
+  check('#panes [data-rs="on"]', false);
+  check('#panes [data-ld="on"]', true);
+  const chip = q('#st [data-a="gohold"]');
+  if (/pines/i.test(chip.textContent)) throw new Error('con solo la carga dice pines: ' + chip.textContent);
+  if (!/pesa/i.test(chip.textContent)) throw new Error('no dice que la pieza pesa: ' + chip.textContent);
+  if (!S().pins.length && /·\s*0\s*·/.test(chip.textContent)) {
+    throw new Error('enseña un cero de pines sin pines: ' + chip.textContent);
+  }
+  /* y desde Compensar, donde no hay pestaña que lleve a los interruptores */
+  click('[data-md="comp"]');
+  click('#st [data-a="gohold"]');
+  if (S().mode !== 'model' || S().tab !== 'pins') throw new Error(`llevó a ${S().mode}/${S().tab}`);
+  if (!q('#panes [data-ld="on"]').checked) throw new Error('llegó a Amarre pero la carga no se ve puesta');
+  check('#panes [data-ld="on"]', false);
 });
 step('encender la carga cuelga la pieza por su propio peso', () => {
   const B = window.BARCOMP;

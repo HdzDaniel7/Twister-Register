@@ -22,7 +22,7 @@ import {
   markRejected, saveFocus, restoreFocus, dropPendingEdit,
 } from '../panels.ts';
 import { makeReport } from '../report.ts';
-import { renderAll, refresh, refreshTable, toggleSolo } from './render.ts';
+import { renderAll, refresh, refreshTable, toggleSolo, setMode } from './render.ts';
 import { undo, redo } from './history.ts';
 import {
   saveJson, openJson, importPieces, exportPoints, exportCommand,
@@ -394,6 +394,14 @@ export function action(a: string): void {
     case 'undo': return stepHistory(undo);
     case 'redo': return stepHistory(redo);
     case 'solo': return toggleSolo();
+    case 'gohold':
+      /* el chip del amarre en la barra de estado: lleva a donde están los dos
+         interruptores, también desde Compensar y Medir, que no tienen esa
+         pestaña. La pestaña se fija ANTES de cambiar de modo, que es quien
+         repinta. */
+      ST.tab = 'pins';
+      if (ST.mode !== 'model') { setMode('model'); return; }
+      renderShell(); renderRight(); return;
     case 'zerotw':
       zeroTweak(); renderRight(); return;
 

@@ -6,7 +6,7 @@
    ========================================================================= */
 export type Lang = 'es' | 'en' | 'de';
 
-/** Las 423 claves que deben existir en LOS TRES diccionarios. */
+/** Las 429 claves que deben existir en LOS TRES diccionarios. */
 export type I18nKey =
   | 'sub' | 'bNew' | 'bOpen' | 'bSave' | 'bRep' | 'bDemo' | 'layers' | 'datasets'
   | 'model' | 'meas' | 'thSys' | 'thLight' | 'thDark' | 'comp' | 'points' | 'lNom'
@@ -84,4 +84,5 @@ export type I18nKey =
   | 'zeroD' | 'bakeAsk' | 'dTip' | 'dblz' | 'place' | 'pivot' | 'plX' | 'plY'
   | 'plZ' | 'plRX' | 'plRY' | 'plRZ' | 'plReset' | 'plNote' | 'lMarks' | 'marks'
   | 'addMark' | 'nearPi' | 'distPi' | 'markNote' | 'cCalc' | 'cAdj' | 'zeroTw' | 'cellNote'
-  | 'tweakOn';
+  | 'tweakOn'
+  | 'fixLoadOn' | 'fixLoadOff' | 'stHold' | 'stLoad' | 'stHoldLoad' | 'stHoldGo';

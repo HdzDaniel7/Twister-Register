@@ -38,9 +38,22 @@ function held(): string {
   if (!heldOn()) return '';
   const R = heldResult();
   const malo = R.worst >= 1;
-  return `<div class="c"><span class="chip ${malo ? 'bad' : ''}"
-    title="${esc(T('pinOnTip'))}">${T('pinOn')} · ${R.held.length} · ${
-    fx(R.worst * 100, 0)}% ${T('pinOfYield')}</span></div>`;
+  /* Dos interruptores y un solo chip, así que el rótulo dice CUÁL está puesto.
+     Decía «Barra sujeta por los pines» siempre, también con cero pines y solo la
+     carga encendida: se leía «sujeta» donde había una pieza colgando. Y el
+     número de pines que sujetan va solo si hay pines; «· 0» sin ninguno no es
+     un dato, es ruido con forma de dato.
+
+     Es un botón que lleva a Amarre: en Compensar este chip es la única señal de
+     que la pieza no está libre, y desde ahí no hay pestaña que lleve a los
+     interruptores. */
+  const pin = ST.restraint.on, peso = ST.load.on;
+  const lab = pin && peso ? T('stHoldLoad') : pin ? T('stHold') : T('stLoad');
+  const tip = [pin ? T('pinOnTip') : '', peso ? T('loadOnTip') : '', T('stHoldGo')]
+    .filter(Boolean).join(' ');
+  return `<div class="c"><button class="chip ${malo ? 'bad' : ''}" data-a="gohold"
+    title="${esc(tip)}">${lab}${ST.pins.length ? ' · ' + R.held.length : ''} · ${
+    fx(R.worst * 100, 0)}% ${T('pinOfYield')}</button></div>`;
 }
 
 /* ============================================================ barra de estado */
