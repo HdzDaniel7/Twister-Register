@@ -2637,8 +2637,49 @@ console.log('\n— la carga: el peso propio y el empuje (engine/load.ts) —');
   const r2 = cae(VERT, mat, {}, [], [tope]);
   ok('un tope bajo la punta se lleva medio voladizo',
      Math.abs(r2.pedN[0] - w * a / 2) < 1e-3, `${r2.pedN[0].toFixed(4)} N`);
-  ok('lo que llevan los apoyos y lo que aguanta la raíz suman el peso',
-     Math.abs(r2.carried + r2.root - r2.weight) < 1e-9);
+  /* LA PALANCA, en lugar de una prueba que no probaba nada: «lo que llevan los
+     apoyos más lo que aguanta la raíz suman el peso» se cumplía siempre, porque
+     `root` se DEFINE como `weight − carried` (X-04). Lo que sí se comprueba a
+     mano es el reparto: con el tope a `d` de la estación, momentos respecto de
+     ella dan R·d = w·a²/2. Con d < a/2 el tope lleva MÁS que la pieza entera y
+     la mordaza tira hacia abajo lo que sobra. El taller confirmó el 2026-09-15
+     que la mordaza existe, así que eso es física y no un error; el 1 % es lo
+     que se lleva el muelle de la estación. */
+  {
+    const d = 100;
+    const cerca = cae(VERT, mat, {}, [], [{ ...tope, id: 'p3', x: 500 + d }]);
+    const R = w * a * a / (2 * d);
+    ok('un tope cerca de la estación lleva lo que pide la palanca',
+       cerca.ok && Math.abs(cerca.pedN[0] - R) < 1e-2 * R,
+       `${cerca.pedN[0].toFixed(3)} N vs ${R.toFixed(3)} N`);
+    ok('  más que la pieza entera, así que la mordaza tira hacia abajo',
+       cerca.pedN[0] > cerca.weight && cerca.root < 0, `raíz ${cerca.root.toFixed(3)} N`);
+  }
+
+  /* UN SOLO «APOYA» (X-05). Un tope en la punta y otro bajado 0.9 mm en mitad
+     del voladizo: por geometría apoya —0.9 mm cabe en la tolerancia de punto— y
+     por fuerzas no lleva nada. Con la carga resuelta manda la reacción, y la
+     flecha tiene que contar los mismos apoyos que la columna de al lado. */
+  {
+    const bajo = { ...tope, id: 'p4', x: 750, h: 239.1 };
+    const peds = [tope, bajo];
+    const r = cae(VERT, mat, {}, [], peds);
+    const P = E.buildPath(r.model, 8).samples;
+    const tol = VERT.tol.point;
+    const f = E.pedestalFit(P, sec, bajo);
+    ok('un pedestal a 0.9 mm: la geometría dice que apoya y la carga que no lleva nada',
+       r.ok && E.bears(f, tol) && r.pedN[1] === 0, `hueco ${f.gap.toFixed(3)} mm · ${r.pedN[1]} N`);
+    ok('  con la carga resuelta, apoya el que lleva peso',
+       !E.bears(f, tol, { n: r.pedN[1], blind: r.pedBlind[1] })
+       && E.bears(E.pedestalFit(P, sec, tope), tol, { n: r.pedN[0], blind: r.pedBlind[0] }));
+    const carga = { n: r.pedN, blind: r.pedBlind };
+    const geo = E.sagByPedestal(E.gravitySag(r.model, P, sec, peds, mat), P, sec, peds);
+    const fza = E.sagByPedestal(E.gravitySag(r.model, P, sec, peds, mat, carga), P, sec, peds);
+    ok('  y la flecha cuenta los mismos apoyos que la reacción',
+       isFinite(geo[1]) && !isFinite(fza[1]), `geometría ${geo[1]} · carga ${fza[1]}`);
+    ok('  un apoyo ciego cae a la geometría: por fuerzas no se puede juzgar',
+       E.bears(f, tol, { n: 0, blind: true }));
+  }
   ok('con el tope puesto, la punta ya no se cae', r2.drop < 0.01,
      `${r2.drop.toFixed(4)} mm`);
   /* El contacto es un muelle, no una pared: lo que se hunde es el error de esa

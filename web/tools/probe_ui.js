@@ -2753,4 +2753,41 @@ step('modelo nuevo y demo', () => {
   drawer('file'); click('[data-a="new"]'); click('[data-a="demo"]'); });
 step('demo limpia las cotas', () => { if (S().marks.length) throw new Error('quedaron cotas'); });
 
+/* --- la mordaza y un solo «apoya», 2026-09-15 ------------------------------
+   X-04 y X-05, con la demo recién abierta: un pedestal suelto justo después de
+   una estación hace palanca, lleva más que la pieza entera y la mordaza tira
+   hacia abajo. Medido en Node antes de escribir esto: converge, 51 N sobre una
+   pieza de 23.7 N, raíz −27.7 N. */
+step('con la mordaza tirando hacia abajo, la pantalla lo dice con la cifra', () => {
+  const B = window.BARCOMP;
+  click('[data-md="model"]');
+  click('#tabs [data-t="pins"]');
+  const antes = { fix: S().fixture, load: S().load.on, rs: S().restraint.on };
+  S().fixture = [{ id: 'pd1', name: 'Ped 1', visible: true,
+                   x: 352.85, y: 26.99, h: 333.66, tilt: 19.98, pad: 60 }];
+  S().restraint.on = false;
+  S().load.on = true;
+  B.renderAll();
+  try {
+    const R = B.heldResult();
+    if (!R.ok) throw new Error('el caso de palanca no convergió');
+    if (!(R.root < -0.05 * R.weight)) throw new Error('la raíz no tira hacia abajo: ' + R.root.toFixed(2));
+    const aviso = [...document.querySelectorAll('#panes .warnbox')]
+      .find(w => /ABAJO/.test(w.textContent));
+    if (!aviso) throw new Error('la raíz es ' + R.root.toFixed(1) + ' N y no hay aviso');
+    if (!aviso.textContent.includes((-R.root).toFixed(1))) throw new Error('el aviso no dice la cifra: ' + aviso.textContent);
+    const chip = [...document.querySelectorAll('#panes .chip')].find(c => /mordaza/i.test(c.textContent));
+    if (!chip || !chip.classList.contains('bad')) throw new Error('el chip de la mordaza no se pinta');
+    /* X-05: el pedestal lleva peso, así que el 3D lo pinta como «apoya» */
+    const caja = B.groups.fix.children[0];
+    const esperado = getComputedStyle(document.documentElement).getPropertyValue('--fixture').trim().toLowerCase();
+    if ('#' + caja.material.color.getHexString() !== esperado) {
+      throw new Error('el pedestal lleva ' + R.pedN[0].toFixed(1) + ' N y el 3D no lo pinta como apoyo');
+    }
+  } finally {
+    S().fixture = antes.fix; S().load.on = antes.load; S().restraint.on = antes.rs;
+    B.renderAll();
+  }
+});
+
 return log.join('\n');

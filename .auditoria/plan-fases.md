@@ -903,18 +903,40 @@ falso.
 
 ### Fase 5.2 · Estructural
 
-- [ ] **[X-05] Un solo predicado de «apoya» · [O]** — `sag` usa `|gap| ≤ tol.point` y `load` usa
+- [x] **[X-05] Un solo predicado de «apoya» · [O]** — `sag` usa `|gap| ≤ tol.point` y `load` usa
       penetración > 0; medido, a **0.9 mm** de diferencia una columna dice que apoya y la de al
       lado da 0.00 N, y se pintan juntas. Exportar el criterio desde `fixture.ts` y alimentar
       `gravitySag` con `heldResult().model` en vez de con la barra libre. · M
       ⚠️ Depende de la pregunta abierta nº 3 (¿es `tol.point` la tolerancia correcta, o hace falta
       una holgura de fixture propia?).
-- [ ] **[X-04] Residuo de equilibrio, y `root` que no tire hacia abajo · [O]** — medido: dos
+      **Hecho el 2026-09-15, con la respuesta del taller: `tol.point` basta de momento.** La mitad
+      de `heldResult().model` ya la había hecho T-02. Lo que faltaba es UN criterio:
+      `bears(f, tol, carrying?)` en `engine/fixture.ts`. Por geometría, le pasa por encima y la
+      cuna la toca dentro de la tolerancia de punto. Con la carga resuelta —convergida, y mirando
+      la sujeta: `pedCarrying()` en `state.ts`— manda la reacción: apoya el que lleva peso, y un
+      apoyo ciego cae a la geometría porque por fuerzas no se puede juzgar. Lo usan la flecha
+      (`gravitySag(…, carrying)`) y el color del 3D, que lo tenían escrito a mano cada uno.
+      Cierre: prueba de motor con un tope en la punta y otro bajado 0.9 mm (la geometría dice
+      apoya, la carga 0 N, y con la carga resuelta la flecha ya no cuenta ese vano), y el paso de
+      banco de X-04, que mira el color del pedestal que lleva peso.
+- [x] **[X-04] Residuo de equilibrio, y `root` que no tire hacia abajo · [O]** — medido: dos
       pedestales suman **117 % del peso** y `root` sale **−3.52 N**. La prueba que debía cazarlo
       (`test_motor.js:2556`) es una tautología: `root` está definido como `weight − carried`.
       Mostrar `|Σ reacciones·d̂ − peso|` y avisar con `root < 0`. · S
       ⚠️ **Bloqueado por la pregunta al taller**: si no hay mordaza en el primer extremo, `root` es
       ficción y esto sube a Crítico, con otro arreglo.
+      **Hecho el 2026-09-15: el taller confirma la mordaza, así que `root` es física.** Negativo no
+      es un error: es la barra haciendo palanca sobre un pedestal, que lleva más que la pieza
+      entera mientras la mordaza tira hacia abajo lo que sobra. El residuo que pedía el informe,
+      `|Σ reacciones·d̂ − peso|`, vuelve a ser `|root|`: con una mordaza que aguanta cualquier
+      fuerza, la suma de fuerzas se cumple por construcción, así que no se enseña. Lo que se
+      enseña es el signo: aviso `loadRootDown` con la cifra y chip en rojo cuando la raíz baja del
+      −1 % del peso, solo con la carga resuelta, y la ayuda de «La mordaza aguanta» dice qué
+      quiere decir negativo. La prueba tautológica sale; entra la palanca hecha a mano: tope a
+      100 mm de la estación, R = w·a²/2d = 15.89 N contra 15.88 N del motor, raíz −3.16 N. Paso de
+      banco sobre la demo con un pedestal suelto que hace palanca (51 N sobre 23.7 N, raíz
+      −27.7 N), buscado antes en Node entre las posiciones que convergen.
+      **Y de paso, FIS-10**, que es más grave que esto y queda abierto en la Fase 5.5.
 - [x] **[ARQ-03] Que `tsc` vigile la persistencia · [S]** — hacer requeridas en `Doc` las claves
       que `toDoc()` siempre escribe, y un único `currentDoc()` compartido por `snapshot()` y
       `files.ts`. Hoy las tres listas están sincronizadas a mano y el compilador no avisaría si la
@@ -1074,14 +1096,45 @@ fixture sujeta a todos los modelos, y el coste de mover un pin crece con cada mo
       Tampoco se resuelve en diferido: enseñaría durante un momento formas viejas con cifras
       nuevas, y las ediciones son discretas (Enter, clic), no continuas.
 
+### Fase 5.5 · El solver con apoyos a micras
+
+Abierta el 2026-09-15, encontrada al cerrar X-04.
+
+- [ ] **[FIS-10] Con el fixture sembrado y la carga puesta, la búsqueda no llega · [O]** — medido
+      en Node sobre la demo: «Sembrar 7» con la barra libre y después «La pieza pesa». `ok=false`
+      en la segunda iteración y los apoyos suman 41.7 N sobre una pieza de 23.7 N; la pantalla lo
+      avisa con `loadStuck`, así que no miente, pero es el caso más normal —sembrar y encender el
+      peso— y ahí no hay número. El banco no lo veía porque siembra con la carga YA puesta, y
+      entonces siembra bajo la barra colgada: converge, pero con 17.7 mm de caída y 0.33 N en los
+      apoyos, que es la otra cara de sembrar «bajo la barra que hay» (T-03).
+      Diagnóstico: el gradiente está bien —contrastado componente a componente con diferencias
+      centradas— y el paso es de bajada. El alto sembrado va redondeado a centésimas y los siete
+      pedestales nacen a ±4 µm de la barra; con κ ≈ 6 000 N/mm eso son ±24 N de precarga, y el
+      ruido del gradiente por diferencias finitas (≈1 % de componentes de ~300) no deja bajar al
+      1e-4 relativo que pide `GRAD_TOL`. La energía deja de moverse en la cuarta cifra decimal
+      y la búsqueda se declara atascada.
+      Probado y descartado, con cifras: (1) cuatro contactos por esquina en vez del punto más bajo,
+      por el pico de `|·|` en `sectionDrop()`: no converge y rompe la prueba de FIS-08 (1.31 mm);
+      (2) probar el tanteo cuando el paso con «los que llegarían» no baja: sin efecto; (3) partir
+      el paso hasta 30 veces en vez de 8: dos iteraciones más y se atasca igual, con 47.6 N;
+      (4) sembrar con 10, 20 o 50 µm de aire: tampoco converge, y con 50 µm un solo pedestal lleva
+      55 N. Nada de eso entra en el código.
+      Lo que queda por probar: el jacobiano del contacto analítico en vez de por diferencias
+      finitas, que quita el ruido de raíz; o un criterio de parada por energía estancada, pero
+      solo con el reparto contrastado contra un caso hecho a mano, porque declarar convergido un
+      reparto de 2× el peso sería peor que el aviso de hoy. · M
+
 ### Preguntas para el taller (bloquean o cierran tareas de arriba)
 
 1. **¿El fixture real tiene mordaza en el primer extremo?** Decide si X-04 es una imprecisión del
    17 % o un número inventado. Dos minutos con el fixture delante.
+   **Contestada el 2026-09-15: sí.** X-04 cerrado con eso.
 2. **¿Cuántos dobleces tiene la pieza más grande que pasa de verdad?** Si no supera ~30, PERF-01
    se cierra sin tocar código.
 3. **¿`tol.point` = 1 mm es la tolerancia para decidir si un pedestal apoya**, o hace falta una
    holgura de fixture aparte? Bloquea el diseño de X-05.
+   **Contestada el 2026-09-15: de momento basta.** Si algún día hace falta una holgura propia,
+   se cambia en un solo sitio: `bears()`.
 4. **Con la carga puesta, ¿la desviación se compara contra la forma libre o contra la asentada?**
    Segunda cara de la pregunta que sigue abierta desde el 09-09.
 5. **¿Cuánto cede el rodado de verdad con los pines puestos?** El modelo usa 0.5 donde la torsión

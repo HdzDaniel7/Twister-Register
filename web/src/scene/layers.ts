@@ -14,7 +14,7 @@ import {
 import * as E from '../engine.ts';
 import {
   ST, shownPath, anchoredShownPis, refModelFree, heldResult, heldOn, heldOfVariant, placeMatrix,
-  refHeldOn,
+  refHeldOn, pedCarrying,
 } from '../state.ts';
 import { groups, cssVar, devThreeColor, ghost, solidMat, extraLabels } from './stage.ts';
 import { barGeometry } from './geometry.ts';
@@ -49,12 +49,14 @@ export function layerFixtures(ctx: SceneCtx): void {
      puesto—: este color y esa columna prometen ser la misma información, y lo
      serían solo por accidente si cada uno mirase una barra distinta. */
   const path = shownPath();
-  for (const ped of ST.fixture) {
+  const carga = pedCarrying();
+  for (const [k, ped] of ST.fixture.entries()) {
     if (!ped.visible || !(ped.h > 1)) continue;
     const f = E.pedestalFit(path, M.section, ped);
-    /* «apoya» es lo mismo que pinta la tabla en rojo: la barra le pasa por
-       encima Y la cuna la toca dentro de la tolerancia de punto. */
-    const apoya = !!f && f.over && Math.abs(f.gap) <= M.tol.point;
+    /* «apoya» es lo mismo que dicen la flecha y la reacción de la tabla: un solo
+       criterio, `bears()`. Con la carga resuelta, el que lleva peso. */
+    const apoya = E.bears(f, M.tol.point,
+      carga && { n: carga.n[k] || 0, blind: !!carga.blind[k] });
     const mat = new MeshStandardMaterial({ color: apoya ? ok : bad, roughness: .9, metalness: .1 });
     const col = new Mesh(new BoxGeometry(28, 28, ped.h), mat);
     col.position.set(ped.x, ped.y, E.TABLE_Z + ped.h / 2);

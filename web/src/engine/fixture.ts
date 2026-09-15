@@ -161,6 +161,24 @@ export function pedestalFit(samples: PathSample[], sec: Section,
   };
 }
 
+/** ¿Apoya la barra en este pedestal? UN criterio para toda la pantalla.
+ *
+ *  Le pasa por encima y la cuna la toca dentro de `tol`, que es la tolerancia de
+ *  punto: el taller dijo el 2026-09-15 que no hace falta una holgura de fixture
+ *  aparte. Estaba escrito a mano en la flecha y en el color del 3D, y la
+ *  columna de la reacción usaba otro —que empuje—; con dos criterios, un
+ *  pedestal bajado 0.9 mm salía «apoya» en una columna y 0.00 N en la de al
+ *  lado. Con la carga resuelta manda la reacción: ver `carrying`. */
+export function bears(f: PedFit | null, tol: number,
+                      carrying?: { n: number; blind: boolean }): boolean {
+  if (!f || !f.over) return false;
+  /* Si la carga se resolvió, la pregunta ya está contestada con fuerzas: apoya
+     el que lleva peso. Un apoyo ciego no se puede juzgar así y cae a la
+     geometría, que es lo único que se sabe de él. */
+  if (carrying && !carrying.blind) return carrying.n > 0;
+  return Math.abs(f.gap) <= tol;
+}
+
 /** El vano de cada pedestal contra el que le precede A LO LARGO DE LA BARRA,
  *  mm; `NaN` en el primero, que no tiene anterior.
  *

@@ -45,7 +45,7 @@
    ========================================================================= */
 import type { Model, PathSample, Section, Mat, Pedestal } from '../types.ts';
 import { sampleAt } from './path.ts';
-import { pedestalFit } from './fixture.ts';
+import { pedestalFit, bears } from './fixture.ts';
 
 /** Aceleración de la gravedad, mm/s². Aquí y no en math.ts: es lo único de
  *  todo el motor que sabe que existe la Tierra. */
@@ -129,21 +129,28 @@ const EMPTY: SagResult = { spans: [], worst: 0, worstAt: -1, noMat: false };
  *  longitud no perdona, y una ménsula se cuelga casi siete veces más que un
  *  tramo biapoyado del mismo largo.
  *
- *  `samples` viene YA colocada, como en `pedestalFit()`. */
+ *  `samples` viene YA colocada, como en `pedestalFit()`.
+ *
+ *  @param carrying  con la carga resuelta, lo que lleva cada pedestal y si se
+ *                   puede juzgar: entonces apoya el que lleva peso, igual que en
+ *                   la columna de al lado. Ver `bears()`. */
 export function gravitySag(model: Model, samples: PathSample[], sec: Section,
-                           peds: Pedestal[], mat: Mat): SagResult {
+                           peds: Pedestal[], mat: Mat,
+                           carrying?: { n: number[]; blind: boolean[] }): SagResult {
   if (!samples.length) return EMPTY;
   const w = lineLoad(sec, mat);
   const E0 = mat.E || 0;
   if (!(w > 0) || !(E0 > 0)) return { ...EMPTY, noMat: true };
 
   /* Solo los que apoyan de verdad: uno que no toca la barra no la sostiene, por
-     bien puesto que esté en la tabla. Es la misma lectura que ya pinta en rojo
-     la pestaña del fixture. */
+     bien puesto que esté en la tabla. El criterio es el de `bears()`, el mismo
+     que el color del 3D y que la reacción de al lado: con dos, una columna
+     decía que el pedestal apoya y la vecina daba 0.00 N. */
   const apoyos = peds
-    .map(p => pedestalFit(samples, sec, p))
-    .filter((f): f is NonNullable<typeof f> => !!f && f.over && Math.abs(f.gap) <= model.tol.point)
-    .map(f => f.s)
+    .map((p, k) => ({ f: pedestalFit(samples, sec, p), k }))
+    .filter(o => bears(o.f, model.tol.point, carrying
+      ? { n: carrying.n[o.k] || 0, blind: !!carrying.blind[o.k] } : undefined))
+    .map(o => o.f!.s)
     .sort((a, b) => a - b);
 
   const total = samples[samples.length - 1].s;

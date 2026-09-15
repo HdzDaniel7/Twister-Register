@@ -443,6 +443,21 @@ export function heldResult(): Settled {
   return res;
 }
 
+/** Lo que lleva cada pedestal, si la carga lo sabe decir; si no, nada.
+ *
+ *  Es la mitad de `bears()` que viene de fuerzas: con la carga resuelta, apoya el
+ *  pedestal que lleva peso, y la flecha y el color del 3D lo tienen que decir
+ *  igual que la columna «Reacción». Solo cuando la búsqueda LLEGÓ —un reparto
+ *  que no convergió no contesta nada— y cuando se está mirando la sujeta: con
+ *  «Libre» las tablas miden otra barra y mezclar las dos es la contradicción
+ *  que esto quita. */
+export function pedCarrying(): { n: number[]; blind: boolean[] } | undefined {
+  if (!ST.load.on || !refHeldOn()) return undefined;
+  const R = heldResult();
+  if (R.noMat || R.noDof || !(R.weight > 0) || !R.ok) return undefined;
+  return { n: R.pedN, blind: R.pedBlind };
+}
+
 /** La forma sujeta de la REFERENCIA, para quien quiera enseñarla o medirla. */
 export const heldRef = (): Settled => heldFor('ref', refModelFree(), refModelFree());
 

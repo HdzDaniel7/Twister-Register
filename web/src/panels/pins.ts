@@ -160,6 +160,14 @@ function carga(M: Model): string {
      Sin estaciones no se puede afirmar: ahí todo el peso sale en la raíz por
      construcción, no porque la pieza esté en voladizo. */
   const colgando = resuelto && !rendido && R.root > 0.5 * R.weight;
+  /* Y el signo contrario: los apoyos llevan MÁS que la pieza entera y la
+     mordaza tira hacia abajo lo que sobra. El taller confirmó el 2026-09-15 que
+     el fixture tiene mordaza en el primer extremo, así que esto no es un número
+     inventado: es la barra haciendo palanca sobre un pedestal. Pero dice algo
+     que hay que comprobar —sin la mordaza, ese extremo se levantaría— y hasta
+     hoy salía como una cifra negativa sin una palabra. El 1 % es para no avisar
+     del ruido de un reparto que cuadra. */
+  const tira = resuelto && !rendido && R.root < -0.01 * R.weight;
   return `<div class="grp">
     <div class="eyebrow">${T('load')}</div><div class="body">
     <div class="row">
@@ -190,7 +198,7 @@ function carga(M: Model): string {
         fx(R.weight, 1)} N</span>
       <span class="chip ${rendido ? 'dim' : colgando ? '' : 'ok'}" title="${esc(T('loadCarriedTip'))}">${
         T('loadCarried')}: ${fx(R.carried, 1)} N</span>
-      <span class="chip ${rendido ? 'dim' : colgando ? 'bad' : ''}" title="${esc(T('loadRootTip'))}">${
+      <span class="chip ${rendido ? 'dim' : colgando || tira ? 'bad' : ''}" title="${esc(T('loadRootTip'))}">${
         T('loadRoot')}: ${fx(R.root, 1)} N</span>
       <span class="chip ${rendido ? 'dim' : R.drop > M.tol.point ? 'bad' : ''}" title="${esc(T('loadDropTip'))}">${
         T('loadDrop')}: ${fx(R.drop, 2)} mm${R.dropAt >= 0 ? ` · PI${R.dropAt + 1}` : ''}</span>
@@ -199,7 +207,9 @@ function carga(M: Model): string {
     </div>
     ${rendido ? `<div role="alert" class="warnbox mt6">${
       T('loadStuckWarn').replace('{n}', String(R.iters))}</div>` : ''}
-    ${colgando ? `<div role="alert" class="warnbox mt6">${T('loadHang')}</div>` : ''}`}` : ''}
+    ${colgando ? `<div role="alert" class="warnbox mt6">${T('loadHang')}</div>` : ''}
+    ${tira ? `<div role="alert" class="warnbox mt6">${
+      T('loadRootDown').replace('{n}', fx(-R.root, 1))}</div>` : ''}`}` : ''}
     <div class="hintline">${T('loadNote')}</div>
   </div></div>`;
 }

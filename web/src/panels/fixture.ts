@@ -11,7 +11,7 @@ import * as E from '../engine.ts';
 import { T } from '../i18n.ts';
 import type { Model } from '../types.ts';
 import type { PedFit } from '../engine.ts';
-import { ST, shownPath, shownModel, heldResult, heldOn, refHeldOn } from '../state.ts';
+import { ST, shownPath, shownModel, heldResult, heldOn, refHeldOn, pedCarrying } from '../state.ts';
 import { fx, esc, cls, nfield, reacCell, th } from './fmt.ts';
 
 /** El rótulo de cada campo tecleable, que es también el de su columna. */
@@ -85,9 +85,10 @@ export function paneFixture(M: Model): string {
      que de verdad apoyan, no con los que hay en la lista, y sobre la misma
      pieza que la columna de la reacción de al lado: mientras una mirara la libre
      y la otra la sujeta, las dos columnas podían contradecirse —una decía que el
-     pedestal apoya y la otra daba 0.0 N— y se pintaban juntas. */
+     pedestal apoya y la otra daba 0.0 N— y se pintaban juntas. Y con el MISMO
+     criterio de «apoya»: con la carga resuelta, el que lleva peso (X-05). */
   const SM = shownModel();
-  const sag = E.gravitySag(SM, path, M.section, ST.fixture, ST.mat);
+  const sag = E.gravitySag(SM, path, M.section, ST.fixture, ST.mat, pedCarrying());
   const flechas = E.sagByPedestal(sag, path, M.section, ST.fixture);
   /* Con la pieza cargada, cada pedestal lleva una parte del peso: es la
      columna que dice cuáles están trabajando y cuáles solo están puestos. Con
