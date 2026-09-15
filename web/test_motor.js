@@ -19,7 +19,7 @@ import { esc, safeColor, COLOR_FALLBACK } from './src/safe.ts';
    mismo camino que abrir un archivo— así que se prueba aquí y no solo en el
    banco de Edge, que corre entero o no corre. */
 import { ST, loadModel, syncModel, syncTweak, addMark, addPedestal,
-         heldOfVariant, heldResult, heldSlots, seedFixture, seedPinsFor,
+         heldOfVariant, heldResult, heldSlots, heldStats, seedFixture, seedPinsFor,
          placeMatrix, refModelFree } from './src/state.ts';
 import * as H from './src/app/history.ts';
 
@@ -2756,6 +2756,30 @@ console.log('\n— la caché de formas sujetas —');
   ok('borrar un modelo tira su forma sujeta de la caché',
      antes.includes('v-v9') && !despues.includes('v-v9'), despues.join(' '));
   ok('y deja la de los modelos que siguen', despues.includes(`v-${ST.variants[0].id}`));
+  ST.restraint.on = on0;
+}
+/* Rendimiento, 2026-09-14: la caché va por FIRMA y no por ranura. Lo que se
+   vigila aquí no es un número de la pantalla —la forma es la misma— sino
+   cuántas veces se resuelve, que es lo que se nota en un PC lento. */
+{
+  loadModel(E.demoModel()); syncModel(); seedPinsFor(4);
+  const on0 = ST.restraint.on;
+  ST.restraint.on = true;
+  const s0 = heldStats().solves;
+  heldResult(); heldOfVariant(ST.variants[0]);
+  const s1 = heldStats().solves;
+  ok('la activa se resuelve una vez aunque la pidan dos ranuras', s1 - s0 === 1, `${s1 - s0} soluciones`);
+  ok('  y las dos reciben la misma forma', heldResult() === heldOfVariant(ST.variants[0]));
+  const x0 = ST.pins[0].x;
+  ST.pins[0].x = x0 + 2; heldResult();
+  ST.pins[0].x = x0; ST.restraint.on = false; heldResult(); ST.restraint.on = true;
+  heldResult();
+  ok('volver a un estado ya resuelto —deshacer, apagar y encender— no resuelve otra vez',
+     heldStats().solves === s1 + 1, `${heldStats().solves - s1} soluciones`);
+  for (let i = 0; i < 30; i++) { ST.pins[0].x = x0 + 0.5 * (i + 1); heldResult(); }
+  ST.pins[0].x = x0;
+  ok('  y la memoria de estados viejos tiene tope',
+     heldStats().memo <= heldSlots().length + 8, `${heldStats().memo} guardadas`);
   ST.restraint.on = on0;
 }
 

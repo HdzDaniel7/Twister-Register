@@ -65,7 +65,12 @@ export function sampleAt(samples: PathSample[], s: number): PathSample {
  *  deja ver que ahí hay algo raro. */
 export function nearestOnPath(samples: PathSample[], x: number, y: number): { s: number; d: number } {
   if (!samples.length) return { s: 0, d: Infinity };
-  let bs = samples[0].s, bd = Math.hypot(samples[0].p.x - x, samples[0].p.y - y);
+  /* Se compara la distancia AL CUADRADO y la raíz se saca una sola vez, al
+     final: `Math.hypot` es de las funciones lentas de V8 y esto corre por cada
+     tramo, por cada pedestal y por cada residuo del amarre. Medido el
+     2026-09-14, era la función que más tiempo se llevaba de todo el amarre. */
+  let bx = samples[0].p.x - x, by = samples[0].p.y - y;
+  let bs = samples[0].s, bd2 = bx * bx + by * by;
   for (let i = 1; i < samples.length; i++) {
     const a = samples[i - 1].p, b = samples[i].p;
     const vx = b.x - a.x, vy = b.y - a.y;
@@ -74,11 +79,12 @@ export function nearestOnPath(samples: PathSample[], x: number, y: number): { s:
        proyectar nada: se mira su extremo y ya. */
     let t = L2 > 1e-12 ? ((x - a.x) * vx + (y - a.y) * vy) / L2 : 0;
     t = t < 0 ? 0 : t > 1 ? 1 : t;
-    const d = Math.hypot(a.x + vx * t - x, a.y + vy * t - y);
-    if (d < bd) {
-      bd = d;
+    const ex = a.x + vx * t - x, ey = a.y + vy * t - y;
+    const d2 = ex * ex + ey * ey;
+    if (d2 < bd2) {
+      bd2 = d2; bx = ex; by = ey;
       bs = samples[i - 1].s + (samples[i].s - samples[i - 1].s) * t;
     }
   }
-  return { s: bs, d: bd };
+  return { s: bs, d: Math.hypot(bx, by) };
 }

@@ -23,7 +23,7 @@
    (0,0,1)) y la mesa es el plano z = TABLE_Z. El pedestal se para en (x, y) de
    la mesa y sube `h`. Ver scene/layers.ts.
    ========================================================================= */
-import { Matrix4 } from 'three';
+import { Matrix4, Vector3 } from 'three';
 import { clamp, R2D } from './math.ts';
 import { sampleAt, nearestOnPath } from './path.ts';
 import type { PathSample, Section, Pedestal } from '../types.ts';
@@ -94,11 +94,24 @@ export type PedFit = {
  *  pieza, que es justo lo que no puede pasar. */
 export function placePath(M: Matrix4, samples: PathSample[]): PathSample[] {
   const R = new Matrix4().extractRotation(M);
+  const m = M.elements, r = R.elements;
+  /* Escrito a mano y no con `clone().applyMatrix4().normalize()`: son las
+     mismas cuentas de three, en el mismo orden y con la misma división por `w`,
+     así que sale idéntico bit a bit, pero sin el vector intermedio de cada
+     clon. El amarre coloca la barra entera una vez por columna del jacobiano, y
+     esos clones eran la mitad de la basura que dejaba cada edición. */
+  const put = (e: ArrayLike<number>, v: Vector3, unit: boolean): Vector3 => {
+    const w = 1 / (e[3] * v.x + e[7] * v.y + e[11] * v.z + e[15]);
+    const o = new Vector3((e[0] * v.x + e[4] * v.y + e[8] * v.z + e[12]) * w,
+                          (e[1] * v.x + e[5] * v.y + e[9] * v.z + e[13]) * w,
+                          (e[2] * v.x + e[6] * v.y + e[10] * v.z + e[14]) * w);
+    return unit ? o.normalize() : o;
+  };
   return samples.map(q => ({
-    p: q.p.clone().applyMatrix4(M),
-    x: q.x.clone().applyMatrix4(R).normalize(),
-    y: q.y.clone().applyMatrix4(R).normalize(),
-    z: q.z.clone().applyMatrix4(R).normalize(),
+    p: put(m, q.p, false),
+    x: put(r, q.x, true),
+    y: put(r, q.y, true),
+    z: put(r, q.z, true),
     s: q.s,
   }));
 }

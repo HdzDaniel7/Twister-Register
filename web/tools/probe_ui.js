@@ -2356,6 +2356,48 @@ step('resolver el amarre cuesta menos que repintar la escena', () => {
   if (performance.now() - t1 > Math.max(ms / 2, 0.5)) throw new Error('la caché no está sirviendo');
   if (again !== S().held) throw new Error('la caché devolvió otra cosa');
 });
+step('con cinco modelos más sujetos, resolverlos todos cabe en el presupuesto', () => {
+  const B = window.BARCOMP;
+  check('#panes [data-rs="on"]', true);
+  /* Desde FIS-08 el fixture sujeta a TODOS los modelos, así que lo que cuesta
+     mover un pin crece con cada modelo que se compara. Medido en este banco el
+     2026-09-14: seis modelos con un doblez distinto, 82 ms de amarre antes de
+     quitar la basura del motor y 55 ms después. El presupuesto es el de siempre,
+     250 ms, pero para los SEIS juntos: es lo que paga un PC de taller cada vez
+     que se mueve un pin. Los modelos se quitan al final, que el resto del banco
+     cuenta con los que había. */
+  const antes = S().variants.slice();
+  const cols = ['#3FD68C', '#F0A02E', '#E05A5A', '#6FA8FF', '#C080FF'];
+  const pin = S().pins[0];
+  if (!pin) throw new Error('hace falta un pin');
+  const x0 = pin.x;
+  try {
+    for (let k = 0; k < 5; k++) {
+      const v = B.E.cloneVariant(antes[0], 'perf' + k, cols[k], 'vperf' + k);
+      const d = v.deltas[Math.min(3, v.deltas.length - 1)];
+      if (d) d.angle += 1 + k * 0.7;
+      S().variants.push(v);
+    }
+    /* firma nueva para todos: la caché fría, que es el caso que se nota */
+    pin.x = x0 + 0.37;
+    const t0 = performance.now();
+    for (const v of S().variants) B.heldOfVariant(v);
+    B.heldResult();
+    const ms = performance.now() - t0;
+    log.push(`     amarre: ${ms.toFixed(1)} ms · ${S().variants.length} modelos sujetos`);
+    if (!(ms < 250)) throw new Error(`seis modelos sujetos van a tirones: ${ms.toFixed(0)} ms`);
+    /* y repintar sin cambiar nada no vuelve a resolver ninguno */
+    const t1 = performance.now();
+    for (const v of S().variants) B.heldOfVariant(v);
+    B.heldResult();
+    const t2 = performance.now() - t1;
+    if (t2 > Math.max(ms / 4, 1)) throw new Error(`la caché no sirve con varios modelos: ${t2.toFixed(1)} ms`);
+  } finally {
+    pin.x = x0;
+    S().variants.splice(0, S().variants.length, ...antes);
+    B.renderAll();
+  }
+});
 step('la barra de estado avisa de que la pieza está sujeta', () => {
   check('#panes [data-rs="on"]', true);
   const txt = q('#st').textContent;

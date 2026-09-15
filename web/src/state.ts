@@ -349,10 +349,23 @@ export function seedPinsFor(n?: number): Pin[] {
  *  referencia— porque desde que la referencia se puede comparar sujeta hay dos
  *  formas sujetas vivas a la vez, y una sola caché las haría turnarse: cada
  *  repintado tiraría la de la otra y volvería a resolver las dos. */
-const heldCache = new Map<string, { key: string; res: Settled }>();
+/*  La ranura guarda solo la FIRMA; el resultado va en otra tabla, indexada por
+ *  firma. Hasta el 2026-09-14 cada ranura tenía su propio resultado, y la
+ *  activa se resolvía DOS veces —como 'act' y como `v-<id>`, con la misma firma—
+ *  y la referencia una tercera. Con seis modelos sujetos eran ocho soluciones
+ *  para seis piezas. */
+const heldSlot = new Map<string, string>();
+const heldMemo = new Map<string, Settled>();
+/** Cuántas soluciones SIN ranura se guardan además de las vivas. Son las de
+ *  los estados recientes: deshacer, apagar y volver a encender el amarre o
+ *  pasar de Libre a Sujeta vuelven a una firma que ya se resolvió, y resolverla
+ *  otra vez es lo que hacía que esos gestos —los más repetidos al comparar— se
+ *  notaran en un PC lento. Ocho y no más: cada una lleva la pieza entera. */
+const HELD_SPARE = 8;
+let heldSolves = 0;
 
 function heldFor(slot: string, M: Model, refM: Model): Settled {
-  if (!heldOn()) { heldCache.delete(slot); return E.settledFree(M, ST.pins.length, ST.fixture.length); }
+  if (!heldOn()) { heldSlot.delete(slot); return E.settledFree(M, ST.pins.length, ST.fixture.length); }
   /* `fixture` entra en la firma desde que hay carga: sin peso un pedestal no
      sostiene nada y por eso el amarre lo ignora, pero con peso es lo único que
      hay debajo de la pieza. Sin esta clave, mover un pedestal dejaba en pantalla
@@ -360,8 +373,11 @@ function heldFor(slot: string, M: Model, refM: Model): Settled {
   const key = JSON.stringify([M.bends, M.tail, M.section, ST.pins, ST.restraint, ST.mat,
                               ST.load, ST.fixture,
                               ST.place, ST.anchor, refM.bends, refM.tail]);
-  const hit = heldCache.get(slot);
-  if (hit && hit.key === key) return hit.res;
+  heldSlot.set(slot, key);
+  const hit = heldMemo.get(key);
+  /* borrar y volver a meter la pone la última: el orden de la tabla es el de
+     uso, y `trimHeld()` tira por el principio */
+  if (hit) { heldMemo.delete(key); heldMemo.set(key, hit); return hit; }
   /* Colocada donde de verdad está: el anclaje contra la referencia LIBRE (ver
      refModelFree()) y encima la colocación. Los pines son físicos y miran a la
      pieza en la mesa, no al modelo dibujado en el origen. */
@@ -372,8 +388,22 @@ function heldFor(slot: string, M: Model, refM: Model): Settled {
      aquí, que es donde hay una prueba que lo vigila. */
   const res = E.settle(M, ST.pins, ST.fixture, M.section, ST.restraint, ST.mat,
                        ST.load, s => E.placePath(P, s));
-  heldCache.set(slot, { key, res });
+  heldSolves++;
+  heldMemo.set(key, res);
+  trimHeld();
   return res;
+}
+
+/** Tira las soluciones más viejas que no usa ninguna ranura, dejando
+ *  `HELD_SPARE`. Las vivas no se tocan nunca: tirarlas sería volver a resolver
+ *  en el siguiente repintado. */
+function trimHeld(): void {
+  const live = new Set(heldSlot.values());
+  let spare = heldMemo.size - [...heldMemo.keys()].filter(k => live.has(k)).length;
+  for (const k of [...heldMemo.keys()]) {
+    if (spare <= HELD_SPARE) break;
+    if (!live.has(k)) { heldMemo.delete(k); spare--; }
+  }
 }
 
 /** Tira las ranuras de modelos que ya no existen.
@@ -385,14 +415,21 @@ function heldFor(slot: string, M: Model, refM: Model): Settled {
  *  solo crece. Se purga aquí, a la entrada de cada repintado, y no en cada sitio
  *  que quita un modelo: esos ya son varios y el siguiente no se acordaría. */
 function pruneHeld(): void {
-  for (const slot of heldCache.keys()) {
-    if (slot.startsWith('v-') && !ST.variants.some(v => slot === `v-${v.id}`)) heldCache.delete(slot);
+  for (const slot of [...heldSlot.keys()]) {
+    if (slot.startsWith('v-') && !ST.variants.some(v => slot === `v-${v.id}`)) heldSlot.delete(slot);
   }
+  trimHeld();
 }
 
 /** Las ranuras vivas de la caché. Solo para las pruebas: la fuga no se ve de
  *  ninguna otra forma. */
-export const heldSlots = (): string[] => [...heldCache.keys()];
+export const heldSlots = (): string[] => [...heldSlot.keys()];
+
+/** Cuántas soluciones guarda la caché y cuántas veces se ha resuelto de verdad
+ *  desde que arrancó. Solo para las pruebas: que la caché sirve no se ve en
+ *  ningún número de la pantalla, solo en el tiempo. */
+export const heldStats = (): { memo: number; solves: number } =>
+  ({ memo: heldMemo.size, solves: heldSolves });
 
 export function heldResult(): Settled {
   const M = ST.model;

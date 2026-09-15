@@ -2,7 +2,7 @@
    CINEMÁTICA — fk/ik, la convención LRA y las longitudes por doblez.
 
    EXCEPCIÓN CONSCIENTE A LA REGLA DE LAS 400 LÍNEAS (decidida 2026-09-08).
-   Este archivo va en ~490 y se queda así. Los otros dos que pasaban del límite
+   Este archivo va en ~510 y se queda así. Los otros dos que pasaban del límite
    —i18n.ts y types.ts— eran TABLAS DE DATOS y se partieron por el corte
    natural, idioma y dominio, sin riesgo. Aquí no hay corte natural: fk, ik,
    bendDecomp y las longitudes comparten la convención, y separarlos deja la
@@ -298,6 +298,12 @@ export const orientations = (model: Model): Orientation[] =>
  *  un Bend completo como con el objeto suelto {rot, angle} que arma ik(). */
 type BendAngle = { rot?: number; angle?: number };
 
+/* Matriz de trabajo de bendDecomp(): se llama varias veces por doblez en cada
+   trayectoria —las longitudes piden el trim de cada uno dos veces— y el amarre
+   construye cientos de trayectorias por edición. Rellenarla da los mismos
+   números que crear una nueva; solo se ahorra la basura. */
+const BD_RX = new Matrix4();
+
 export function bendDecomp(b: BendAngle): { axis: Vector3; theta: number; psi: number } {
   /* ANG_DIR es el SENTIDO DE GIRO del ángulo, y vive aquí porque es lo único
      que decide hacia dónde se dobla un ángulo positivo. Está en -1 porque el
@@ -315,7 +321,7 @@ export function bendDecomp(b: BendAngle): { axis: Vector3; theta: number; psi: n
   /* Rz(-angle): un `angle` positivo desvía hacia -y, así que el eje del arco
      parte de -z. Con el ángulo negativo se invierte y theta vuelve a ser >= 0. */
   const axis = new Vector3(0, 0, a < 0 ? 1 : -1)
-    .applyMatrix4(rotX(ROT_DIR * (b.rot || 0) * D2R)).normalize();
+    .applyMatrix4(BD_RX.makeRotationX(ROT_DIR * (b.rot || 0) * D2R)).normalize();
   return { axis, theta: Math.abs(a), psi: 0 };
 }
 
@@ -422,9 +428,24 @@ export function twistSpans(len: number, twDeg: number, twLen: number): [number, 
 
 /** Trayectoria muestreada del eje neutro: rectas + arcos + torsión repartida.
  *  samples[i] = {p, x, y, z, s} */
+/* Matrices y vector de trabajo de buildPath(). El amarre construye una
+   trayectoria por incógnita y por iteración —cientos por edición, y una edición
+   con seis modelos sujetos las multiplica por seis— y cada muestra creaba entre
+   tres y cinco matrices que se tiraban en la línea siguiente. Medido el
+   2026-09-14, la basura se llevaba más tiempo que las cuentas.
+   Se RELLENAN con los mismos métodos de three y en el mismo orden que hacían
+   `clone()`, `trans()`, `rotX()` y `rotAxis()`, así que los números salen
+   idénticos bit a bit: la prueba se hizo contra 128 formas sujetas y cargadas.
+   Compartidas entre llamadas y sin problema, porque buildPath() no se llama a
+   sí misma ni guarda ninguna: lo que va a la salida son vectores nuevos. */
+const BP_G = new Matrix4(), BP_T = new Matrix4(), BP_RX = new Matrix4();
+const BP_RA = new Matrix4(), BP_ROT = new Matrix4();
+const BP_V = new Vector3(), BP_X = new Vector3(1, 0, 0);
+
 export function buildPath(model: Model, arcSeg = 12): { samples: PathSample[]; total: number } {
   const S: PathSample[] = [];
-  let F = eye(), s = 0;
+  const F = eye();
+  let s = 0;
   const push = (M: Matrix4, sv: number) => {
     const [x, y, z] = basisOf(M);
     S.push({ p: posOf(M), x, y, z, s: sv });
@@ -438,9 +459,15 @@ export function buildPath(model: Model, arcSeg = 12): { samples: PathSample[]; t
     let acc = 0, twAcc = 0;
     for (const [dl, dt] of twistSpans(len, twDeg, twLen)) {
       acc += dl; twAcc += dt;
-      push(F.clone().multiply(trans(acc)).multiply(rotX(twAcc)), s0 + acc);
+      push(BP_G.copy(F).multiply(BP_T.makeTranslation(acc, 0, 0))
+        .multiply(BP_RX.makeRotationX(twAcc)), s0 + acc);
     }
-    F = F.multiply(trans(len)).multiply(rotX((twDeg || 0) * D2R));
+    F.multiply(BP_T.makeTranslation(len, 0, 0)).multiply(BP_RX.makeRotationX((twDeg || 0) * D2R));
+  };
+  /* el centro del arco menos el radio girado con `M`: dónde queda el eje */
+  const onArc = (M: Matrix4, ctr: Vector3, chat: Vector3, R: number): Matrix4 => {
+    BP_V.copy(chat).applyMatrix4(BP_ROT.extractRotation(M)).multiplyScalar(R);
+    return M.setPosition(ctr.x - BP_V.x, ctr.y - BP_V.y, ctr.z - BP_V.z);
   };
 
   for (let i = 0; i < B.length; i++) {
@@ -454,20 +481,14 @@ export function buildPath(model: Model, arcSeg = 12): { samples: PathSample[]; t
     /* dirección de deflexión: hacia donde barre el eje de la barra. El centro
        del arco está a `radius` por ahí, y girar alrededor de `axis` no rueda la
        sección — que es justo lo que se busca. */
-    const chat = axis.clone().cross(new Vector3(1, 0, 0));
-    const rotF = new Matrix4().extractRotation(F);
-    const ctr = posOf(F).add(chat.clone().applyMatrix4(rotF).multiplyScalar(R));
+    const chat = axis.clone().cross(BP_X);
+    const ctr = posOf(F).add(BP_V.copy(chat).applyMatrix4(BP_ROT.extractRotation(F)).multiplyScalar(R));
     for (let k = 1; k <= arcSeg; k++) {
       const u = th * k / arcSeg;
-      const G = F.clone().multiply(rotAxis(axis, u));
-      const rg = new Matrix4().extractRotation(G);
-      G.setPosition(ctr.clone().sub(chat.clone().applyMatrix4(rg).multiplyScalar(R)));
-      push(G, s + R * u);
+      push(onArc(BP_G.copy(F).multiply(BP_RA.makeRotationAxis(axis, u)), ctr, chat, R), s + R * u);
     }
     s += R * th;
-    F = F.multiply(rotAxis(axis, th));
-    const rf = new Matrix4().extractRotation(F);
-    F.setPosition(ctr.clone().sub(chat.clone().applyMatrix4(rf).multiplyScalar(R)));
+    onArc(F.multiply(BP_RA.makeRotationAxis(axis, th)), ctr, chat, R);
   }
 
   const tailLen = tailStraight(model);

@@ -1001,6 +1001,30 @@ deshacer.
 **Criterio de cierre:** alguien que no escribió esto puede leer las tablas de Fixture y Amarre sin
 preguntar qué unidad es cada columna.
 
+### Fase 5.4 · Que vaya en un PC de taller
+
+Abierta el 2026-09-14 a petición del dueño: «puede ser muy pesado para PCs menos potentes». La
+decisión de «Fuera de alcance» de más abajo se tomó con UNA pieza sujeta (14.3 ms); desde FIS-08 el
+fixture sujeta a todos los modelos, y el coste de mover un pin crece con cada modelo comparado.
+
+- [x] **[PERF-02] El amarre de varios modelos, más barato sin cambiar un número · [O]** — medido
+      en Node sobre la demo con 6 modelos (doblez 3 abierto de 1 a 3.8°), pines y peso: 73 ms por
+      edición; en Edge, repintar tras mover un pin 122 ms. Perfil: `nearestOnPath` (`Math.hypot`)
+      11.6 %, `buildPath` y las matrices de three ~25 %, basura 5.5 %; y la activa se resolvía DOS
+      veces (ranura `act` y `v-<id>`, misma firma) y la referencia una tercera.
+      **Hecho el 2026-09-14.** Sin asignaciones en `segSegClosest`/`nearestToSegment`,
+      `nearestOnPath` (distancia al cuadrado), `placePath` y `buildPath`/`bendDecomp` (matrices de
+      trabajo), con las MISMAS operaciones en el mismo orden: 128 formas sujetas y cargadas
+      comparadas contra HEAD, diferencia máxima 0. La caché pasa de ranura a firma (misma clave, que
+      sigue costando lo que medía PERF) con 8 estados viejos de memoria: deshacer, apagar y encender
+      o Libre↔Sujeta no vuelven a resolver. Resultado: Node 73 → 51 ms; Edge amarre 82 → 55 ms y
+      repintado 122 → 86 ms. Pruebas: `heldStats()` en test_motor (una solución para dos ranuras,
+      volver a un estado no resuelve, memoria con tope) y paso de banco con presupuesto de 250 ms
+      para todos los modelos sujetos juntos.
+      **Descartado, a propósito:** el arranque en caliente (empezar desde la solución anterior).
+      Haría que el mismo estado diera cifras distintas según por dónde se llegó —al deshacer, por
+      ejemplo—, y en un comparador eso es peor que la espera.
+
 ### Preguntas para el taller (bloquean o cierran tareas de arriba)
 
 1. **¿El fixture real tiene mordaza en el primer extremo?** Decide si X-04 es una imprecisión del
