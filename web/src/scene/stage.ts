@@ -14,7 +14,7 @@ import {
 import type { Object3D } from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import * as E from '../engine.ts';
-import { ST, refModel, placeMatrix } from '../state.ts';
+import { ST, anchoredShownPis, placeMatrix } from '../state.ts';
 import { T } from '../i18n.ts';
 import { esc, safeColor } from '../safe.ts';
 import { $ } from '../dom.ts';
@@ -224,10 +224,11 @@ export function drawLabels() {
     out.push(`<div class="lbl ${cls}" style="left:${x.toFixed(0)}px;top:${(y - 16).toFixed(0)}px">${html}</div>`);
   };
   if (ST.layers.lbl.on) {
-    const act = ST.variants.find(v => v.id === ST.active);
-    const P = act
-      ? E.anchoredPis(E.effectiveModel(act), refModel(), ST.anchor)
-      : E.fk(ST.model).pis;
+    /* Sobre la barra que se muestra, igual que las esferas de los PI: con la
+       sujeta en pantalla, «B3» flotando donde estaría la libre señala un doblez
+       que no está ahí. Y anclada contra la referencia LIBRE, que es como se
+       coloca todo: anclarla contra la elegida la movía al tocar un pedestal. */
+    const P = anchoredShownPis();
     for (let i = 1; i < P.length - 1; i++) {
       /* el color va por CLASE, no por estilo: un #fff a pelo era blanco sobre
          blanco en tema claro, y la etiqueta del doblez seleccionado —justo la

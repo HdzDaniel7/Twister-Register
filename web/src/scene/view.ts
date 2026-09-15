@@ -4,20 +4,24 @@
    ========================================================================= */
 import { Box3, Vector3 } from 'three';
 import * as E from '../engine.ts';
-import { ST, refModel, placeMatrix } from '../state.ts';
+import { ST, refModelFree, refHeldOn, heldOfVariant, placeMatrix } from '../state.ts';
 import { renderer, scene, camera, controls, V3, markDirty } from './stage.ts';
 import type { ViewName } from './types.ts';
 
 /* ------------------------------------------------------------- encuadre -- */
 function modelBox() {
   const box = new Box3();
-  const ref = refModel();
+  /* Contra la referencia LIBRE y con la forma que se MUESTRA, como la escena: si
+     el encuadre anclara distinto, «encuadrar» centraba una barra que no está en
+     pantalla. */
+  const ref = refModelFree();
   const W = placeMatrix();
   let any = false;
   for (const v of ST.variants) {
     if (!v.visible) continue;
     const vm = E.effectiveModel(v);
-    E.applyMat(E.anchorTransform(vm, ref, ST.anchor), E.fk(vm).pis)
+    const forma = refHeldOn() ? heldOfVariant(v).model : vm;
+    E.applyMat(E.anchorTransform(vm, ref, ST.anchor), E.fk(forma).pis)
       .forEach(p => { box.expandByPoint(p.applyMatrix4(W)); any = true; });
   }
   if (!any) E.fk(ST.model!).pis.forEach(p => box.expandByPoint(p.clone().applyMatrix4(W)));

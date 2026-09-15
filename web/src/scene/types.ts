@@ -37,5 +37,8 @@ export type SceneCtx = {
      pines. Vacío con el amarre apagado o con su capa apagada: calcular la forma
      sujeta de cada variante cuesta, y no se hace para no dibujarla. */
   held: ShownEntry[];
+  /* La que se MUESTRA: `held` con el interruptor en sujeta, `shown` en libre.
+     Es la que llevan los puntos, las etiquetas y el desplazamiento. */
+  primary: ShownEntry[];
   Axf: Matrix4; nomPis: Vector3[]; hasMeas: boolean;
 };

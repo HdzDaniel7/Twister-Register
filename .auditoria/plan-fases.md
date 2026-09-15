@@ -963,6 +963,21 @@ falso.
       fija y paso de banco que busca un doblez que choque y exige el aviso.
       Abierto: el apoyo del pedestal solo mira de abajo arriba; un tramo casi vertical que le
       roza el costado no se modela.
+- [x] **[UX-09] Un solo interruptor: lo que se ve es lo que se mide · [O]** — pedido por el
+      taller el 2026-09-14 a continuación de FIS-08: «el interruptor es para todos los modelos y
+      sus propiedades; puntos, etiquetas, nombres y fixture van con el modelo que se muestra».
+      Había dos, «Medir contra» y «Ver», y se podían poner distintos: con la sujeta en pantalla
+      las esferas de los PI, las etiquetas B1…, los rombos de desplazamiento, la cinta, la
+      columna Δ de Puntos y el encuadre seguían en la libre (y etiquetas y encuadre anclaban
+      contra la referencia elegida, el lazo que T-01 cerró en otros sitios).
+      **Hecho el 2026-09-14.** Queda «Ver: Libre | Sujeta | Las dos», que escribe `refHeld`
+      (lo que se guarda y se deshace). En Sujeta y en Las dos manda la sujeta: sólida, con los
+      puntos, las etiquetas y las cifras; Las dos añade la libre en alambre. `primary` en
+      build.ts es la lista que usan puntos y desplazamiento. No se mueven, a propósito: la
+      colocación y los apoyos (atornillados a la mesa; lo que cambia es su color y su tabla),
+      las coordenadas tecleables de Puntos (son el diseño) y la desviación de piezas medidas
+      (se calcula contra el diseño). Paso de banco que falla por su nombre con los puntos
+      devueltos a la libre: comprobado.
 
 **Criterio de cierre:** las dos columnas de apoyo de la pestaña Fixture no pueden contradecirse, y
 el compilador —no la memoria— es quien vigila que una capa nueva entre en el guardado y en el

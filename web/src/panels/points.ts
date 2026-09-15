@@ -7,7 +7,7 @@ import { Vector3 } from 'three';
 import * as E from '../engine.ts';
 import { T } from '../i18n.ts';
 import type { Model } from '../types.ts';
-import { ST, refModel, anchoredShownPis } from '../state.ts';
+import { ST, refModel, anchoredShownPis, shownModel } from '../state.ts';
 import { fx, esc, cls, nfield } from './fmt.ts';
 
 /* --- pestaña PUNTOS ----------------------------------------------------- */
@@ -15,7 +15,10 @@ export function panePoints(M: Model): string {
   const ref = refModel();
   const P = E.fk(M).pis;
   let sh: number[] = [];
-  try { sh = E.piShift(M, ref, ST.anchor); } catch { sh = []; }
+  /* Las coordenadas de la tabla son el DISEÑO y se teclean, así que se quedan
+     libres; el desplazamiento no: dice cuánto se separa la barra que se muestra
+     de la referencia en su misma forma, igual que la tarjeta de cada modelo. */
+  try { sh = E.piShift(shownModel(), ref, ST.anchor); } catch { sh = []; }
   const n = P.length;
   /* con anclaje `end` piShift() alinea las listas POR EL FINAL, así que el
      desplazamiento del PI i vive desplazado en el arreglo. */

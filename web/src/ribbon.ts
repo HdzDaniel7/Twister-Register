@@ -9,7 +9,7 @@
    Sin pieza medida, y con la activa distinta de la referencia, muestra el Δ
    desvío entre variantes.                                                   */
 import * as E from './engine.ts';
-import { ST, activeDataset, refModel } from './state.ts';
+import { ST, activeDataset, refModel, shownModel } from './state.ts';
 import { T } from './i18n.ts';
 import { devCssColor, cssVar } from './scene.ts';
 import { $ } from './dom.ts';
@@ -117,12 +117,16 @@ export function drawRibbon(): void {
   /* sin pieza medida, la cinta compara la activa contra la referencia: el
      mismo gesto sirve para inspección y para comparar variantes de diseño */
   const refB = (!D && ST.ref !== ST.active) ? refModel().bends : null;
+  /* La activa en la MISMA forma que la referencia: las dos sujetas o las dos
+     libres, según el interruptor. Comparar la activa libre contra la referencia
+     sujeta mezclaba en cada columna el diseño y lo que el fixture le hace. */
+  const curB = shownModel().bends;
   const pos = E.bendStations(M);
   /* computeDev() rellena `dev` al dar de alta la pieza medida. */
   const dev = pos.map((_, i) =>
     (D && i < D.dev!.theta.length) ? Math.abs(D.dev!.theta[i])
-      : (refB && i < refB.length)
-        ? Math.abs(E.bendTheta(M.bends[i]) - E.bendTheta(refB[i]))
+      : (refB && i < refB.length && i < curB.length)
+        ? Math.abs(E.bendTheta(curB[i]) - E.bendTheta(refB[i]))
         : null);
   drawColumns(g, C, F, pos, dev, E.orientations(M));
 

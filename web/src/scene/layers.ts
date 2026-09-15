@@ -14,6 +14,7 @@ import {
 import * as E from '../engine.ts';
 import {
   ST, shownPath, anchoredShownPis, refModelFree, heldResult, heldOn, heldOfVariant, placeMatrix,
+  refHeldOn,
 } from '../state.ts';
 import { groups, cssVar, devThreeColor, ghost, solidMat, extraLabels } from './stage.ts';
 import { barGeometry } from './geometry.ts';
@@ -117,7 +118,9 @@ export function layerPins(ctx: SceneCtx): void {
  *  ven sucios. */
 export function layerHeld(ctx: SceneCtx): void {
   const { M, L, Axf, held } = ctx;
-  if (!L.held || !L.held.on || !heldOn() || !held.length) return;
+  /* `held` ya viene vacío cuando no toca dibujarla: ver build.ts, que la pide
+     con la capa encendida O con el interruptor en sujeta. */
+  if (!heldOn() || !held.length) return;
 
   /* Dónde NO cabe. Un rombo en el color de fuera de tolerancia en cada apoyo que
      se quedó metido dentro de una barra sujeta, con el modelo, el apoyo y los
@@ -165,9 +168,12 @@ export function layerHeld(ctx: SceneCtx): void {
        leen sucios, que es la misma razón por la que el nominal se vuelve
        alambre cuando hay una pieza medida encima;
      · con la libre apagada es la ÚNICA barra que queda, así que va SÓLIDA: un
-       alambre solo en pantalla no se lee como una pieza. */
+       alambre solo en pantalla no se lee como una pieza;
+     · y con el interruptor en sujeta va sólida SIEMPRE, también con «Las dos»:
+       es la barra que se mide y la que lleva los puntos, y la libre pasa a ser
+       el alambre de referencia. Ver layerActive(). */
   const geo = barGeometry(E.buildPath(R.model), M.section, null);
-  if (!L.nom.on) {
+  if (refHeldOn() || !L.nom.on) {
     const m = new Mesh(geo, solidMat());
     m.applyMatrix4(Axf);
     groups.held.add(m);
@@ -196,13 +202,18 @@ export function layerHeld(ctx: SceneCtx): void {
 
 /* --- modelo activo: sólido, es el que se está editando ---------------- */
 export function layerActive(ctx: SceneCtx): void {
-  const { act, L, hasMeas } = ctx;
-  if (L.nom.on && act) {
+  const { act, L, hasMeas, held } = ctx;
+  /* Con el interruptor en libre se dibuja aunque alguien apagara la capa a mano:
+     deshacer devuelve el interruptor pero no las capas, que no viajan en el
+     documento, y quedarse sin ninguna barra en pantalla no es una vista. */
+  const sujeta = refHeldOn() && held.length > 0;
+  if (act && (L.nom.on || !sujeta)) {
     const c = new Color(act.v.color);
     const g = barGeometry(act.path, act.m.section, () => [c.r * .55, c.g * .55, c.b * .55]);
-    if (hasMeas) {
+    if (hasMeas || sujeta) {
       /* con una pieza medida encima el activo pasa a alambrado: dos sólidos
-         translúcidos superpuestos se leen sucios */
+         translúcidos superpuestos se leen sucios. Y con la sujeta en pantalla
+         también, porque la sólida es ella: la libre queda de referencia. */
       const w = ghost(g, act.v.color, .7);
       w.applyMatrix4(act.A); groups.nom.add(w);
       g.dispose();
@@ -218,7 +229,7 @@ export function layerActive(ctx: SceneCtx): void {
 /* --- los demás modelos: alambrado en su color ------------------------- */
 export function layerVariants(ctx: SceneCtx): void {
   const { shown, act, L, held } = ctx;
-  if (L.var.on) {
+  if (L.var.on || !(refHeldOn() && held.length)) {
     /* Con «las dos» puesto, la libre y la sujeta de cada modelo son dos alambres
        del MISMO color, y se veían idénticos: la libre, que es la que atraviesa
        los pines, pasaba por ser la sujeta. La libre se atenúa y la sujeta se
@@ -274,12 +285,14 @@ export function layerPredicted(ctx: SceneCtx): void {
    cuánto se movió. La escala es relativa al MAYOR desplazamiento del cuadro,
    no a la tolerancia: aquí se comparan diseños, no piezas contra tolerancia. */
 export function layerDiff(ctx: SceneCtx): void {
-  const { L, ref, anchor, held } = ctx;
-  /* Compara lo que se está VIENDO: con las formas libres en pantalla, los
-     diseños; con solo las sujetas, las piezas tal como quedan montadas. Un
-     desplazamiento medido entre dos formas que no son las dibujadas es un
-     número que nadie puede comprobar mirando. */
-  const shown = (!L.nom.on && held.length) ? held : ctx.shown;
+  const { L, ref, anchor } = ctx;
+  /* Compara lo que se está VIENDO: con el interruptor en libre, los diseños; en
+     sujeta, las piezas tal como quedan montadas. Un desplazamiento medido entre
+     dos formas que no son las dibujadas es un número que nadie puede comprobar
+     mirando. Antes lo decidía que la capa libre estuviera apagada, y con «Las
+     dos» los rombos se quedaban en la libre mientras las cifras de las tarjetas
+     hablaban de la sujeta. */
+  const shown = ctx.primary;
   if (L.diff.on && shown.length > 1) {
     /* shown.find() puede no hallar coincidencia; el objeto de respaldo se
        afirma con `pis` opcional para tipar el `.pis` sin tocar su valor. */
@@ -381,7 +394,12 @@ export function layerMarks(ctx: SceneCtx): void {
 
 /* --- puntos PI -------------------------------------------------------- */
 export function layerPoints(ctx: SceneCtx): void {
-  const { M, shown, act, nomPis, Axf, L } = ctx;
+  const { M, primary, Axf, L } = ctx;
+  /* Sobre la barra que se MUESTRA: ver `primary` en build.ts. Las piezas
+     medidas, más abajo, siguen en su sitio: son medidas, no se sujetan. */
+  const act = primary.find(e => e.v.id === ST.active) || null;
+  const shown = primary;
+  const nomPis = act ? act.pis : ctx.nomPis;
   const sph = new SphereGeometry(6, 12, 10);
   if (L.pts.on) {
     for (let i = 0; i < nomPis.length; i++) {

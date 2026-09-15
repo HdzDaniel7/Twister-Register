@@ -6,7 +6,7 @@
    ========================================================================= */
 import { Matrix4 } from 'three';
 import * as E from '../engine.ts';
-import { ST, refModel, refModelFree, placeMatrix, heldOfVariant, heldOn } from '../state.ts';
+import { ST, refModel, refModelFree, placeMatrix, heldOfVariant, heldOn, refHeldOn } from '../state.ts';
 import { groups, root, clearGroup, clearLabels, markDirty } from './stage.ts';
 import {
   layerGrid, layerFixtures, layerPins, layerActive, layerVariants, layerMeasured,
@@ -63,19 +63,28 @@ export function rebuildScene(): void {
      veía como que el fixture arrastraba la pieza. La colocación la decide el
      nominal; el amarre solo decide la forma que toma ahí. */
   const held: ShownEntry[] = [];
-  if (heldOn() && L.held.on) {
+  if (heldOn() && (L.held.on || refHeldOn())) {
     for (const e of shown) {
       const hm = heldOfVariant(e.v).model;
       const A = E.anchorTransform(e.m, refModelFree(), anchor);
       held.push({ v: e.v, m: hm, A, path: E.buildPath(hm), pis: E.applyMat(A, E.fk(hm).pis) });
     }
   }
+  /* La barra QUE SE ESTÁ MOSTRANDO, la de cada modelo: la sujeta con «Sujeta» o
+     «Las dos», la libre con «Libre». De aquí cuelgan los puntos, las etiquetas y
+     el desplazamiento entre modelos. Hasta el 2026-09-14 colgaban de la libre
+     siempre, y con la sujeta en pantalla los PI flotaban al lado de la barra, en
+     el sitio donde estaría sin fixture. Un solo interruptor para todo: el taller
+     lo pidió así —«si está sujeta, todo va con la sujeta»—. */
+  const primary = refHeldOn() && held.length ? held : shown;
   /* todo lo que se compara contra la ACTIVA (piezas medidas, predicción,
-     vectores de desviación) viaja con su misma transformación de anclaje */
+     vectores de desviación) viaja con su misma transformación de anclaje. La
+     desviación de una pieza medida sigue siendo contra el DISEÑO, que es contra
+     lo que se calcula su cifra: por eso `nomPis` es la libre y no `primary`. */
   const Axf = act ? act.A : new Matrix4();
   const nomPis = act ? act.pis : E.applyMat(Axf, E.fk(M).pis);
 
-  const ctx: SceneCtx = { M, L, ref, anchor, shown, act, held, Axf, nomPis, hasMeas };
+  const ctx: SceneCtx = { M, L, ref, anchor, shown, act, held, primary, Axf, nomPis, hasMeas };
   layerGrid(ctx);
   layerFixtures(ctx);
   layerPins(ctx);

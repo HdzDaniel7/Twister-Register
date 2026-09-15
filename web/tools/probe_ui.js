@@ -2085,12 +2085,19 @@ step('mover un ángulo con la barra sujeta la DEFORMA en vez de moverla libre', 
 step('la barra sujeta se DIBUJA: la escena crece al encender su capa', () => {
   const B = window.BARCOMP;
   const cuenta = () => { let n = 0; B.scene.traverse(() => n++); return n; };
+  /* Con el interruptor en LIBRE: desde que hay uno solo, en sujeta la barra
+     sujeta es la que se ve y se mide, y se dibuja con la capa o sin ella. Donde
+     la capa decide algo es en libre: superponer o no la sujeta de referencia. */
+  const ref0 = S().restraint.refHeld;
+  S().restraint.refHeld = false;
   S().layers.held.on = false;
   B.rebuildScene();
   const sin = cuenta();
   S().layers.held.on = true;
   B.rebuildScene();
   const con = cuenta();
+  S().restraint.refHeld = ref0;
+  B.rebuildScene();
   if (!(con > sin)) throw new Error(`la capa no dibuja nada: ${sin} -> ${con}`);
   /* y los pines también: son cilindros en el mundo, no en la pieza */
   S().layers.pins.on = false;
@@ -2123,13 +2130,13 @@ step('la referencia se puede comparar sujeta, no solo libre', () => {
   /* De partida se compara contra la LIBRE: las dos referencias coinciden. */
   const dif = () => B.E.fk(B.refModel()).pis.reduce(
     (m, p, i) => Math.max(m, p.distanceTo(B.E.fk(B.refModelFree()).pis[i])), 0);
-  click('#panes [data-rh="0"]');
+  click('#panes [data-hv="free"]');
   if (dif() !== 0) throw new Error('con «libre» la referencia no es la libre');
-  click('#panes [data-rh="1"]');
+  click('#panes [data-hv="both"]');
   if (!S().restraint.refHeld) throw new Error('no se guardó la elección');
   if (!(dif() > .5)) throw new Error('elegir «sujeta» no cambió la referencia: ' + dif().toFixed(3));
   /* y vuelve, que un interruptor que no vuelve no es un interruptor */
-  click('#panes [data-rh="0"]');
+  click('#panes [data-hv="free"]');
   if (S().restraint.refHeld || dif() !== 0) throw new Error('no volvió a la libre');
 });
 step('con DOS modelos y «sujeta», la referencia se dibuja SUJETA', () => {
@@ -2172,6 +2179,30 @@ step('se elige qué barra se ve: libre, sujeta o las dos', () => {
      comparar, porque ahí la sujeta pasa a sólida y suma un objeto propio. */
   if (!(cuenta() > soloLibre)) throw new Error('con las dos no hay más que dibujar');
   if (soloSujeta === soloLibre) throw new Error('las dos vistas dibujan lo mismo');
+});
+step('un solo interruptor: los puntos van con la barra que se ve, y las cifras también', () => {
+  const B = window.BARCOMP;
+  /* Lo que pidió el taller el 2026-09-14: «si está sujeta, todo va con la
+     sujeta». Había dos interruptores —«Ver» y «Medir contra»— y con la sujeta en
+     pantalla las esferas de los PI se quedaban donde estaría la libre. */
+  if (document.querySelector('#panes [data-rh]')) throw new Error('sigue habiendo un segundo interruptor');
+  if (!S().layers.pts.on) throw new Error('la capa de puntos está apagada: el paso no prueba nada');
+  const esfera = i => B.groups.pts.children.find(o => o.userData.pi === i);
+  const A = B.E.anchorTransform(S().model, B.refModelFree(), S().anchor);
+  const libre = B.E.applyMat(A, B.E.fk(S().model).pis);
+  const suj = B.E.applyMat(A, B.E.fk(B.heldResult().model).pis);
+  let i = 0;
+  suj.forEach((p, k) => { if (p.distanceTo(libre[k]) > suj[i].distanceTo(libre[i])) i = k; });
+  if (!(suj[i].distanceTo(libre[i]) > .01)) throw new Error('la sujeta no se separa de la libre: el paso no prueba nada');
+  for (const [hv, donde, quien] of [['held', suj, 'sujeta'], ['both', suj, 'las dos'], ['free', libre, 'libre']]) {
+    click(`#panes [data-hv="${hv}"]`);
+    if (S().restraint.refHeld !== (hv !== 'free')) throw new Error(`«${quien}» no cambió contra qué se mide`);
+    const e = esfera(i);
+    if (!e || e.position.distanceTo(donde[i]) > 1e-6) {
+      throw new Error(`con «${quien}» la esfera del PI ${i} no está en su barra`);
+    }
+  }
+  click('#panes [data-hv="both"]');
 });
 step('con dos modelos, el que no cabe en el fixture dice dónde choca, y el que cabe no', () => {
   const B = window.BARCOMP;
@@ -2409,7 +2440,7 @@ step('la tabla del fixture mide la barra que HAY, no la libre', () => {
      que manda sobre toda la pantalla y no solo sobre las tarjetas de modelo. El
      paso lo pone donde prueba algo en vez de heredar lo que dejara el anterior. */
   click('#tabs [data-t="pins"]');
-  click('#panes [data-rh="1"]');
+  click('#panes [data-hv="both"]');
   click('#tabs [data-t="fixture"]');
   const libre = B.placedPath(), puesta = B.shownPath();
   if (libre.length !== puesta.length) throw new Error('las dos trayectorias no son comparables');
@@ -2432,7 +2463,7 @@ step('elegir «libre» devuelve la tabla a la barra sin sujetar', () => {
      sin nada que la sujetara. Mientras la respuesta colgó de que hubiera amarre
      —y no de lo que se hubiera elegido— esta mitad no existía. */
   click('#tabs [data-t="pins"]');
-  click('#panes [data-rh="0"]');
+  click('#panes [data-hv="free"]');
   const d = B.placedPath().reduce((m, s, i) => Math.max(m, s.p.distanceTo(B.shownPath()[i].p)), 0);
   if (d !== 0) throw new Error('con «libre» la tabla sigue midiendo la sujeta: ' + d);
   /* Y se DICE: medir la libre con la carga puesta es contestar una pregunta
@@ -2440,7 +2471,7 @@ step('elegir «libre» devuelve la tabla a la barra sin sujetar', () => {
   click('#tabs [data-t="fixture"]');
   if (!q('#panes .warnbox')) throw new Error('no avisa de que está midiendo la libre');
   click('#tabs [data-t="pins"]');
-  click('#panes [data-rh="1"]');
+  click('#panes [data-hv="both"]');
   const d2 = B.placedPath().reduce((m, s, i) => Math.max(m, s.p.distanceTo(B.shownPath()[i].p)), 0);
   if (!(d2 > 1e-6)) throw new Error('volver a «sujeta» no cambió nada');
   /* y se devuelve la pestaña donde estaba: los pasos de aquí abajo leen la tabla
