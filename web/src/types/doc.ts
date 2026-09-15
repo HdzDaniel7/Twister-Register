@@ -193,11 +193,14 @@ export type UiPrefs = {
 export type Mode = 'model' | 'meas' | 'comp';
 
 /**
- * Documento del esquema `barcomp/2.3`, tal como lo escribe `toDoc()`. Las
- * claves marcadas opcionales son las que el README declara opcionales:
- * `variants`, `ref`, `anchor`, `place`, `marks`, `tweak` y `ui`. Los archivos
- * guardados con versiones anteriores siguen abriendo sin ellas — es
- * `fromDoc()` quien decide el valor por defecto de cada una.
+ * Documento del esquema `barcomp/2.3`, tal como lo ESCRIBE `toDoc()`: todas las
+ * claves, siempre, también las que valen lo de fábrica.
+ *
+ * Son requeridas a propósito. Mientras este tipo describió a la vez lo que se
+ * escribe y lo que se lee, casi todo era opcional —un archivo viejo no trae la
+ * mitad— y el compilador no tenía nada que vigilar: una capa nueva podía
+ * quedarse fuera del guardado o del deshacer sin que nadie lo notara. Lo que se
+ * LEE, con sus faltas, es `DocIn`.
  *
  * `Recta`, `L` y `Σ L` no viven aquí: son derivadas de `feed`, `radius` y los
  * ángulos, y no se guardan.
@@ -210,35 +213,41 @@ export type Doc = {
   command: Bend[];
   comp: Comp;
   proc: Proc;
-  /** los umbrales con los que se juzgó esta pieza. Clave opcional: un archivo
-   *  sin ella abre con los de fábrica, o sea con el comportamiento que ese
-   *  archivo tenía cuando se guardó. Ver engine/lims.ts */
-  lims?: Lims;
-  /** el perfil con el que se exporta el comando de máquina. Clave opcional:
-   *  un archivo sin ella abre con el perfil de fábrica. Ver engine/machine.ts */
-  mach?: MachineFmt;
+  /** los umbrales con los que se juzgó esta pieza. Ver engine/lims.ts */
+  lims: Lims;
+  /** el perfil con el que se exporta el comando de máquina. Ver engine/machine.ts */
+  mach: MachineFmt;
   /** piezas medidas: solo lo que hace falta para reconstruirlas, sin `dev` */
   datasets: { name: string; color: string; src: string; bends: Bend[]; tail: number;
               cmd?: Bend[] }[];
-  ref?: string | null;
-  anchor?: AnchorMode;
-  variants?: Variant[];
-  place?: Place;
+  ref: string | null;
+  anchor: AnchorMode;
+  variants: Variant[];
+  place: Place;
   /** sin `id`: se reasigna al abrir, ver fromDoc() */
-  marks?: { name: string; color: string; visible: boolean; x: number; y: number; z: number }[];
+  marks: { name: string; color: string; visible: boolean; x: number; y: number; z: number }[];
   /** el fixture. Sin `id`: se reasigna al abrir, igual que en `marks` */
-  fixture?: Omit<Pedestal, 'id'>[];
+  fixture: Omit<Pedestal, 'id'>[];
   /** los pines laterales. Sin `id`, por lo mismo */
-  pins?: Omit<Pin, 'id'>[];
+  pins: Omit<Pin, 'id'>[];
   /** el amarre: si la barra se considera sujeta y con qué ajustes */
-  restraint?: Restraint;
+  restraint: Restraint;
   /** la carga: el peso de la pieza y el empuje con el que se la prueba */
-  load?: Load;
+  load: Load;
   /** el material, para pasar de deformación a esfuerzo */
-  mat?: Mat;
-  tweak?: Tweak[];
-  ui?: UiPrefs;
+  mat: Mat;
+  tweak: Tweak[];
+  ui: Required<UiPrefs>;
 };
+
+/**
+ * Un documento tal como puede LLEGAR de un archivo: el de hoy o uno de cualquier
+ * versión anterior. Solo el modelo es obligatorio; lo demás lo pone `fromDoc()`
+ * con el valor por defecto que reproduce cómo se comportaba ese archivo cuando
+ * se guardó. Un archivo sin `lims` abre con los de fábrica, uno sin `restraint`
+ * con el amarre apagado, y así cada clave.
+ */
+export type DocIn = Partial<Omit<Doc, 'model' | 'ui'>> & { model: Model; ui?: Partial<UiPrefs> };
 
 /**
  * Lo que devuelve `fromDoc()`: el documento ya normalizado a la convención

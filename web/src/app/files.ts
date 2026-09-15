@@ -10,24 +10,18 @@
    el paso de deshacer se apila aqui dentro y no en el evento.              */
 import * as E from '../engine.ts';
 import { T, LANG, setLang } from '../i18n.ts';
-import {
-  ST, loadModel, addDataset, setMarks, setPedestals, setPins, syncTweak, commandModel,
-} from '../state.ts';
+import { ST, addDataset, commandModel } from '../state.ts';
 import { rebuildScene, fitView } from '../scene.ts';
 import { drawRibbon } from '../ribbon.ts';
 import { renderPanels } from '../panels.ts';
 import { download, pickFile, pickFiles, safeName } from '../io.ts';
 import { renderAll } from './render.ts';
 import { useTheme } from './theme.ts';
-import { commit, markSaved } from './history.ts';
+import { commit, markSaved, currentDoc, applyDoc } from './history.ts';
 
 export function saveJson(): void {
-  const doc = E.toDoc(ST.model!, ST.command, ST.comp, ST.proc, ST.datasets,
-                      ST.variants, ST.ref, ST.anchor,
-                      { place: ST.place, marks: ST.marks, fixture: ST.fixture, tweak: ST.tweak,
-                        lims: ST.lims, mach: ST.mach,
-                        pins: ST.pins, restraint: ST.restraint, load: ST.load, mat: ST.mat,
-                        ui: { theme: ST.theme, lang: LANG.cur, mode: ST.mode } });
+  /* El mismo documento que guarda el deshacer, más la pantalla: ver currentDoc(). */
+  const doc = currentDoc({ theme: ST.theme, lang: LANG.cur, mode: ST.mode });
   download(safeName(ST.model!.name) + '.json', JSON.stringify(doc, null, 1));
   /* A partir de aquí el trabajo está en disco: el aviso al cerrar deja de
      saltar hasta que se vuelva a tocar algo. */
@@ -37,31 +31,12 @@ export function openJson(): void {
   pickFile('.json', txt => {
     try {
       const d = E.fromDoc(JSON.parse(txt));
-      loadModel(d.model, d.variants, d.ref, d.anchor);
-      ST.command = d.command;
-      Object.assign(ST.comp, d.comp);
-      Object.assign(ST.proc, d.proc);
-      /* Los umbrales del archivo mandan sobre los que hubiera puestos: son
-         parte de la pieza, no una preferencia de pantalla. Uno anterior a
-         ellos los trae de fábrica, que es como se juzgó cuando se guardó. */
-      Object.assign(ST.lims, d.lims);
-      Object.assign(ST.mach, d.mach);
-      /* El amarre viaja con la pieza: un archivo guardado con la barra sujeta
-         se vuelve a abrir sujeta, o los números que trae no se explican. */
-      setPins(d.pins);
-      Object.assign(ST.restraint, d.restraint);
-      Object.assign(ST.load, d.load);
-      Object.assign(ST.mat, d.mat);
+      applyDoc(d);
       /* Un archivo guardado con la barra sujeta tiene que ABRIRSE enseñándolo:
          las capas no viajan en el JSON, así que sin esto el amarre queda
          encendido y en el 3D no se ve ni un pin — que se lee como que el
          archivo no traía nada. Mismo gesto que al encender el interruptor. */
       if (ST.restraint.on || ST.load.on) { ST.layers.pins.on = true; ST.layers.held.on = true; }
-      ST.place = { ...E.PLACE_DEFAULT, ...(d.place || {}) };
-      setMarks(d.marks);
-      setPedestals(d.fixture);
-      ST.tweak = d.tweak || [];
-      syncTweak(ST.model!.bends.length);
       /* un archivo sin `ui` no pisa el tema ni el idioma que ya haya puestos */
       if (d.ui) {
         if (d.ui.lang) setLang(d.ui.lang);
@@ -69,12 +44,6 @@ export function openJson(): void {
         if (d.ui.mode === 'model' || d.ui.mode === 'meas' || d.ui.mode === 'comp') {
           ST.mode = d.ui.mode;
         }
-      }
-      for (const x of d.datasets) {
-        const ds = addDataset(
-          { ...d.model, bends: (x.bends || []).map(E.bendFrom), tail: x.tail ?? d.model.tail },
-          x.name || '?', x.src || '', x.cmd);
-        ds.color = x.color || ds.color;
       }
       renderAll(); fitView();
       /* mismo caso que el CSV: el diálogo es asíncrono. Abrir un archivo es un

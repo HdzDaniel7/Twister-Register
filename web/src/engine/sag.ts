@@ -61,6 +61,20 @@ export const G = 9810;
 export const lineLoad = (sec: Section, mat: Mat): number =>
   (mat.rho || 0) * 1e-9 * (sec.width * sec.thickness) * G / 1000;
 
+/** Los dos momentos de inercia principales del rectángulo, mm⁴.
+ *
+ *  `Iz` es el de la flexión que hunde en `y` —la que trabaja con el espesor, y
+ *  la que produce el codo de ÁNGULO de una estación— e `Iy` el de la que hunde
+ *  en `z`, con el ancho. Vive en una función desde que la carga los necesita
+ *  igual que la flecha: escritos dos veces, basta con cambiar la sección en un
+ *  sitio para que la barra se cuelgue con una inercia y pese con otra. */
+export function sectionI(sec: Section): { Iz: number; Iy: number } {
+  return {
+    Iz: sec.width * sec.thickness ** 3 / 12,
+    Iy: sec.thickness * sec.width ** 3 / 12,
+  };
+}
+
 /** El momento de inercia que de verdad resiste el peso en esa muestra, mm⁴.
  *
  *  La carga es VERTICAL, pero la sección no tiene por qué estar ni de plano ni
@@ -72,8 +86,7 @@ export const lineLoad = (sec: Section, mat: Mat): number =>
  *  Devuelve `Infinity` si la barra está a plomo en ese punto: una columna no se
  *  cuelga, y así el tramo da flecha cero en vez de dividir por cero. */
 export function sagI(q: PathSample, sec: Section): number {
-  const Iz = sec.width * sec.thickness ** 3 / 12;   // flexión que hunde en `y`
-  const Iy = sec.thickness * sec.width ** 3 / 12;   // flexión que hunde en `z`
+  const { Iz, Iy } = sectionI(sec);
   /* La vertical vista desde la sección, quitándole lo que va a lo largo de la
      barra: esa componente no flexiona, solo tira en el eje. */
   const cy = q.y.z, cz = q.z.z;

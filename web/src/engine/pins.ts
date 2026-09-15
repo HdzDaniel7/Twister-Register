@@ -339,6 +339,49 @@ export function restrainedFree(model: Model): Restrained {
   };
 }
 
+/** Lo que cede cada estación, leído del vector de incógnitas. Con `doRot` las
+ *  incógnitas van por parejas —ángulo, rodado— y sin él solo hay ángulos: es el
+ *  mismo orden que usa `withDelta()`, y por eso vive a su lado. */
+export function kinksOf(u: number[], nb: number, doRot: boolean): { angle: number; rot: number }[] {
+  return [...Array(nb)].map((_, i) => ({
+    angle: u[doRot ? 2 * i : i],
+    rot: doRot ? u[2 * i + 1] : 0,
+  }));
+}
+
+/** De los codos elásticos al esfuerzo: curvatura, tensión y el peor caso.
+ *
+ *  Una sola función para el amarre y para la carga. Hasta el 2026-09-14 estaba
+ *  escrita dos veces, idéntica, en `restrain()` y en `settle()`; y es justo la
+ *  cuenta que da el veredicto de «esta pieza no vuelve al soltarla», así que
+ *  corregirla en una copia dejaba a la otra pestaña diciendo otra cosa sobre la
+ *  misma barra.
+ *
+ *  `E` se lee con `|| 0` porque la carga lo exige así —sin módulo no hay
+ *  esfuerzo que decir— y en el amarre `normMat()` ya garantiza que no es cero,
+ *  así que para él no cambia nada. */
+export function elasticReport(kink: { angle: number; rot: number }[], span: number[],
+                              sec: Section, mat: Mat
+): Pick<Restrained, 'curv' | 'stress' | 'worst' | 'worstAt'> {
+  /* La curvatura elástica de cada estación: el codo total repartido en su tramo
+     libre. Ángulo y rodado se suman en cuadratura porque son dos flexiones en
+     planos perpendiculares, no dos números que se puedan sumar. */
+  const curv = kink.map((k, i) => Math.hypot(k.angle, k.rot) * D2R / span[i]);
+  /* σ = E·c·κ. La fibra más lejana es media sección: con el codo de ángulo
+     manda el espesor y con el de rodado manda el ancho, así que se toma la que
+     de verdad trabaja en cada estación. No hace falta la inercia: se cancela
+     entre el momento y el módulo resistente. */
+  const cOf = (k: { angle: number; rot: number }): number =>
+    (Math.abs(k.rot) > Math.abs(k.angle) ? sec.width : sec.thickness) / 2;
+  const stress = kink.map((k, i) => (mat.E || 0) * cOf(k) * curv[i]);
+  let worst = 0, worstAt = -1;
+  stress.forEach((s, i) => {
+    const q = mat.yield > 0 ? s / mat.yield : 0;
+    if (q > worst) { worst = q; worstAt = i; }
+  });
+  return { curv, stress, worst, worstAt };
+}
+
 /** Aplica los deltas de parámetros a una copia del modelo. Los deltas van en
  *  GRADOS, como todo lo que sale y entra del motor. */
 export function withDelta(model: Model, du: number[], doRot: boolean): Model {
@@ -462,29 +505,9 @@ export function restrain(model: Model, pins: Pin[], sec: Section,
   }
 
   const held = withDelta(model, du, doRot);
-  const kink = model.bends.map((_, i) => ({
-    angle: du[doRot ? 2 * i : i],
-    rot: doRot ? du[2 * i + 1] : 0,
-  }));
-  /* La curvatura elástica de cada estación: el codo total repartido en su tramo
-     libre. Ángulo y rodado se suman en cuadratura porque son dos flexiones en
-     planos perpendiculares, no dos números que se puedan sumar. */
-  const curv = kink.map((k, i) =>
-    Math.hypot(k.angle, k.rot) * D2R / span[i]);
-  /* σ = E·c·κ. La fibra más lejana es media sección: con el codo de ángulo
-     manda el espesor y con el de rodado manda el ancho, así que se toma la que
-     de verdad trabaja en cada estación. No hace falta la inercia: se cancela
-     entre el momento y el módulo resistente. */
-  const cOf = (k: { angle: number; rot: number }): number =>
-    (Math.abs(k.rot) > Math.abs(k.angle) ? sec.width : sec.thickness) / 2;
-  const stress = kink.map((k, i) => mat.E * cOf(k) * curv[i]);
-  let worst = 0, worstAt = -1;
-  stress.forEach((s, i) => {
-    const q = mat.yield > 0 ? s / mat.yield : 0;
-    if (q > worst) { worst = q; worstAt = i; }
-  });
+  const kink = kinksOf(du, nb, doRot);
   return {
-    model: held, kink, curv, stress, worst, worstAt,
+    model: held, kink, ...elasticReport(kink, span, sec, mat),
     res: r, ok: Math.max(0, ...r.map(Math.abs)) <= opt.tol, iters: it,
     held: act.map(a => a.k),
   };

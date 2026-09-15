@@ -915,17 +915,33 @@ falso.
       Mostrar `|Σ reacciones·d̂ − peso|` y avisar con `root < 0`. · S
       ⚠️ **Bloqueado por la pregunta al taller**: si no hay mordaza en el primer extremo, `root` es
       ficción y esto sube a Crítico, con otro arreglo.
-- [ ] **[ARQ-03] Que `tsc` vigile la persistencia · [S]** — hacer requeridas en `Doc` las claves
+- [x] **[ARQ-03] Que `tsc` vigile la persistencia · [S]** — hacer requeridas en `Doc` las claves
       que `toDoc()` siempre escribe, y un único `currentDoc()` compartido por `snapshot()` y
       `files.ts`. Hoy las tres listas están sincronizadas a mano y el compilador no avisaría si la
       próxima capa se olvida en `history.ts`. · S
-- [ ] **[ARQ-06] `elasticReport()` y `sectionI()` compartidas · [S]** — `kink`, `curv`, `cOf`,
+      **Hecho el 2026-09-14, y eran dos listas de cada lado.** `Doc` describe lo que se ESCRIBE,
+      con todas las claves requeridas; lo que se LEE, con sus faltas, es `DocIn`. El guardado y
+      el deshacer arman el documento con un solo `currentDoc()` (app/history.ts) que tipa sus
+      capas como `Required<Omit<ToDocExtra, 'ui'>>`, y abrir y deshacer lo vuelcan con un solo
+      `applyDoc()`. Comprobado a mano: quitar `mat` de la lista, o añadir una clave a
+      `ToDocExtra`, da `TS2741` en `currentDoc()`. Efecto colateral buscado: el ajuste todo a
+      cero se guarda también como `[]` en el archivo, igual que ya lo trataba el deshacer.
+- [x] **[ARQ-06] `elasticReport()` y `sectionI()` compartidas · [S]** — `kink`, `curv`, `cOf`,
       `stress`, `worst`, `worstAt` están escritos dos veces idénticos en `pins.ts:411-431` y
       `load.ts:430-442`. Los tests existentes son la red. · S
-- [ ] **[ARQ-05] Partir `settle()` y corregir el README · [S]** — contactos / bucle Newton /
+      **Hecho el 2026-09-14.** `kinksOf()` y `elasticReport()` junto a `withDelta()` en
+      `engine/pins.ts`; `sectionI()` en `engine/sag.ts`, que la usan la flecha y la rigidez de
+      la carga. Además de las pruebas, una sonda con dos modelos y el fixture puesto da las
+      mismas cifras antes y después, byte a byte.
+- [x] **[ARQ-05] Partir `settle()` y corregir el README · [S]** — contactos / bucle Newton /
       reacciones. **Después de X-01, nunca a la vez**: refactorizar y cambiar comportamiento en la
       misma pasada hace imposible saber cuál rompió qué. Y `README.md:271` afirma un límite de 400
       líneas que seis archivos ya no cumplen. · S
+      **Hecho el 2026-09-14.** `settle()` plantea el problema y junta el resultado;
+      `touches()`, `equilibrium()` y `reactions()` hacen los tres trabajos y comparten un
+      `Problem`. Código movido tal cual: la misma sonda da las mismas cifras byte a byte. El
+      README ya no dice que se cumple el límite: lista los siete archivos de `src/` que lo pasan
+      y por qué no se recortan los comentarios de la física para cumplirlo.
 
 **Criterio de cierre:** las dos columnas de apoyo de la pestaña Fixture no pueden contradecirse, y
 el compilador —no la memoria— es quien vigila que una capa nueva entre en el guardado y en el

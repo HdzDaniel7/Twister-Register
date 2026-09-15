@@ -14,7 +14,7 @@
    ========================================================================= */
 import { Vector3 } from 'three';
 import type {
-  Bend, Model, Variant, AnchorMode, Place, Mark, Pedestal, Tweak, UiPrefs, Doc, LoadedDoc,
+  Bend, Model, Variant, AnchorMode, Place, Mark, Pedestal, Tweak, UiPrefs, Doc, DocIn, LoadedDoc,
   Lims, Pin, Mat, Restraint, Load,
   Proc, Comp,
 } from '../types.ts';
@@ -63,8 +63,14 @@ type ToDocDataset = {
   cmd?: Bend[];
 };
 /** Lo demás que lleva el documento: presentación y preferencias, nada de
- *  cinemática. Todo opcional porque toDoc() rellena cualquier falta. */
-type ToDocExtra = {
+ *  cinemática. Todo opcional porque toDoc() rellena cualquier falta.
+ *
+ *  Opcional AQUÍ, para las pruebas y las sondas, que escriben documentos con
+ *  la mitad; quien guarda el estado de verdad lo pide con `Required<>` —ver
+ *  `currentDoc()` en app/history.ts— y así una clave nueva que se añada a esta
+ *  lista es un error de compilación hasta que el guardado y el deshacer la
+ *  lleven. */
+export type ToDocExtra = {
   place?: Partial<Place>;
   marks?: Mark[];
   fixture?: Pedestal[];
@@ -221,14 +227,14 @@ export function migrateModel(model: RawModel, schema = 'barcomp/1.0'): Model {
 }
 
 /** Esquema declarado por el archivo. Sin `schema` es de los primeros: 1.0. */
-const schemaOf = (d: Doc | null | undefined): string => (d && d.schema) || 'barcomp/1.0';
+const schemaOf = (d: DocIn | null | undefined): string => (d && d.schema) || 'barcomp/1.0';
 
 /** ¿El documento trae una cinemática anterior que hay que CONVERTIR? */
-export const isLegacyDoc = (d: Doc | null | undefined): boolean =>
+export const isLegacyDoc = (d: DocIn | null | undefined): boolean =>
   !!d && SCHEMA_LEGACY.includes(schemaOf(d));
 
 /** ¿El documento se lee tal cual pero su sentido de giro no es verificable? */
-export const isAmbiguousDoc = (d: Doc | null | undefined): boolean =>
+export const isAmbiguousDoc = (d: DocIn | null | undefined): boolean =>
   !!d && SCHEMA_AMBIGUOUS.includes(schemaOf(d));
 
 /** Se lanza al abrir un archivo cuyo esquema no conocemos. Antes caía al `else`
@@ -256,7 +262,7 @@ export class NotADocError extends Error {
 }
 
 /** Normaliza un documento leído de JSON. Gemelo de load_json() de core.py. */
-export function fromDoc(d: Doc): LoadedDoc {
+export function fromDoc(d: DocIn): LoadedDoc {
   /* Un archivo anterior a barcomp/2.0 describe la misma pieza con otra
      convención: se convierte antes de tocar nada, o se abriría con la forma
      equivocada y en silencio. Quien llama se entera por `legacy`. */

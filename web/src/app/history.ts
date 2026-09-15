@@ -29,8 +29,9 @@
    gasta un paso de deshacer.
    ========================================================================= */
 import * as E from '../engine.ts';
+import type { ToDocExtra } from '../engine/doc.ts';
 import { ST, loadModel, setMarks, setPedestals, setPins, syncTweak, addDataset } from '../state.ts';
-import type { Doc } from '../types.ts';
+import type { Doc, DocIn, LoadedDoc } from '../types.ts';
 
 /** 50 pasos: con ~20 KB por documento son 1 MB largo, y nadie deshace más de
  *  eso a mano. El más viejo se cae por el fondo. */
@@ -42,31 +43,82 @@ const future: string[] = [];
  *  apilar lo que se acaba de sacar. */
 let restoring = false;
 
+/** El documento del estado de AHORA. El único sitio que lo arma.
+ *
+ *  Lo usan «Guardar JSON» y el deshacer. Hasta el 2026-09-14 eran dos llamadas a
+ *  `toDoc()` escritas a mano, cada una con su lista de capas, y la de guardar y
+ *  la del deshacer tenían que coincidir de memoria: una capa nueva que entrase
+ *  en una y no en la otra se guardaba pero no se deshacía, o al revés, y nada lo
+ *  decía. Ahora la lista es una sola y va tipada con `Required<>`: añadir una
+ *  clave a `ToDocExtra` sin ponerla aquí no compila.
+ *
+ *  `tweak` se canoniza: pintar la pestaña de compensación lo rellena de ceros
+ *  (syncTweak), y sin esto el simple hecho de mirarla apilaría un paso que luego
+ *  se comía el primer Ctrl+Z. Un ajuste todo a cero ES «sin ajuste», también en
+ *  el archivo: al abrirlo, `syncTweak()` lo vuelve a rellenar igual.
+ *
+ *  @param ui  tema, idioma y modo. Solo los pasa quien GUARDA: ver snapshot(). */
+export function currentDoc(ui?: ToDocExtra['ui']): Doc {
+  const hayAjuste = ST.tweak.some(t => t.angle || t.rot || t.feed);
+  const extra: Required<Omit<ToDocExtra, 'ui'>> = {
+    place: ST.place, marks: ST.marks, fixture: ST.fixture,
+    tweak: hayAjuste ? ST.tweak : [], lims: ST.lims, mach: ST.mach,
+    pins: ST.pins, restraint: ST.restraint, load: ST.load, mat: ST.mat,
+  };
+  return E.toDoc(ST.model!, ST.command, ST.comp, ST.proc, ST.datasets,
+                 ST.variants, ST.ref, ST.anchor, { ...extra, ui });
+}
+
 /** El documento de ahora mismo, en texto. Es exactamente lo que escribe
  *  «Guardar JSON» menos las preferencias de pantalla. */
 function snapshot(): string {
   if (!ST.model) return '';
-  /* SIN la clave `ui`, y esto importa: el tema, el idioma y el modo de trabajo
-     viajan en el documento que se GUARDA, pero no son datos de la pieza. Si
-     entraran aquí, cambiar de modo apilaría un paso y el primer Ctrl+Z se
-     gastaría en volver de modo en vez de deshacer la última edición. */
-  /* `tweak` se canoniza: pintar la pestaña de compensación lo rellena de ceros
-     (syncTweak), y sin esto el simple hecho de mirarla apilaría un paso que
-     luego se comía el primer Ctrl+Z. Un ajuste todo a cero ES «sin ajuste». */
-  const hayAjuste = ST.tweak.some(t => t.angle || t.rot || t.feed);
-  const doc = E.toDoc(ST.model, ST.command, ST.comp, ST.proc, ST.datasets,
-                      ST.variants, ST.ref, ST.anchor,
-                      { place: ST.place, marks: ST.marks, fixture: ST.fixture,
-                        tweak: hayAjuste ? ST.tweak : [], lims: ST.lims,
-                        mach: ST.mach,
-                        pins: ST.pins, restraint: ST.restraint, load: ST.load,
-                        mat: ST.mat });
-  /* `saved` es la hora de guardado, y cambia en cada llamada: si se queda, dos
-     documentos idénticos salen distintos, la comparación de commit() no sirve
-     de nada y CUALQUIER clic gasta un paso de deshacer. */
-  const { saved, ...doc2 } = doc;
-  void saved;
-  return JSON.stringify(doc2);
+  /* SIN `ui`, y esto importa: el tema, el idioma y el modo de trabajo viajan en
+     el documento que se GUARDA, pero no son datos de la pieza. Si entraran
+     aquí, cambiar de modo apilaría un paso y el primer Ctrl+Z se gastaría en
+     volver de modo en vez de deshacer la última edición.
+     Y sin `saved`, que es la hora de guardado y cambia en cada llamada: si se
+     queda, dos documentos idénticos salen distintos, la comparación de commit()
+     no sirve de nada y CUALQUIER clic gasta un paso de deshacer. */
+  const { saved, ui, ...doc } = currentDoc();
+  void saved; void ui;
+  return JSON.stringify(doc);
+}
+
+/** Vuelca en ST un documento ya leído. El único sitio que lo hace.
+ *
+ *  Gemelo de `currentDoc()` y por el mismo motivo: abrir un archivo y deshacer
+ *  un paso cargaban el documento cada uno con su propia lista, y la del deshacer
+ *  era una copia de la de abrir que había que acordarse de mantener. Lo que es
+ *  solo de abrir un archivo —las capas que se encienden, el tema, el idioma—
+ *  sigue en `openJson()`: deshacer no cambia de pantalla. */
+export function applyDoc(d: LoadedDoc): void {
+  loadModel(d.model, d.variants, d.ref, d.anchor);
+  ST.command = d.command;
+  Object.assign(ST.comp, d.comp);
+  Object.assign(ST.proc, d.proc);
+  /* Los umbrales del archivo mandan sobre los que hubiera puestos: son parte de
+     la pieza, no una preferencia de pantalla. Uno anterior a ellos los trae de
+     fábrica, que es como se juzgó cuando se guardó. */
+  Object.assign(ST.lims, d.lims);
+  Object.assign(ST.mach, d.mach);
+  /* El amarre viaja con la pieza: un archivo guardado con la barra sujeta se
+     vuelve a abrir sujeta, o los números que trae no se explican. */
+  setPins(d.pins);
+  Object.assign(ST.restraint, d.restraint);
+  Object.assign(ST.load, d.load);
+  Object.assign(ST.mat, d.mat);
+  ST.place = { ...E.PLACE_DEFAULT, ...(d.place || {}) };
+  setMarks(d.marks);
+  setPedestals(d.fixture);
+  ST.tweak = d.tweak || [];
+  syncTweak(ST.model!.bends.length);
+  for (const x of d.datasets) {
+    const ds = addDataset({ ...d.model, bends: (x.bends || []).map(E.bendFrom),
+                            tail: x.tail ?? d.model.tail },
+                          x.name || '?', x.src || '', x.cmd);
+    ds.color = x.color || ds.color;
+  }
 }
 
 /** Deja en ST la profundidad de las dos pilas, para que el panel la enseñe sin
@@ -131,30 +183,10 @@ export const redoDepth = (): number => future.length;
  *  archivo, menos el tema, el idioma y el modo: deshacer no cambia de
  *  pantalla. */
 function restore(text: string): void {
-  const d = E.fromDoc(JSON.parse(text) as Doc);
+  const d = E.fromDoc(JSON.parse(text) as DocIn);
   restoring = true;
   try {
-    loadModel(d.model, d.variants, d.ref, d.anchor);
-    ST.command = d.command;
-    Object.assign(ST.comp, d.comp);
-    Object.assign(ST.proc, d.proc);
-    Object.assign(ST.lims, d.lims);
-    Object.assign(ST.mach, d.mach);
-    setPins(d.pins);
-    Object.assign(ST.restraint, d.restraint);
-    Object.assign(ST.load, d.load);
-    Object.assign(ST.mat, d.mat);
-    ST.place = { ...E.PLACE_DEFAULT, ...(d.place || {}) };
-    setMarks(d.marks);
-    setPedestals(d.fixture);
-    ST.tweak = d.tweak || [];
-    syncTweak(ST.model!.bends.length);
-    for (const x of d.datasets) {
-      const ds = addDataset({ ...d.model, bends: (x.bends || []).map(E.bendFrom),
-                              tail: x.tail ?? d.model.tail },
-                            x.name || '?', x.src || '', x.cmd);
-      ds.color = x.color || ds.color;
-    }
+    applyDoc(d);
   } finally {
     restoring = false;
   }
