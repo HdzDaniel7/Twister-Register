@@ -53,14 +53,15 @@
 import { Vector3 } from 'three';
 import { solveDense, D2R, clamp } from './math.ts';
 import { buildPath, fk } from './kinematics.ts';
-import { TABLE_Z, sectionDrop, pedestalFit } from './fixture.ts';
+import { pedestalFit } from './fixture.ts';
 import { sampleAt } from './path.ts';
 import { lineLoad, sectionI } from './sag.ts';
 import {
   MAT_DEFAULT, RESTRAINT_DEFAULT, pinFit, restrain, restrainedFree,
-  stationSpans, withDelta, gapAt, kinksOf, elasticReport,
+  stationSpans, withDelta, gapAt, kinksOf, elasticReport, contactDrift, CONTACT_PASSES,
+  worstPenetration, clashes,
 } from './pins.ts';
-import type { Restrained } from './pins.ts';
+import type { Restrained, Clash } from './pins.ts';
 import type {
   Model, PathSample, Section, Pin, Pedestal, Mat, Restraint, Load,
 } from '../types.ts';
@@ -195,6 +196,9 @@ export type Settled = Restrained & {
   pinBlind: boolean[];
   /** lo mismo para cada PEDESTAL */
   pedBlind: boolean[];
+  /** los apoyos que se quedaron metidos dentro de la barra más de la tolerancia,
+   *  el peor primero. Vacío = la pieza cabe en el fixture. Ver `clashes()` */
+  clash: Clash[];
 };
 
 /** Un contacto candidato, congelado con la pieza sin cargar. */
@@ -224,6 +228,7 @@ function noLoad(r: Restrained, nPin: number, nPed: number, noMat: boolean,
     pinBlind: new Array<boolean>(nPin).fill(noDof),
     pedBlind: new Array<boolean>(nPed).fill(noDof),
     pene: 0, drop: 0, dropAt: -1, weight, carried: 0, root: weight, noMat, noDof,
+    clash: [],
   };
 }
 
@@ -259,21 +264,30 @@ type Problem = {
  *  Congelados con la pieza sin cargar, y a diferencia del amarre SIN filtrar por
  *  hueco: la gracia de tener una carga es que la pieza puede caer hacia un apoyo
  *  que ahora mismo no toca. Lo que sí se filtra es lo que está fuera de alcance
- *  (ver REACH). */
+ *  (ver REACH).
+ *
+ *  @param keep  los de la pasada anterior. Siguen siendo candidatos aunque la
+ *               barra se haya alejado más de REACH: se midió que, sin esto, un
+ *               pedestal que la pasada anterior dejaba 95 mm por debajo salía de
+ *               la lista, y la siguiente devolvía la barra 20 mm DENTRO de él sin
+ *               nadie que lo impidiera. Con la lista creciendo, las pasadas
+ *               dejan de oscilar entre dos formas. */
 function touches(path0: PathSample[], sec: Section, pins: Pin[], peds: Pedestal[],
-                 opt: Restraint): Touch[] {
+                 opt: Restraint, keep: Touch[] = []): Touch[] {
   const cs: Touch[] = [];
+  const kept = (pin: boolean, k: number): boolean => keep.some(c => c.pin === pin && c.k === k);
   if (opt.on) pins.forEach((pin, k) => {
     if (!pin.hold) return;
     const f = pinFit(path0, sec, pin);
-    if (!f || !f.reach || f.gap > REACH) return;
+    if (!f || !f.reach || (f.gap > REACH && !kept(true, k))) return;
     cs.push({ pin: true, k, s: f.s, t: f.t, local: f.local });
   });
   peds.forEach((ped, k) => {
     const f = pedestalFit(path0, sec, ped);
     /* `over` y no el hueco: un pedestal al que la barra no le pasa por encima
-       no la va a sostener por mucho que esté a la altura justa. */
-    if (!f || !f.over || f.gap > REACH) return;
+       no la va a sostener por mucho que esté a la altura justa. Y eso vale
+       también para los de `keep`: si la barra se ha ido de lado, ya no pisa. */
+    if (!f || !f.over || (f.gap > REACH && !kept(false, k))) return;
     cs.push({ pin: false, k, s: f.s, t: 0, local: [0, 0] });
   });
   return cs;
@@ -295,9 +309,11 @@ type Equilibrium = {
  *  Más pasos que el amarre a propósito: ahí los contactos son los que son, aquí
  *  se encienden y se apagan durante la búsqueda —la pieza se despega de un pin y
  *  se apoya en otro— y eso pide iteraciones. */
-function equilibrium(pb: Problem, path0: PathSample[]): Equilibrium {
+function equilibrium(pb: Problem, path0: PathSample[], u0: number[] | null): Equilibrium {
   const { model, opt, place, doRot, nu, K, kap, cs, gapOf, potential, phi } = pb;
-  const u = new Array<number>(nu).fill(0);
+  /* Desde cero en la primera pasada; en las siguientes, desde lo que ya cedió
+     cada estación, con `path0` construida sobre ese mismo `u0`. */
+  const u = u0 ? u0.slice() : new Array<number>(nu).fill(0);
   let P = path0;
   let F = phi(u, P);
   const H = 0.02;                       // grados de perturbación
@@ -468,66 +484,51 @@ function reactions(pb: Problem, P: PathSample[], blind: boolean[]
   return { pinN, pedN, pinBlind, pedBlind, pene, carried };
 }
 
-/** La pieza tal como la dejan la carga y los apoyos.
+/** La rampa del muelle de contacto, en fracciones de κ.
  *
- *  Con la carga apagada devuelve exactamente `restrain()`: el interruptor tiene
- *  que ser demostrable, no creíble. Sin material tampoco inventa nada — devuelve
- *  el amarre de siempre y `noMat` puesto, para que la pantalla diga qué falta.
- *
- *  Los PINES solo entran si el amarre está puesto; los PEDESTALES entran
- *  siempre que haya carga, porque sin fuerzas no sostienen nada y con fuerzas
- *  son lo único que hay debajo.
- *
- *  Tres trabajos, uno por función: `touches()` decide qué apoyos cuentan,
- *  `equilibrium()` busca el mínimo de Φ y `reactions()` reparte las fuerzas.
- *  Lo que queda aquí es plantear el problema —la carga, la rigidez, el muelle—
- *  y juntar el resultado.
- *
- *  @param place  la misma transformación que usa el amarre: el fixture está
- *                atornillado a la mesa y mira a la pieza donde de verdad está. */
-export function settle(model: Model, pins: Pin[], peds: Pedestal[], sec: Section,
-                       opt: Restraint = RESTRAINT_DEFAULT,
-                       mat: Mat = MAT_DEFAULT,
-                       load: Load = LOAD_DEFAULT,
-                       place: (s: PathSample[]) => PathSample[] = s => s): Settled {
-  const held = () => restrain(model, opt.on ? pins : [], sec, opt, mat, place);
-  if (!load.on) return noLoad(held(), pins.length, peds.length, false);
+ *  Con la pieza para la que se montó el fixture, la interferencia de partida
+ *  son décimas y el muelle entero desde el primer paso funciona: es lo que hacía
+ *  siempre y no se toca. Con OTRO modelo encima del mismo fixture la
+ *  interferencia son centímetros —medido: 22 mm dentro de un pedestal con un
+ *  doblez 4° distinto— y un muelle de 1e5 veces la rigidez de la barra metido de
+ *  golpe convierte Φ en un precipicio: el paso de Newton sale disparado, la
+ *  búsqueda lo parte ocho veces, no baja, y se rinde con la barra atravesando el
+ *  apoyo. Endureciéndolo por escalones, cada uno arranca donde acabó el anterior
+ *  y ninguno tiene que saltar el precipicio entero. Solo se usa si sin rampa
+ *  quedó algo metido más de la tolerancia. */
+const KAP_RAMP = [1e-3, 1e-2, 1e-1, 1];
 
-  const E0 = mat.E || 0;
-  const w = lineLoad(sec, mat) * (load.g || 0);
-  const tip = +load.tip || 0;
+/** Lo que devuelve el contacto resuelto: el problema tal como quedó planteado
+ *  —con los apoyos de la última pasada— y dónde acabó la pieza. */
+type Solved = { pb: Problem; eq: Equilibrium; it: number };
+
+/** Plantea el contacto y lo resuelve: la carga, la rigidez, el muelle, las
+ *  pasadas y, si hace falta, la rampa.
+ *
+ *  Sale de `settle()` porque desde el 2026-09-14 hay dos llamadas: la de la
+ *  carga, y la del amarre SIN carga cuando `restrain()` no ha podido sacar la
+ *  barra de dentro de un apoyo. En esa segunda `w` y `tip` van a cero y lo único
+ *  que queda es la barra contra el fixture, que es exactamente la pregunta. */
+function solveContacts(model: Model, pins: Pin[], peds: Pedestal[], sec: Section,
+                       opt: Restraint, place: (s: PathSample[]) => PathSample[],
+                       path0: PathSample[], w: number, tip: number, dir: Vector3,
+                       E0: number): Solved {
   const doRot = !!opt.doRot;
   const nb = model.bends.length;
   const nu = doRot ? 2 * nb : nb;
-  const dir = loadDir(load);
-  const path0 = place(buildPath(model, 8).samples);
-  if (!path0.length) return noLoad(held(), pins.length, peds.length, false);
   const total = path0[path0.length - 1].s;
-  /* Lo que pesa se calcula ANTES de cualquier salida temprana: es un dato de la
-     pieza —densidad por sección por largo, más el empuje de punta— y no una
-     incógnita del solver. Salir antes con «Peso: 0.0 N» era decir que una barra
-     recta no pesa. */
-  const weight = Math.abs(w) * total + Math.abs(tip);
-
-  /* Sin módulo elástico no hay rigidez que repartir, y sin densidad no hay
-     peso: en cualquiera de los dos casos se devuelve el amarre de siempre y se
-     dice que falta el dato, que es lo mismo que hace la flecha. */
-  if (!(E0 > 0) || (!(mat.rho || 0) && !tip)) {
-    return noLoad(held(), pins.length, peds.length, true, weight);
-  }
-  if (!w && !tip) return noLoad(held(), pins.length, peds.length, false, weight);
-  /* Y sin estaciones no hay incógnitas: el peso se sabe, el reparto no. */
-  if (!nu) return noLoad(held(), pins.length, peds.length, false, weight, true);
-
-  const cs = touches(path0, sec, pins, peds, opt);
 
   /* El hueco con signo de un contacto. Positivo = sobra aire; negativo = el
-     apoyo está metido dentro de la barra y por tanto empujando. */
-  const gapOf = (p: PathSample[], c: Touch): number => {
-    if (c.pin) return gapAt(p, sec, pins[c.k], c.s, c.t, c.local);
-    const q = sampleAt(p, c.s);
-    return q.p.z - sectionDrop(q, sec) - (TABLE_Z + peds[c.k].h);
-  };
+     apoyo está metido dentro de la barra y por tanto empujando.
+     El pin se mide en su punto CONGELADO, por el lado: ver gapAt(). El pedestal
+     no, y es a propósito: es un poste vertical que no tiene lado, y lo que lo
+     toca es el trozo de barra que le pasa por encima AHORA. Congelado, en cuanto
+     la barra se desplazaba de lado el punto medido ya era otro tramo —se midió
+     72 mm de aire en el congelado con la barra 21 mm dentro del pedestal— y la
+     pieza lo atravesaba sin que la energía se enterase. */
+  const gapOf = (p: PathSample[], c: Touch): number => (c.pin
+    ? gapAt(p, sec, pins[c.k], c.s, c.t, c.local)
+    : pedestalFit(p, sec, peds[c.k])!.gap);
 
   /* La energía de la carga: −Σ F·(p·d̂). Cada muestra carga con el trozo de
      barra que le toca —medio hasta la anterior y medio hasta la siguiente— y la
@@ -546,7 +547,8 @@ export function settle(model: Model, pins: Pin[], peds: Pedestal[], sec: Section
   /* --- rigidez de cada incógnita ----------------------------------------
      `EI/L`, la energía de un codo Δθ repartido en el tramo libre de su
      estación. Aquí el E de verdad SÍ hace falta —es lo que fija cuánto se
-     cuelga— al revés que en el amarre, donde se cancelaba.
+     cuelga— al revés que en el amarre, donde se cancelaba. Sin carga vuelve a
+     cancelarse: la rigidez y el muelle crecen los dos con E.
 
      `I` es la de la flexión que el codo de ángulo produce, la misma que ya
      supone el cálculo de esfuerzo de `restrain()` al tomar `thickness/2` como
@@ -572,21 +574,118 @@ export function settle(model: Model, pins: Pin[], peds: Pedestal[], sec: Section
     for (let i = 0; i < nu; i++) v += 0.5 * K[i] * u[i] * u[i];
     return v;
   };
-  const phi = (u: number[], p: PathSample[]): number => {
-    let v = elastic(u) + potential(p);
-    for (const c of cs) { const q = pen(gapOf(p, c)); v += 0.5 * kap * q * q; }
-    return v;
+
+  /* Las pasadas: se leen los apoyos, se busca el equilibrio, y si la barra ha
+     acabado dentro de un apoyo que los contactos congelados no ven, se vuelven
+     a leer desde donde está y se sigue. Ver CONTACT_PASSES en pins.ts, que es
+     donde está medido por qué hace falta. Con la pieza para la que se montó el
+     fixture no hay segunda pasada y sale lo mismo que antes. */
+  const lim = Math.max(model.tol.point, opt.tol);
+  const pinsOn = opt.on ? pins : [];
+  const run = (kapNow: number, start: PathSample[], u0: number[] | null,
+               keep0: Touch[]): Solved => {
+    let P0 = start, u1 = u0, keep = keep0, it = 0;
+    for (let pass = 0; ; pass++) {
+      const cs = touches(P0, sec, pins, peds, opt, keep);
+      const phi = (u: number[], p: PathSample[]): number => {
+        let v = elastic(u) + potential(p);
+        for (const c of cs) { const q = pen(gapOf(p, c)); v += 0.5 * kapNow * q * q; }
+        return v;
+      };
+      const pb: Problem = {
+        model, sec, pins, peds, opt, place, doRot, nu, K, kap: kapNow, dir, cs, gapOf, potential, phi,
+      };
+      const eq = equilibrium(pb, P0, u1);
+      it += eq.it;
+      if (pass + 1 >= CONTACT_PASSES) return { pb, eq, it };
+      /* Un apoyo ciego no se persigue: su hueco no depende de nada que el solver
+         pueda mover, y otra pasada daría la misma interferencia. */
+      const frozen = (pin: boolean, k: number): number | null => {
+        const i = cs.findIndex(c => c.pin === pin && c.k === k);
+        return i < 0 ? null : eq.blind[i] ? -Infinity : gapOf(eq.P, cs[i]);
+      };
+      if (!contactDrift(eq.P, sec, pinsOn, peds, frozen, lim, 1e-6)) return { pb, eq, it };
+      P0 = eq.P; u1 = eq.u; keep = cs;
+    }
   };
 
-  const pb: Problem = {
-    model, sec, pins, peds, opt, place, doRot, nu, K, kap, dir, cs, gapOf, potential, phi,
-  };
-  const { u, P, it, stuck, blind } = equilibrium(pb, path0);
+  const directo = run(kap, path0, null, []);
+  const dentro = (s: Solved): number => worstPenetration(s.eq.P, sec, pinsOn, peds);
+  if (dentro(directo) <= lim) return directo;
+  /* Quedó algo metido: la rampa, desde la pieza libre. Se queda la que menos se
+     mete de las dos, y las iteraciones se cuentan todas, que se gastaron. */
+  let rampa: Solved | null = null, it = directo.it;
+  for (const f of KAP_RAMP) {
+    rampa = run(kap * f, rampa ? rampa.eq.P : path0, rampa ? rampa.eq.u : null,
+                rampa ? rampa.pb.cs : []);
+    it += rampa.it;
+  }
+  const mejor = rampa && dentro(rampa) < dentro(directo) ? rampa : directo;
+  return { ...mejor, it };
+}
+
+/** La pieza tal como la dejan la carga y los apoyos.
+ *
+ *  Con la carga apagada devuelve `restrain()`: el interruptor tiene que ser
+ *  demostrable, no creíble. La única excepción es que `restrain()` deje la barra
+ *  METIDA dentro de un apoyo más de la tolerancia —pasa con un modelo distinto
+ *  del que el fixture sujeta, que es la comparación para la que existe el
+ *  programa—: entonces se resuelve el mismo contacto sin peso con el solver de
+ *  la carga, y se queda el que menos se mete. Sin material tampoco inventa nada —
+ *  devuelve el amarre de siempre y `noMat` puesto, para que la pantalla diga qué
+ *  falta.
+ *
+ *  Los PINES solo entran si el amarre está puesto; los PEDESTALES entran
+ *  siempre que haya carga, porque con fuerzas son lo único que hay debajo, y
+ *  con el amarre puesto también sin ella, porque tampoco se pueden atravesar.
+ *
+ *  Los trabajos, uno por función: `solveContacts()` plantea y resuelve,
+ *  `touches()` decide qué apoyos cuentan, `equilibrium()` busca el mínimo de Φ y
+ *  `reactions()` reparte las fuerzas. Lo que queda aquí es decidir qué caso es y
+ *  juntar el resultado.
+ *
+ *  @param place  la misma transformación que usa el amarre: el fixture está
+ *                atornillado a la mesa y mira a la pieza donde de verdad está. */
+function settleShape(model: Model, pins: Pin[], peds: Pedestal[], sec: Section,
+                     opt: Restraint, mat: Mat, load: Load,
+                     place: (s: PathSample[]) => PathSample[]): Settled {
+  const held = () => restrain(model, opt.on ? pins : [], sec, opt, mat, place, peds);
+  const doRot = !!opt.doRot;
+  const nb = model.bends.length;
+  const nu = doRot ? 2 * nb : nb;
+  if (!load.on) return noLoad(unloaded(), pins.length, peds.length, false);
+
+  const E0 = mat.E || 0;
+  const w = lineLoad(sec, mat) * (load.g || 0);
+  const tip = +load.tip || 0;
+  const dir = loadDir(load);
+  const path0 = place(buildPath(model, 8).samples);
+  if (!path0.length) return noLoad(held(), pins.length, peds.length, false);
+  const total = path0[path0.length - 1].s;
+  /* Lo que pesa se calcula ANTES de cualquier salida temprana: es un dato de la
+     pieza —densidad por sección por largo, más el empuje de punta— y no una
+     incógnita del solver. Salir antes con «Peso: 0.0 N» era decir que una barra
+     recta no pesa. */
+  const weight = Math.abs(w) * total + Math.abs(tip);
+
+  /* Sin módulo elástico no hay rigidez que repartir, y sin densidad no hay
+     peso: en cualquiera de los dos casos se devuelve el amarre de siempre y se
+     dice que falta el dato, que es lo mismo que hace la flecha. */
+  if (!(E0 > 0) || (!(mat.rho || 0) && !tip)) {
+    return noLoad(held(), pins.length, peds.length, true, weight);
+  }
+  if (!w && !tip) return noLoad(held(), pins.length, peds.length, false, weight);
+  /* Y sin estaciones no hay incógnitas: el peso se sabe, el reparto no. */
+  if (!nu) return noLoad(held(), pins.length, peds.length, false, weight, true);
+
+  const { pb, eq, it } = solveContacts(model, pins, peds, sec, opt, place, path0, w, tip, dir, E0);
+  const { u, P, stuck, blind } = eq;
+  const { cs, gapOf } = pb;
   const { pinN, pedN, pinBlind, pedBlind, pene, carried } = reactions(pb, P, blind);
 
   const model2 = withDelta(model, u, doRot);
   const kink = kinksOf(u, nb, doRot);
-  const { curv, stress, worst, worstAt } = elasticReport(kink, span, sec, mat);
+  const { curv, stress, worst, worstAt } = elasticReport(kink, stationSpans(model), sec, mat);
 
   /* Cuánto se movió la pieza: contra la LIBRE, que es la forma que tendría sin
      fixture y sin peso. Incluye por tanto lo que hacen los pines y lo que hace
@@ -607,8 +706,58 @@ export function settle(model: Model, pins: Pin[], peds: Pedestal[], sec: Section
     res, ok: !stuck, iters: it,
     held: cs.filter(c => c.pin && pinN[c.k] > 0).map(c => c.k),
     pinN, pedN, pinBlind, pedBlind, pene, drop, dropAt,
-    weight, carried, root: weight - carried, noMat: false, noDof: false,
+    weight, carried, root: weight - carried, noMat: false, noDof: false, clash: [],
   };
+
+  /** El amarre sin carga: `restrain()`, salvo que deje la barra metida dentro
+   *  de un apoyo. Ver la cabecera de `settle()`. */
+  function unloaded(): Restrained {
+    const r = held();
+    if (!opt.on || !nu) return r;
+    const lim = Math.max(model.tol.point, opt.tol);
+    const dentro = (m: Model): number =>
+      worstPenetration(place(buildPath(m, 8).samples), sec, pins, peds);
+    const antes = dentro(r.model);
+    if (antes <= lim) return r;
+    const p0 = place(buildPath(model, 8).samples);
+    if (!p0.length) return r;
+    /* Sin peso la forma no depende de E —la rigidez y el muelle crecen juntos—,
+       así que un material sin módulo no impide contestar dónde queda la barra. */
+    const s = solveContacts(model, pins, peds, sec, opt, place, p0, 0, 0,
+                            new Vector3(0, 0, -1), mat.E || MAT_DEFAULT.E);
+    const m2 = withDelta(model, s.eq.u, doRot);
+    if (dentro(m2) >= antes) return r;
+    const kink = kinksOf(s.eq.u, nb, doRot);
+    const pinsIn = s.pb.cs.filter(c => c.pin);
+    const res = pinsIn.map(c => s.pb.gapOf(s.eq.P, c));
+    return {
+      model: m2, kink, ...elasticReport(kink, stationSpans(model), sec, mat),
+      res, ok: !s.eq.stuck && dentro(m2) <= lim, iters: r.iters + s.it,
+      /* sujetan los que quedaron tocando: sin peso no hay reacción que contar,
+         y un pin que la barra dejó atrás no sujeta nada */
+      held: pinsIn.filter((_, i) => res[i] <= opt.tol).map(c => c.k),
+    };
+  }
+}
+
+/** La pieza tal como la dejan la carga y los apoyos, y dónde no cabe.
+ *
+ *  Es `settleShape()` —ver su cabecera, que es donde está la física— más la
+ *  lista de apoyos que se quedaron metidos dentro de la barra. Va aparte, y a la
+ *  salida de TODOS los caminos, porque cualquiera de ellos puede dejar una pieza
+ *  que no cabe: el amarre sin carga, la carga sin material, la búsqueda que no
+ *  llegó. Con los dos interruptores apagados no hay fixture que atravesar y la
+ *  lista sale vacía sin medir nada. */
+export function settle(model: Model, pins: Pin[], peds: Pedestal[], sec: Section,
+                       opt: Restraint = RESTRAINT_DEFAULT,
+                       mat: Mat = MAT_DEFAULT,
+                       load: Load = LOAD_DEFAULT,
+                       place: (s: PathSample[]) => PathSample[] = s => s): Settled {
+  const s = settleShape(model, pins, peds, sec, opt, mat, load, place);
+  if (!opt.on && !load.on) return s;
+  const lim = Math.max(model.tol.point, opt.tol);
+  const P = place(buildPath(s.model, 8).samples);
+  return { ...s, clash: clashes(P, sec, opt.on ? pins : [], peds, lim) };
 }
 
 /** La pieza libre con los campos de la carga a cero, para cuando no hay nada

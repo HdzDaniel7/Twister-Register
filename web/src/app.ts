@@ -32,7 +32,7 @@
 import * as E from './engine.ts';
 import { I18N, LANG } from './i18n.ts';
 import {
-  ST, REF, loadModel, commandModel, placedPath, shownPath, shownModel, heldResult,
+  ST, REF, loadModel, commandModel, placedPath, shownPath, shownModel, heldResult, heldOfVariant,
   refModel, refModelFree,
 } from './state.ts';
 import {
@@ -139,6 +139,9 @@ type DebugExports = {
   shownPath: typeof shownPath;
   shownModel: typeof shownModel;
   heldResult: typeof heldResult;
+  /* la forma sujeta de CUALQUIER modelo, no solo la activa: el banco comprueba
+     que el fixture sujeta a todos los que se comparan */
+  heldOfVariant: typeof heldOfVariant;
   /* Las dos referencias, para poder comprobar desde el banco que elegir «sujeta»
      cambia de verdad contra qué se compara. */
   refModel: typeof refModel;
@@ -152,7 +155,7 @@ type DebugExports = {
 if (typeof window !== 'undefined') (window as unknown as { BARCOMP: DebugExports }).BARCOMP = {
   ST, E, I18N, LANG, renderAll, refresh, REF, drawGizmo, drawLabels, groupHost, groups,
   rebuildScene, markDirty, importCsvText, importCsvBatch, openError, commandModel,
-  placedPath, shownPath, shownModel, heldResult, refModel, refModelFree,
+  placedPath, shownPath, shownModel, heldResult, heldOfVariant, refModel, refModelFree,
   get renderer() { return renderer; },
   get scene() { return scene; },
 };

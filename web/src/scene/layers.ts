@@ -13,7 +13,7 @@ import {
 } from 'three';
 import * as E from '../engine.ts';
 import {
-  ST, shownPath, anchoredShownPis, refModelFree, heldResult, heldOn,
+  ST, shownPath, anchoredShownPis, refModelFree, heldResult, heldOn, heldOfVariant, placeMatrix,
 } from '../state.ts';
 import { groups, cssVar, devThreeColor, ghost, solidMat, extraLabels } from './stage.ts';
 import { barGeometry } from './geometry.ts';
@@ -119,6 +119,29 @@ export function layerHeld(ctx: SceneCtx): void {
   const { M, L, Axf, held } = ctx;
   if (!L.held || !L.held.on || !heldOn() || !held.length) return;
 
+  /* Dónde NO cabe. Un rombo en el color de fuera de tolerancia en cada apoyo que
+     se quedó metido dentro de una barra sujeta, con el modelo, el apoyo y los
+     milímetros al lado. Hay piezas que no entran en un fixture —un doblez 8°
+     distinto puede dejar la barra entera al otro lado de un pin— y esa forma
+     sujeta es la más cercana que el modelo encuentra, no una que se pueda
+     montar: sin el rombo se leía como que el programa dejaba atravesar el pin.
+     El punto viene en coordenadas del taller y esta capa cuelga de la pieza, así
+     que se deshace la colocación. */
+  const taller = placeMatrix().invert();
+  const bad = cssVar('--bad', '#FF4D5E');
+  const rombo = new OctahedronGeometry(12);
+  for (const e of held) {
+    for (const c of heldOfVariant(e.v).clash) {
+      const q = c.p.clone().applyMatrix4(taller);
+      const m = new Mesh(rombo.clone(), new MeshBasicMaterial({ color: bad }));
+      m.position.copy(q);
+      groups.held.add(m);
+      const quien = (c.pin ? ST.pins[c.k] : ST.fixture[c.k])?.name || '?';
+      extraLabels.push({ p: q, color: e.v.color, txt: `${e.v.name} · ${quien} · ${c.depth.toFixed(1)} mm` });
+    }
+  }
+  rombo.dispose();
+
   /* Cada variante visible, con la forma que toma SUJETA y en SU color: si todas
      salieran del mismo color rosa no se sabría cuál es cuál, y con dos modelos
      comparándose eso es justo lo que hay que distinguir. La activa se dibuja
@@ -194,12 +217,18 @@ export function layerActive(ctx: SceneCtx): void {
 
 /* --- los demás modelos: alambrado en su color ------------------------- */
 export function layerVariants(ctx: SceneCtx): void {
-  const { shown, act, L } = ctx;
+  const { shown, act, L, held } = ctx;
   if (L.var.on) {
+    /* Con «las dos» puesto, la libre y la sujeta de cada modelo son dos alambres
+       del MISMO color, y se veían idénticos: la libre, que es la que atraviesa
+       los pines, pasaba por ser la sujeta. La libre se atenúa y la sujeta se
+       queda con el trazo fuerte, igual que la activa, que es sólida libre y
+       alambre sujeta. */
+    const tenue = held.length > 0;
     for (const e of shown) {
       if (e === act) continue;
       const g = barGeometry(e.path, e.m.section, null);
-      const w = ghost(g, e.v.color, .85);
+      const w = ghost(g, e.v.color, tenue ? .28 : .85);
       w.applyMatrix4(e.A); groups.var.add(w);
       g.dispose();
     }

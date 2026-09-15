@@ -942,6 +942,27 @@ falso.
       `Problem`. Código movido tal cual: la misma sonda da las mismas cifras byte a byte. El
       README ya no dice que se cumple el límite: lista los siete archivos de `src/` que lo pasan
       y por qué no se recortan los comentarios de la física para cumplirlo.
+- [x] **[FIS-08] El fixture sujeta a TODOS los modelos, no solo al suyo · [O]** — reportado
+      por el taller el 2026-09-14: con dos modelos y el amarre o la carga puestos, el segundo
+      atravesaba pines y pedestales. Medido sobre la demo con su fixture sembrado, en una
+      barrida de 270 casos (cada doblez ±2/4/8°, con pines, con peso y con los dos): **149
+      atravesaban algo más de 1 mm y el peor 82 mm**. Tres causas, las tres en el motor:
+      el amarre ignoraba los pedestales (34.7 mm dentro con solo pines); los contactos se
+      congelaban sobre la barra libre y se quedaban atrás cuando la pieza caía decenas de mm;
+      y un muelle de contacto rígido desde el primer paso no dejaba salir de una
+      interferencia de centímetros.
+      **Hecho el 2026-09-14.** Pedestales unilaterales también en el amarre; pasadas que
+      vuelven a leer los contactos donde está la barra (`CONTACT_PASSES`, `contactDrift()`);
+      el pedestal medido sobre el tramo que le pasa por encima AHORA y no en un punto
+      congelado; y rampa del muelle solo si queda algo metido. La pieza para la que se sembró
+      el fixture sale igual —ni una prueba cambió—. Queda en **19 de 270, el peor 14 mm**, y
+      no es convergencia: son piezas que NO caben (barra al otro lado de un pin, o bajando
+      casi vertical junto a una cuna). Eso se dice: `Settled.clash`, aviso rojo en la tarjeta
+      de cada modelo y un rombo con los mm en el 3D. La libre de los otros modelos se atenúa
+      cuando se ve la sujeta, que eran dos alambres idénticos. Pruebas de motor con la pieza
+      fija y paso de banco que busca un doblez que choque y exige el aviso.
+      Abierto: el apoyo del pedestal solo mira de abajo arriba; un tramo casi vertical que le
+      roza el costado no se modela.
 
 **Criterio de cierre:** las dos columnas de apoyo de la pestaña Fixture no pueden contradecirse, y
 el compilador —no la memoria— es quien vigila que una capa nueva entre en el guardado y en el

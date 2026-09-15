@@ -256,6 +256,9 @@ tbody tr[tabindex]:focus-visible{outline:2px solid var(--nominal);outline-offset
 .ds input.nm:focus{border-color:var(--nominal);background:var(--inputbg)}
 .ds .meta{display:flex;gap:9px;margin-top:4px;font-size:10px;color:var(--dim)}
 .ds .meta b{font-weight:400;color:var(--txt)}
+/* el modelo no cabe en el fixture: en rojo y debajo de sus cifras, que es donde
+   se mira al comparar */
+.ds .clash{margin-top:4px;font-size:10px;color:var(--bad);cursor:help}
 
 /* ---------- viewport ---------- */
 /* overflow:hidden es lo que impide que el lienzo 3D se monte sobre el panel

@@ -154,6 +154,8 @@ export const es: Record<I18nKey, string> = {
  loadN: 'Reacción',
  loadNTip: 'Con cuánta fuerza empuja ese apoyo, en newton. Un guion quiere decir que la pieza no lo está tocando, que es una respuesta y no un fallo. «n/d» quiere decir otra cosa muy distinta: que ahí el modelo no puede decir nada.',
  loadNd: 'n/d',
+ clashCard: 'No cabe en el fixture: {n} se mete {d} mm',
+ clashTip: 'Con este modelo encima del fixture, ese apoyo queda DENTRO de la barra por muchos milímetros que la barra ceda. Pasa cuando la pieza es distinta de la que el fixture sujeta: un doblez unos grados distinto puede dejar la barra al otro lado de un pin, y ninguna deformación elástica la devuelve atravesándolo. La forma sujeta que se dibuja es la más cercana que el modelo encuentra, no una que se pueda montar. En el 3D hay un rombo rojo en cada apoyo que choca.',
  fixLoadOn: 'Aquí la pieza pesa {w} N, y eso se enciende en la pestaña Amarre. La columna «Reacción» dice cuánto de ese peso lleva cada pedestal.',
  fixLoadOff: 'Aquí la pieza no pesa. La flecha ya usa su peso propio, pero cuánto carga cada pedestal solo sale con «La pieza pesa» puesto, en la pestaña Amarre: entonces aparece la columna «Reacción».',
  stHold: 'Sujeta por los pines', stLoad: 'La pieza pesa', stHoldLoad: 'Sujeta y pesando',

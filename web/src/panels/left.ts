@@ -44,8 +44,24 @@ function vcard(v: Variant): string {
       <div class="meta"><span>${vm.bends.length} ${T('dblz')}</span>
         <span>Δ<b>${nd}</b></span>
         <span>${T('dTip')} <b class="${shift > .01 ? '' : 'v-dim'}">${fx(shift, 2)}</b></span></div>
+      ${choque(v)}
       ${isref ? '' : `<button class="linkbtn" data-vr="${v.id}">${T('setRef')}</button>`}
     </div>`;
+}
+
+/** Si el modelo no cabe en el fixture: contra qué apoyo choca y cuánto se mete.
+ *
+ *  En la tarjeta de CADA modelo y no en la tabla del amarre, que solo mide la
+ *  activa: la pregunta llega comparando —«¿y este otro, entra?»— y se contesta
+ *  sin tener que activarlo. Solo el peor: la lista entera está en el 3D, con un
+ *  rombo en cada sitio. */
+function choque(v: Variant): string {
+  if (!heldOn()) return '';
+  const c = heldOfVariant(v).clash[0];
+  if (!c) return '';
+  const quien = (c.pin ? ST.pins[c.k] : ST.fixture[c.k])?.name || '?';
+  return `<div class="clash" title="${esc(T('clashTip'))}">${esc(
+    T('clashCard').replace('{n}', quien).replace('{d}', fx(c.depth, 1)))}</div>`;
 }
 
 const ANCHORS: [string, I18nKey][] = [['start', 'aStart'], ['end', 'aEnd'], ['best', 'aBest']];

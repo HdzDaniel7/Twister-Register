@@ -160,6 +160,8 @@ export const de: Record<I18nKey, string> = {
  loadN: 'Reaktion',
  loadNTip: 'Mit welcher Kraft diese Auflage drückt, in Newton. Ein Strich heißt, dass das Teil sie nicht berührt; eine Antwort, kein Fehler. „k. A." heißt etwas ganz anderes: dass das Modell dort nichts sagen kann.',
  loadNd: 'k. A.',
+ clashCard: 'Passt nicht in die Vorrichtung: {n} dringt {d} mm ein',
+ clashTip: 'Mit diesem Modell auf der Vorrichtung bleibt diese Auflage INNERHALB des Stabs, egal wie weit der Stab nachgibt. Das passiert, wenn das Teil nicht das ist, das die Vorrichtung hält: eine um wenige Grad andere Biegung kann den Stab auf die andere Seite eines Stifts legen, und keine elastische Verformung bringt ihn hindurch zurück. Die gezeichnete gespannte Form ist die nächstliegende, die das Modell findet, keine montierbare. In der 3D-Ansicht sitzt an jeder kollidierenden Auflage eine rote Raute.',
  fixLoadOn: 'Hier wiegt das Teil {w} N, eingeschaltet im Reiter Spannung. Die Spalte „Reaktion" sagt, wie viel dieses Gewichts jeder Bock trägt.',
  fixLoadOff: 'Hier hat das Teil kein Gewicht. Die Durchbiegung nutzt schon sein Eigengewicht, aber wie viel jeder Bock trägt, ergibt sich erst mit „Das Teil hat Gewicht" im Reiter Spannung: dann erscheint die Spalte „Reaktion".',
  stHold: 'Von den Bolzen gehalten', stLoad: 'Das Teil hat Gewicht', stHoldLoad: 'Gehalten und belastet',

@@ -152,6 +152,8 @@ export const en: Record<I18nKey, string> = {
  loadN: 'Reaction',
  loadNTip: 'How hard that support is pushing, in newton. A dash means the part is not touching it, which is an answer and not a failure. "n/a" means something quite different: that the model cannot say anything there.',
  loadNd: 'n/a',
+ clashCard: 'Does not fit the fixture: {n} goes in {d} mm',
+ clashTip: 'With this model on the fixture, that support stays INSIDE the bar however much the bar gives. It happens when the part differs from the one the fixture holds: a bend a few degrees off can leave the bar on the far side of a pin, and no elastic deformation brings it back through. The held shape drawn is the closest one the model finds, not one that can be mounted. In the 3D view there is a red diamond at every support that clashes.',
  fixLoadOn: 'Here the part weighs {w} N, and that is switched on in the Clamping tab. The "Reaction" column says how much of that weight each pedestal carries.',
  fixLoadOff: 'Here the part has no weight. The sag already uses its own weight, but how much each pedestal carries only comes out with "The part has weight" on, in the Clamping tab: that is when the "Reaction" column appears.',
  stHold: 'Held by the pins', stLoad: 'The part has weight', stHoldLoad: 'Held and weighted',

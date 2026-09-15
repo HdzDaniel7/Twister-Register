@@ -19,7 +19,8 @@ import { esc, safeColor, COLOR_FALLBACK } from './src/safe.ts';
    mismo camino que abrir un archivo— así que se prueba aquí y no solo en el
    banco de Edge, que corre entero o no corre. */
 import { ST, loadModel, syncModel, syncTweak, addMark, addPedestal,
-         heldOfVariant, heldResult, heldSlots } from './src/state.ts';
+         heldOfVariant, heldResult, heldSlots, seedFixture, seedPinsFor,
+         placeMatrix, refModelFree } from './src/state.ts';
 import * as H from './src/app/history.ts';
 
 let fails = 0;
@@ -2756,6 +2757,58 @@ console.log('\n— la caché de formas sujetas —');
      antes.includes('v-v9') && !despues.includes('v-v9'), despues.join(' '));
   ok('y deja la de los modelos que siguen', despues.includes(`v-${ST.variants[0].id}`));
   ST.restraint.on = on0;
+}
+
+/* ======================================================================== */
+console.log('\n— el fixture sujeta a todos los modelos —');
+/* Reportado por el taller: con dos modelos y el amarre o la carga puestos, el
+   segundo atravesaba los pines y los pedestales. Medido el 2026-09-14 sobre la
+   demo con su fixture sembrado: un modelo con el doblez 3 abierto 4° se metía
+   34.7 mm en un pedestal con solo los pines —el amarre ignoraba los pedestales—
+   y 16.2 mm con pines y peso —los contactos se congelaban sobre la barra libre
+   y se quedaban atrás—. En una barrida de 270 casos, 149 atravesaban algo más de
+   un milímetro y el peor 82 mm. */
+{
+  loadModel(E.demoModel()); syncModel();
+  seedFixture(); seedPinsFor(4);
+  const on0 = { r: ST.restraint.on, l: ST.load.on };
+  const B = E.cloneVariant(ST.variants[0], 'B', '#3FD68C', 'vB');
+  B.deltas[3].angle = 4;
+  ST.variants.push(B);
+  const tol = ST.model.tol.point;
+  /* Medido como la tabla, sobre la barra sujeta colocada donde de verdad está. */
+  const dentro = v => {
+    const P = placeMatrix().multiply(E.anchorTransform(E.effectiveModel(v), refModelFree(), ST.anchor));
+    const p = E.placePath(P, E.buildPath(heldOfVariant(v).model, 8).samples);
+    return E.worstPenetration(p, ST.model.section, ST.restraint.on ? ST.pins : [], ST.fixture);
+  };
+  for (const [r, l, como] of [[true, false, 'con los pines'], [false, true, 'con el peso'],
+                              [true, true, 'con pines y peso']]) {
+    ST.restraint.on = r; ST.load.on = l;
+    const d = dentro(B);
+    ok(`un segundo modelo ${como} no atraviesa el fixture`, d <= tol, `${d.toFixed(2)} mm`);
+    ok(`  ni lo dice como choque, porque cabe`, heldOfVariant(B).clash.length === 0);
+    ok(`  y el modelo para el que se sembró sigue sin tocarlo ${como}`,
+       dentro(ST.variants[0]) <= tol && heldOfVariant(ST.variants[0]).clash.length === 0);
+  }
+
+  /* Y el que NO cabe lo tiene que decir. Con el doblez 6 abierto 8° la barra
+     libre queda al otro lado del pin 3: ninguna deformación elástica la devuelve
+     atravesándolo, y la forma sujeta es la más cercana, no una montable. */
+  ST.restraint.on = true; ST.load.on = false;
+  const C = E.cloneVariant(ST.variants[0], 'C', '#F0A02E', 'vC');
+  C.deltas[6].angle = 8;
+  ST.variants.push(C);
+  const cl = heldOfVariant(C).clash;
+  ok('un modelo que no cabe dice contra qué apoyo choca y cuánto se mete',
+     cl.length > 0 && cl[0].depth > tol && Number.isInteger(cl[0].k),
+     cl.map(c => `${c.pin ? 'pin' : 'ped'}${c.k} ${c.depth.toFixed(1)}`).join(' · '));
+  ok('  el peor primero', cl.every((c, i) => !i || cl[i - 1].depth >= c.depth));
+  ok('  y con todo apagado no hay fixture contra el que chocar',
+     (() => { ST.restraint.on = false; return heldOfVariant(C).clash.length === 0; })());
+
+  ST.variants = ST.variants.filter(v => v.id !== 'vB' && v.id !== 'vC');
+  ST.restraint.on = on0.r; ST.load.on = on0.l;
 }
 
 /* ======================================================================== */

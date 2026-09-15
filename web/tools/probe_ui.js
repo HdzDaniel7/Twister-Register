@@ -2173,6 +2173,45 @@ step('se elige qué barra se ve: libre, sujeta o las dos', () => {
   if (!(cuenta() > soloLibre)) throw new Error('con las dos no hay más que dibujar');
   if (soloSujeta === soloLibre) throw new Error('las dos vistas dibujan lo mismo');
 });
+step('con dos modelos, el que no cabe en el fixture dice dónde choca, y el que cabe no', () => {
+  const B = window.BARCOMP;
+  /* El fallo que esto vigila: con dos modelos y el amarre puesto, el segundo
+     atravesaba pines y pedestales y la pantalla no decía nada. La física de que
+     no atraviese la vigila test_motor.js con una pieza fija; aquí se vigila que
+     lo que el motor sabe llegue a la tarjeta del modelo y al 3D. Qué doblez hace
+     chocar depende de cómo haya dejado el fixture el resto del banco, así que se
+     busca en vez de suponerlo. */
+  check('#panes [data-rs="on"]', true);
+  const otro = S().variants.find(v => v.id !== S().active);
+  if (!otro) throw new Error('hace falta un segundo modelo');
+  const a0 = otro.deltas.map(d => d.angle);
+  /* querySelector y no q(): que el aviso NO esté es una respuesta, no un error */
+  const tarjeta = () => { drawer('models'); return document.querySelector(`#lf [data-vsel="${otro.id}"] .clash`); };
+  try {
+    if (B.heldOfVariant(otro).clash.length !== B.heldResult().clash.length) {
+      throw new Error('una copia exacta de la activa no choca igual que ella');
+    }
+    let hallado = null;
+    for (let i = 0; i < otro.deltas.length && !hallado; i++) {
+      for (const d of [8, -8, 15, -15]) {
+        otro.deltas[i].angle = a0[i] + d;
+        if (B.heldOfVariant(otro).clash.length) { hallado = [i, d]; break; }
+        otro.deltas[i].angle = a0[i];
+      }
+    }
+    if (!hallado) throw new Error('ningún doblez desplazado hasta 15° choca con el fixture: el banco no puede comprobar el aviso');
+    B.renderAll();
+    const c = tarjeta();
+    if (!c) throw new Error(`el modelo choca (doblez ${hallado[0]}, ${hallado[1]}°) y su tarjeta no lo dice`);
+    if (!/mm/.test(c.textContent)) throw new Error('la tarjeta no dice cuánto: ' + c.textContent);
+    B.rebuildScene(); B.drawLabels();
+    if (!q('#labels').textContent.includes(otro.name)) throw new Error('el 3D no marca dónde choca');
+  } finally {
+    otro.deltas.forEach((d, i) => { d.angle = a0[i]; });
+    B.renderAll();
+  }
+  if (tarjeta() && !B.heldResult().clash.length) throw new Error('devuelto a copia de la activa, la tarjeta sigue diciendo que choca');
+});
 step('un pin se puede inclinar y el contacto lo nota', () => {
   const B = window.BARCOMP;
   const id = S().pins[0].id;
@@ -2452,7 +2491,14 @@ step('un pedestal hundido en la barra no puede leer cero', () => {
     /* La contradicción que se pintaba en dos columnas pegadas: la barra metida
        dentro de la cuna y la reacción a cero. O apoya, o no apoya. */
     if (!f || !f.over || R.pedBlind[k]) return;
-    if (f.gap < -1e-6 && !(R.pedN[k] > 0)) {
+    /* Lo que la tabla LEE, a dos decimales, que es de lo que habla el nombre del
+       paso. Hasta el 2026-09-14 el umbral era −1e-6 mm, y eso es más fino que la
+       propia cuenta: el solver recorre la barra con 8 muestras por arco y la
+       tabla con 12, y entre las dos polilíneas hay micras —del orden de lo que se
+       hunde un apoyo que carga, con κ de la demo—. Un pedestal a −0.0006 mm con
+       0 N no es la contradicción que se pintaba, que eran décimas contra cero:
+       en pantalla se lee −0.00 y 0.0. */
+    if (+f.gap.toFixed(2) < 0 && !(R.pedN[k] > 0)) {
       throw new Error(p.name + ' hundido ' + f.gap.toFixed(4) + ' mm y sin llevar nada');
     }
   });

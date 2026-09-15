@@ -272,12 +272,12 @@ El refactor v4 dejó todos los archivos por debajo de 400 líneas y las funcione
 por debajo de 60: `rebuildScene()` eran 248 líneas y ahora son diez capas con
 nombre; `bind()` eran 286 y ahora es una lista de llamadas. **Hoy ese límite ya no
 se cumple** y conviene no creerse lo contrario: a 2026-09-14 lo pasan
-`engine/load.ts` (617), `engine/pins.ts` (582), `state.ts` (577),
-`engine/kinematics.ts` (487), `app/events/change.ts` (436), `app/actions.ts` (424)
-y `scene/layers.ts` (422), además del banco `tools/probe_ui.js`. En los dos
+`engine/load.ts` (766), `engine/pins.ts` (752), `state.ts` (577),
+`engine/kinematics.ts` (487), `scene/layers.ts` (451), `app/events/change.ts` (436)
+y `app/actions.ts` (424), además del banco `tools/probe_ui.js`. En los dos
 solvers la mayor parte es la explicación de la física, que no se recorta para
 cumplir una cifra; lo que sí se parte es lo que mezcla trabajos, como
-`settle()` en `touches()`, `equilibrium()` y `reactions()`.
+`settle()` en `solveContacts()`, `touches()`, `equilibrium()` y `reactions()`.
 
 ---
 

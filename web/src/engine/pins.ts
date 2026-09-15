@@ -46,10 +46,10 @@ import { Vector3 } from 'three';
 import { clamp, solveDense, D2R, R2D } from './math.ts';
 import { buildPath, rowLengths, tailStraight } from './kinematics.ts';
 import { normalizeModel } from './bend.ts';
-import { TABLE_Z, sectionDrop } from './fixture.ts';
+import { TABLE_Z, sectionDrop, pedestalFit } from './fixture.ts';
 import { sampleAt } from './path.ts';
 import { halfExtent, nearestToSegment } from './contact.ts';
-import type { Model, PathSample, Section, Pin, Mat, Restraint } from '../types.ts';
+import type { Model, PathSample, Section, Pin, Pedestal, Mat, Restraint } from '../types.ts';
 
 /** Un pin recién nacido, y la lista blanca de sus campos escribibles. Mismo
  *  trato que `PED_DEFAULT`: la whitelist del `change` sale de aquí. */
@@ -393,6 +393,168 @@ export function withDelta(model: Model, du: number[], doRot: boolean): Model {
   return normalizeModel({ ...model, bends });
 }
 
+/** Cuántas veces, como mucho, se vuelven a leer los contactos sobre la forma
+ *  que va saliendo.
+ *
+ *  Los dos solvers congelan DÓNDE toca cada apoyo antes de empezar —el punto de
+ *  la barra, el lado, la dirección— porque sin eso el residuo no tiene signo
+ *  estable. Con la pieza para la que se montó el fixture eso basta: se mueve
+ *  décimas y el punto de contacto sigue siendo el mismo. Con OTRA pieza no
+ *  basta, y esa es la comparación para la que existe el programa: un segundo
+ *  modelo con un doblez 4° distinto cae decenas de milímetros, el punto
+ *  congelado se queda atrás, y medido el 2026-09-14 la barra acababa 16 mm
+ *  dentro de un pedestal con el solver diciendo que había terminado. Cada pasada
+ *  vuelve a leer los contactos donde la barra está AHORA y sigue desde ahí;
+ *  cuatro sobran para las piezas que se comparan, y el tope existe para que un
+ *  caso patológico no congele la pantalla. */
+export const CONTACT_PASSES = 4;
+
+/** ¿Hay algún apoyo metido dentro de la barra que el solver no está viendo?
+ *
+ *  Se mide cada pin y cada pedestal contra la forma de AHORA, en su punto más
+ *  cercano de verdad, y se compara con lo que dice su contacto congelado. Si el
+ *  apoyo se mete más de `lim` y el congelado no lo sabe —porque no existía, o
+ *  porque mira otro punto de la barra— hay que volver a leer.
+ *
+ *  `lim` es la tolerancia de punto del modelo: la misma con la que la tabla del
+ *  fixture dice «apoya». Por debajo de eso la tabla no ve la diferencia, y
+ *  perseguirla solo costaría pasadas.
+ *
+ *  @param frozen  el hueco que ve el contacto congelado de ese apoyo, `null` si
+ *                 no hay ninguno, o `-Infinity` si no se puede juzgar (ciego)
+ *  @param eps     cuánto tiene que meterse un apoyo que NO tiene contacto para
+ *                 que cuente. Por defecto `lim`; la carga pasa casi cero, porque
+ *                 ahí un apoyo que toca LLEVA peso —con κ de la demo, 0.6 µm son
+ *                 5 N— y dejarlo fuera pinta la barra hundida en la cuna con la
+ *                 reacción a cero, que es la contradicción que vigila el banco */
+export function contactDrift(P: PathSample[], sec: Section, pins: Pin[], peds: Pedestal[],
+                             frozen: (pin: boolean, k: number) => number | null,
+                             lim: number, eps = lim): boolean {
+  const cuenta = (gap: number, g: number | null): boolean =>
+    (g === null ? gap < -eps : gap < -lim && g > gap + lim);
+  for (let k = 0; k < pins.length; k++) {
+    if (!pins[k].hold) continue;
+    const f = pinFit(P, sec, pins[k]);
+    if (f && f.reach && cuenta(f.gap, frozen(true, k))) return true;
+  }
+  for (let k = 0; k < peds.length; k++) {
+    const f = pedestalFit(P, sec, peds[k]);
+    if (f && f.over && cuenta(f.gap, frozen(false, k))) return true;
+  }
+  return false;
+}
+
+/** Lo que se mete dentro de la barra el apoyo que MÁS se mete, mm; 0 si ninguno.
+ *
+ *  Medido como la tabla: cada pin por el cuerpo del poste y cada pedestal sobre
+ *  el tramo que le pasa por encima. Es la pregunta con la que se decide si una
+ *  forma sujeta es aceptable o hay que insistir, y es la que el taller hace
+ *  mirando la pantalla: ¿la barra atraviesa algo? */
+export function worstPenetration(P: PathSample[], sec: Section, pins: Pin[],
+                                 peds: Pedestal[]): number {
+  let w = 0;
+  for (const pin of pins) {
+    if (!pin.hold) continue;
+    const f = pinFit(P, sec, pin);
+    if (f && f.reach && -f.gap > w) w = -f.gap;
+  }
+  for (const ped of peds) {
+    const f = pedestalFit(P, sec, ped);
+    if (f && f.over && -f.gap > w) w = -f.gap;
+  }
+  return w;
+}
+
+/** Un apoyo que se ha quedado METIDO dentro de la barra: cuál, cuánto y dónde. */
+export type Clash = {
+  /** ¿es un pin? Si no, un pedestal */
+  pin: boolean;
+  /** su índice en la lista de pines o en la de pedestales */
+  k: number;
+  /** cuánto se mete, mm, siempre positivo */
+  depth: number;
+  /** el punto de la barra donde pasa, en coordenadas del TALLER */
+  p: Vector3;
+};
+
+/** Los apoyos que se meten dentro de la barra más de `lim`, el peor primero.
+ *
+ *  Existe porque hay piezas que NO caben en un fixture, y eso es una respuesta,
+ *  no un fallo del solver. Un modelo con un doblez 8° distinto del que el
+ *  fixture sujeta puede quedar entero al otro lado de un pin: ninguna
+ *  deformación elástica lo devuelve atravesándolo, y dibujar la forma «más
+ *  cercana» sin decir nada es exactamente lo que el taller reportó —el segundo
+ *  modelo atraviesa los pines—. Con esta lista la pantalla puede decir dónde
+ *  choca y cuánto, que es lo que hay que saber antes de montar esa pieza. */
+export function clashes(P: PathSample[], sec: Section, pins: Pin[], peds: Pedestal[],
+                        lim: number): Clash[] {
+  const out: Clash[] = [];
+  pins.forEach((pin, k) => {
+    if (!pin.hold) return;
+    const f = pinFit(P, sec, pin);
+    if (f && f.reach && -f.gap > lim) out.push({ pin: true, k, depth: -f.gap, p: sampleAt(P, f.s).p.clone() });
+  });
+  peds.forEach((ped, k) => {
+    const f = pedestalFit(P, sec, ped);
+    if (f && f.over && -f.gap > lim) out.push({ pin: false, k, depth: -f.gap, p: sampleAt(P, f.s).p.clone() });
+  });
+  return out.sort((a, b) => b.depth - a.depth);
+}
+
+/** Un apoyo que el amarre tiene que respetar: un pin, que se cierra por los dos
+ *  lados, o un pedestal, que solo empuja. */
+type Hold = { k: number; s: number; t: number; local: [number, number]; pin?: Pin; ped?: Pedestal };
+
+/** Los apoyos que sujetan, leídos sobre una forma.
+ *
+ *  Solo sujetan los pines puestos, que llegan a la altura de la barra y que
+ *  además tienen algo que cerrar: uno con hueco a favor no empuja nada. Un pin
+ *  que no toca NO es un error —el fixture puede tener más pines de los que esta
+ *  pieza usa— y por eso se ignora en silencio.
+ *
+ *  Los PEDESTALES entran solo si la barra se les mete dentro. Sin carga no
+ *  sostienen nada, pero siguen siendo de acero: hasta el 2026-09-14 el amarre
+ *  los ignoraba del todo, y un segundo modelo empujado por los pines atravesaba
+ *  un pedestal 35 mm. Uno que la barra solo roza se deja fuera, y así la pieza
+ *  para la que se sembró el fixture sale exactamente igual que antes.
+ *
+ *  @param keep  los que ya sujetaban en la pasada anterior: siguen contando
+ *               aunque ahora los separe más que la tolerancia, porque un pin se
+ *               cierra por los dos lados y soltarlo sería otra pieza */
+function holdsAt(P: PathSample[], sec: Section, pins: Pin[], peds: Pedestal[],
+                 tol: number, keep: Hold[]): Hold[] {
+  const out: Hold[] = [];
+  pins.forEach((pin, k) => {
+    if (!pin.hold) return;
+    const f = pinFit(P, sec, pin);
+    if (!f || !f.reach) return;
+    if (f.gap > tol && !keep.some(a => a.pin && a.k === k)) return;
+    /* El lado MONTADO manda sobre el leído: ver el tipo Pin. Con `side` a 0
+       —un pin recién puesto a mano, o un archivo anterior a este campo— se cae
+       a la lectura, que es lo que había antes y sirve mientras la barra no
+       rebase el poste. */
+    out.push({ k, s: f.s, t: f.t, local: f.local, pin });
+  });
+  peds.forEach((ped, k) => {
+    const f = pedestalFit(P, sec, ped);
+    if (!f || !f.over) return;
+    if (f.gap >= -tol && !keep.some(a => a.ped && a.k === k)) return;
+    out.push({ k, s: f.s, t: 0, local: [0, 0], ped });
+  });
+  return out;
+}
+
+/** El residuo de un apoyo: el hueco con signo de un pin, o lo que la barra se
+ *  mete en un pedestal —nada si le queda por encima, que un pedestal no tira—.
+ *
+ *  El pin en su punto congelado, por el lado (ver gapAt()); el pedestal sobre el
+ *  trozo de barra que le pasa por encima AHORA, como en la tabla. Un poste
+ *  vertical no tiene lado que congelar, y congelar el punto dejaba medir otro
+ *  tramo en cuanto la barra se desplazaba de lado. Ver `gapOf` en settle(). */
+const holdGap = (P: PathSample[], sec: Section, a: Hold): number =>
+  a.pin ? gapAt(P, sec, a.pin, a.s, a.t, a.local)
+    : Math.min(0, pedestalFit(P, sec, a.ped!)!.gap);
+
 /** La pieza tal como la dejan los pines.
  *
  *  Devuelve la forma sujeta y lo que costó llegar a ella. Con `on` apagado, sin
@@ -402,34 +564,23 @@ export function withDelta(model: Model, du: number[], doRot: boolean): Model {
  *  El bucle es un mínimos cuadrados amortiguado (Levenberg): jacobiano
  *  numérico, ecuaciones normales con un término de rigidez, y un paso por
  *  iteración. Con quince estaciones y diez pines el sistema tiene treinta
- *  incógnitas, así que se resuelve denso.
+ *  incógnitas, así que se resuelve denso. Y por fuera, las pasadas que vuelven a
+ *  leer los contactos: ver CONTACT_PASSES.
  *
  *  @param place  la transformación que coloca la pieza en la mesa. El fixture
- *                es físico: si la pieza está colocada, los pines la miran ahí. */
+ *                es físico: si la pieza está colocada, los pines la miran ahí.
+ *  @param peds   los pedestales, que la barra no puede atravesar. Al final y
+ *                opcional para que las llamadas de antes sigan valiendo. */
 export function restrain(model: Model, pins: Pin[], sec: Section,
                          opt: Restraint = RESTRAINT_DEFAULT,
                          mat: Mat = MAT_DEFAULT,
-                         place: (s: PathSample[]) => PathSample[] = s => s): Restrained {
+                         place: (s: PathSample[]) => PathSample[] = s => s,
+                         peds: Pedestal[] = []): Restrained {
   const free = restrainedFree(model);
   if (!opt.on || !model.bends.length) return free;
 
   const path0 = place(buildPath(model, 8).samples);
-  /* Solo sujetan los pines puestos, que llegan a la altura de la barra y que
-     además tienen algo que cerrar: uno con hueco a favor no empuja nada. Un pin
-     que no toca NO es un error —el fixture puede tener más pines de los que
-     esta pieza usa— y por eso se ignora en silencio. */
-  const act: { k: number; s: number; t: number; local: [number, number]; pin: Pin }[] = [];
-  pins.forEach((pin, k) => {
-    if (!pin.hold) return;
-    const f = pinFit(path0, sec, pin);
-    if (!f || !f.reach) return;
-    if (f.gap > opt.tol) return;
-    /* El lado MONTADO manda sobre el leído: ver el tipo Pin. Con `side` a 0
-       —un pin recién puesto a mano, o un archivo anterior a este campo— se cae
-       a la lectura, que es lo que había antes y sirve mientras la barra no
-       rebase el poste. */
-    act.push({ k, s: f.s, t: f.t, local: f.local, pin });
-  });
+  let act = holdsAt(path0, sec, pins, peds, opt.tol, []);
   if (!act.length) return free;
 
   const doRot = !!opt.doRot;
@@ -448,68 +599,90 @@ export function restrain(model: Model, pins: Pin[], sec: Section,
 
   const resid = (m: Model): number[] => {
     const p = place(buildPath(m, 8).samples);
-    return act.map(a => gapAt(p, sec, a.pin, a.s, a.t, a.local));
+    return act.map(a => holdGap(p, sec, a));
   };
 
   const du = new Array<number>(nu).fill(0);
   let r = resid(model);
   let it = 0;
   const H = 0.02;                       // grados de perturbación del jacobiano
-  for (; it < Math.max(1, opt.iters); it++) {
-    if (Math.max(...r.map(Math.abs)) <= opt.tol) break;
-    /* Jacobiano numérico: una construcción de trayectoria por incógnita. Es lo
-       caro de todo esto y el motivo de que las muestras vayan a 8 por arco. */
-    const J: number[][] = [];
-    for (let j = 0; j < nu; j++) {
-      const dp = [...du];
-      dp[j] += H;
-      const rp = resid(withDelta(model, dp, doRot));
-      J.push(rp.map((v, k) => (v - r[k]) / H));
-    }
-    /* Ecuaciones normales con el término de rigidez: (JᵀJ + λS) u = −Jᵀ r.
-       El λ se escala con la magnitud de JᵀJ para que `damp` signifique lo mismo
-       en una pieza de 1.7 m que en un cupón de 200 mm. */
-    const A: number[][] = [];
-    const b: number[] = [];
-    let tr = 0;
-    for (let i = 0; i < nu; i++) {
-      const row: number[] = [];
+  const lim = Math.max(model.tol.point, opt.tol);
+  for (let pass = 0; pass < CONTACT_PASSES; pass++) {
+    let pit = 0;
+    for (; pit < Math.max(1, opt.iters); pit++) {
+      if (Math.max(...r.map(Math.abs)) <= opt.tol) break;
+      /* Jacobiano numérico: una construcción de trayectoria por incógnita. Es lo
+         caro de todo esto y el motivo de que las muestras vayan a 8 por arco. */
+      const J: number[][] = [];
       for (let j = 0; j < nu; j++) {
-        let acc = 0;
-        for (let k = 0; k < r.length; k++) acc += J[i][k] * J[j][k];
-        row.push(acc);
+        const dp = [...du];
+        dp[j] += H;
+        const rp = resid(withDelta(model, dp, doRot));
+        J.push(rp.map((v, k) => (v - r[k]) / H));
       }
-      tr += row[i];
-      A.push(row);
-      let g = 0;
-      for (let k = 0; k < r.length; k++) g -= J[i][k] * r[k];
-      b.push(g);
+      /* Ecuaciones normales con el término de rigidez: (JᵀJ + λS) u = −Jᵀ r.
+         El λ se escala con la magnitud de JᵀJ para que `damp` signifique lo mismo
+         en una pieza de 1.7 m que en un cupón de 200 mm. */
+      const A: number[][] = [];
+      const b: number[] = [];
+      let tr = 0;
+      for (let i = 0; i < nu; i++) {
+        const row: number[] = [];
+        for (let j = 0; j < nu; j++) {
+          let acc = 0;
+          for (let k = 0; k < r.length; k++) acc += J[i][k] * J[j][k];
+          row.push(acc);
+        }
+        tr += row[i];
+        A.push(row);
+        let g = 0;
+        for (let k = 0; k < r.length; k++) g -= J[i][k] * r[k];
+        b.push(g);
+      }
+      const lam = Math.max(1e-9, (tr / nu)) * Math.max(1e-3, opt.damp);
+      for (let i = 0; i < nu; i++) A[i][i] += lam * stiff[i] / (stiff[0] || 1);
+      const step = solveDense(A, b);
+      if (!step) break;
+      /* Paso topado: un salto de más de 5° por iteración no es elasticidad, es el
+         solver saliéndose por una dirección mal condicionada. */
+      const big = Math.max(...step.map(Math.abs));
+      const f = big > 5 ? 5 / big : 1;
+      for (let i = 0; i < nu; i++) du[i] += step[i] * f;
+      const rn = resid(withDelta(model, du, doRot));
+      /* Si el paso empeora, se deshace y se para: sin línea de búsqueda, insistir
+         solo gasta iteraciones y se aleja. */
+      if (Math.max(...rn.map(Math.abs)) > Math.max(...r.map(Math.abs))) {
+        for (let i = 0; i < nu; i++) du[i] -= step[i] * f;
+        break;
+      }
+      r = rn;
     }
-    const lam = Math.max(1e-9, (tr / nu)) * Math.max(1e-3, opt.damp);
-    for (let i = 0; i < nu; i++) A[i][i] += lam * stiff[i] / (stiff[0] || 1);
-    const step = solveDense(A, b);
-    if (!step) break;
-    /* Paso topado: un salto de más de 5° por iteración no es elasticidad, es el
-       solver saliéndose por una dirección mal condicionada. */
-    const big = Math.max(...step.map(Math.abs));
-    const f = big > 5 ? 5 / big : 1;
-    for (let i = 0; i < nu; i++) du[i] += step[i] * f;
-    const rn = resid(withDelta(model, du, doRot));
-    /* Si el paso empeora, se deshace y se para: sin línea de búsqueda, insistir
-       solo gasta iteraciones y se aleja. */
-    if (Math.max(...rn.map(Math.abs)) > Math.max(...r.map(Math.abs))) {
-      for (let i = 0; i < nu; i++) du[i] -= step[i] * f;
-      break;
-    }
-    r = rn;
+    it += pit;
+    if (pass + 1 >= CONTACT_PASSES) break;
+    /* ¿Siguen siendo estos los contactos? Se miran sobre la forma a la que se
+       llegó; si alguno se ha quedado atrás, se vuelven a leer desde ahí y el
+       bucle sigue con lo que ya cedió cada estación, no desde cero. */
+    const P = place(buildPath(withDelta(model, du, doRot), 8).samples);
+    const actual = act, rAct = r;
+    const frozen = (pin: boolean, k: number): number | null => {
+      const i = actual.findIndex(a => !!a.pin === pin && a.k === k);
+      return i < 0 ? null : rAct[i];
+    };
+    if (!contactDrift(P, sec, pins, peds, frozen, lim)) break;
+    act = holdsAt(P, sec, pins, peds, opt.tol, actual);
+    r = resid(withDelta(model, du, doRot));
   }
 
   const held = withDelta(model, du, doRot);
   const kink = kinksOf(du, nb, doRot);
+  /* `res` y `held` hablan solo de PINES, en el mismo orden, como siempre: la
+     tabla del amarre los lee por índice. Lo que se metió en un pedestal entra en
+     `ok`, que dice si la forma respeta TODO el fixture. */
+  const pinIdx = act.map((a, i) => (a.pin ? i : -1)).filter(i => i >= 0);
   return {
     model: held, kink, ...elasticReport(kink, span, sec, mat),
-    res: r, ok: Math.max(0, ...r.map(Math.abs)) <= opt.tol, iters: it,
-    held: act.map(a => a.k),
+    res: pinIdx.map(i => r[i]), ok: Math.max(0, ...r.map(Math.abs)) <= opt.tol, iters: it,
+    held: pinIdx.map(i => act[i].k),
   };
 }
 
