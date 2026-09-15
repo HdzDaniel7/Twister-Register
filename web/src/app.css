@@ -297,6 +297,15 @@ tbody tr[tabindex]:focus-visible{outline:2px solid var(--nominal);outline-offset
   font-family:var(--sans);font-weight:600}
 #hint{position:absolute;bottom:8px;left:8px;font-size:10px;color:var(--dim2);
   background:var(--hintbg);padding:3px 7px;border-radius:3px}
+/* aviso sobre el 3D: la gráfica soltó el contexto o algo falló. Centrado bajo
+   la barra de vista y por encima de las etiquetas, que no deben taparlo. El
+   `[hidden]` va explícito porque el `display:flex` de aquí le gana al del
+   navegador y el aviso no se escondería nunca. */
+#vpnote{position:absolute;top:48px;left:50%;transform:translateX(-50%);z-index:5;
+  max-width:min(560px,calc(100% - 32px));display:flex;gap:8px;align-items:flex-start;
+  background:var(--floatbg);border:1px solid var(--warnBd);color:var(--warnTxt);
+  border-radius:4px;padding:6px 8px;font-size:11px;line-height:1.4;backdrop-filter:blur(6px)}
+#vpnote[hidden]{display:none}
 /* indicador de ejes: esquina inferior derecha, libre (#hint va abajo a la
    izquierda y #vplegend arriba a la derecha) */
 #gizmo{position:absolute;bottom:8px;right:8px;width:68px;height:68px;

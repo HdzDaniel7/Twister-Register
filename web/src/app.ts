@@ -37,7 +37,7 @@ import {
 } from './state.ts';
 import {
   initScene, fitView, setOnPick, setOnResize, markDirty, rebuildScene, renderer, scene,
-  drawGizmo, drawLabels, groupHost, groups,
+  drawGizmo, drawLabels, groupHost, groups, captureViews, showFault,
 } from './scene.ts';
 import { drawRibbon, bindRibbon, setOnRibbonSelect } from './ribbon.ts';
 import { renderAll, refresh, selectBend } from './app/render.ts';
@@ -71,6 +71,7 @@ function boot(): void {
      openJson en app/actions.ts); aquí se arranca sin ninguno de los tres. */
   loadModel(E.demoModel());
   initScene();
+  guardFaults();
   useTheme(ST.theme);
   bind();
   renderAll();
@@ -92,6 +93,18 @@ function boot(): void {
    El navegador enseña su propio texto, no el nuestro —es así desde hace años,
    para que nadie use este aviso como cepo— pero el diálogo aparece, que es lo
    que hace falta. */
+/* Un fallo que nadie atrapa —en un manejador de clic, en una promesa— dejaba la
+   interfaz a medias sin decir nada: la tabla dice una cosa, el 3D otra, y nadie
+   sabe que conviene guardar y recargar. Aquí solo se AVISA; el fallo sigue su
+   camino hasta la consola. Se va después de initScene() porque el aviso vive
+   sobre el 3D.
+   Un evento con `error` vacío se ignora: así llegan los avisos benignos del
+   navegador —«ResizeObserver loop…»—, que no son un fallo del programa. */
+function guardFaults(): void {
+  window.addEventListener('error', e => { if (e.error) showFault(e.error); });
+  window.addEventListener('unhandledrejection', e => showFault(e.reason));
+}
+
 function guardUnload(): void {
   window.addEventListener('beforeunload', e => {
     if (!isDirty()) return;
@@ -149,6 +162,9 @@ type DebugExports = {
   /* tampoco puede provocar un archivo roto desde el disco: la clasificacion
      del fallo al abrir se ejercita llamando aqui con el error ya construido. */
   openError: typeof openError;
+  /* las cuatro vistas del reporte: desde que el lienzo no conserva el búfer,
+     el banco comprueba que la captura no sale en blanco */
+  captureViews: typeof captureViews;
 };
 /* `renderer` se lee por getter porque initScene() lo asigna DESPUÉS de que
    este módulo se evalúe: copiarlo aquí guardaría el undefined de arranque. */
@@ -156,6 +172,7 @@ if (typeof window !== 'undefined') (window as unknown as { BARCOMP: DebugExports
   ST, E, I18N, LANG, renderAll, refresh, REF, drawGizmo, drawLabels, groupHost, groups,
   rebuildScene, markDirty, importCsvText, importCsvBatch, openError, commandModel,
   placedPath, shownPath, shownModel, heldResult, heldOfVariant, refModel, refModelFree,
+  captureViews,
   get renderer() { return renderer; },
   get scene() { return scene; },
 };

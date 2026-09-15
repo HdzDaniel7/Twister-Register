@@ -1025,6 +1025,30 @@ fixture sujeta a todos los modelos, y el coste de mover un pin crece con cada mo
       Haría que el mismo estado diera cifras distintas según por dónde se llegó —al deshacer, por
       ejemplo—, y en un comparador eso es peor que la espera.
 
+- [x] **[PERF-03] Estabilidad y GPU: que un fallo o la gráfica no dejen la pantalla muerta · [O]**
+      — medido y leído el 2026-09-14: `webglcontextlost` sin escuchar (al suspender o cambiar de
+      monitor, el 3D negro sin aviso); ningún manejador global de errores; una excepción en una capa
+      dejaba la escena vaciada a medias; `preserveDrawingBuffer: true` en todos los fotogramas para
+      servir solo a la captura del reporte; `setPixelRatio` hasta 2 con antialias (4× píxeles en
+      pantallas al 200 %); y las etiquetas y el gizmo rehaciendo su `innerHTML` en cada fotograma de
+      giro.
+      **Hecho el 2026-09-14.** Aviso único sobre el 3D (`#vpnote`, `role="alert"`, claves `glLost`,
+      `faultMsg`, `faultClose`); contexto perdido: no se dibuja y se dice, al volver se quita.
+      `fault()` avisa y entrega el fallo a `reportError()`, así que la consola y el banco lo siguen
+      viendo; cada capa de `rebuildScene()` va aislada; el bucle baja `dirty` antes de dibujar para
+      no repetir un fallo por fotograma; `error`/`unhandledrejection` globales avisan (ignorando los
+      eventos sin `error`, que es como llega «ResizeObserver loop»). Sin `preserveDrawingBuffer`:
+      `captureViews()` dibuja y lee en la misma tarea. `setPixelRatio` con tope 1.5. Etiquetas con
+      nodos reutilizados (se quitan los que sobran: el banco lee `#labels` como texto) y gizmo que
+      no reescribe el SVG si no cambió (15 etiquetas: 0.13 → 0.07 ms por fotograma en Edge). Tres pasos de banco, comprobados rompiendo el arreglo: la
+      captura sale en blanco (cuatro PNG de 20 882 bytes contra 20 854 del vacío), la capa rota
+      falla por su nombre, y el aviso de contexto perdido. `preventDefault` no se pudo comprobar
+      en negativo: three ya lo llama en su propia escucha.
+      **Descartado, a propósito:** un tope de TIEMPO en el solver. Ya está acotado por iteraciones
+      y pasadas, y un tope de reloj haría que la misma pieza diera otra forma en un PC más lento.
+      Tampoco se resuelve en diferido: enseñaría durante un momento formas viejas con cifras
+      nuevas, y las ediciones son discretas (Enter, clic), no continuas.
+
 ### Preguntas para el taller (bloquean o cierran tareas de arriba)
 
 1. **¿El fixture real tiene mordaza en el primer extremo?** Decide si X-04 es una imprecisión del

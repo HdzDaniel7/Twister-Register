@@ -17,7 +17,7 @@ export {
   renderer, scene, camera, controls,
   setOnPick, markDirty, cssVar, devThreeColor, devCssColor,
   groups, groupHost, applyTheme, initScene, setOnResize, onResize,
-  drawGizmo, drawLabels,
+  drawGizmo, drawLabels, setNote, showFault,
 } from './scene/stage.ts';
 export { barGeometry } from './scene/geometry.ts';
 export { rebuildScene } from './scene/build.ts';

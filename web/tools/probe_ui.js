@@ -2609,6 +2609,65 @@ step('apagar la carga devuelve la pieza libre', () => {
   if (d !== 0) throw new Error('la pieza no volvió a su sitio: ' + d);
 });
 
+/* --- estabilidad, 2026-09-14 ---------------------------------------------- */
+step('la captura del reporte no sale en blanco sin preserveDrawingBuffer', () => {
+  const B = window.BARCOMP;
+  /* Se quitó preserveDrawingBuffer para no pagar una copia de cada fotograma.
+     La captura sigue valiendo solo si dibuja y lee en la misma tarea: si alguien
+     la parte en dos, lee el búfer ya borrado y el reporte sale con cuatro
+     rectángulos del color de fondo. Un PNG de un color comprime a casi nada, así
+     que se compara contra uno vacío del mismo tamaño. */
+  const vp = q('#vp');
+  const vacio = Object.assign(document.createElement('canvas'), { width: vp.width, height: vp.height })
+    .toDataURL('image/png').length;
+  const shots = B.captureViews();
+  if (shots.length !== 4) throw new Error(shots.length + ' vistas');
+  const tams = shots.map(([, u]) => u.length);
+  log.push(`     capturas: ${tams.join(' · ')} bytes · vacía ${vacio}`);
+  if (tams.some(t => t < vacio * 3)) throw new Error('una vista salió en blanco: ' + tams.join(' · '));
+});
+step('un fallo al dibujar una capa se dice y no se lleva la escena entera', () => {
+  const B = window.BARCOMP;
+  /* Se rompe la capa de puntos y se miran tres cosas: que el aviso aparece, que
+     las demás capas se dibujaron igual y que el fallo NO se tragó —llega a
+     window.onerror, que es lo que enseña la consola—. */
+  const nota = q('#vpnote');
+  const err0 = window.onerror;
+  let visto = '';
+  window.onerror = m => { visto = String(m); };
+  S().layers.pts.on = true;
+  try {
+    B.groups.pts.add = () => { throw new Error('fallo de prueba'); };
+    B.rebuildScene();
+  } finally {
+    delete B.groups.pts.add;
+    window.onerror = err0;
+  }
+  if (!/fallo de prueba/.test(visto)) throw new Error('el fallo se tragó: no llegó a window.onerror');
+  if (nota.hidden || !/fallo de prueba/.test(nota.textContent)) throw new Error('no se avisó en pantalla');
+  const otras = Object.keys(B.groups).filter(k => k !== 'pts' && B.groups[k].children.length);
+  if (!otras.length) throw new Error('una capa rota se llevó las demás');
+  nota.querySelector('button').click();
+  if (!nota.hidden) throw new Error('el aviso no se cierra');
+  B.rebuildScene();
+  if (!B.groups.pts.children.length) throw new Error('la capa no volvió al quitar el fallo');
+});
+step('si la gráfica suelta el 3D, se dice, y al volver se quita el aviso', () => {
+  const B = window.BARCOMP;
+  /* El evento de verdad llega en diferido y este guion es síncrono, así que se
+     dispara a mano: lo que se vigila es lo que hace el programa con él. */
+  const cv = q('#vp'), nota = q('#vpnote');
+  const perdido = new Event('webglcontextlost', { cancelable: true });
+  cv.dispatchEvent(perdido);
+  /* three también lo previene en su propia escucha, así que esto no vigila la
+     línea de stage.ts sino el resultado: que nadie deje de hacerlo */
+  if (!perdido.defaultPrevented) throw new Error('sin preventDefault el navegador no devuelve el contexto');
+  if (nota.hidden || !nota.textContent.trim()) throw new Error('el 3D se perdió y no se dijo');
+  cv.dispatchEvent(new Event('webglcontextrestored'));
+  if (!nota.hidden) throw new Error('el contexto volvió y el aviso sigue');
+  B.rebuildScene();
+});
+
 step('modelo nuevo y demo', () => {
   drawer('file'); click('[data-a="new"]'); click('[data-a="demo"]'); });
 step('demo limpia las cotas', () => { if (S().marks.length) throw new Error('quedaron cotas'); });

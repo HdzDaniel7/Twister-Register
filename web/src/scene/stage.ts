@@ -46,6 +46,41 @@ let onPick: PickHandler = () => {};
 export const setOnPick = (fn: PickHandler): void => { onPick = fn; };
 export const markDirty = (): void => { dirty = true; };
 
+/* --------------------------------------------------------------- avisos --
+   Una sola franja sobre el 3D para lo que el programa no puede arreglar solo:
+   la gráfica que suelta el contexto y un fallo inesperado. Sobre el 3D y no en
+   un alert(), porque ninguno de los dos pide una decisión: pide saberlo, y un
+   diálogo modal a mitad de una comparación estorba más que el propio fallo. */
+let noteHost: HTMLElement | null = null, noteKind: 'gl' | 'err' | null = null, glLost = false;
+
+export function setNote(text: string | null, kind: 'gl' | 'err' = 'err'): void {
+  noteKind = text ? kind : null;
+  if (!noteHost) return;
+  noteHost.hidden = !text;
+  const close = esc(T('faultClose'));
+  noteHost.innerHTML = text
+    ? `<span>${esc(text)}</span><button type="button" class="xbtn" aria-label="${close}" title="${close}">✕</button>`
+    : '';
+}
+
+/** Un fallo que no debería haber pasado: se dice en pantalla y NO se traga.
+ *  `reportError()` lo entrega a `window.onerror` igual que si nadie lo hubiera
+ *  atrapado, así que la consola lo enseña con su pila y el banco de pruebas lo
+ *  sigue contando como fallo. Lo único que cambia es que el resto del programa
+ *  sigue funcionando. */
+export function fault(err: unknown): void {
+  showFault(err);
+  if (typeof reportError === 'function') reportError(err);
+  else setTimeout(() => { throw err; });
+}
+
+/** Solo el aviso, sin volver a lanzar: es lo que usa el manejador global de
+ *  `window`, que ya está recibiendo el fallo y lo relanzaría en bucle. */
+export function showFault(err: unknown): void {
+  const msg = err instanceof Error ? err.message : String(err);
+  setNote(T('faultMsg').replace('{e}', msg));
+}
+
 
 export const V3 = (x?: number, y?: number, z?: number): Vector3 => new Vector3(x, y, z);
 /** Lee un token de color de :root. Ni el 3D ni la cinta llevan colores
@@ -83,9 +118,18 @@ export function applyTheme(): void {
 export function initScene(): void {
   /* #vp es el canvas fijo de index.html; initScene() se llama tras el DOM listo. */
   const cv = $<HTMLCanvasElement>('#vp')!;
-  /* preserveDrawingBuffer hace falta para que el reporte capture toDataURL(). */
-  renderer = new WebGLRenderer({ canvas: cv, antialias: true, preserveDrawingBuffer: true });
-  renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+  /* SIN preserveDrawingBuffer. Pedía al navegador conservar cada fotograma
+     entero hasta el siguiente, y en una gráfica integrada eso se paga en TODOS
+     los fotogramas para servir a una sola función, la captura del reporte. Que
+     no lo necesita: `captureViews()` dibuja y lee el lienzo en la misma tarea,
+     antes de que el navegador componga y borre el búfer. Lo vigila el banco. */
+  renderer = new WebGLRenderer({ canvas: cv, antialias: true });
+  /* Tope en 1.5 y no en 2. Con antialias, una pantalla escalada al 200 % pedía
+     cuatro veces los píxeles de una normal, y el portátil del taller es justo el
+     que no los tiene; a 1.5 son 2.25 veces. Se pierde algo de nitidez en las
+     líneas finas a cambio de que girar la pieza no vaya a saltos. En pantallas
+     normales (escala 100 % o 150 %) no cambia nada. */
+  renderer.setPixelRatio(Math.min(devicePixelRatio, 1.5));
   renderer.setClearColor(cssVar('--vpbg', '#080A0E'), 1);
   scene = new Scene();
   scene.fog = new Fog(cssVar('--vpbg', '#080A0E'), 3000, 9000);
@@ -118,13 +162,41 @@ export function initScene(): void {
   }
   labelHost = $('#labels');
   gizmoHost = $('#gizmo');
+  noteHost = $('#vpnote');
+  noteHost?.addEventListener('click', e => {
+    if ((e.target as HTMLElement).closest('button')) setNote(null);
+  });
+  /* La gráfica puede SOLTAR el contexto WebGL: al suspender el portátil, al
+     cambiar de monitor o cuando el controlador se reinicia, que en las gráficas
+     integradas pasa. Sin esto el 3D se quedaba negro sin decir nada y parecía
+     que se había perdido la pieza. three se recupera solo cuando el navegador
+     devuelve el contexto —vuelve a subir geometrías y materiales en el
+     siguiente dibujo—; lo que faltaba era no dibujar mientras tanto, y decirlo. */
+  cv.addEventListener('webglcontextlost', e => {
+    /* sin preventDefault el navegador no devuelve el contexto nunca. three ya
+       lo llama en su propia escucha; se repite aquí para no depender de eso */
+    e.preventDefault();
+    glLost = true;
+    setNote(T('glLost'), 'gl');
+  });
+  cv.addEventListener('webglcontextrestored', () => {
+    glLost = false;
+    if (noteKind === 'gl') setNote(null);
+    dirty = true;
+  });
   onResize();
   addEventListener('resize', onResize);
   cv.addEventListener('pointerdown', pick);
   (function loop() {
     requestAnimationFrame(loop);
-    if (controls.update()) dirty = true;
-    if (dirty) { renderer.render(scene, camera); drawLabels(); drawGizmo(); dirty = false; }
+    if (glLost) return;
+    /* Un fallo al dibujar no puede repetirse sesenta veces por segundo: `dirty`
+       se baja ANTES de dibujar, así que el siguiente intento es el del siguiente
+       cambio, y el fallo se dice una vez. */
+    try {
+      if (controls.update()) dirty = true;
+      if (dirty) { dirty = false; renderer.render(scene, camera); drawLabels(); drawGizmo(); }
+    } catch (err) { fault(err); }
   })();
 }
 
@@ -206,22 +278,41 @@ export function drawGizmo() {
       <text x="${x}" y="${(a.y + 3.2).toFixed(1)}" text-anchor="middle" font-size="9"
         font-weight="600" fill="var(--bg)" opacity="${op}">${T(a.k)}</text>`;
   };
-  gizmoHost.innerHTML =
-    `<svg width="68" height="68" viewBox="0 0 68 68">${arms.map(arm).join('')}</svg>`;
+  const html = `<svg width="68" height="68" viewBox="0 0 68 68">${arms.map(arm).join('')}</svg>`;
+  /* se dibuja en cada fotograma que cambia algo: si los ejes no se han movido
+     —se ha tocado una capa, no la cámara— no hay SVG que rehacer */
+  if (html !== gizmoHtml) { gizmoHost.innerHTML = html; gizmoHtml = html; }
 }
+let gizmoHtml = '';
 
 /* -------------------------------------------------------------- etiquetas */
+/* Las etiquetas se REUTILIZAN: un nodo por etiqueta visible, que se mueve de
+   sitio en cada fotograma y solo se reescribe si cambia su texto. Hasta el
+   2026-09-14 se rehacía el innerHTML entero en cada fotograma de giro —destruir
+   y crear todos los nodos sesenta veces por segundo— y en un PC modesto eso se
+   notaba más que el propio WebGL. Los que sobran se QUITAN, no se esconden: el
+   banco lee `#labels` como texto y una etiqueta escondida seguiría ahí. */
+const lblPool: HTMLDivElement[] = [], lblHtml: string[] = [];
+
 export function drawLabels() {
   if (!ST.model || !labelHost) return;
-  const out: string[] = [];
-  const w = labelHost.clientWidth, h = labelHost.clientHeight;
+  const host = labelHost;
+  let n = 0;
+  const w = host.clientWidth, h = host.clientHeight;
   const W = placeMatrix();
   const put = (p: Vector3, html: string, cls = '') => {
     const v = p.clone().applyMatrix4(W).project(camera);
     if (v.z > 1) return;
     const x = (v.x * .5 + .5) * w, y = (-v.y * .5 + .5) * h;
     if (x < -60 || y < -20 || x > w + 60 || y > h + 20) return;
-    out.push(`<div class="lbl ${cls}" style="left:${x.toFixed(0)}px;top:${(y - 16).toFixed(0)}px">${html}</div>`);
+    let el = lblPool[n];
+    if (!el) { el = document.createElement('div'); lblPool.push(el); lblHtml.push(''); host.appendChild(el); }
+    const c = cls ? 'lbl ' + cls : 'lbl';
+    if (el.className !== c) el.className = c;
+    if (lblHtml[n] !== html) { el.innerHTML = html; lblHtml[n] = html; }
+    el.style.left = x.toFixed(0) + 'px';
+    el.style.top = (y - 16).toFixed(0) + 'px';
+    n++;
   };
   if (ST.layers.lbl.on) {
     /* Sobre la barra que se muestra, igual que las esferas de los PI: con la
@@ -245,5 +336,5 @@ export function drawLabels() {
   for (const l of extraLabels) {
     put(l.p, `<span class="swatch" style="background:${safeColor(l.color)}"></span>${esc(l.txt)}`);
   }
-  labelHost.innerHTML = out.join('');
+  while (lblPool.length > n) { lblPool.pop()!.remove(); lblHtml.pop(); }
 }

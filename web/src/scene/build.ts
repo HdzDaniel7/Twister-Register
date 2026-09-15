@@ -7,7 +7,7 @@
 import { Matrix4 } from 'three';
 import * as E from '../engine.ts';
 import { ST, refModel, refModelFree, placeMatrix, heldOfVariant, heldOn, refHeldOn } from '../state.ts';
-import { groups, root, clearGroup, clearLabels, markDirty } from './stage.ts';
+import { groups, root, clearGroup, clearLabels, markDirty, fault } from './stage.ts';
 import {
   layerGrid, layerFixtures, layerPins, layerActive, layerVariants, layerMeasured,
   layerPredicted, layerHeld, layerDiff, layerMarks, layerPoints, layerDev,
@@ -85,17 +85,13 @@ export function rebuildScene(): void {
   const nomPis = act ? act.pis : E.applyMat(Axf, E.fk(M).pis);
 
   const ctx: SceneCtx = { M, L, ref, anchor, shown, act, held, primary, Axf, nomPis, hasMeas };
-  layerGrid(ctx);
-  layerFixtures(ctx);
-  layerPins(ctx);
-  layerActive(ctx);
-  layerVariants(ctx);
-  layerMeasured(ctx);
-  layerPredicted(ctx);
-  layerHeld(ctx);
-  layerDiff(ctx);
-  layerMarks(ctx);
-  layerPoints(ctx);
-  layerDev(ctx);
+  /* Cada capa por su cuenta: si una falla, las demás se dibujan igual y el
+     fallo se dice (ver `fault()`). Antes, una excepción en cualquiera dejaba la
+     escena recién vaciada y a medio construir, sin la pieza y sin aviso. */
+  for (const layer of [layerGrid, layerFixtures, layerPins, layerActive, layerVariants,
+                       layerMeasured, layerPredicted, layerHeld, layerDiff, layerMarks,
+                       layerPoints, layerDev]) {
+    try { layer(ctx); } catch (err) { fault(err); }
+  }
   markDirty();
 }
