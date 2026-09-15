@@ -87,8 +87,8 @@ function row(r: Row): string {
 
 const table = (head: string, rows: Row[]): string => `<div class="eyebrow">${head}</div>
   <div class="tw"><table class="marks"><thead><tr>
-    <th>${T('limWhat')}</th><th>${T('limVal')}</th><th></th>
-    <th>${T('limDef')}</th><th>${T('limState')}</th><th>${T('limWait')}</th>
+    <th scope="col">${T('limWhat')}</th><th scope="col">${T('limVal')}</th><th scope="col"></th>
+    <th scope="col">${T('limDef')}</th><th scope="col">${T('limState')}</th><th scope="col">${T('limWait')}</th>
   </tr></thead><tbody>${rows.map(row).join('')}</tbody></table></div>`;
 
 /** Qué está apagando o encendiendo el umbral en ESTA pieza, ahora mismo.

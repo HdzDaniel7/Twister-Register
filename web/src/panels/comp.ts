@@ -52,7 +52,7 @@ function gainExtra(C: typeof ST.comp): string {
 export function paneComp(M: Model): string {
   const D = activeDataset(), C = ST.comp, ori = E.orientations(M);
   if (!D) return `<div class="pane on"><div class="grp"><div class="body">
-    <div class="warnbox mt10">${T('noMeas')}</div></div></div></div>`;
+    <div role="alert" class="warnbox mt10">${T('noMeas')}</div></div></div></div>`;
   const cmd = ST.command;
   syncTweak(M.bends.length);
   /* lo que sugiere el lazo, sin tocar */
@@ -73,8 +73,8 @@ export function paneComp(M: Model): string {
   if (C.doRot) cols.push({ k: 'rot', lab: T('rot'), u: '°', d: 3 });
   if (C.doFeed) cols.push({ k: 'feed', lab: T('feed'), u: 'mm', d: 2 });
 
-  const head = cols.map(c => `<th>${c.lab} ${T('cNow')}</th>
-    <th>${T('cCalc')}</th><th class="dcol">${T('cAdj')}</th><th>${T('cNew')} ${c.u}</th>`).join('');
+  const head = cols.map(c => `<th scope="col">${c.lab} ${T('cNow')}</th>
+    <th scope="col">${T('cCalc')}</th><th scope="col" class="dcol">${T('cAdj')}</th><th scope="col">${T('cNew')} ${c.u}</th>`).join('');
 
   /* Hasta dónde llega la MEDIDA. Más allá, `compensate()` devuelve el comando
      sin tocar, y la tabla lo pintaba como «+0.000» — que se lee igual que un
@@ -95,10 +95,10 @@ export function paneComp(M: Model): string {
       + (simuladas.length ? srcTag('sim') : srcTag(usadas[0].src))
     : srcTag(D.src);
   const avisoSim = simuladas.length
-    ? `<div class="warnbox mb6">${T('compSim').replace('{n}', String(simuladas.length))}</div>` : '';
+    ? `<div role="alert" class="warnbox mb6">${T('compSim').replace('{n}', String(simuladas.length))}</div>` : '';
   /* Y cuántos dobleces sostienen de verdad la cuenta. */
   const avisoCorto = medidos < M.bends.length
-    ? `<div class="warnbox mb6">${T('compShort')
+    ? `<div role="alert" class="warnbox mb6">${T('compShort')
         .replace('{a}', String(medidos)).replace('{b}', String(M.bends.length))}</div>` : '';
 
   const rows: string[] = [];
@@ -154,12 +154,12 @@ export function paneComp(M: Model): string {
     ${avisoSim}${avisoCorto}
     ${cols.length ? `<div class="tw"><table class="cmd"
       style="min-width:${106 + cols.length * 174}px"><thead><tr>
-      <th>${T('nBend')}</th><th>${T('ori')}</th>${head}</tr></thead>
+      <th scope="col">${T('nBend')}</th><th scope="col">${T('ori')}</th>${head}</tr></thead>
       <tbody>${rows.join('')}</tbody></table></div>
     <div class="row mt6"><span class="grow"></span>
       <button class="btn sm" data-a="zerotw">${T('zeroTw')}</button></div>
     <div class="hintline">${T('cellNote')}</div>`
-    : `<div class="warnbox mt10">${T('what')}: —</div>`}
+    : `<div role="alert" class="warnbox mt10">${T('what')}: —</div>`}
     ${pred ? `<div class="eyebrow" style="padding-left:0">${T('predict')}</div>
       <div class="stats"><div class="stat"><div class="k">${T('statMaxA')}</div>
         <div class="v ${cls(pred._maxA as number, M.tol.angle)}">${fx(pred._maxA as number, 3)}<span class="u">°</span></div></div>

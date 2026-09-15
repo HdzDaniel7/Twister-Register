@@ -588,8 +588,13 @@ export function restrain(model: Model, pins: Pin[], sec: Section,
   const nu = doRot ? 2 * nb : nb;
   /* Rigidez de cada incógnita: EI/L, con EI constante y por tanto irrelevante
      para el reparto (ver la cabecera). El rodado se toma la mitad de rígido que
-     el ángulo: girar el eje mueve la sección de lado, que es la dirección en la
-     que la barra es más flexible cuando la sujeta un pin lateral. */
+     el ángulo, con la idea de que girar el eje mueve la sección de lado, que es
+     donde la barra cede cuando la sujeta un pin lateral. Eso es un factor de
+     juicio y no la torsión de la sección: con `GJ/L` saldría 1.22 veces el del
+     ángulo para 40×12, unas 2.4 veces más rígido que 0.5. Y aquí NO es un
+     detalle: con la demo y tres pines sembrados la punta sujeta se mueve
+     15.3 mm con 0.5 y 4.8 mm con 1.22. Las cuentas, y por qué se queda, junto a
+     `K` en engine/load.ts, que usa el mismo factor. */
   const span = stationSpans(model);
   const stiff: number[] = [];
   for (let i = 0; i < nb; i++) {

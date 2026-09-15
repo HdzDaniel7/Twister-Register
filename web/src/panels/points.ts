@@ -35,8 +35,8 @@ export function panePoints(M: Model): string {
   }).join('');
   return `<div class="pane on"><div class="grp">
     <div class="eyebrow">${T('points')}<span class="n">${n}</span></div><div class="body">
-    <div class="tw"><table><thead><tr><th>PI</th><th>${T('x')}</th><th>${T('y')}</th>
-      <th>${T('z')}</th><th>${T('dTip')}</th></tr></thead><tbody>${rows}</tbody></table></div>
+    <div class="tw"><table><thead><tr><th scope="col">PI</th><th scope="col">${T('x')}</th><th scope="col">${T('y')}</th>
+      <th scope="col">${T('z')}</th><th scope="col">${T('dTip')}</th></tr></thead><tbody>${rows}</tbody></table></div>
     <div class="row mt6"><button class="btn sm" data-a="insp">${T('insPt')}</button>
       <button class="btn sm" data-a="delp">${T('delPt')}</button>
       <span class="grow"></span><button class="btn sm" data-a="expts">CSV ↓</button></div>
@@ -71,8 +71,8 @@ export function paneMarks(M: Model): string {
   return `<div class="grp">
     <div class="eyebrow">${T('marks')}<span class="n">${ST.marks.length}</span></div><div class="body">
     ${ST.marks.length ? `<div class="tw"><table class="marks"><thead><tr>
-      <th></th><th>${T('name')}</th><th>${T('x')}</th><th>${T('y')}</th><th>${T('z')}</th>
-      <th>${T('nearPi')}</th><th>${T('distPi')}</th><th></th></tr></thead>
+      <th scope="col"></th><th scope="col">${T('name')}</th><th scope="col">${T('x')}</th><th scope="col">${T('y')}</th><th scope="col">${T('z')}</th>
+      <th scope="col">${T('nearPi')}</th><th scope="col">${T('distPi')}</th><th scope="col"></th></tr></thead>
       <tbody>${rows}</tbody></table></div>` : ''}
     <div class="row mt6"><button class="btn sm grow" data-a="addmark">${T('addMark')}</button>
 </div>

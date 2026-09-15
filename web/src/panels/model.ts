@@ -37,7 +37,7 @@ export function feasNote(M: Model): string {
     partes.push(T('fabOver').replace('{b}', bs(f.overBent))
                             .replace('{n}', String(E.BEND_MAX_DEG)));
   }
-  return `<div class="warnbox mb6">${T('fabHead')} ${partes.join(' ')}</div>`;
+  return `<div role="alert" class="warnbox mb6">${T('fabHead')} ${partes.join(' ')}</div>`;
 }
 
 /* --- pestaña MODELO ----------------------------------------------------- */
@@ -112,12 +112,12 @@ export function paneModel(M: Model): string {
   <div class="grp"><div class="eyebrow">${T('bends')}<span class="n">${M.bends.length}</span></div><div class="body">
     <div id="fabnote">${fab}</div>
     <div class="tw"><table class="lra"><thead><tr>
-      <th>${T('nBend')}</th><th>${T('ori')}</th>
-      <th>${T('straight')}</th><th class="dcol">${d}</th>
-      <th title="${T('rotHeadTip')}">${T('rot')}</th><th class="dcol">${d}</th>
-      <th>${T('ang')}</th><th class="dcol">${d}</th>
-      <th>${T('rad')}</th><th>${T('twist')}</th><th>${T('twlen')}</th>
-      <th>${T('arcL')}</th><th>${T('cumL')}</th>
+      <th scope="col">${T('nBend')}</th><th scope="col">${T('ori')}</th>
+      <th scope="col">${T('straight')}</th><th scope="col" class="dcol">${d}</th>
+      <th scope="col" title="${T('rotHeadTip')}">${T('rot')}</th><th scope="col" class="dcol">${d}</th>
+      <th scope="col">${T('ang')}</th><th scope="col" class="dcol">${d}</th>
+      <th scope="col">${T('rad')}</th><th scope="col">${T('twist')}</th><th scope="col">${T('twlen')}</th>
+      <th scope="col">${T('arcL')}</th><th scope="col">${T('cumL')}</th>
       </tr></thead><tbody>${rows}</tbody>
       <tfoot><tr class="foot"><td>${T('tailRow')}</td><td colspan="10"></td>
         <td class="v-dim" data-cell="tstr">${fx(E.tailStraight(M), 2)}</td>

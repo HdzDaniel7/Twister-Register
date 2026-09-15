@@ -76,11 +76,11 @@ export function makeReport(): void {
   ${shots.map(([, u]) => `<img src="${u}">`).join('')}
   <img class="wide" src="${rb}">
   ${ST.variants.length > 1 ? `<h2>${T('variants')}</h2>
-  <table><thead><tr><th>${T('name')}</th><th>${T('stBends')}</th>
-  <th>${T('stLen')} mm</th><th>${T('dTip')} mm</th></tr></thead><tbody>${varRows}</tbody></table>` : ''}
+  <table><thead><tr><th scope="col">${T('name')}</th><th scope="col">${T('stBends')}</th>
+  <th scope="col">${T('stLen')} mm</th><th scope="col">${T('dTip')} mm</th></tr></thead><tbody>${varRows}</tbody></table>` : ''}
   <h2>${T('bends')}</h2>
-  <table><thead><tr><th>${T('nBend')}</th><th>${T('ori')}</th><th>Nom °</th><th>${T('meas')} °</th>
-  <th>Δ °</th><th>${T('cNew')} °</th><th>${T('dP')} mm</th></tr></thead>
+  <table><thead><tr><th scope="col">${T('nBend')}</th><th scope="col">${T('ori')}</th><th scope="col">Nom °</th><th scope="col">${T('meas')} °</th>
+  <th scope="col">Δ °</th><th scope="col">${T('cNew')} °</th><th scope="col">${T('dP')} mm</th></tr></thead>
   <tbody>${rows}</tbody></table>
   <p style="color:#666;font-size:10px;margin-top:14px">${T('formula')} · ${T('note')}</p>`;
 

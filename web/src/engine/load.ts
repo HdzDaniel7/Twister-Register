@@ -553,10 +553,20 @@ function solveContacts(model: Model, pins: Pin[], peds: Pedestal[], sec: Section
      `I` es la de la flexión que el codo de ángulo produce, la misma que ya
      supone el cálculo de esfuerzo de `restrain()` al tomar `thickness/2` como
      fibra extrema. El rodado se queda con el mismo factor 0.5 que usa el
-     amarre: no es la rigidez a torsión de la sección —que para este rectángulo
-     saldría alrededor de 1.5— sino la convención que ya está en uso, y
-     cambiarla movería formas sujetas que hoy están medidas. Queda anotado como
-     lo que es: un factor de juicio, no un dato.
+     amarre, y NO es la rigidez a torsión de la sección. La de verdad sería
+     `GJ/L`, y para 40×12 `GJ/EIz = 1.22` (J = 18 684 mm⁴ por la serie exacta
+     del rectángulo, Iz = 5 760 mm⁴, ν = 0.33): el muelle real es unas 2.4
+     veces MÁS rígido que este. Cuánto se aparta, medido:
+       · auditoría del 2026-09-10, barra de 15 dobleces con solo la carga: la
+         caída va de 0.0117 a 0.0207 mm y el reparto de reacciones se mueve
+         menos de un 5 %;
+       · 2026-09-15, la demo con sus pedestales sembrados y tres pines: con
+         solo los pines la punta sujeta se mueve 15.3 mm con 0.5 y 4.8 mm con
+         1.22, y el esfuerzo baja del 16 % al 5 % del límite.
+     O sea: con peso y apoyos casi no se nota, y con pines laterales manda. Se
+     queda en 0.5 porque cambiarlo mueve formas sujetas sin una pieza medida
+     que diga cuál acierta. Es un factor de juicio, no un dato, y es lo primero
+     que hay que contrastar cuando llegue el escaneo con el fixture puesto.
 
      Las unidades: `u` viaja en GRADOS, como en el amarre, así que la rigidez se
      pasa a N·mm/grado² con D2R². */

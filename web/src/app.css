@@ -386,7 +386,15 @@ input:focus,select:focus{border-color:var(--nominal);outline:0;
 input[type=range]{width:100%;accent-color:var(--nominal);height:16px}
 .rangerow{display:grid;grid-template-columns:1fr 62px;gap:8px;align-items:center}
 .rangerow .val{text-align:right;color:var(--nominal);font-variant-numeric:tabular-nums}
-.hintline{font-size:10px;color:var(--dim2);line-height:1.45;padding:4px 0 2px}
+/* La guía de cada pestaña. Estaba a 10 px en --dim2, el texto más pequeño de la
+   pantalla, y ahí vive la explicación de lo que dicen las tablas. */
+.hintline{font-size:11.5px;color:var(--dim);line-height:1.5;padding:4px 0 2px}
+/* El estado VACÍO no es una nota al pie: sin nada puesto es lo único que dice
+   qué hacer, así que va con el color del texto y no con el de la ayuda. */
+.emptynote{font-size:12px;color:var(--txt);line-height:1.5;padding:8px 0 4px}
+/* La unidad de un encabezado. Los encabezados van en mayúsculas, y «(MM)» ya
+   no se lee como milímetros. */
+th .u{text-transform:none;letter-spacing:0;font-weight:500}
 
 /* ---------- tables ---------- */
 .tw{overflow-x:auto;border:1px solid var(--line);border-radius:4px}

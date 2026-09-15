@@ -985,18 +985,43 @@ deshacer.
 
 ### Fase 5.3 · Que se pueda leer
 
-- [ ] **[X-10] Unidades en los quince encabezados · [S]** — Fixture y Amarre mezclan mm, grados y
+- [x] **[X-10] Unidades en los quince encabezados · [S]** — Fixture y Amarre mezclan mm, grados y
       newton sin una sola unidad; 12 de 15 `<th>` sin `title`; `<th>Δ</th>` sin clave i18n. Molde:
       `${T('pinTol')} (mm)`. · M
-- [ ] **[UX-07] Lo que falta de accesibilidad · [S]** — `aria-label` en `nfield` (nombre de fila +
+      **Hecho el 2026-09-15.** Un solo `th(rótulo, unidad, ayuda)` en `panels/fmt.ts` para las dos
+      tablas. La unidad va en su propio `<span class="u">` porque los encabezados van en
+      mayúsculas y «(MM)» ya no se lee como milímetros. 15 claves nuevas en los tres idiomas: la
+      ayuda de cada columna que no la tenía y `pedD` para el Δ (en la lista de símbolos que no se
+      traducen, junto a Ø). La tabla de esfuerzos de Amarre ya llevaba la unidad en la clave.
+- [x] **[UX-07] Lo que falta de accesibilidad · [S]** — `aria-label` en `nfield` (nombre de fila +
       columna), `scope="col"` en los `<th>`, y `role="alert"` en `.warnbox`: hoy 49 de 49 campos de
       Fixture no tienen nombre accesible y un aviso que aparece es mudo. · M
-- [ ] **[UX-08] Que la guía se pueda leer · [S]** — `.hintline` es 10 px sobre `--dim2`; ahí viven
+      **Hecho el 2026-09-15.** Cada campo de fila se anuncia «P3 · Alto» —con solo la columna, siete
+      campos seguidos dicen «Alto»—, y también las casillas, el lado del pin y la ✕. Los campos de
+      formulario de Amarre (contacto, reparto, material, carga) llevan su rótulo: el `<label>` de
+      al lado es hermano y no los nombraba. `scope="col"` en TODOS los `<th>` de `src/`, reporte
+      incluido, y `role="alert"` en todos los `warnbox`. Sabido y aceptado: como el panel se
+      repinta en cada edición, un aviso que sigue puesto se vuelve a anunciar al confirmar otra
+      celda.
+- [x] **[UX-08] Que la guía se pueda leer · [S]** — `.hintline` es 10 px sobre `--dim2`; ahí viven
       todas las notas **y los estados vacíos**, que son la única orientación cuando no hay nada
       puesto. Subir a 11-12 px con `--dim` y sacar los vacíos de esa clase. · S
-- [ ] **[FIS-07] Escribir el número junto al 0.5 · [S]** — para 40×12, `GJ/EIz = 1.19`. Medido: la
+      **Hecho el 2026-09-15.** `.hintline` a 11.5 px con `--dim`. Los vacíos (`fixEmpty`,
+      `pinEmpty`, `dNone` en el cajón y en Medir) pasan a `.emptynote`, 12 px en `--txt`.
+      Cierre de las tres: cuatro pasos de banco —unidad y ayuda por columna, nombre por campo con
+      su fila, aviso con `role="alert"`, y la guía y el vacío medidos con `getComputedStyle`—.
+      **Comprobado que fallan** corriendo el banco nuevo contra el `index.html` de HEAD.
+- [x] **[FIS-07] Escribir el número junto al 0.5 · [S]** — para 40×12, `GJ/EIz = 1.19`. Medido: la
       caída va de 0.0117 a 0.0207 mm y el reparto de reacciones se mueve <5 %, así que **el 0.5 se
       queda**; lo que falta es que el comentario diga cuánto se aparta y de qué. · S
+      **Hecho el 2026-09-15, con dos correcciones al informe.** La cifra es **1.22** (J = 18 684 mm⁴
+      por la serie exacta, Iz = 5 760 mm⁴, ν = 0.33), y el muelle real es 2.4 veces más **rígido**
+      que el 0.5, no más blando. Y el 0.5 no es inocente en todos los casos: medido en Node con la
+      demo, sus pedestales sembrados y tres pines, **con solo los pines la punta sujeta se mueve
+      15.3 mm con 0.5 y 4.8 mm con 1.22**, y el esfuerzo pasa del 16 % al 5 % del límite. Con peso
+      y apoyos casi no se nota (lo del informe); con pines laterales manda. El 0.5 se queda porque
+      sin una pieza medida no hay con qué decidir, y el comentario de `load.ts` y el de `pins.ts`
+      lo dicen con las dos medidas. Pasa a la lista de preguntas (nº 5).
 
 **Criterio de cierre:** alguien que no escribió esto puede leer las tablas de Fixture y Amarre sin
 preguntar qué unidad es cada columna.
@@ -1059,6 +1084,9 @@ fixture sujeta a todos los modelos, y el coste de mover un pin crece con cada mo
    holgura de fixture aparte? Bloquea el diseño de X-05.
 4. **Con la carga puesta, ¿la desviación se compara contra la forma libre o contra la asentada?**
    Segunda cara de la pregunta que sigue abierta desde el 09-09.
+5. **¿Cuánto cede el rodado de verdad con los pines puestos?** El modelo usa 0.5 donde la torsión
+   de la sección da 1.22, y con pines laterales eso triplica lo que se mueve la punta (FIS-07). Se
+   contesta con el escaneo de una pieza montada en el fixture: no hay que elegir a ojo.
 
 ### Fuera de alcance de la Fase 5
 

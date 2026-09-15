@@ -981,7 +981,7 @@ console.log('\n— idiomas —');
                    'spread',
                    /* «Ø» y «σ MPa» son símbolos: traducirlos sería inventarse
                       una notación que no usa nadie. */
-                   'pinDia', 'pinSigma', 'pinDist',
+                   'pinDia', 'pinSigma', 'pinDist', 'pedD',
                    /* «auto» se escribe igual en los tres idiomas. */
                    'pinSideAuto'];
   const IGUALES = {

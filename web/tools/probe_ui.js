@@ -2668,6 +2668,87 @@ step('si la gráfica suelta el 3D, se dice, y al volver se quita el aviso', () =
   B.rebuildScene();
 });
 
+/* --- que se pueda leer, Fase 5.3 ------------------------------------------
+   X-10, UX-07 y UX-08: la unidad de cada columna, el nombre de cada campo para
+   un lector de pantalla, el aviso que se anuncia al aparecer, y la guía a un
+   tamaño que se lee. Todo se mide en el DOM pintado, no en la plantilla. */
+const cabeceras = () => [...q('#panes table.marks').querySelectorAll('thead th')];
+const revisaCabeceras = (donde, minUnidades) => {
+  const ths = cabeceras();
+  const sinScope = ths.filter(t => t.getAttribute('scope') !== 'col').length;
+  if (sinScope) throw new Error(`${donde}: ${sinScope} encabezados sin scope="col"`);
+  const mudos = ths.filter(t => !t.textContent.trim() && !t.getAttribute('aria-label')).length;
+  if (mudos) throw new Error(`${donde}: ${mudos} encabezados vacíos sin nombre`);
+  const sinAyuda = ths.filter(t => t.textContent.trim() && !t.title)
+    .map(t => t.textContent.trim()).filter(x => x !== 'Nombre');
+  if (sinAyuda.length) throw new Error(`${donde}: sin title ${sinAyuda.join('|')}`);
+  const u = ths.map(t => t.querySelector('.u')).filter(Boolean);
+  if (u.length < minUnidades) {
+    throw new Error(`${donde}: ${u.length} columnas con unidad: ${ths.map(t => t.textContent.trim()).join('|')}`);
+  }
+  if (getComputedStyle(u[0]).textTransform !== 'none') throw new Error(`${donde}: la unidad sale en mayúsculas`);
+  return ths;
+};
+const sinNombre = () => [...document.querySelectorAll('#panes input, #panes select, #panes button')]
+  .filter(el => !(el.getAttribute('aria-label') || el.closest('label') || el.textContent.trim()))
+  .map(el => el.outerHTML.slice(0, 70));
+
+step('las tablas de Fixture y Amarre dicen la unidad y qué es cada columna', () => {
+  click('[data-md="model"]');
+  click('#tabs [data-t="fixture"]');
+  if (!S().fixture.length) click('#panes [data-a="seedped"]');
+  const ths = revisaCabeceras('Fixture', 12);
+  const delta = ths.find(t => /^Δ/.test(t.textContent.trim()));
+  if (!delta) throw new Error('no está la columna Δ');
+  if (delta.querySelector('.u').textContent !== '(°)') throw new Error('el Δ no dice grados: ' + delta.textContent);
+  if (!delta.title) throw new Error('el Δ no explica qué es');
+  const alto = ths.find(t => /^Alto/.test(t.textContent.trim()));
+  if (!alto || alto.querySelector('.u').textContent !== '(mm)') throw new Error('«Alto» sin milímetros');
+  click('#tabs [data-t="pins"]');
+  if (!S().pins.length) click('#panes [data-a="seedpin"]');
+  revisaCabeceras('Amarre', 10);
+});
+step('cada campo de Fixture y Amarre tiene nombre, y dice de qué fila es', () => {
+  click('#tabs [data-t="fixture"]');
+  let malos = sinNombre();
+  if (malos.length) throw new Error('Fixture: ' + malos.length + ' sin nombre: ' + malos[0]);
+  const p = S().fixture[1];
+  const alto = q(`#panes input[data-pd="${p.id}"][data-k="h"]`).getAttribute('aria-label');
+  if (!alto.includes(p.name) || !/Alto/.test(alto)) throw new Error('el campo se anuncia como ' + alto);
+  click('#tabs [data-t="pins"]');
+  check('#panes [data-ld="on"]', true);
+  malos = sinNombre();
+  check('#panes [data-ld="on"]', false);
+  if (malos.length) throw new Error('Amarre: ' + malos.length + ' sin nombre: ' + malos[0]);
+});
+step('un aviso que aparece se anuncia solo', () => {
+  click('#tabs [data-t="pins"]');
+  check('#panes [data-ld="on"]', true);
+  click('#panes [data-hv="free"]');
+  const avisos = [...document.querySelectorAll('.warnbox')];
+  const vuelve = () => { click('#panes [data-hv="held"]'); check('#panes [data-ld="on"]', false); };
+  if (!avisos.length) { vuelve(); throw new Error('con «Libre» no apareció el aviso'); }
+  const mudos = avisos.filter(w => w.getAttribute('role') !== 'alert').length;
+  vuelve();
+  if (mudos) throw new Error(mudos + ' avisos sin role="alert"');
+});
+step('la guía se lee, y el estado vacío no va en letra de nota', () => {
+  click('#tabs [data-t="fixture"]');
+  const guia = q('#panes .hintline');
+  const px = parseFloat(getComputedStyle(guia).fontSize);
+  if (px < 11) throw new Error('la guía mide ' + px + ' px');
+  click('#panes [data-a="clearped"]');
+  const vacio = document.querySelector('#panes .emptynote');
+  const tam = vacio && parseFloat(getComputedStyle(vacio).fontSize);
+  const color = vacio && getComputedStyle(vacio).color;
+  const colorGuia = getComputedStyle(q('#panes .hintline')).color;
+  click('#panes [data-a="seedped"]');
+  if (!vacio || !vacio.textContent.trim()) throw new Error('sin pedestales no hay estado vacío');
+  if (vacio.classList.contains('hintline')) throw new Error('el vacío sigue siendo una nota');
+  if (tam < 12) throw new Error('el vacío mide ' + tam + ' px');
+  if (color === colorGuia) throw new Error('el vacío tiene el color de la nota');
+});
+
 step('modelo nuevo y demo', () => {
   drawer('file'); click('[data-a="new"]'); click('[data-a="demo"]'); });
 step('demo limpia las cotas', () => { if (S().marks.length) throw new Error('quedaron cotas'); });

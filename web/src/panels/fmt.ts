@@ -64,6 +64,17 @@ export const nfield = (
   `<input type="number" step="any" data-step="${step}" ${attrs}
     value="${nx(val)}" ${extra}>`;
 
+/** Encabezado de columna.
+ *
+ *  `scope="col"` para que un lector de pantalla diga de qué columna es cada
+ *  celda. La unidad va aparte y en su propio `<span>` porque los encabezados
+ *  van en mayúsculas y «MM» ya no se lee como milímetros. Y un encabezado sin
+ *  texto —la casilla de ver, la ✕— se nombra con `aria-label`: una tabla con
+ *  columnas sin nombre se oye como una lista de números sueltos. */
+export const th = (label: string, unit: string = '', tip: string = ''): string =>
+  `<th scope="col"${tip ? ` title="${esc(tip)}"` : ''}${label || !tip ? '' : ` aria-label="${esc(tip)}"`}>${
+    label}${unit ? ` <span class="u">(${unit})</span>` : ''}</th>`;
+
 /* `esc` se define en safe.ts y se reexporta aquí: los paneles lo piden a fmt
    como siempre, pero la definición es UNA, la misma que usa el 3D. Dos copias
    era la vía corta a que una se quedara sin una comilla. */

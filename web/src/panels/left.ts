@@ -181,7 +181,7 @@ const DRAWERS: Record<string, () => string> = {
         <div class="meta"><span>Δmax <b class="${cls(d.dev!.maxA, ST.model!.tol.angle)}">${fx(d.dev!.maxA, 3)}°</b></span>
         <span>RMS <b>${fx(d.dev!.rms, 3)}°</b></span>
         <span>${T('statTip').split(' ')[0]} <b class="${cls(d.dev!.tip, ST.model!.tol.point)}">${fx(d.dev!.tip, 2)}</b></span></div>
-      </div>`).join('') : `<div class="hintline">${T('dNone')}</div>`}
+      </div>`).join('') : `<div class="emptynote">${T('dNone')}</div>`}
     <div class="row mt6">
       <button class="btn sm grow" data-a="sim">+ ${T('addSim')}</button>
       <button class="btn sm" data-a="impts" title="${T('impTip')}">${T('impCsv')}</button>

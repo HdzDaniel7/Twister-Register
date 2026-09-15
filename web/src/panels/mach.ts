@@ -82,7 +82,7 @@ function preview(): string {
   const vistas = cuerpo.slice(0, 4);
   const restan = cuerpo.length - vistas.length;
   return `<div class="tw"><table class="marks"><thead><tr>
-      ${(head || ST.mach.cols).map(h => `<th>${esc(h)}</th>`).join('')}
+      ${(head || ST.mach.cols).map(h => `<th scope="col">${esc(h)}</th>`).join('')}
     </tr></thead><tbody>
       ${vistas.map(r => `<tr>${r.map(c => `<td class="v-dim">${esc(c)}</td>`).join('')}</tr>`).join('')}
     </tbody></table></div>
@@ -101,7 +101,7 @@ export function paneMach(_M: Model): string {
     ${controls()}
     <div class="eyebrow mt10" style="padding-left:0">${T('machPrev')}</div>
     ${preview()}
-    ${sucio ? `<div class="warnbox mt6">${T('machDirty')}</div>` : ''}
+    ${sucio ? `<div role="alert" class="warnbox mt6">${T('machDirty')}</div>` : ''}
     <div class="row mt6">
       <button class="btn pri sm" data-a="expcmd">${T('machExport')}</button>
       <span class="grow"></span>

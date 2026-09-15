@@ -15,15 +15,27 @@ import * as E from '../engine.ts';
 import { T } from '../i18n.ts';
 import type { Model } from '../types.ts';
 import { ST, shownPath, heldResult, heldOn, refHeldOn } from '../state.ts';
-import { fx, esc, cls, nfield, reacCell } from './fmt.ts';
+import { fx, esc, cls, nfield, reacCell, th } from './fmt.ts';
+
+/** El rótulo de cada campo tecleable, que es también el de su columna. */
+const PIN_LBL = {
+  x: 'x', y: 'y', h: 'pinLen', z: 'pinZ', dia: 'pinDia', tilt: 'pinTilt', yaw: 'pinYaw',
+} as const;
+
+/** Un campo de formulario con su nombre accesible. El `<label>` de al lado no
+ *  lo nombra: es hermano del campo, no lo envuelve ni lleva `for`. */
+const named = (txt: string): string => `aria-label="${esc(txt)}"`;
 
 /** Una fila de pin. Aparte, como `pedRow()`, porque con las columnas derivadas
  *  el bucle dentro del panel se pasa de las 60 líneas de la regla. */
 function pinRow(M: Model, i: number, f: E.PinFit | null, sujeta: boolean,
                 reac: number, ciego: boolean): string {
   const p = ST.pins[i];
+  /* Fila y columna, «Pin 2 · Largo»: con solo la columna, todos los campos de
+     la columna se oyen igual. */
+  const nombre = (col: string) => named(`${p.name} · ${col}`);
   const num = (k: 'x' | 'y' | 'h' | 'z' | 'dia' | 'tilt' | 'yaw', fmt = '1') =>
-    `<td>${nfield(fmt, `data-pn="${p.id}" data-k="${k}"`, p[k])}</td>`;
+    `<td>${nfield(fmt, `data-pn="${p.id}" data-k="${k}" ${nombre(T(PIN_LBL[k]))}`, p[k])}</td>`;
   /* Sin barra que mirar, las columnas derivadas dicen «—» y no «0»: un cero se
      lee como «tocando justo», que es lo contrario de «no se sabe». */
   const der = !f
@@ -34,13 +46,14 @@ function pinRow(M: Model, i: number, f: E.PinFit | null, sujeta: boolean,
        <td class="${f.reach ? 'v-dim' : 'v-bad'}" title="${esc(T('pinReachTip'))}">${
          f.reach ? T('pinYes') : T('pinNo')}</td>`;
   return `<tr class="ped">
-    <td><input type="checkbox" data-pnv="${p.id}" ${p.visible ? 'checked' : ''}></td>
+    <td><input type="checkbox" data-pnv="${p.id}" ${p.visible ? 'checked' : ''}
+      ${nombre(T('colVis'))}></td>
     <td><input type="checkbox" data-pnh="${p.id}" ${p.hold ? 'checked' : ''}
-      title="${esc(T('pinHoldTip'))}"></td>
+      title="${esc(T('pinHoldTip'))}" ${nombre(T('pinHold'))}></td>
     <td><input type="text" data-pn="${p.id}" data-k="name" value="${esc(p.name)}"
-      style="min-width:64px"></td>
+      style="min-width:64px" ${named(`${T('pins')} ${i + 1} · ${T('name')}`)}></td>
     ${num('x')}${num('y')}${num('h')}${num('z')}${num('dia', '1')}${num('tilt', '5')}${num('yaw', '15')}
-    <td><select data-pns="${p.id}" title="${esc(T('pinSideTip'))}">
+    <td><select data-pns="${p.id}" title="${esc(T('pinSideTip'))}" ${nombre(T('pinSide'))}>
       <option value="0" ${!p.side ? 'selected' : ''}>${T('pinSideAuto')}</option>
       <option value="1" ${p.side > 0 ? 'selected' : ''}>+</option>
       <option value="-1" ${p.side < 0 ? 'selected' : ''}>−</option>
@@ -49,8 +62,22 @@ function pinRow(M: Model, i: number, f: E.PinFit | null, sujeta: boolean,
     <td class="${sujeta ? 'v-ok' : 'v-dim'}">${sujeta ? T('pinHolding') : '—'}</td>
     ${ST.load.on ? reacCell(reac, ciego) : ''}
     <td><button class="xbtn" data-pnx="${p.id}" title="${T('del')}"
-      aria-label="${esc(T('del'))}">✕</button></td></tr>`;
+      ${nombre(T('del'))}>✕</button></td></tr>`;
 }
+
+/** Los encabezados de la tabla de pines, con la unidad de cada columna: mezcla
+ *  milímetros, grados y newton, y la unidad solo estaba en dos. */
+const pinHead = (): string => `<tr>
+  ${th('', '', T('colVis'))}${th(T('pinHold'), '', T('pinHoldTip'))}${th(T('name'))}
+  ${th(T('x'), 'mm', T('xyTip'))}${th(T('y'), 'mm', T('xyTip'))}
+  ${th(T('pinLen'), 'mm', T('pinLenTip'))}${th(T('pinZ'), 'mm', T('pinZTip'))}
+  ${th(T('pinDia'), 'mm', T('pinDiaTip'))}${th(T('pinTilt'), '°', T('pinTiltTip'))}
+  ${th(T('pinYaw'), '°', T('pinYawTip'))}${th(T('pinSide'), '', T('pinSideTip'))}
+  ${th(T('pedS'), 'mm', T('pedSTip'))}${th(T('pinDist'), 'mm', T('pinDistTip'))}
+  ${th(T('pinGap'), 'mm', T('pinGapTip'))}${th(T('pinReach'), '', T('pinReachTip'))}
+  ${th(T('pinState'), '', T('pinStateTip'))}
+  ${ST.load.on ? th(T('loadN'), 'N', T('loadNTip')) : ''}
+  ${th('', '', T('del'))}</tr>`;
 
 /** Lo que el amarre le está costando a la pieza: dónde cede, cuánto, y si en
  *  algún punto pasa del límite elástico.
@@ -60,7 +87,7 @@ function pinRow(M: Model, i: number, f: E.PinFit | null, sujeta: boolean,
 function costo(M: Model): string {
   const R = heldResult();
   if (!ST.restraint.on) return `<div class="hintline">${T('pinOffNote')}</div>`;
-  if (!R.held.length) return `<div class="warnbox mt6">${T('pinNoneHold')}</div>`;
+  if (!R.held.length) return `<div role="alert" class="warnbox mt6">${T('pinNoneHold')}</div>`;
   const libre = E.fk(M).pis, sujeta = E.fk(R.model).pis;
   const punta = libre.length && sujeta.length
     ? libre[libre.length - 1].distanceTo(sujeta[sujeta.length - 1]) : 0;
@@ -84,10 +111,10 @@ function costo(M: Model): string {
       ${sinCerrar ? `<span class="chip bad" title="${esc(T('pinOpenTip'))}">${
         T('pinOpen').replace('{n}', String(sinCerrar))}</span>` : ''}
     </div>
-    ${R.worst >= 1 ? `<div class="warnbox mt6">${T('pinYield')}</div>` : ''}
+    ${R.worst >= 1 ? `<div role="alert" class="warnbox mt6">${T('pinYield')}</div>` : ''}
     <div class="tw mt6"><table class="marks"><thead><tr>
-      <th>${T('nBend')}</th><th>${T('pinKink')}</th><th>${T('pinCurv')}</th>
-      <th>${T('pinSigma')}</th><th>${T('pinOfYield')}</th></tr></thead><tbody>
+      ${th(T('nBend'))}${th(T('pinKink'))}${th(T('pinCurv'))}
+      ${th(T('pinSigma'), '', T('pinYieldTip'))}${th(T('pinOfYield'), '%', T('pinYieldTip'))}</tr></thead><tbody>
       ${R.kink.map((k, i) => {
         const q = ST.mat.yield > 0 ? R.stress[i] / ST.mat.yield : 0;
         return `<tr class="${i === peorK ? 'sel' : ''}"><td>B${i + 1}</td>
@@ -112,8 +139,12 @@ function costo(M: Model): string {
 function carga(M: Model): string {
   const on = ST.load.on;
   const R = heldResult();
+  const rot = {
+    g: T('loadG'), tip: `${T('loadTipF')} (N)`,
+    dx: `${T('loadDir')} X`, dy: `${T('loadDir')} Y`, dz: `${T('loadDir')} Z`,
+  };
   const num = (k: 'g' | 'tip' | 'dx' | 'dy' | 'dz', step: string) =>
-    nfield(step, `data-ld="${k}"`, ST.load[k]);
+    nfield(step, `data-ld="${k}" ${named(rot[k])}`, ST.load[k]);
   /* ¿Llegó a correr el solver de la carga? Son exactamente las cuatro salidas
      tempranas de `settle()`: sin carga, sin material, sin peso ni empuje, y sin
      estaciones que ceder. Importa distinguirlo porque en esos cuatro casos `ok`
@@ -137,13 +168,13 @@ function carga(M: Model): string {
         <span class="nm"><b>${T('loadOn')}</b></span></label>
     </div>
     ${on ? `<div class="fgrid pair mt6">
-      <label title="${esc(T('loadGTip'))}">${T('loadG')}</label>${num('g', '.25')}
-      <label title="${esc(T('loadTipTip'))}">${T('loadTipF')} (N)</label>${num('tip', '5')}
-      <label title="${esc(T('loadDirTip'))}">${T('loadDir')} X</label>${num('dx', '.25')}
-      <label title="${esc(T('loadDirTip'))}">${T('loadDir')} Y</label>${num('dy', '.25')}
-      <label title="${esc(T('loadDirTip'))}">${T('loadDir')} Z</label>${num('dz', '.25')}
+      <label title="${esc(T('loadGTip'))}">${rot.g}</label>${num('g', '.25')}
+      <label title="${esc(T('loadTipTip'))}">${rot.tip}</label>${num('tip', '5')}
+      <label title="${esc(T('loadDirTip'))}">${rot.dx}</label>${num('dx', '.25')}
+      <label title="${esc(T('loadDirTip'))}">${rot.dy}</label>${num('dy', '.25')}
+      <label title="${esc(T('loadDirTip'))}">${rot.dz}</label>${num('dz', '.25')}
     </div>
-    ${R.noMat ? `<div class="warnbox mt6">${T('loadNoMat')}</div>`
+    ${R.noMat ? `<div role="alert" class="warnbox mt6">${T('loadNoMat')}</div>`
       /* Sin estaciones el peso SÍ se sabe —densidad por sección por largo— y lo
          que no se sabe es cómo se reparte. Se enseña lo primero y se dice lo
          segundo, en vez de las cinco cifras a cero que había antes. */
@@ -151,7 +182,7 @@ function carga(M: Model): string {
       <span class="chip" title="${esc(T('loadWeightTip'))}">${T('loadWeight')}: ${
         fx(R.weight, 1)} N</span>
     </div>
-    <div class="warnbox mt6">${T('loadNoDof')}</div>`
+    <div role="alert" class="warnbox mt6">${T('loadNoDof')}</div>`
       : `<div class="row mt6">
       ${rendido ? `<span class="chip bad" title="${esc(T('loadStuckTip'))}">${
         T('loadStuck')}</span>` : ''}
@@ -166,9 +197,9 @@ function carga(M: Model): string {
       <span class="chip ${!rendido && R.pene > ST.restraint.tol ? 'bad' : 'dim'}"
         title="${esc(T('loadPeneTip'))}">${T('loadPene')}: ${fx(R.pene, 4)} mm</span>
     </div>
-    ${rendido ? `<div class="warnbox mt6">${
+    ${rendido ? `<div role="alert" class="warnbox mt6">${
       T('loadStuckWarn').replace('{n}', String(R.iters))}</div>` : ''}
-    ${colgando ? `<div class="warnbox mt6">${T('loadHang')}</div>` : ''}`}` : ''}
+    ${colgando ? `<div role="alert" class="warnbox mt6">${T('loadHang')}</div>` : ''}`}` : ''}
     <div class="hintline">${T('loadNote')}</div>
   </div></div>`;
 }
@@ -207,34 +238,23 @@ export function panePins(M: Model): string {
         <button data-hv="held" class="${refHeldOn() && !ST.layers.nom.on ? 'on' : ''}">${T('pinShowHeld')}</button>
         <button data-hv="both" class="${refHeldOn() && ST.layers.nom.on ? 'on' : ''}">${T('pinShowBoth')}</button>
       </div></div>` : ''}
-    ${hay && !refHeldOn() ? `<div class="warnbox mt6">${T('pinMeasFree')}</div>` : ''}
+    ${hay && !refHeldOn() ? `<div role="alert" class="warnbox mt6">${T('pinMeasFree')}</div>` : ''}
     <div class="fgrid pair mt6">
       <label title="${esc(T('pinTolTip'))}">${T('pinTol')} (mm)</label>
-      ${nfield('.01', 'data-rs="tol"', ST.restraint.tol)}
+      ${nfield('.01', `data-rs="tol" ${named(`${T('pinTol')} (mm)`)}`, ST.restraint.tol)}
       <label title="${esc(T('pinDampTip'))}">${T('pinDamp')}</label>
-      ${nfield('.05', 'data-rs="damp"', ST.restraint.damp)}
+      ${nfield('.05', `data-rs="damp" ${named(T('pinDamp'))}`, ST.restraint.damp)}
       <label title="${esc(T('matTip'))}">${T('matE')} (MPa)</label>
-      ${nfield('1000', 'data-mt="E"', ST.mat.E)}
+      ${nfield('1000', `data-mt="E" ${named(`${T('matE')} (MPa)`)}`, ST.mat.E)}
       <label title="${esc(T('matTip'))}">${T('matYield')} (MPa)</label>
-      ${nfield('10', 'data-mt="yield"', ST.mat.yield)}
+      ${nfield('10', `data-mt="yield" ${named(`${T('matYield')} (MPa)`)}`, ST.mat.yield)}
       <label title="${esc(T('matRhoTip'))}">${T('matRho')} (kg/m³)</label>
-      ${nfield('50', 'data-mt="rho"', ST.mat.rho ?? 0)}
+      ${nfield('50', `data-mt="rho" ${named(`${T('matRho')} (kg/m³)`)}`, ST.mat.rho ?? 0)}
     </div>
     <div class="hintline">${T('matProv')}</div>
-    ${ST.pins.length ? `<div class="tw mt6"><table class="marks"><thead><tr>
-      <th></th><th title="${esc(T('pinHoldTip'))}">${T('pinHold')}</th><th>${T('name')}</th>
-      <th>${T('x')}</th><th>${T('y')}</th>
-      <th title="${esc(T('pinLenTip'))}">${T('pinLen')} (mm)</th>
-      <th title="${esc(T('pinZTip'))}">${T('pinZ')} (mm)</th><th>${T('pinDia')}</th>
-      <th title="${esc(T('pinTiltTip'))}">${T('pinTilt')}</th>
-      <th title="${esc(T('pinYawTip'))}">${T('pinYaw')}</th>
-      <th title="${esc(T('pinSideTip'))}">${T('pinSide')}</th>
-      <th>${T('pedS')}</th><th title="${esc(T('pinDistTip'))}">${T('pinDist')}</th><th>${T('pinGap')}</th>
-      <th>${T('pinReach')}</th><th>${T('pinState')}</th>
-      ${ST.load.on ? `<th title="${esc(T('loadNTip'))}">${T('loadN')}</th>` : ''}
-      <th></th></tr></thead>
+    ${ST.pins.length ? `<div class="tw mt6"><table class="marks"><thead>${pinHead()}</thead>
       <tbody>${rows}</tbody></table></div>`
-    : `<div class="hintline">${T('pinEmpty')}</div>`}
+    : `<div class="emptynote">${T('pinEmpty')}</div>`}
     <div class="row mt6"><button class="btn sm" data-a="addpin">${T('addPin')}</button>
       <button class="btn sm" data-a="seedpin">${T('seedPin')}</button>
       <span class="grow"></span>

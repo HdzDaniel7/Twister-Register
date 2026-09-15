@@ -71,7 +71,7 @@ export function paneMeas(M: Model): string {
   /* primero lo que se mira mientras se edita la tabla; el simulador, que se
      ajusta una vez y luego se olvida, va al final del lateral. */
   return `<div class="pane on">
-  ${!D ? `<div class="grp"><div class="body"><div class="hintline">${T('dNone')}</div></div></div>` : `
+  ${!D ? `<div class="grp"><div class="body"><div class="emptynote">${T('dNone')}</div></div></div>` : `
   <div class="grp"><div class="eyebrow">${esc(D.name)} ${srcTag(D.src)}</div><div class="body">
     <div class="stats">
       <div class="stat"><div class="k">${T('statMaxA')}</div><div class="v ${cls(D.dev!.maxA, M.tol.angle)}">${fx(D.dev!.maxA, 3)}<span class="u">°</span></div></div>
@@ -82,9 +82,9 @@ export function paneMeas(M: Model): string {
       <div class="seg"><button data-dm="start" class="${ST.datum === 'start' ? 'on' : ''}">${T('dStart')}</button>
       <button data-dm="best" class="${ST.datum === 'best' ? 'on' : ''}">${T('dBest')}</button></div></div>
     <div class="eyebrow" style="padding-left:0">${T('deltas')}</div>
-    <div class="tw"><table><thead><tr><th>${T('nBend')}</th><th>${T('ori')}</th><th>${T('dA')}</th>
-      ${lote ? `<th title="${T('spreadTip')}">${T('spread')}</th>` : ''}
-      <th>${T('dR')}</th><th>${T('dF')}</th><th>${T('dP')}</th></tr></thead><tbody>
+    <div class="tw"><table><thead><tr><th scope="col">${T('nBend')}</th><th scope="col">${T('ori')}</th><th scope="col">${T('dA')}</th>
+      ${lote ? `<th scope="col" title="${T('spreadTip')}">${T('spread')}</th>` : ''}
+      <th scope="col">${T('dR')}</th><th scope="col">${T('dF')}</th><th scope="col">${T('dP')}</th></tr></thead><tbody>
       ${M.bends.slice(0, D.dev!.angle.length).map((b, i) => `<tr class="clk ${i === ST.sel ? 'sel' : ''}" data-r="${i}"
         tabindex="0" aria-label="${T('devRowTip').replace('{b}', 'B' + (i + 1))}"
         ${i === ST.sel ? 'aria-current="true"' : ''}><td>B${i + 1}</td>
