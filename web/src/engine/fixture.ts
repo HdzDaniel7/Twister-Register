@@ -229,10 +229,22 @@ export function seedPedestals(samples: PathSample[], sec: Section,
        encima es el de la polilínea, y en mitad de un arco esos dos no son el
        mismo: la cuerda pasa por dentro. Sin esto, un pedestal recién sembrado
        nacía con unas centésimas de hueco y con la inclinación de la muestra en
-       vez de la que la barra pide en su sitio. */
+       vez de la que la barra pide en su sitio.
+
+       Y EL ALTO CORREGIDO NO SE REDONDEA. Parecía una cifra de taller —un alto
+       con dos decimales es lo que se lee con un flexómetro— y era una precarga:
+       el muelle de contacto vale κ ≈ 6 000 N/mm sobre esta pieza, o sea 6 N por
+       CADA MICRA de interferencia, y redondear a centésimas deja hasta ±5 µm.
+       Medido sobre la demo con siete pedestales y el peso puesto: con el
+       redondeo los apoyos suman 47.4 N sobre una pieza de 23.7 N —el hallazgo
+       FIS-10— y sin él, 9.8 N. La interferencia de partida pasa de ±3.5 µm a
+       1.4e-14 mm en una sola pasada.
+
+       La INCLINACIÓN sí se redondea: está medido que no mueve el hueco ni una
+       micra, porque el hueco se mide donde la cuna toca y no en su punta. */
     const fit = pedestalFit(samples, sec, { id: '', name: '', ...cand });
     if (fit) {
-      cand.h = +(cand.h + fit.gap).toFixed(2);
+      cand.h += fit.gap;
       cand.tilt = +fit.want.toFixed(2);
     }
     out.push(cand);

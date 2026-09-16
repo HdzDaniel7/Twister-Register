@@ -1616,8 +1616,12 @@ step('el vano mayor se dice arriba, no escondido en una columna', () => {
   if (!(v > 100 && v < 2000)) throw new Error('vano mayor absurdo: ' + chip.textContent);
 });
 step('subir un pedestal 5 mm abre un hueco de 5 mm y lo pinta en rojo', () => {
+  /* Sin redondear a centésimas, ni al subirlo ni al devolverlo: el alto sembrado
+     lleva todos sus decimales desde FIS-10 —el muelle de contacto vale unos 6 N
+     por micra— y recortarlo aquí dejaría el pedestal precargado para los pasos
+     que vienen detrás. */
   const p = S().fixture[2], antes = p.h;
-  setval(`#panes [data-pd="${p.id}"][data-k="h"]`, (antes + 5).toFixed(2));
+  setval(`#panes [data-pd="${p.id}"][data-k="h"]`, String(antes + 5));
   if (Math.abs(S().fixture[2].h - (antes + 5)) > 1e-6) throw new Error('no tomó la altura');
   const fila = q(`#panes [data-pd="${p.id}"][data-k="h"]`).closest('tr');
   const rojo = fila.querySelector('.v-bad');
@@ -1628,7 +1632,7 @@ step('subir un pedestal 5 mm abre un hueco de 5 mm y lo pinta en rojo', () => {
      en blanco y negro para llevarla a la máquina. */
   const signo = getComputedStyle(rojo, '::after').content;
   if (!/!!/.test(signo)) throw new Error('la celda fuera de tolerancia solo se marca con color: ' + signo);
-  setval(`#panes [data-pd="${p.id}"][data-k="h"]`, antes.toFixed(2));
+  setval(`#panes [data-pd="${p.id}"][data-k="h"]`, String(antes));
 });
 step('apartarlo medio metro lo deja sin barra encima, y se dice', () => {
   const p = S().fixture[2], antes = p.y;
@@ -2104,6 +2108,33 @@ step('la pestaña Fixture dice si la pieza pesa, cuánto, y dónde se enciende',
   S().load.on = antes;
   B.renderAll();
 });
+/* FIS-10. «Sembrar 7» y después «La pieza pesa» es el caso más normal que hay, y
+   hasta el 2026-09-16 daba 47.4 N de apoyos sobre una pieza de 23.7 N. No era la
+   búsqueda: era que el alto sembrado se redondeaba a centésimas y el muelle de
+   contacto vale unos 6 N por MICRA de interferencia. */
+step('sembrar y encender el peso no inventa reacciones', () => {
+  const B = window.BARCOMP;
+  click('[data-md="model"]');
+  click('#tabs [data-t="fixture"]');
+  click('#panes [data-a="seedped"]');
+  if (S().fixture.length !== 7) throw new Error('sembró ' + S().fixture.length);
+  const sec = S().model.section;
+  const peor = Math.max(...S().fixture.map(p =>
+    Math.abs(B.E.pedestalFit(B.placedPath(), sec, p).gap)));
+  if (peor > 1e-6) {
+    throw new Error('lo sembrado nace con ' + (peor * 1000).toFixed(1) + ' µm de precarga');
+  }
+  const antes = S().load.on;
+  S().load.on = true;
+  B.renderAll();
+  const R = B.heldResult();
+  if (R.carried > R.weight + 1e-6) {
+    throw new Error(`los apoyos llevan ${R.carried.toFixed(1)} N sobre una pieza `
+      + `de ${R.weight.toFixed(1)} N`);
+  }
+  S().load.on = antes;
+  B.renderAll();
+});
 step('la pestaña Amarre existe y arranca con el amarre apagado', () => {
   click('[data-md="model"]');
   click('#tabs [data-t="pins"]');
@@ -2544,11 +2575,31 @@ step('sin pedestales la pieza cuelga entera de la mordaza', () => {
   if (R.carried !== 0) throw new Error('algo la sostiene sin haber apoyos: ' + R.carried);
   if (Math.abs(R.root - R.weight) > 1e-9) throw new Error('la raíz no lleva el peso entero');
 });
+/* Se siembra con el PESO QUITADO y se enciende después. Es el orden del taller
+   —los pedestales se montan bajo la barra, no bajo la barra colgada— y es el caso
+   de FIS-10. Sembrar con la carga YA puesta siembra bajo la forma caída, y al
+   apoyarla la barra sube y el fixture se queda con hasta 15 mm de aire: así este
+   paso pasaba, hasta el 2026-09-16, con 0.02 N de los 23.7 N que pesa la pieza.
+   O sea con ruido, y sin probar nada. */
 step('sembrar pedestales le quita ese peso de encima', () => {
+  const B = window.BARCOMP;
+  S().load.on = false; B.renderAll();
   click('#panes [data-a="seedped"]');
-  const R = window.BARCOMP.heldResult();
+  S().load.on = true; B.renderAll();
+  const R = B.heldResult();
   const suma = R.pedN.reduce((a, b) => a + b, 0);
-  if (!(suma > 0)) throw new Error('ningún pedestal carga nada');
+  if (!(suma > 0.1 * R.weight)) {
+    throw new Error(`los apoyos solo llevan ${suma.toFixed(2)} N de ${R.weight.toFixed(2)} N`);
+  }
+  /* Y NO MÁS QUE LA PIEZA. Con el alto sembrado redondeado a centésimas, el
+     muelle de contacto convertía ±5 µm en decenas de newton y aquí salían 47 N
+     sobre una pieza de 23.7 N, con la mordaza tirando hacia abajo para cuadrar
+     la suma. Ese era el hallazgo FIS-10, y no era la búsqueda: era el sembrado. */
+  if (suma > R.weight + 1e-6) {
+    throw new Error(`los apoyos llevan MÁS que la pieza entera: ${suma.toFixed(2)} N `
+      + `de ${R.weight.toFixed(2)} N`);
+  }
+  if (!(R.root >= 0)) throw new Error('la mordaza tira hacia abajo: ' + R.root.toFixed(2) + ' N');
   if (!(R.root < R.weight)) throw new Error('la raíz sigue con todo');
   /* y la columna de reacción aparece en la tabla: el número tiene que estar
      donde se teclean los pedestales, no solo en un chip */

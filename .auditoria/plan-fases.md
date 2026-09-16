@@ -35,29 +35,30 @@ regenerar el fixture a propósito.
 
 Abierta el 2026-09-15, encontrada al cerrar X-04.
 
-- [ ] **[FIS-10] Con el fixture sembrado y la carga puesta, la búsqueda no llega · [O]** — medido
-      en Node sobre la demo: «Sembrar 7» con la barra libre y después «La pieza pesa». `ok=false`
-      en la segunda iteración y los apoyos suman 41.7 N sobre una pieza de 23.7 N; la pantalla lo
-      avisa con `loadStuck`, así que no miente, pero es el caso más normal —sembrar y encender el
-      peso— y ahí no hay número. El banco no lo veía porque siembra con la carga YA puesta, y
-      entonces siembra bajo la barra colgada: converge, pero con 17.7 mm de caída y 0.33 N en los
-      apoyos, que es la otra cara de sembrar «bajo la barra que hay» (T-03).
-      Diagnóstico: el gradiente está bien —contrastado componente a componente con diferencias
-      centradas— y el paso es de bajada. El alto sembrado va redondeado a centésimas y los siete
-      pedestales nacen a ±4 µm de la barra; con κ ≈ 6 000 N/mm eso son ±24 N de precarga, y el
-      ruido del gradiente por diferencias finitas (≈1 % de componentes de ~300) no deja bajar al
-      1e-4 relativo que pide `GRAD_TOL`. La energía deja de moverse en la cuarta cifra decimal
-      y la búsqueda se declara atascada.
-      Probado y descartado, con cifras: (1) cuatro contactos por esquina en vez del punto más bajo,
-      por el pico de `|·|` en `sectionDrop()`: no converge y rompe la prueba de FIS-08 (1.31 mm);
-      (2) probar el tanteo cuando el paso con «los que llegarían» no baja: sin efecto; (3) partir
-      el paso hasta 30 veces en vez de 8: dos iteraciones más y se atasca igual, con 47.6 N;
-      (4) sembrar con 10, 20 o 50 µm de aire: tampoco converge, y con 50 µm un solo pedestal lleva
-      55 N. Nada de eso entra en el código.
-      Lo que queda por probar: el jacobiano del contacto analítico en vez de por diferencias
-      finitas, que quita el ruido de raíz; o un criterio de parada por energía estancada, pero
-      solo con el reparto contrastado contra un caso hecho a mano, porque declarar convergido un
-      reparto de 2× el peso sería peor que el aviso de hoy. · M
+- [ ] **[FIS-10b] La búsqueda sigue rindiéndose antes de llegar al mínimo · [O]** — lo que
+      queda del hallazgo, ya con el reparto creíble. Con el sembrado arreglado el caso normal
+      da apoyos 9.8 N + mordaza 13.9 N = el peso, pero `ok=false` y la pantalla lo avisa con
+      `loadStuck`. Medido el 2026-09-16 instrumentando `equilibrium()`: no es ruido de
+      diferencias finitas —el `dV` y el `J` salen de funciones suaves y su error relativo es
+      de 1e-11—, es que el paso de Newton mide 0.014° mientras los huecos miden micras, o sea
+      que mueve la barra 0.4 mm donde el contacto cambia de estado en 0.003 mm. La búsqueda
+      parte el paso ocho veces, con f = 1/128 todavía no baja la energía, y se rinde; el
+      gradiente entre tanto SUBE (250 → 295 N·mm/grado). Probado y descartado: partir el paso
+      40 veces y quedarse con el mejor f converge por `STEP_TOL` pero da el MISMO reparto
+      (47.4 → 47.8 N con el sembrado viejo), o sea que declara convergido lo que ya había.
+      Lo que queda por probar, por orden: un **test de razón** sobre el paso —cortarlo en el f
+      donde el primer contacto cambia de estado, que es como se resuelve un QP con
+      restricciones y deja Φ exactamente cuadrática en el tramo—; y solo después, un criterio
+      de parada por energía estancada. El muelle ya NO es sospechoso: `demo_carga` lo contrasta
+      contra una solución exacta y coincide a cinco cifras (pregunta 7). · M
+
+- [ ] **[FIS-10c] Los pines sembrados siguen redondeando su posición · [O]** — abierto el
+      2026-09-16 al cerrar FIS-10a. `seedPins()` redondea `x`, `y` y `h` a centésimas por el
+      mismo motivo por el que lo hacía el fixture, y con el amarre Y la carga encendidos a la
+      vez esas micras vuelven a ser newton. No se tocó en la misma pasada a propósito: mover
+      el sembrado de pines cambia las cifras de `demo:amarre` y las pruebas de FIS-08, y eso
+      es una medición aparte. Sin carga no afecta a nada: `restrain()` resuelve geometría, no
+      fuerzas. · S
 
 ## El amarre por pines laterales — lo que queda
 

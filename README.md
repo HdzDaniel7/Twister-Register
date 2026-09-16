@@ -278,7 +278,7 @@ web/
   src/app.css       tokens de diseño y layout; la paleta de los DOS temas
   src/shell.html    esqueleto con los marcadores del build
   build.mjs         esbuild: src/ + three  ->  index.html
-  test_motor.js     531 pruebas del motor y del i18n, en Node y sin navegador
+  test_motor.js     533 pruebas del motor y del i18n, en Node y sin navegador
   tools/            banco de interfaz por CDP y las sondas de medición
 index.html          SALIDA GENERADA — no se edita a mano
 ```
@@ -303,9 +303,9 @@ cd web
 npm install          # una sola vez: three + esbuild
 npm run check        # typecheck -> pruebas -> build -> banco de interfaz
 npm run typecheck    # tsc --noEmit, con strict
-npm test             # 531 pruebas del motor y del i18n
+npm test             # 533 pruebas del motor y del i18n
 npm run build        # regenera index.html (y web/barcomp_viewer.html en local)
-npm run test:ui      # 262 pasos de interfaz en Edge headless, por CDP
+npm run test:ui      # 263 pasos de interfaz en Edge headless, por CDP
 npm run demo:amarre  # cinco escenarios del amarre, con las cifras a la vista
 npm run demo:carga   # el muelle de contacto contra una solución exacta
 npm run demo:archivos # regenera ejemplos/amarre-{libre,sujeta}.json
@@ -546,6 +546,15 @@ contra `tol.point` es el **despegue** en la punta de la cuna, que es `cuna/2 · 
 «Sembrar» reparte unos cuantos bajo la pieza con la altura y la inclinación que
 pide en cada sitio. No es el fixture bueno —ese lo dicta el que está montado en el
 taller— sino algo que corregir, y de paso enseña qué alturas pide esta pieza.
+
+**El alto sembrado no se redondea, y eso no es una manía.** Con la carga puesta,
+un apoyo se modela como un muelle que vale unos 6 000 N/mm sobre esta pieza: cada
+**micra** de interferencia son **6 N** sobre una barra que pesa 24. Redondear el
+alto a centésimas sembraba hasta ±5 µm de precarga, o sea ±31 N que nadie puso, y
+de ahí salían siete apoyos sumando 47 N sobre una pieza de 23.7 N. La otra cara
+de la misma cifra: **la reacción de un pedestal suelto no es un número que un
+fixture medido con flexómetro pueda dar**. Lo que sí contesta la pregunta del
+taller es cuánto peso llevan los apoyos EN TOTAL y cuánto se queda la mordaza.
 
 La mesa está en `z = TABLE_Z` (−260 mm), fija por ahora: mientras no haya un fixture
 real medido, una mesa configurable es un campo más que nadie puede rellenar con un

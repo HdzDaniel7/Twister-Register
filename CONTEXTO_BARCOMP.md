@@ -608,9 +608,9 @@ punteada. Deja ver de un vistazo cuál doblez está fuera. Es clicable.
 ```bash
 cd web && npm run check            # typecheck -> pruebas -> build -> banco, de una
 cd web && npm run typecheck        # tsc --noEmit, con strict
-cd web && node test_motor.js       # 531 pruebas; todas deben pasar
+cd web && node test_motor.js       # 533 pruebas; todas deben pasar
 cd web && node build.mjs           # regenera index.html y barcomp_viewer.html
-cd web && node tools/ui_test.mjs   # 262 pasos de interfaz en Edge headless
+cd web && node tools/ui_test.mjs   # 263 pasos de interfaz en Edge headless
 cd web && node tools/demo_carga.mjs # κ contra una solución exacta, con las cifras
 ```
 
@@ -764,8 +764,9 @@ Ninguna de estas se vuelve a sacar leyendo el código.
 | Demo sembrada + carga: κ·pene | **21.6 N**, que es exactamente la mayor reacción; se hunde 3.5 µm | `demo_carga` |
 | Palanca hecha a mano | R = w·a²/2d = **15.89 N** contra 15.88 N del motor, raíz −3.16 N | X-04 |
 | Palanca sobre la demo, pedestal suelto | **51 N** sobre una pieza de 23.7 N, raíz **−27.7 N** | X-04 |
-| Fixture sembrado + carga: los apoyos suman | **41.7 N** sobre 23.7 N, sin converger | FIS-10, abierto |
-| Rigidez de contacto sembrando | κ ≈ **6 000 N/mm**; ±4 µm de alto = ±24 N de precarga | FIS-10 |
+| Fixture sembrado + carga, con el alto redondeado a 0.01 | **47.4 N** sobre 23.7 N, mordaza −23.7 N | FIS-10, la causa |
+| El MISMO fixture sembrado sin redondear el alto | **9.8 N** en los apoyos, 13.9 N en la mordaza | FIS-10, arreglado |
+| Rigidez de contacto sobre la demo | κ = **6 158 N/mm**, o sea **6.16 N por MICRA** de interferencia | `demo_carga` |
 | Dos columnas de apoyo en desacuerdo | a **0.9 mm** una decía «apoya» y la de al lado 0.00 N | X-05 |
 | Interferencia con varios modelos, antes → después de FIS-08 | **149 de 270 casos, peor 82 mm** → **19 de 270, peor 14 mm** | FIS-08 |
 | Primer tramo con entrada recta de 700 mm | **dos** pedestales a 0.00 N, indeterminados | X-02 |
@@ -850,6 +851,16 @@ apoyos mal repartidos. Por eso el número se enseña **por tramo** y no como tot
   lleva más que la pieza entera mientras la mordaza tira hacia abajo lo que sobra. Con una
   mordaza que aguanta cualquier fuerza, la suma de fuerzas se cumple por construcción, así
   que el residuo no se enseña; lo que se enseña es el SIGNO, con aviso bajo el −1 % del peso.
+- **El alto sembrado no se redondea, y la reacción de UN apoyo no es un número de taller.**
+  Con la carga puesta un apoyo es un muelle de κ = `CONTACT_K·E·I/L³`, que sobre la pieza de
+  demostración vale 6 158 N/mm: **6.16 N por cada MICRA** de interferencia. `seedPedestals()`
+  redondeaba el alto corregido a centésimas —parecía una cifra de flexómetro— y con eso
+  sembraba ±5 µm de precarga, ±31 N que nadie puso; de ahí salían los 47.4 N sobre una pieza
+  de 23.7 N de FIS-10. Sin el redondeo, 9.8 N. La inclinación sí se redondea: está medido que
+  no mueve el hueco ni una micra. Y la consecuencia que hay que decir en voz alta: con esta
+  sensibilidad, **la reacción de un pedestal suelto no se puede leer de un fixture medido a
+  mano**; lo que sí se puede leer, y es la pregunta del taller, es cuánto llevan los apoyos
+  en total y cuánto se queda la mordaza.
 - **Un solo predicado de «apoya»**, `bears(f, tol, carrying?)` en `engine/fixture.ts`. Por
   geometría: le pasa por encima y la cuna la toca dentro de `tol.point`. Con la carga
   resuelta manda la reacción: apoya el que lleva peso, y un apoyo ciego cae a la geometría
@@ -900,6 +911,10 @@ Sin esto alguien lo reintenta.
   por esquina (no converge y rompe FIS-08 con 1.31 mm); probar el tanteo cuando el paso no
   baja (sin efecto); partir el paso 30 veces en vez de 8 (dos iteraciones más, 47.6 N);
   sembrar con 10/20/50 µm de aire (tampoco converge; con 50 µm un pedestal lleva 55 N).
+  **Los cuatro perseguían el diagnóstico equivocado** —«el gradiente por diferencias finitas
+  no deja bajar a `GRAD_TOL`»—: los 47 N eran κ multiplicando el redondeo del alto sembrado,
+  6.16 N por micra, y se fueron quitando el `toFixed(2)` de `seedPedestals()`. Queda abierto
+  lo otro, que la búsqueda se rinda cuando partir el paso ocho veces no baja la energía.
 - **Consolidar los dos motores en uno** — revocado el 2026-09-08 en el sentido contrario:
   el motor de Python sale del alcance entero. Fusionarlos era caro y arriesgado; retirar uno
   no cuesta nada. **Lo que se pierde, dicho a las claras:** la verificación cruzada entre dos

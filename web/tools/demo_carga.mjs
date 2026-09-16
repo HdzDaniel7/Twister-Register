@@ -204,36 +204,68 @@ tit('3 · La reacción no depende de E, y todo es lineal en g');
 }
 
 /* ══════════════════════════════════════════════════════════════════════════
-   4 · Y EN LA PIEZA DE VERDAD — qué cuesta κ sobre la demo sembrada.
+   4 · Y EN LA PIEZA DE VERDAD — de dónde salían los 47 N de FIS-10.
 
-   El caso de una estación es exacto pero es de laboratorio. Esto es lo que se
-   ve en pantalla: la demo con siete pedestales sembrados y el peso puesto, o
-   sea el caso abierto de FIS-10. Lo que interesa aquí no es si converge —no lo
-   hace— sino si lo que κ deja hundirse es del orden que la fórmula dice.       */
-tit('4 · La demo con siete pedestales: el precio de κ en la pieza real');
+   El caso de una estación es exacto pero es de laboratorio. Esto es lo que se ve
+   en pantalla: la demo con siete pedestales sembrados y el peso puesto, o sea el
+   caso abierto de FIS-10 —«Sembrar 7» con la barra libre y después «La pieza
+   pesa»—, donde los apoyos sumaban 47.4 N sobre una pieza de 23.7 N.
+
+   La fórmula del escenario 1 dice de dónde salen: R = κ·δ, y con κ ≈ 6 160 N/mm
+   cada MICRA de interferencia son 6.16 N. `seedPedestals()` redondeaba el alto
+   corregido a centésimas, o sea sembraba con hasta ±5 µm de interferencia que
+   nadie puso ahí: ±31 N. No era la búsqueda. Era el sembrado.                  */
+tit('4 · La demo con siete pedestales: de dónde salían los 47 N');
 {
   const M = E.demoModel();
   const p0 = E.buildPath(M, 8).samples;
-  const peds = E.seedPedestals(p0, M.section, 7)
-    .map((p, i) => ({ ...p, id: `pd${i + 1}`, name: `P${i + 1}` }));
   const L = p0[p0.length - 1].s;
   const kap = E.CONTACT_K * MAT.E * E.sectionI(M.section).Iz / L ** 3;
-  const S = E.settle(M, [], peds, M.section, OFF, MAT, CARGA);
-  console.log(`  largo ${f(L, 1)} mm   κ = ${f(kap, 0)} N/mm`);
-  console.log(`  pene ${e(S.pene, 4)} mm  →  κ·pene = ${f(kap * S.pene, 2)} N`);
-  console.log(`  reacciones: ${S.pedN.map(v => f(v, 2)).join('  ')} N`);
-  console.log(`  peso ${f(S.weight, 2)} N · apoyos ${f(S.carried, 2)} N · `
-            + `mordaza ${f(S.root, 2)} N · ok=${S.ok}`);
-  ok(rel(kap * S.pene, Math.max(...S.pedN)) < 1e-6,
+  const nombrar = (l) => l.map((p, i) => ({ ...p, id: `pd${i + 1}`, name: `P${i + 1}` }));
+  const hoy = nombrar(E.seedPedestals(p0, M.section, 7));
+  /* Lo de antes del 2026-09-16, reconstruido aquí: el MISMO sembrado con el alto
+     redondeado a centésimas. Una línea de diferencia y dos físicas distintas. */
+  const ayer = hoy.map(p => ({ ...p, h: +p.h.toFixed(2) }));
+  const huecos = (l) => l.map(p => E.pedestalFit(p0, M.section, p).gap);
+
+  console.log(`  largo ${f(L, 1)} mm   κ = ${f(kap, 0)} N/mm   `
+            + `→  ${f(kap / 1000, 2)} N por MICRA de interferencia`);
+  for (const [txt, peds] of [['alto redondeado a 0.01 (hasta el 2026-09-16)', ayer],
+                             ['alto sin redondear (hoy)', hoy]]) {
+    const g = huecos(peds);
+    const S = E.settle(M, [], peds, M.section, OFF, MAT, CARGA);
+    console.log(`\n  ${txt}`);
+    console.log(`    interferencia sembrada: ${g.map(v => f(-v * 1000, 1).padStart(7)).join(' ')} µm`);
+    console.log(`    reacciones:             ${S.pedN.map(v => f(v, 2).padStart(7)).join(' ')} N`);
+    console.log(`    peso ${f(S.weight, 2)} N · apoyos ${f(S.carried, 2)} N · `
+              + `mordaza ${f(S.root, 2)} N · pene ${f(S.pene * 1000, 2)} µm · ok=${S.ok}`);
+  }
+
+  const Sa = E.settle(M, [], ayer, M.section, OFF, MAT, CARGA);
+  const Sh = E.settle(M, [], hoy, M.section, OFF, MAT, CARGA);
+  ok(Math.max(...huecos(hoy).map(Math.abs)) < 1e-9,
+     'sembrando sin redondear, la interferencia de partida es cero',
+     `${e(Math.max(...huecos(hoy).map(Math.abs)), 2)} mm`);
+  ok(Sh.carried <= Sh.weight && Sh.root >= 0,
+     'y los apoyos ya no llevan más que la pieza entera',
+     `${f(Sh.carried, 2)} N de ${f(Sh.weight, 2)} N · mordaza ${f(Sh.root, 2)} N`);
+  ok(Sa.carried > Sa.weight,
+     'con el redondeo sí lo hacían, y ese era el hallazgo FIS-10',
+     `${f(Sa.carried, 2)} N de ${f(Sa.weight, 2)} N`);
+  ok(rel(kap * Sh.pene, Math.max(...Sh.pedN)) < 1e-6,
      'κ·pene es exactamente la mayor de las reacciones: manda el muelle, no el azar',
-     `${f(kap * S.pene, 3)} vs ${f(Math.max(...S.pedN), 3)} N`);
-  ok(S.pene < M.tol.point / 100,
-     'y lo que se hunde sigue siendo micras, no décimas',
-     `${f(S.pene * 1000, 1)} µm contra ${f(M.tol.point * 1000, 0)} µm de tolerancia`);
-  console.log('\n  Conclusión para FIS-10: la penetración NO es el problema. Los apoyos');
-  console.log(`  suman ${f(S.carried, 1)} N sobre una pieza de ${f(S.weight, 1)} N y eso no lo`);
-  console.log('  explica κ: lo explica que la búsqueda se declare atascada antes de');
-  console.log('  llegar al mínimo. Ver FIS-10 en .auditoria/plan-fases.md.');
+     `${f(kap * Sh.pene, 3)} vs ${f(Math.max(...Sh.pedN), 3)} N`);
+
+  console.log('\n  LO QUE QUEDA ABIERTO DE FIS-10, dicho sin adornos: el reparto ya es');
+  console.log(`  creíble —${f(Sh.carried, 1)} N en los apoyos y ${f(Sh.root, 1)} N en la mordaza, que suman`);
+  console.log(`  el peso— pero la búsqueda sigue diciendo ok=${Sh.ok}: se rinde cuando partir`);
+  console.log('  el paso ocho veces no baja la energía, y la pantalla lo avisa con');
+  console.log('  `loadStuck`. Eso es otra cosa y sigue abierto en .auditoria/plan-fases.md.');
+  console.log('\n  Y la lectura que uno se lleva de aquí: con este modelo la reacción de UN');
+  console.log(`  pedestal cambia ${f(kap / 1000, 1)} N por cada micra de alto. Un fixture medido con`);
+  console.log('  flexómetro no puede dar reacciones apoyo por apoyo — lo que sí da, y es');
+  console.log('  la pregunta del taller, es cuánto peso llevan los apoyos EN TOTAL y');
+  console.log('  cuánto se queda la mordaza.');
 }
 
 console.log(`\n${malas ? `${malas} COMPROBACIÓN(ES) EN ROJO` : 'todo lo que se dijo, se cumplió'}\n`);

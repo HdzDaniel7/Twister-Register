@@ -1444,7 +1444,7 @@ console.log('\n— el fixture: pedestales, apoyo y vanos —');
     /* Es la propiedad que hace útil el botón: lo sembrado apoya. Si tocara
        corregir las siete filas a mano, sembrar no ahorraría nada. */
     const peorGap = Math.max(...fits.map(f => Math.abs(f.gap)));
-    ok('lo sembrado apoya sin tocar nada', peorGap < 0.01, `peor hueco ${peorGap.toExponential(2)} mm`);
+    ok('lo sembrado apoya sin tocar nada', peorGap < 1e-9, `peor hueco ${peorGap.toExponential(2)} mm`);
     const peorTilt = Math.max(...fits.map(f => Math.abs(f.dTilt)));
     ok('y con la inclinación que la barra pide', peorTilt < 0.01, `peor Δ ${peorTilt.toExponential(2)}°`);
     ok('todos quedan debajo de la barra', fits.every(f => f.over));
@@ -2799,6 +2799,29 @@ console.log('\n— la carga: el peso propio y el empuje (engine/load.ts) —');
        r.carried === 0 && Math.abs(r.root - esperado) < 1e-9);
     ok('el empuje de punta también cuenta sin dobleces',
        Math.abs(cae(recta, mat, { g: 0, tip: 40 }).weight - 40) < 1e-9);
+  }
+
+  /* EL FIXTURE SEMBRADO NO PUEDE LLEVAR MÁS QUE LA PIEZA (FIS-10). Con κ del
+     orden de 6 000 N/mm, cada MICRA de interferencia son 6 N sobre una pieza que
+     pesa 24: un sembrado que redondee el alto a centésimas nace con ±5 µm y por
+     tanto con decenas de newton que nadie puso. Así salía el hallazgo —los siete
+     apoyos sumaban 47.4 N sobre 23.7 N de pieza—, y no era la búsqueda: era el
+     sembrado. `tools/demo_carga.mjs` lo enseña con las dos cifras al lado. */
+  {
+    const M = E.demoModel();
+    const p0 = E.buildPath(M, 8).samples;
+    const peds = E.seedPedestals(p0, M.section, 7)
+      .map((q, i) => ({ ...q, id: `pd${i + 1}`, name: `P${i + 1}` }));
+    const huecos = peds.map(q => Math.abs(E.pedestalFit(p0, M.section, q).gap));
+    const peor = Math.max(...huecos);
+    ok('lo sembrado nace SIN precarga, no «casi sin»',
+       peor < 1e-9, `peor interferencia ${peor.toExponential(2)} mm`);
+    const r = E.settle(M, [], peds, M.section, { ...E.RESTRAINT_DEFAULT, on: false },
+                       mat, { ...E.LOAD_DEFAULT, on: true });
+    ok('  y con el peso puesto los apoyos no llevan más que la pieza entera',
+       r.carried <= r.weight && r.root >= 0,
+       `apoyos ${r.carried.toFixed(2)} N · mordaza ${r.root.toFixed(2)} N · `
+       + `peso ${r.weight.toFixed(2)} N`);
   }
 }
 
