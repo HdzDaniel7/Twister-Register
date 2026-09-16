@@ -91,8 +91,20 @@ Detalle en `CONTEXTO_BARCOMP.md`, «La carga».
       dobleces que no existen. **No se hace mientras no haya una medida que lo
       exija**: el número que falta ya se está dando, en otra columna y con su
       nombre.
-- [ ] **El apoyo del pedestal solo mira de abajo arriba · [—]** — abierto al cerrar
-      FIS-08. Un tramo casi vertical que roza el costado de la cuna no se modela.
+- [ ] **El apoyo del pedestal solo mira de abajo arriba · [O]** — abierto al cerrar
+      FIS-08. Un tramo casi vertical que roza el costado de la cuna no se modela:
+      `pedestalFit()` mide la cara de ABAJO de la sección (`sectionDrop`) contra la
+      cuna, y con la barra a plomo la cara que toca es el costado.
+      **No es hipotético, y eso es nuevo del 2026-09-16:** la pieza de demostración
+      llega a **80.8°** de inclinación —79 de sus 1 862 mm van por encima de 70°— y
+      de los siete pedestales sembrados uno nace con la cuna a **−78.3°**. Con la
+      carga puesta ese pedestal es **el que más lleva**: 8.8 N de los 9.8 que llevan
+      los apoyos. O sea que la cifra que más pesa en la tabla sale del apoyo peor
+      modelado.
+      Cerrarlo es trabajo de modelo, no un arreglo: pide tratar la cuna como un
+      sólido y resolver segmento contra caja —lo que `engine/contact.ts` ya hace
+      para los pines—, y detrás van `bears()`, la columna «Hueco», el dibujo 3D y
+      el barrido de 270 casos de FIS-08. No se empieza a medias.
 
 ## Aplazado a futuras actualizaciones (decisión 2026-09-08)
 

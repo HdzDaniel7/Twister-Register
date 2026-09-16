@@ -762,6 +762,7 @@ Ninguna de estas se vuelve a sacar leyendo el código.
 | Lo que κ le quita a la reacción | **K/(K+κJ²) = 7.6e-5**, o sea siete cienmilésimas | `demo_carga` |
 | Hasta dónde la fórmula del muelle sigue al solver | **κ equivalente ≈ 16**, cuatro décadas por debajo de 1e5, con error < 0.5 % | `demo_carga` |
 | Demo sembrada + carga: κ·pene | **21.6 N**, que es exactamente la mayor reacción; se hunde 3.5 µm | `demo_carga` |
+| La demo llega a | **80.8°** de inclinación; un pedestal sembrado nace con la cuna a −78.3° y es el que más carga lleva | FIS-08, lo que queda |
 | Palanca hecha a mano | R = w·a²/2d = **15.89 N** contra 15.88 N del motor, raíz −3.16 N | X-04 |
 | Palanca sobre la demo, pedestal suelto | **51 N** sobre una pieza de 23.7 N, raíz **−27.7 N** | X-04 |
 | Fixture sembrado + carga, con el alto redondeado a 0.01 | **47.4 N** sobre 23.7 N, mordaza −23.7 N | FIS-10, la causa |
