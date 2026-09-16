@@ -608,9 +608,10 @@ punteada. Deja ver de un vistazo cuál doblez está fuera. Es clicable.
 ```bash
 cd web && npm run check            # typecheck -> pruebas -> build -> banco, de una
 cd web && npm run typecheck        # tsc --noEmit, con strict
-cd web && node test_motor.js       # 528 pruebas; todas deben pasar
+cd web && node test_motor.js       # 531 pruebas; todas deben pasar
 cd web && node build.mjs           # regenera index.html y barcomp_viewer.html
 cd web && node tools/ui_test.mjs   # 262 pasos de interfaz en Edge headless
+cd web && node tools/demo_carga.mjs # κ contra una solución exacta, con las cifras
 ```
 
 Dos herramientas más, que no son pruebas sino evidencia:
@@ -757,6 +758,10 @@ Ninguna de estas se vuelve a sacar leyendo el código.
 | Punta sujeta solo con pines: muelle 0.5 vs 1.22 | **15.3 mm vs 4.8 mm**; esfuerzo 16 % vs 5 % del límite | FIS-07 |
 | Con peso y apoyos, muelle 0.5 vs 1.22 | caída 0.0117 → 0.0207 mm, reacciones <5 % | FIS-07 |
 | Servilleta de la carga, una estación | **0.229° de cedida, 2.00 mm de punta**, reacción `w·a/2`, a la quinta cifra | `demo_amarre` |
+| Servilleta del CONTACTO: κ contra la solución exacta | δ predicho **1.9158e-4 mm**, medido 1.9159e-4; R 5.7208 N contra 5.7212 de la estática | `demo_carga` |
+| Lo que κ le quita a la reacción | **K/(K+κJ²) = 7.6e-5**, o sea siete cienmilésimas | `demo_carga` |
+| Hasta dónde la fórmula del muelle sigue al solver | **κ equivalente ≈ 16**, cuatro décadas por debajo de 1e5, con error < 0.5 % | `demo_carga` |
+| Demo sembrada + carga: κ·pene | **21.6 N**, que es exactamente la mayor reacción; se hunde 3.5 µm | `demo_carga` |
 | Palanca hecha a mano | R = w·a²/2d = **15.89 N** contra 15.88 N del motor, raíz −3.16 N | X-04 |
 | Palanca sobre la demo, pedestal suelto | **51 N** sobre una pieza de 23.7 N, raíz **−27.7 N** | X-04 |
 | Fixture sembrado + carga: los apoyos suman | **41.7 N** sobre 23.7 N, sin converger | FIS-10, abierto |
@@ -1025,6 +1030,20 @@ los apoyos y cuánto se queda aguantando la mordaza. Si la segunda se lo lleva c
 que hay en pantalla es un voladizo y no una pieza montada — que es la pregunta «¿me hacen
 falta pedestales?» contestada con un número en newton en vez de con una opinión. La suma de
 reacciones más lo que aguanta la raíz da el peso, siempre, y contra ese invariante hay prueba.
+
+**El muelle de contacto está validado contra una solución exacta, no contra sí mismo.**
+`CONTACT_K = 1e5` no es rígido: cede δ y con eso descarga la estación. De minimizar
+`½K·u² + Q·u + ½κ(J·u)²` sale `u = −Q/(K+κJ²)`, `δ = |J·u|` y `R = κ·δ`, o sea que la
+penetración residual es **una cifra predecible, no un artefacto**. `npm run demo:carga` monta
+el caso de un grado de libertad —barra recta, una estación, un pedestal— cuya reacción sale
+de la estática de sólido rígido (`R∞ = w(L−a)²/2d`) y compara: δ predicho 1.9158e-4 mm contra
+1.9159e-4 del solver, y κ le quita a la reacción exactamente `K/(K+κJ²) = 7.6e-5`. Lo que
+manda no es κ sino **κJ²/K** —cuántas veces más rígido es el muelle que la pieza en esa
+incógnita—, y como J es el BRAZO, acercar el apoyo a la estación es bajar κ: así se barren
+cuatro décadas sin tocar la constante. La fórmula sigue al solver con error < 0.5 % hasta un
+κ equivalente de ~16; lo primero que se rompe no es el muelle sino que `gap` sea lineal en
+`u`. Consecuencia para FIS-10: la penetración **no** es la causa de que los apoyos sumen el
+doble del peso.
 
 **El punto ciego, escrito antes de que alguien lea un cero:** las incógnitas son los codos de
 las ESTACIONES, así que **una recta no se cuelga por el medio**; esa parte la da `sag.ts`,

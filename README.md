@@ -123,7 +123,11 @@ tiene internet.
   que importa: cuánto del peso llevan los apoyos y cuánto se queda aguantando la
   mordaza. Si es lo segundo, lo que se está mirando es un voladizo y faltan
   pedestales. Se puede apuntar la carga a donde se quiera —o añadir un empuje en
-  la punta— para probar si un amarre concreto aguanta.
+  la punta— para probar si un amarre concreto aguanta. Un apoyo se modela como
+  un muelle que solo empuja, y **lo que ese muelle deja hundirse está
+  contrastado contra un caso resoluble a mano** —viga con muelle rígido, un
+  grado de libertad—: la penetración residual es `R/κ`, sale a cinco cifras, y
+  con la rigidez de fábrica son 0.19 µm. `npm run demo:carga`.
 - **El comando sale a la máquina en un archivo**, con el formato a la vista:
   columnas y su orden, separador, decimales, mm o pulgadas, grados o radianes,
   el signo del ángulo y el del rodado, y el rodado como incremento o como eje
@@ -274,7 +278,7 @@ web/
   src/app.css       tokens de diseño y layout; la paleta de los DOS temas
   src/shell.html    esqueleto con los marcadores del build
   build.mjs         esbuild: src/ + three  ->  index.html
-  test_motor.js     528 pruebas del motor y del i18n, en Node y sin navegador
+  test_motor.js     531 pruebas del motor y del i18n, en Node y sin navegador
   tools/            banco de interfaz por CDP y las sondas de medición
 index.html          SALIDA GENERADA — no se edita a mano
 ```
@@ -299,10 +303,11 @@ cd web
 npm install          # una sola vez: three + esbuild
 npm run check        # typecheck -> pruebas -> build -> banco de interfaz
 npm run typecheck    # tsc --noEmit, con strict
-npm test             # 528 pruebas del motor y del i18n
+npm test             # 531 pruebas del motor y del i18n
 npm run build        # regenera index.html (y web/barcomp_viewer.html en local)
 npm run test:ui      # 262 pasos de interfaz en Edge headless, por CDP
 npm run demo:amarre  # cinco escenarios del amarre, con las cifras a la vista
+npm run demo:carga   # el muelle de contacto contra una solución exacta
 npm run demo:archivos # regenera ejemplos/amarre-{libre,sujeta}.json
 ```
 

@@ -2638,6 +2638,30 @@ console.log('\n— la carga: el peso propio y el empuje (engine/load.ts) —');
   const r2 = cae(VERT, mat, {}, [], [tope]);
   ok('un tope bajo la punta se lleva medio voladizo',
      Math.abs(r2.pedN[0] - w * a / 2) < 1e-3, `${r2.pedN[0].toFixed(4)} N`);
+  /* LO QUE κ SE COBRA POR ESE APOYO (pregunta 7 del plan). El muelle de contacto
+     no es rígido: cede δ y con eso descarga la estación. De minimizar
+     ½K·u² + Q·u + ½κ(J·u)² sale u = −Q/(K+κJ²), δ = |J·u| y R = κ·δ, así que la
+     penetración residual es una CIFRA predecible y no un artefacto del solver.
+     `tools/demo_carga.mjs` barre cuatro décadas de κ efectivo; aquí queda el
+     caso nominal clavado para que no se mueva en silencio. */
+  {
+    const D2R = Math.PI / 180, L = 1000, d = 500;
+    const kap = E.CONTACT_K * mat.E * Ia / L ** 3;      // N/mm
+    const Kd = K * D2R * D2R;                           // N·mm/grado²
+    const J = d * D2R, Q = w * a * a / 2 * D2R;
+    const pene = Math.abs(J * Q / (Kd + kap * J * J));
+    ok('la penetración del apoyo es la que predice el muelle',
+       Math.abs(r2.pene - pene) < 1e-3 * pene,
+       `${r2.pene.toExponential(4)} vs ${pene.toExponential(4)} mm`);
+    ok('  y κ·pene ES la reacción: el muelle no tiene una vida aparte',
+       Math.abs(kap * r2.pene - r2.pedN[0]) < 1e-9 * r2.pedN[0],
+       `${(kap * r2.pene).toFixed(5)} vs ${r2.pedN[0].toFixed(5)} N`);
+    ok('  y lo que le quita a la estática es K/(K+κJ²): micras y cuatro cienmilésimas',
+       r2.pene < 1e-3 && Math.abs(1 - r2.pedN[0] / (w * a / 2)) < 1e-3,
+       `${(r2.pene * 1000).toFixed(3)} µm · sesgo `
+       + `${(1 - r2.pedN[0] / (w * a / 2)).toExponential(2)} contra `
+       + `${(Kd / (Kd + kap * J * J)).toExponential(2)} de la fórmula`);
+  }
   /* LA PALANCA, en lugar de una prueba que no probaba nada: «lo que llevan los
      apoyos más lo que aguanta la raíz suman el peso» se cumplía siempre, porque
      `root` se DEFINE como `weight − carried` (X-04). Lo que sí se comprueba a

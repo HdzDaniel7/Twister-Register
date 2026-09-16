@@ -138,9 +138,18 @@ enviar; **es el único trabajo que desbloquea todo esto, y no es trabajo de soft
 6. **¿Compensar debe poder ver y apagar el amarre y la carga**, o dejarlos puestos ahí es
    un error que conviene bloquear? Compensar es el modo taller y es el único donde se
    decide sobre material.
-7. **¿`CONTACT_K = 1e5` se validó contra una solución exacta** —viga con muelle rígido— o
-   solo se contrasta consigo mismo vía `pene`? Decide si la penetración residual es una
-   cifra o un artefacto de la penalización.
+7. ~~**¿`CONTACT_K = 1e5` se validó contra una solución exacta** —viga con muelle rígido— o
+   solo se contrasta consigo mismo vía `pene`?~~
+   **Contestada el 2026-09-16: es una cifra, no un artefacto.** `npm run demo:carga` monta
+   el caso de un grado de libertad —barra recta, una estación, un pedestal— cuya reacción
+   sale de la estática de sólido rígido, `R∞ = w(L−a)²/2d`. De minimizar
+   `½K·u² + Q·u + ½κ(J·u)²` sale `δ = |J·u|` con `u = −Q/(K+κJ²)`: predicho **1.9158e-4 mm**,
+   medido **1.9159e-4**, y la reacción 5.7208 N contra 5.7212 de la estática. El sesgo que κ
+   mete es exactamente `K/(K+κJ²) = 7.6e-5`. Lo que manda no es κ sino **κJ²/K**, y como J es
+   el brazo, acercar el apoyo a la estación barre cuatro décadas de κ equivalente sin tocar
+   la constante: la fórmula sigue al solver con error < 0.5 % hasta κ ≈ 16, y lo primero que
+   se rompe es la linealidad de `gap`, no el muelle. Queda clavado en tres pruebas de motor
+   y en el banco.
 8. **Cuando `dev.theta` y la desviación por fila discrepan, ¿cuál manda?** La rama se
    arregló (C1 + A4, `alignBranch`) y `theta` está visible, que era la disyuntiva D1 del
    informe del 09-07; lo que no se decidió nunca es el criterio de aceptación.
