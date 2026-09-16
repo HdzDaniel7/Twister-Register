@@ -75,10 +75,11 @@ console.log('\n— longitudes por doblez —');
   const L = E.rowLengths(M);
   ok('rowLengths da una fila por doblez', L.length === M.bends.length);
 
-  /* la recta de rowLengths ES el avance de máquina: si un día dejan de
-     coincidir, algo se rompió */
-  ok('recta(i) coincide con machineFeeds()[i]',
-     maxAbs(L.map((r, i) => r.straight - mf[i])) < 1e-12);
+  /* `machineFeeds()` no se comprueba contra `rowLengths()`: las dos delegan en
+     `straightOf()` desde que la cuenta se unificó, así que compararlas es
+     comparar una función consigo misma. Lo que sí se comprueba, arriba, es que
+     los avances salen positivos, y más abajo que una pieza imposible los da
+     negativos. */
 
   ok('arco(i) coincide con radius·θ',
      maxAbs(L.map((r, i) =>

@@ -608,7 +608,7 @@ punteada. Deja ver de un vistazo cuál doblez está fuera. Es clicable.
 ```bash
 cd web && npm run check            # typecheck -> pruebas -> build -> banco, de una
 cd web && npm run typecheck        # tsc --noEmit, con strict
-cd web && node test_motor.js       # 529 pruebas; todas deben pasar
+cd web && node test_motor.js       # 528 pruebas; todas deben pasar
 cd web && node build.mjs           # regenera index.html y barcomp_viewer.html
 cd web && node tools/ui_test.mjs   # 259 pasos de interfaz en Edge headless
 ```
@@ -617,7 +617,7 @@ Dos herramientas más, que no son pruebas sino evidencia:
 
 ```bash
 node tools/strip_diff.mjs src/x.ts   # ¿el puerto a TS fue SOLO anotaciones?
-node tools/export_surface.mjs        # los 167 exports del motor, con tipo y aridad
+node tools/export_surface.mjs        # los 165 exports del motor, con tipo y aridad
 node tools/ui_test.mjs <pág> tools/probe_perf.js   # coste de la escena
 node tools/bundle_report.mjs         # de qué está hecho el bundle
 ```

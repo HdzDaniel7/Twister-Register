@@ -22,7 +22,6 @@ export const wrapTurn = (a: number): number => {
   return v === -180 ? 180 : v;
 };
 export const clamp = (v: number, a: number, b: number): number => (v < a ? a : v > b ? b : v);
-export const wrapPi = (a: number): number => ((a + Math.PI) % (2 * Math.PI) + 2 * Math.PI) % (2 * Math.PI) - Math.PI;
 
 /** PRNG portado exacto en los dos motores: misma semilla, misma pieza virtual. */
 export function mulberry32(a: number): () => number {

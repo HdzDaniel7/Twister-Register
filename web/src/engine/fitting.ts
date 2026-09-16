@@ -131,7 +131,6 @@ export const isPlaced = (place: Partial<Place> | null | undefined): boolean => {
    Puntos que uno pone a mano (o importa) para acotar la pieza contra algo que
    no es otro modelo: un apoyo del fixture, un datum de taller, el punto al que
    tiene que llegar la punta. No tienen cinemática: son coordenadas.          */
-export const MARK_DEFAULT = Object.freeze({ x: 0, y: 0, z: 0 });
 
 /** PI más cercano a un punto: {i, d}. Con `pts` vacío devuelve d = Infinity. */
 export function nearestPoint(pts: Vector3[], q: Vector3): { i: number; d: number } {

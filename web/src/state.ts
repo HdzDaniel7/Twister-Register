@@ -458,9 +458,6 @@ export function pedCarrying(): { n: number[]; blind: boolean[] } | undefined {
   return { n: R.pedN, blind: R.pedBlind };
 }
 
-/** La forma sujeta de la REFERENCIA, para quien quiera enseñarla o medirla. */
-export const heldRef = (): Settled => heldFor('ref', refModelFree(), refModelFree());
-
 /** La forma sujeta de UNA VARIANTE cualquiera, con su propia ranura de caché.
  *
  *  Hace falta porque el fixture es uno solo y sujeta a la pieza que haya
@@ -498,8 +495,6 @@ export function zeroTweak(): Tweak[] {
   ST.tweak = [];
   return syncTweak(ST.model ? ST.model.bends.length : 0);
 }
-export const hasTweak = (): boolean => ST.tweak.some(t => t.angle || t.rot || t.feed);
-
 /** Las piezas medidas que entran en el lazo.
  *
  *  Con `comp.batch` puesto y más de una pieza visible, entran todas; si no, la

@@ -234,7 +234,7 @@ su carpeta, así que quien los importa no nota el reparto.
 
 ```
 web/
-  src/engine.ts     EL MOTOR, barril de engine/. Sin DOM. 167 exports.
+  src/engine.ts     EL MOTOR, barril de engine/. Sin DOM. 165 exports.
     engine/math.ts        matrices, wrap, PRNG
     engine/bend.ts        el doblez y su normalización
     engine/kinematics.ts  fk · ik · bendDecomp · buildPath · rowLengths
@@ -272,7 +272,7 @@ web/
   src/app.css       tokens de diseño y layout; la paleta de los DOS temas
   src/shell.html    esqueleto con los marcadores del build
   build.mjs         esbuild: src/ + three  ->  index.html
-  test_motor.js     529 pruebas del motor y del i18n, en Node y sin navegador
+  test_motor.js     528 pruebas del motor y del i18n, en Node y sin navegador
   tools/            banco de interfaz por CDP y las sondas de medición
 index.html          SALIDA GENERADA — no se edita a mano
 ```
@@ -297,7 +297,7 @@ cd web
 npm install          # una sola vez: three + esbuild
 npm run check        # typecheck -> pruebas -> build -> banco de interfaz
 npm run typecheck    # tsc --noEmit, con strict
-npm test             # 529 pruebas del motor y del i18n
+npm test             # 528 pruebas del motor y del i18n
 npm run build        # regenera index.html (y web/barcomp_viewer.html en local)
 npm run test:ui      # 259 pasos de interfaz en Edge headless, por CDP
 npm run demo:amarre  # cinco escenarios del amarre, con las cifras a la vista
