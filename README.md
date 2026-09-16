@@ -234,17 +234,25 @@ su carpeta, así que quien los importa no nota el reparto.
 
 ```
 web/
-  src/engine.ts     EL MOTOR, barril de engine/. Sin DOM. 83 exports.
+  src/engine.ts     EL MOTOR, barril de engine/. Sin DOM. 167 exports.
     engine/math.ts        matrices, wrap, PRNG
     engine/bend.ts        el doblez y su normalización
     engine/kinematics.ts  fk · ik · bendDecomp · buildPath · rowLengths
     engine/model.ts       variantes, deltas, edición de puntos PI
     engine/feasible.ts    lo que la máquina NO puede hacer aunque cierre la geometría
+    engine/lims.ts        los umbrales que juzgan un dato, y por qué son provisionales
     engine/fitting.ts     Kabsch, anclaje entre modelos, colocación
     engine/compensate.ts  pieza simulada, lazo, desviaciones, lote, resorte
     engine/expr.ts        la celda de compensación (parser propio, sin eval)
+    engine/machine.ts     el comando que sale a la dobladora: columnas, unidades, signos
     engine/doc.ts         esquema barcomp/2.3, migración de archivos anteriores
     engine/csv.ts         la nube de PI: lectura tolerante y escritura
+    engine/fixture.ts     los pedestales: dónde apoyan, qué hueco dejan, qué vano queda
+    engine/pins.ts        EL AMARRE: la forma que toma la barra sujeta y lo que le cuesta
+    engine/load.ts        la carga: el peso propio contra apoyos que empujan pero no tiran
+    engine/sag.ts         la flecha por gravedad entre apoyos
+    engine/path.ts        mirar la barra donde NO hay muestra: sampleAt, nearestOnPath
+    engine/contact.ts     distancia entre segmentos y cuánto asoma la sección
   src/app.ts        arranque y cableado; el resto en app/
     app/render.ts · app/theme.ts · app/actions.ts · app/files.ts · app/history.ts
     app/events/{click,change,keyboard,grips}.ts
@@ -252,6 +260,7 @@ web/
     scene/stage.ts · geometry.ts · layers.ts · build.ts · view.ts
   src/panels.ts     la interfaz, barril de panels/ (cadenas de plantilla)
     panels/{fmt,shell,left,focus,model,points,meas,comp,status,render}.ts
+    panels/{fixture,pins,lims,mach}.ts   las cuatro pestañas de Modelar
   src/state.ts      ST: modelos, referencia, anclaje, capas, piezas medidas
   src/ribbon.ts     la cinta inferior (canvas 2D)
   src/report.ts     reporte imprimible · src/io.ts  archivos locales
@@ -263,7 +272,7 @@ web/
   src/app.css       tokens de diseño y layout; la paleta de los DOS temas
   src/shell.html    esqueleto con los marcadores del build
   build.mjs         esbuild: src/ + three  ->  index.html
-  test_motor.js     261 pruebas del motor y del i18n, en Node y sin navegador
+  test_motor.js     529 pruebas del motor y del i18n, en Node y sin navegador
   tools/            banco de interfaz por CDP y las sondas de medición
 index.html          SALIDA GENERADA — no se edita a mano
 ```
@@ -271,9 +280,9 @@ index.html          SALIDA GENERADA — no se edita a mano
 El refactor v4 dejó todos los archivos por debajo de 400 líneas y las funciones
 por debajo de 60: `rebuildScene()` eran 248 líneas y ahora son diez capas con
 nombre; `bind()` eran 286 y ahora es una lista de llamadas. **Hoy ese límite ya no
-se cumple** y conviene no creerse lo contrario: a 2026-09-14 lo pasan
-`engine/load.ts` (766), `engine/pins.ts` (752), `state.ts` (614),
-`engine/kinematics.ts` (508), `scene/layers.ts` (451), `app/events/change.ts` (436)
+se cumple** y conviene no creerse lo contrario: a 2026-09-15 lo pasan
+`engine/load.ts` (776), `engine/pins.ts` (760), `state.ts` (629),
+`engine/kinematics.ts` (508), `scene/layers.ts` (471), `app/events/change.ts` (436)
 y `app/actions.ts` (424), además del banco `tools/probe_ui.js`. En los dos
 solvers la mayor parte es la explicación de la física, que no se recorta para
 cumplir una cifra; lo que sí se parte es lo que mezcla trabajos, como
@@ -288,9 +297,9 @@ cd web
 npm install          # una sola vez: three + esbuild
 npm run check        # typecheck -> pruebas -> build -> banco de interfaz
 npm run typecheck    # tsc --noEmit, con strict
-npm test             # 480 pruebas del motor y del i18n
+npm test             # 529 pruebas del motor y del i18n
 npm run build        # regenera index.html (y web/barcomp_viewer.html en local)
-npm run test:ui      # 230 pasos de interfaz en Edge headless, por CDP
+npm run test:ui      # 259 pasos de interfaz en Edge headless, por CDP
 npm run demo:amarre  # cinco escenarios del amarre, con las cifras a la vista
 npm run demo:archivos # regenera ejemplos/amarre-{libre,sujeta}.json
 ```
@@ -316,9 +325,9 @@ está hecho el bundle. Hoy: `rebuildScene()` 2.8 ms con 15 dobleces y 9.6 ms con
 60, sin fugas de geometría, cero cuadros dibujados en reposo, y un paso de
 deshacer cuesta 6 µs y 5.3 KB.
 
-**`index.html` es un artefacto compilado de ~692 KB con three.js empotrado —192
-KB comprimido, que es lo que sirve Pages. Nunca se edita a mano: el siguiente
-build borra el cambio.** Se edita `web/src/`.
+**`index.html` es un artefacto compilado de ~822 KB con three.js empotrado, que es
+lo que sirve Pages. Nunca se edita a mano: el siguiente build borra el cambio.**
+Se edita `web/src/`.
 
 BARCOMP se publica bajo licencia **MIT** ([`LICENSE`](LICENSE)). `index.html` lleva three.js
 dentro —también MIT—, así que cada copia del HTML es una redistribución: el aviso de
@@ -513,9 +522,10 @@ cifras que se miden en el taller con un flexómetro:
 El resto de la tabla es de lectura y sale del modelo: en qué punto de la barra
 toca (**Toca**), cuánto se desvía en planta (**Desvío**), qué inclinación pide la
 barra ahí (**Pide**) y la diferencia (**Δ**), el aire que queda entre la cuna y la
-cara de abajo (**Hueco**) y la distancia al pedestal anterior a lo largo de la
-barra (**Vano**). Arriba se repite el vano mayor, que es el número que decide la
-flecha.
+cara de abajo (**Hueco**), la distancia al pedestal anterior a lo largo de la
+barra (**Vano**) y la **Flecha** que ese vano deja colgar. Con la carga puesta se
+añade la **Reacción** en newton de cada apoyo. Arriba se repiten el vano mayor y
+la peor flecha, y la flecha se pinta en rojo si pasa de la tolerancia de punto.
 
 **Los pedestales están atornillados a la mesa: no se mueven cuando la pieza se
 recoloca.** Lo que cambia es si siguen apoyando. El que deja de hacerlo —porque le
@@ -534,9 +544,10 @@ La mesa está en `z = TABLE_Z` (−260 mm), fija por ahora: mientras no haya un 
 real medido, una mesa configurable es un campo más que nadie puede rellenar con un
 valor de verdad.
 
-Lo que esta herramienta **no** hace es calcular la flecha. Da la geometría de la que
-sale; la flecha necesita el módulo elástico y la densidad del material, o un escaneo
-de una barra recta certificada montada en el fixture.
+La flecha necesita el módulo elástico y la densidad, que hoy son de catálogo y están
+marcados como provisionales: sin ellos la columna dice que falta el dato en vez de
+inventar un número. Y **sigue sin contrastarse contra nada físico** — eso pide el
+escaneo de una barra recta certificada montada en el fixture.
 
 ## Formato de archivo
 
@@ -628,8 +639,11 @@ metido todavía una barra real. Lo que falta, en orden de impacto:
 3. **Confirmar qué parámetros acepta la dobladora.** Si solo toma ángulo,
    `doRot` y `doFeed` se quedan apagados y el sesgo de rotación hay que atacarlo
    por calibración del robot.
-4. **Flexión por gravedad en el fixture**: en 1.7 m de aluminio puede ser del
-   orden de las tolerancias, y hoy no se modela.
+4. **Contrastar contra una pieza real** la flecha por gravedad, el amarre y la
+   carga. Los tres están modelados y coherentes por dentro —estática,
+   invariantes, orden de magnitud— pero **ninguno se ha comparado con una barra
+   medida**. Los tres esperan el mismo dato: un escaneo con el fixture puesto, y
+   el certificado del material.
 5. ~~Consolidar en un solo motor.~~ **Hecho el 2026-09-08**, por decisión del
    dueño del proyecto: el motor gemelo en Python y su visor Tkinter salen del
    alcance. El motor es uno solo, `web/src/engine.ts`, y el JSON deja de tener
@@ -641,6 +655,10 @@ metido todavía una barra real. Lo que falta, en orden de impacto:
 `simulate()` sigue ahí y se queda: es la única forma de contestar «con esta
 dispersión de medición, ¿converge el lazo o se pone a oscilar?» antes de gastar
 material. Lo que cambió es que ahora está etiquetado como lo que es.
+
+El estado tarea a tarea —lo abierto, lo que espera una respuesta del taller o de
+metrología, y lo que se decidió no hacer— está en
+[`.auditoria/plan-fases.md`](.auditoria/plan-fases.md).
 
 **Hallazgo de la validación:** corrigiendo solo ángulos, los ángulos convergen a
 0.15° pero la desviación de la punta libre se estanca en ~5 mm, porque el sesgo

@@ -1,7 +1,9 @@
 # CONTEXTO — BARCOMP α (visor HTML)
 
 > Documento para pasarle a Claude (o a cualquiera) antes de modificar este programa.
-> Léelo completo antes de tocar código. Contiene reglas que no son evidentes desde los archivos.
+> **Lee primero `README.md`** —qué hace, cómo se usa, el mapa de archivos y el formato del
+> JSON—; esto es lo que no se ve desde los archivos: invariantes, trampas y decisiones que
+> no se revisitan. Los dos juntos, sin repetirse.
 
 ---
 
@@ -11,22 +13,21 @@
 `index.html` en la raíz (lo que publica GitHub Pages, y lo único que va al repo) y
 `web/barcomp_viewer.html` para abrirlo en local con doble clic.
 
-Son ~643 KB con three.js empotrado. Editarlo directamente significa leer y reescribir 600 KB por
+Son ~822 KB con three.js empotrado. Editarlo directamente significa leer y reescribir 800 KB por
 cada cambio, y el siguiente build borra todo lo que hayas hecho.
 
 ```
 cd web && npm install                (solo la primera vez: three + esbuild)
 
-Editar  web/src/*.js  y/o  web/src/app.css
-   →   cd web && node test_motor.js        (120 pruebas · npm test)
-   →   cd web && node build.mjs            (npm run build)
+Editar  web/src/*.ts  y/o  web/src/app.css
+   →   cd web && npm run check        (tipos → motor → build → banco, de una)
 ```
 
-**El motor de Python se retiró del alcance el 2026-09-08** por decisión del dueño del proyecto.
-Había un gemelo (`python/barcomp/core.py` + un visor Tkinter) que compartía el esquema JSON y se
-comparaba contra este con `compare_engines.py`. Hoy el motor es UNO, `web/src/engine.ts`, y quien
-vigila que los números no se muevan en silencio es el fixture congelado de `web/test/fixtures/`.
-Si encuentras esa carpeta en el disco, no la sincronices: está fuera del proyecto.
+**El motor es UNO**, `web/src/engine.ts`. Hubo un gemelo en Python que se retiró del alcance
+el 2026-09-08; vive fuera de este repo, en `../BARCOMP Python/`, y **no se sincroniza ni se
+cita en comentarios nuevos** —se quedó en `barcomp/2.2` y su `load_json()` nunca miró el
+esquema, así que abre un archivo de hoy sin avisar de nada—. Quien vigila que los números no
+se muevan en silencio es el fixture congelado de `web/test/fixtures/`.
 
 Si solo tienes el `.html` y no la carpeta `web/src/`, **detente y pídele al usuario los archivos
 fuente.** No intentes reconstruirlos ni parchear el HTML.
@@ -38,200 +39,79 @@ nada en tiempo de ejecución; la red solo hace falta para ese `npm install`.
 
 ## 1. Qué hace el programa
 
-Compensación de dobleces para una barra rectangular de aluminio (~1.7 m, ~15 dobleces contra el
-ancho y contra el espesor) doblada por un robot contra una rotary draw, secuencialmente desde un
-extremo. Se escanea con GOM, se compara contra el CAD nominal, y hay que decidir **cuánto mover
-cada ángulo comandado** para que la siguiente pieza salga dentro de tolerancia.
+Qué es y para quién, en `README.md`. Lo que hay que saber aquí cabe en dos frases:
 
-El problema que resuelve: ajustar un ángulo mueve todos los dobleces posteriores. La solución no es
-calcular ese arrastre, es **compensar en el espacio de parámetros y regenerar la cadena completa**,
-con lo cual el arrastre queda contenido en el modelo.
+**Ajustar un ángulo mueve todos los dobleces posteriores.** La solución no es calcular ese
+arrastre, es **compensar en el espacio de parámetros y regenerar la cadena completa**, con lo
+cual el arrastre queda contenido en el modelo. Es la misma idea que sostiene el amarre y la
+carga (§12, §13).
 
-Usuario: ingeniero de manufactura. Interfaz bilingüe ES/EN. Debe correr **offline, con doble clic**,
-sin instalar nada. Esa restricción es dura y es la razón de varias decisiones de abajo.
+**Tiene que correr offline, con doble clic, sin instalar nada.** Esa restricción es dura y es
+la razón de media docena de decisiones de abajo.
 
 ---
 
 ## 2. Mapa de archivos
 
-Los dos motores viven en carpetas separadas y se pueden correr y comparar por separado.
+**El mapa está en `README.md` › «Los archivos».** Aquí solo lo que el mapa no dice:
 
-Todo el visor es **TypeScript con `strict`**. `tsc` solo comprueba (`--noEmit`);
-quien empaqueta es esbuild y quien corre las pruebas es Node, que borra los tipos
-por su cuenta. Cuatro archivos son **barriles** que reexportan su carpeta, así
-que quien los importa no nota el reparto.
+- Todo el visor es **TypeScript con `strict`**. `tsc` solo comprueba (`--noEmit`); quien
+  empaqueta es esbuild y quien corre las pruebas es Node, que borra los tipos por su cuenta.
+- Cuatro archivos son **barriles** —`engine.ts`, `scene.ts`, `panels.ts`, `app.ts`— que
+  reexportan su carpeta, así que quien los importa no nota el reparto.
+- `engine/lims.ts` son **LOS UMBRALES QUE JUZGAN**: rangos, saneado y por qué cada uno sigue
+  siendo provisional. Se pasan por parámetro, nunca por global —`feasibility(model, lims)`,
+  `parsePointsCsv(txt, lims)`, `csvScaleOk(pts, nom, lims)`, `measuredModel(nom, pts, lims)`—
+  para que el motor siga siendo puro y las pruebas puedan mover un umbral sin tocar estado
+  compartido.
+- `src/safe.ts` y `src/dom.ts` son **módulos hoja, sin dependencias**, a propósito: los usan
+  el motor, el 3D y los paneles sin arrastrarse entre ellos.
+- `barGeometry()` vive en `scene/geometry.ts` y **no** en el motor: devuelve una
+  `BufferGeometry`, así que depende de three.
+- Ningún archivo de `panels/` ni de `scene/` importa de `app/`. Los paneles están por DEBAJO;
+  donde hacía falta encontrarse, el sitio es `ST` (así viven los contadores en `ST.hist`).
+- `tools/` está versionado. `demo_amarre.mjs` es el banco del amarre con las cifras a la
+  vista; `strip_diff.mjs`, `export_surface.mjs`, `probe_perf.js` y `bundle_report.mjs` son
+  **evidencia, no pruebas**.
 
-```
-web/                        ← motor TypeScript + visor three.js
-  src/engine.ts             ← EL MOTOR, barril. El único que hay. Sin DOM.
-    engine/math.ts             matrices, wrap, PRNG
-    engine/bend.ts             el doblez y su normalización
-    engine/kinematics.ts       fk · ik · bendDecomp · buildPath · rowLengths
-    engine/model.ts            variantes, deltas, edición de puntos PI, measuredModel
-    engine/feasible.ts         rectas que no caben y dobleces imposibles
-    engine/lims.ts             LOS UMBRALES QUE JUZGAN: rangos, saneado y por
-                               qué cada uno sigue siendo provisional
-    engine/machine.ts          el comando que sale a la dobladora: columnas,
-                               unidades, signos y el rodado abs/incremental
-    engine/fitting.ts          Kabsch, anclaje entre modelos, colocación
-    engine/compensate.ts       simulate · compensate · deviations · lote · springback
-    engine/expr.ts             la celda de compensación (parser propio, sin eval)
-    engine/doc.ts              esquema barcomp/2.3, migración de archivos anteriores
-    engine/csv.ts              la nube de PI: lectura tolerante y escritura
-    engine/fixture.ts          los pedestales: dónde apoyan, qué hueco dejan y
-                               qué vano queda entre uno y otro (TABLE_Z)
-    engine/pins.ts             EL AMARRE: los pines laterales, la forma que la
-                               barra toma sujeta y lo que le cuesta deformarse
-    engine/path.ts             mirar la barra en un punto que NO es una muestra:
-                               sampleAt() y nearestOnPath()
-    engine/contact.ts          distancia entre segmentos y cuánto asoma la
-                               sección: el contacto con un poste inclinado
-    engine/sag.ts              M6 · la flecha por gravedad entre apoyos
-    engine/load.ts             la carga: el peso propio y el empuje de prueba,
-                               contra apoyos que empujan pero no tiran
-  src/i18n.ts               ← barril de i18n/: keys.ts (la unión de 412 claves) + es · en · de.
-                              T() y LANG. La paridad es error de COMPILACIÓN, no solo de prueba.
-  src/state.ts              ← ST: variantes, referencia, anclaje, capas, piezas medidas,
-                              cotas y el fixture. placedPath() es la trayectoria colocada.
-  src/types.ts              ← barril de types/: model (la pieza) · process (el lazo) ·
-                              doc (el .json) · state (ST). En ese orden, sin ciclos.
-  src/scene.ts              ← three.js, barril de scene/ (stage · geometry · layers · build · view).
-  src/panels.ts             ← la interfaz, barril de panels/ (un archivo por panel).
-  src/ribbon.ts             ← la cinta inferior (canvas 2D).
-  src/report.ts             ← reporte imprimible con las 4 vistas.
-  src/safe.ts               ← esc() y safeColor(). Sin dependencias: lo usan motor, 3D y paneles.
-  src/dom.ts                ← el atajo $(), UNA sola vez. Estaba copiado cuatro veces.
-  src/io.ts                 ← Blob y <input type=file>, uno o varios. Nada de red.
-  src/app.ts                ← arranque y cableado; lo demás en app/:
-    app/render.ts              renderAll · refresh · refreshTable · setMode · openDrawer · solo
-    app/theme.ts               tema y el matchMedia del sistema
-    app/actions.ts             editores, variantes, action()
-    app/files.ts               abrir/guardar JSON e importar CSV; las gemelas sin diálogo
-    app/history.ts             deshacer/rehacer sobre documentos serializados
-    app/events/{click,change,keyboard,grips}.ts
-  src/app.css               ← tokens de diseño y layout. La paleta de los DOS temas.
-  src/shell.html            ← esqueleto con /*__CSS__*/ y /*__APP__*/
-  package.json              ← three + esbuild; typescript y @types/three de desarrollo.
-  build.mjs                 ← esbuild: src/ + three  ->  ../index.html (Pages) + barcomp_viewer.html.
-  test_motor.js             ← 163 pruebas del motor y del i18n, en Node sin navegador.
-  barcomp_viewer.html       ← SALIDA. Generado. No editar.
-  tools/                    ← banco de interfaz y sondas. AHORA SÍ versionado.
-    demo_amarre.mjs            EL BANCO DEL AMARRE: cinco escenarios con las
-                               cifras a la vista (npm run demo:amarre).
-    make_demo_amarre.mjs       escribe ejemplos/amarre-{libre,sujeta}.json para
-                               VERLO en el visor (npm run demo:archivos).
-    ui_test.mjs                lanza Edge headless y corre probe_ui.js dentro de la página.
-    probe_ui.js                140 pasos de interfaz, cada uno en su try/catch.
-    ui_shot.mjs · setup_shot.js  captura PNG tras un guion de preparación.
-    strip_diff.mjs             compara un .ts con los tipos borrados contra su versión en git.
-    export_surface.mjs         vuelca los 83 exports del motor con tipo y aridad.
-    probe_perf.js              mide la escena dentro del navegador.
-    bundle_report.mjs          de qué está hecho el bundle.
+### Por qué esbuild, y un detalle de three.js
 
-README.md                   ← cómo correr el visor y qué hace cada pantalla.
-```
+El requisito duro es que el HTML abra con doble clic, offline, bajo `file://`. Antes eso
+obligaba a Three.js r140, la última con build UMD; hoy lo resuelve el empaquetador.
+esbuild se eligió por ser **una sola dependencia sin configuración**. Lo que **no** se puede
+hacer: cargar módulos en tiempo de ejecución, pedir recursos por red o depender de un
+servidor. Si algún día hace falta un asset (una fuente, una textura), va empotrado como data
+URI dentro del bundle.
 
-### Por qué esbuild y three.js actual
-
-El requisito duro es que **el HTML abra con doble clic, offline, bajo `file://`**. Antes eso obligaba
-a Three.js r140, la última versión con build UMD; hoy lo resuelve el empaquetador. `build.mjs` corre
-esbuild sobre `src/app.js`, resuelve todos los `import` (three y `OrbitControls` incluidos) y emite
-un IIFE que se empotra en un único `<script>` inline. En el archivo final no queda ni un `import`,
-ni un `fetch()`, ni una CDN.
-
-esbuild se eligió por ser **una sola dependencia sin configuración**. La interfaz sigue siendo
-vanilla con delegación por atributos `data-*`: un framework no compraría nada para estas tablas y
-costaría una reescritura completa.
-
-Lo que **no** se puede hacer: cargar módulos en tiempo de ejecución, pedir recursos por red o
-depender de un servidor. Si algún día hace falta un asset (una fuente, una textura), va empotrado
-como data URI dentro del bundle.
-
-Un detalle de la actualización: desde r152 three trabaja en linear-sRGB. Los colores semánticos
-(`devColor()`) hablan en sRGB, así que se convierten con `setRGB(..., SRGBColorSpace)` o la escala
-verde→ámbar→rojo sale apagada. Y desde r155 las luces son físicas: las intensidades van
-multiplicadas por π respecto a las de r140.
-
----
+Dos detalles de la actualización de three que cuestan una tarde si se olvidan: desde **r152**
+trabaja en linear-sRGB, y los colores semánticos (`devColor()`) hablan en sRGB, así que se
+convierten con `setRGB(..., SRGBColorSpace)` o la escala verde→ámbar→rojo sale apagada; y
+desde **r155** las luces son físicas, o sea que las intensidades van multiplicadas por π
+respecto a las de r140.
 
 ## 3. El modelo de datos
 
-Cada doblez es una terna **LRA**, la de las dobladoras:
+**La cinemática está explicada en `README.md` › «Cómo está hecho»**: la terna LRA, la cadena
+`T · Trans(feed,0,0) · Rot(n(rot), angle) · Rx(twist)`, que `rot` inclina el EJE y no rueda la
+barra, que el eje se sostiene entre estaciones y que el signo del ángulo elige el lado. No se
+repite aquí. Lo que sigue es lo que hay que tener delante para no romperla.
 
-| campo | significado | unidad |
-|---|---|---|
-| `feed` | avance de un PI al siguiente | mm |
-| `rot` (R) | **inclina el EJE del doblado**; elige el plano en el que se dobla | ° |
-| `angle` | el doblez entero, en el plano que eligió `rot` | ° |
-| `radius` | radio del herramental | mm |
-| `twist` | torsión total aplicada tras el doblez | ° |
-| `twistLen` | tramo recto sobre el que se reparte esa torsión; `0` = toda la recta | mm |
+**Cuidado con mezclar las dos cosas: que el EJE acumule no significa que la SECCIÓN ruede.**
+Si te ves aplicando `Rx(rot)` al marco y dejándolo puesto, has vuelto a `2.0`, que es lo que
+costó una versión entera arreglar (ver §7.0). `twist` es lo ÚNICO que rueda la barra.
 
-La cadena cinemática, esquema `barcomp/2.2`:
+**`ANG_DIR` y `ROT_DIR` son independientes a propósito**, y las dos están en `-1`. Una máquina
+puede tener cada eje montado al revés que la otra. Las dos entran por `bendDecomp()` —o sea
+toda la cinemática— y salen por `ik()`, que es su inversa: **si tocas una sin la otra, la ida
+y vuelta deja de ser exacta y la prueba de `fk↔ik` lo canta al instante.** La interfaz no
+voltea nada: enseña lo que hay.
 
-```
-T  ←  T · Trans(feed,0,0) · Rot(n(rot), angle) · Rx(twist)
+**El acumulado se envuelve con `wrapTurn()`, no con `wrap180()`**: media vuelta se escribe
+**180** como en la máquina, y no −180. Las diferencias de MEDIDA sí usan `wrap180()`, donde el
+signo distingue de qué lado quedó la pieza. Y `orientations()` mira el eje **ABSOLUTO**, no el
+`rot` de la fila: confundirlos etiqueta media tabla al revés y elige la ganancia equivocada.
 
-n(rot) = Rx(rot) · (0,0,−1)     el EJE del arco, inclinado por `rot`
-```
-
-equivalente a `Rx(rot) · Rz(−angle) · Rx(−rot)`: se inclina el plano, se dobla,
-y se devuelve la sección a su sitio.
-
-```
-rot = 0    →  dobla contra la cara plana (el espesor, y)
-rot = ±90  →  dobla contra el canto      (el ancho,   z)
-```
-
-**`rot` inclina el eje, no rueda la barra.** La sección sale del doblez con la
-misma cara arriba con la que entró. `twist` es lo ÚNICO que rueda la barra.
-
-**Y el eje SE SOSTIENE entre estaciones** (esquema `2.2`): el proceso es
-secuencial, la máquina gira el eje, dobla, y no lo devuelve sola. Por eso `rot`
-es un INCREMENTO y el eje absoluto de la estación `i` es la suma de los giros
-hasta ella — `axisAngles()` / `axis_angles()`:
-
-```
-rot:   90     0        0       -90
-eje:   90    90       90         0
-```
-
-**El SENTIDO DE GIRO lo fija `ANG_DIR`** (`engine/kinematics.ts` y su gemelo en
-`core.py`), y está en `-1`: un `angle` positivo desvía hacia **+y**, al revés
-del motor histórico. Se cambió sin tocar un dato, porque es el sentido con el
-que llegan los datos del taller — los mismos números doblan al otro lado. Lo
-consumen `bendDecomp()`, o sea toda la cinemática, e `ik()`, que es su inversa;
-si tocas uno sin el otro, la ida y vuelta deja de ser exacta y la prueba de
-`fk↔ik` lo canta al instante. La interfaz NO voltea nada: enseña lo que hay.
-
-**El sentido del RODADO lo fija `ROT_DIR`**, también en `-1`: un `rot` de 90
-inclina el eje hacia donde antes lo llevaba un −90. Es independiente de
-`ANG_DIR` a propósito, porque una máquina puede tener cada eje montado al revés
-que la otra, y como aquella no toca ni un dato. Las dos entran por
-`bendDecomp()` y salen por `ik()`; si tocas una sin la otra, la prueba de ida y
-vuelta `fk↔ik` lo canta al instante.
-
-**El eje elige el PLANO y el signo del ángulo elige el LADO** (`canonRot()` /
-`canon_rot()`). Un eje a 180° con ángulo positivo dobla al mismo sitio que un
-eje a 0° con ángulo negativo, así que la forma canónica deja el eje en
-`(-90, 90]` —0 de plano, ±90 de canto— y le pasa el signo al ángulo. Sin eso la
-dirección va escrita dos veces y la tabla no se puede leer: dos filas con el
-mismo ángulo doblan a lados distintos.
-
-Un `0` es «no toques el eje». El acumulado se envuelve a `(-180, 180]` con
-`wrapTurn()` / `wrap_turn()`, no con `wrap180()`: media vuelta se escribe **180**
-como en la máquina, y no −180. Las diferencias de MEDIDA siguen usando
-`wrap180()`, donde el signo sí distingue de qué lado quedó la pieza. `orientations()` mira el eje ABSOLUTO, no el `rot`
-de la fila: confundirlos etiqueta media tabla al revés y elige la ganancia
-equivocada.
-
-Cuidado con mezclar las dos cosas: que el EJE acumule no significa que la
-SECCIÓN ruede. Si te ves aplicando `Rx(rot)` al marco y dejándolo puesto, has
-vuelto a `2.0`, que es lo que costó una versión entera arreglar (ver §7.0).
-
-> **Esta sección estuvo caducada** hasta el cierre del refactor: describía la
-> cinemática de `barcomp/2.0` («dos dobleces perpendiculares») y contradecía a
-> su propio §7 y al README. Hoy describe `2.2`, que es lo que corre.
+Cuatro esquemas han existido, y los mismos números describen otra pieza en cada uno:
 
 | esquema | qué era `rot` |
 |---|---|
@@ -239,13 +119,12 @@ vuelto a `2.0`, que es lo que costó una versión entera arreglar (ver §7.0).
 | `2.0` | un rodado de verdad: la sección salía girada del doblez |
 | `2.1` | la posición ABSOLUTA del eje, declarada en cada fila |
 | `2.2` | cuánto GIRA el eje; se sostiene entre estaciones |
+| `2.3` | igual que 2.2, pero el ángulo y el rodado doblan al otro lado |
 
-Los archivos anteriores se convierten al abrirlos pasando por sus PI
-(`migrateModel` + `fkLegacy`), así que no se aproxima nada: la pieza que sale es
-la misma que describía el archivo.
-
-Los **puntos críticos** son los **PI** (puntos de intersección) del eje neutro: los vértices del
-polígono, no los puntos de tangencia. Los arcos se inscriben con `trim = radius · tan(angle/2)`.
+Los archivos anteriores se convierten al abrirlos pasando por sus PI (`migrateModel` +
+`fkLegacy`), así que **no se aproxima nada**: la pieza que sale es la misma que describía el
+archivo. Los Δ pendientes llegan en cero, porque son incrementos sobre parámetros que
+cambiaron de significado. El `2.2` es la excepción y no se convierte: ver §11.
 
 ### Convenciones cerradas — no las cambies
 
@@ -258,11 +137,11 @@ polígono, no los puntos de tangencia. Los arcos se inscriben con `trim = radius
 - `tail` es la recta de salida después del último doblez.
 - `fk()` devuelve **n+2 puntos**: P0 (amarre) + n PIs + extremo libre.
 - Orientación **`T`** = plano · **`W`** = de canto. La dice el EJE ABSOLUTO de la estación
-  —`axis_angles()`—, no el `rot` de la fila, porque el eje se sostiene entre estaciones. Sirve para
+  —`axisAngles()`—, no el `rot` de la fila, porque el eje se sostiene entre estaciones. Sirve para
   etiquetar la tabla y elegir la ganancia; el resorte se aplica por orientación.
 - Un PI sigue siendo **un vértice y por lo tanto un arco**: `radius` es el radio de esa herramienta
   circular. Con doblez puro de canto es exactamente el radio de rotación contra R. Con las dos
-  componentes, `bend_decomp()` calcula el eje y el desvío total del arco compuesto.
+  componentes, `bendDecomp()` calcula el eje y el desvío total del arco compuesto.
 - `twistLen` es **puramente geométrico**: no entra en `fk()` ni mueve ningún PI. Ver §4.
 
 ---
@@ -316,7 +195,7 @@ Todas puras y todas en `web/src/engine.ts`, que no toca el DOM.
 | `evalCell(texto,c,v)` | → número \| null | la celda de compensación; parser propio, sin `eval` |
 | `toDoc` / `fromDoc` | → `doc` / estado | esquema `barcomp/2.3`; migra los anteriores al abrir |
 
-`barGeometry(path, sec, devFn)` vive en `scene.js`, no en el motor: devuelve una `BufferGeometry` y
+`barGeometry(path, sec, devFn)` vive en `scene/geometry.ts`, no en el motor: devuelve una `BufferGeometry` y
 por lo tanto depende de three.
 
 ### Las longitudes por fila
@@ -336,7 +215,7 @@ al revés de como está guardado. `feedForStraight()` da la vuelta. Las columnas
 (el arco, `radius · θ`) y `Σ L`. La regla de edición es que **las rectas mandan**:
 cambiar `radius`, `rot` o `angle` deja todas las rectas donde estaban y recoloca los avances. Como
 `trim` muerde por los dos lados, tocar el radio del doblez `i` mueve `feed(i)` y `feed(i+1)` —o la
-cola, si `i` es el último—. Está en `editBend()` (`app.js`), con `TRIM_KEYS` como lista.
+cola, si `i` es el último—. Está en `editBend()` (`app/actions.ts`), con `TRIM_KEYS` como lista.
 
 Solo se recolocan esas dos filas, no las quince: `feedForStraight(straightOf(x))` no devuelve
 exactamente `x` en coma flotante, y recalcularlas todas en cada edición arrastraría una deriva de
@@ -352,14 +231,14 @@ sigue dando los mismos PI.
 ### El arco de un doblez compuesto
 
 `Ry(rot)·Rz(angle)` se traza como **un solo arco**, no como dos: una estación es
-una herramienta. `bend_decomp()` lo parte en `Rot(eje, θ) · Rx(ψ)`, donde el eje
+una herramienta. `bendDecomp()` lo parte en `Rot(eje, θ) · Rx(ψ)`, donde el eje
 es perpendicular al eje de la barra — que es lo único que **no rueda la sección**.
 Con una sola componente `ψ = 0` exacto; con las dos, `ψ` es el rodado residual
 real de un doblez compuesto y se aplica de golpe al salir del arco.
 
 Trampa: no vuelvas a trazar el arco como `Rx(φ)·Rz(θ)`. Sale la misma posición
 pero la sección aparece girada a lo largo de todo el arco y se endereza de un
-salto en el vértice. Hay una prueba que compara el marco final de `build_path()`
+salto en el vértice. Hay una prueba que compara el marco final de `buildPath()`
 con el de `fk()` justo por esto.
 
 **`fk` e `ik` son el corazón.** Si tocas una, corre `node test_motor.js` inmediatamente: hay una
@@ -393,7 +272,7 @@ con el ángulo (`ceil(|tw|/5)`, acotada a 8..72 pasos) para que un twist de 180�
 
 ## 5. Estado y flujo de renderizado
 
-Todo el estado vive en `ST` (`src/state.js`):
+Todo el estado vive en `ST` (`src/state.ts`):
 
 ```js
 ST = {
@@ -447,7 +326,7 @@ renderShell()         header, barra de vista, leyenda, pestañas, tema, idioma
 renderAll()           = renderShell + renderPanels + rebuildScene + drawRibbon
 ```
 
-`refreshTable()` en `app.js` es el camino de las ediciones de la tabla de modelo:
+`refreshTable()` en `app/render.ts` es el camino de las ediciones de la tabla de modelo:
 `recomputeAll()` + `updateModelDerived()` (o `renderRight()` si no está montada) + `renderLeft()` +
 `renderSide()` + `renderStatus()` + `rebuildScene()` + `drawRibbon()`. Lo que NO hace es
 reconstruir `#panes`, y por eso el foco no salta al recorrer la tabla con el teclado.
@@ -464,19 +343,17 @@ y no se ve, probablemente te faltó `markDirty()` (`rebuildScene()` ya lo hace).
 
 ### La pantalla la reparte el MODO, y los paneles viven en cajones
 
-Tres modos, tres rejillas, y la clase de `#app` es quien manda (`m-model`,
-`m-meas`, `m-comp`). Cada uno esconde lo que no usa y su render se salta solo.
-Modelar pone la tabla a la derecha de arriba abajo con el 3D al lado; Medir da
-la pantalla al modelo y llena el lateral; Compensar pone los comandos a todo el
-ancho y el 3D como banda. **Compensar ES el modo taller**: si en pantalla no
-queda nada que no sea compensación, el bloqueo no necesita interruptor.
+Qué ocupa la pantalla en cada modo lo cuenta el README. Lo que importa al tocar código:
+**`ST.mode` es lo primero que hay que mirar.** La clase de `#app` sale de ahí (`m-model`,
+`m-meas`, `m-comp`), cada modo esconde lo que no usa y **su render se salta solo**.
 
-Los paneles de modelos, vista y piezas **no son una columna fija**: son cajones
-que abre la barra de menús y que flotan sobre el 3D, FUERA de la rejilla, para
-que abrirlos no la reparta otra vez ni obligue a un `onResize()`. La tecla `F`
-pliega todo y deja el 3D solo; `Escape` sale primero de ahí y luego cierra el
-cajón, salvo si el foco está en un campo, donde Escape ya significa «descarta lo
-que escribí».
+**Compensar ES el modo taller**: si en pantalla no queda nada que no sea compensación, el
+bloqueo no necesita interruptor. Cada vez que se añada una salvaguarda hay que preguntarse si
+sobrevive a ese modo, que es el único donde se decide sobre material — C5 fue exactamente eso.
+
+Los cajones flotan sobre el 3D, **FUERA de la rejilla**, para que abrirlos no la reparta otra
+vez ni obligue a un `onResize()`. `Escape` sale primero de pantalla completa y luego cierra el
+cajón, salvo si el foco está en un campo, donde Escape ya significa «descarta lo que escribí».
 
 Al cambiar de modo o de pantalla completa SÍ hay que llamar `onResize()` y
 `fitView()`: la rejilla cambia, y el lienzo WebGL se queda con los píxeles de
@@ -500,7 +377,7 @@ no dentro de una rama, porque cualquiera puede tocar el documento.
 
 ### Los paneles se reconstruyen enteros
 
-`paneModel()`, `panePoints()`, `paneMeas()` y `paneComp()` (en `panels.js`) devuelven cadenas HTML.
+`paneModel()`, `panePoints()`, `paneMeas()` y `paneComp()` (en `panels/`) devuelven cadenas HTML.
 No hay framework ni estado en el DOM. Consecuencia: **un `renderRight()` mientras alguien escribe le
 quita el foco.** Por eso los inputs de tabla usan el evento `change` (dispara al salir del campo),
 no `input`.
@@ -521,7 +398,7 @@ Si agregas una celda calculada a la tabla de modelo, dale un `data-cell="..."` y
 
 ### Eventos por delegación con atributos `data-*`
 
-Las escuchas globales están en `bind()` (`app.js`). Para agregar un control, dale el atributo
+Las escuchas globales están en `bind()` (`app.ts`), repartidas en `app/events/`. Para agregar un control, dale el atributo
 correcto y ya:
 
 | atributo | qué hace |
@@ -583,7 +460,7 @@ en monoespaciada con `tabular-nums`** — es un instrumento de medición, no un 
 
 Los `input[type=number]` **no llevan flechas nativas**: robaban ancho y tapaban las cifras. Los
 sustitutos son las teclas Flecha arriba / Flecha abajo y la rueda del ratón sobre el campo enfocado
-(manejador `wheel` en `bind()`). **Dentro de una tabla las flechas navegan**, así que ahí el
+(manejador `wheel` en `app/events/`). **Dentro de una tabla las flechas navegan**, así que ahí el
 incremento por teclado es `Ctrl+Flecha`; la rueda sigue sirviendo en los dos sitios y las dos rutas
 comparten `stepField()`.
 
@@ -614,7 +491,7 @@ en `devColor(d, tol)`, donde `tol` = 1× y `2·tol` = rojo pleno.
 guardada para que elegir oscuro gane). El significado semántico no cambia con el tema: solo la
 luminosidad.
 
-**Ni `scene.js` ni `ribbon.js` llevan colores propios**: los leen de `:root` con `cssVar()` en
+**Ni `scene/` ni `ribbon.ts` llevan colores propios**: los leen de `:root` con `cssVar()` en
 tiempo de ejecución —fondo, niebla, los dos colores del `GridHelper`, el material de los pedestales,
 el eje y las etiquetas de la cinta—. Un color nuevo se define en `app.css`, en los dos temas.
 `applyTheme()` recoloca fondo y niebla sin reconstruir; la rejilla y los pedestales llevan el color
@@ -632,31 +509,19 @@ punteada. Deja ver de un vistazo cuál doblez está fuera. Es clicable.
 
 ## 7. Trampas conocidas
 
-0. **La convención es la LRA, esquema barcomp/2.2.** `rot` **gira el eje de
-   doblado** y `angle` es el doblez entero; el signo de `angle` va al revés que
-   en 1.0. Hay DOS distinciones aquí, y confundirlas cuesta versiones:
+0. **El eje acumula; la sección no rueda.** Es la trampa que ha costado una versión entera,
+   así que va primero. `SCHEMA` es `barcomp/2.3` y la cinemática es la de 2.2:
 
        2.0  Rx(rot) · Rz(-angle)              la sección salía RODADA   ← mal
        2.1  Rx(rot) · Rz(-angle) · Rx(-rot)   solo se inclina el eje    ← bien
        2.2  lo mismo, pero con el eje ACUMULADO: rot es un incremento
 
-   (a) Inclinar el eje NO es rodar la barra. Si dejas el `Rx(rot)` puesto en el
-   marco, `rot` hace de twist y la pieza se retuerce. `twist` es lo ÚNICO que
-   rueda la barra, y eso no ha cambiado.
-
-   (b) El EJE sí se sostiene entre estaciones, porque el proceso es secuencial:
-   la máquina lo gira, dobla, y no lo devuelve sola. Por eso `rot` es un GIRO y
-   el eje real sale de `axisAngles()`. `orientations()` mira ese eje absoluto;
-   si lo hace mirar el `rot` de la fila, media tabla queda etiquetada al revés.
-
-   Las dos cosas conviven: el eje acumula, la sección no rueda.
-
-   Los archivos anteriores se convierten al abrirlos con `migrateModel(m,
-   esquema)`, que pasa por los PI y no aproxima nada; `fkLegacy()` lleva las
-   TRES cinemáticas viejas, incluida la 2.1 con su eje absoluto. Los Δ
-   pendientes llegan en cero porque son incrementos sobre parámetros que
-   cambiaron de significado.
-
+   (a) Inclinar el eje NO es rodar la barra. Si dejas el `Rx(rot)` puesto en el marco, `rot`
+   hace de twist y la pieza se retuerce. `twist` es lo ÚNICO que rueda la barra.
+   (b) El EJE sí se sostiene entre estaciones, porque el proceso es secuencial. El eje real
+   sale de `axisAngles()`, y `orientations()` mira ese eje absoluto: si lo haces mirar el
+   `rot` de la fila, media tabla queda etiquetada al revés.
+   `fkLegacy()` lleva las TRES cinemáticas viejas, incluida la 2.1 con su eje absoluto.
 
 1. **No uses `localStorage` ni `sessionStorage`.** Falla en artefactos y no aporta nada aquí.
 2. **No agregues CDNs, `fetch()`, ni imports externos.** Todo tiene que correr bajo `file://` sin red.
@@ -665,17 +530,18 @@ punteada. Deja ver de un vistazo cuál doblez está fuera. Es clicable.
 5. `orientations()` devuelve un arreglo del largo de `bends`; alinéalo bien al indexar tablas.
 6. `EdgesGeometry(g, 28)` sobre la barra nominal da el alambrado. Bajar el umbral llena la pantalla
    de líneas y tira los cuadros por segundo.
-7. ~~Un `renderRight()` reinicia el desplazamiento del panel derecho.~~ Resuelto: `renderRight()`
-   guarda y restaura `#rt.scrollTop`.
-8. `preserveDrawingBuffer: true` en el renderer es necesario para que el reporte pueda capturar
-   `toDataURL()`. No lo quites.
-9. Una pieza medida puede tener **menos dobleces** que el nominal: compara siempre sobre
+7. **NO pongas `preserveDrawingBuffer: true` en el renderer.** Lo llevó hasta PERF-03 para que
+   el reporte pudiera capturar con `toDataURL()`, y el precio era pedirle al navegador que
+   conservara CADA fotograma para servir a una captura que ocurre una vez. `captureViews()`
+   dibuja y lee **en la misma tarea**, que es lo que lo hace innecesario. Si vuelve, el banco
+   lo caza: hay un paso que compara los cuatro PNG contra el tamaño del lienzo vacío.
+8. Una pieza medida puede tener **menos dobleces** que el nominal: compara siempre sobre
    `min(a.length, b.length)`. Ya reventó una vez.
-10. Editar puntos sobre una variante con Δ pendientes los **funde primero** (`bakeGuard()`
+9. Editar puntos sobre una variante con Δ pendientes los **funde primero** (`bakeGuard()`
     pregunta). Sin eso, guardar el resultado en la base perdería los Δ sin avisar.
-11. `ST.model` es una caché. Si tocas `ST.variants[...]` y no llamas `syncModel()`, la pantalla
+10. `ST.model` es una caché. Si tocas `ST.variants[...]` y no llamas `syncModel()`, la pantalla
     dibuja el modelo anterior.
-12. La **colocación** es solo presentación, y la escena tiene **dos** grupos:
+11. La **colocación** es solo presentación, y la escena tiene **dos** grupos:
 
     - `world` — el taller: la cuadrícula del suelo y los pedestales. Matriz identidad, no se
       mueve nunca.
@@ -687,50 +553,50 @@ punteada. Deja ver de un vistazo cuál doblez está fuera. Es clicable.
     son la excepción que confirma la regla: viven en `world` pero se levantan desde los PI **ya
     colocados**, para seguir a la pieza sin despegarse del suelo. `groupHost(capa)` dice de cuál
     de los dos cuelga cada capa, y el banco de pruebas lo vigila.
-13. Al arrastrar **cualquiera de los dos tiradores** hay que llamar `onResize()`: el lienzo WebGL
+12. Al arrastrar **cualquiera de los dos tiradores** hay que llamar `onResize()`: el lienzo WebGL
     conserva su tamaño en píxeles y se monta encima del panel derecho o de la cinta. El
     `overflow:hidden` de `#ct` y el `ResizeObserver` sobre `#vpwrap` son los otros dos frenos.
-14. El ajuste manual de la compensación guarda la **diferencia** contra lo calculado, no el valor
+13. El ajuste manual de la compensación guarda la **diferencia** contra lo calculado, no el valor
     absoluto: así sigue significando lo mismo si cambia la ganancia o la pieza medida.
-15. La cuenta de la recta (`feed - trim(i) - trim(i-1)`) estuvo copiada en **cuatro** funciones a la
+14. La cuenta de la recta (`feed - trim(i) - trim(i-1)`) estuvo copiada en **cuatro** funciones a la
     vez. Ahora vive solo en `straightOf()` / `rowLengths()`, y `machineFeeds()`, `twistSpanOf()`,
     `buildPath()` y `bendStations()` la consumen. No la vuelvas a escribir a mano.
-16. `Recta` es lo único que se teclea; `Avance` es de solo lectura. Pero **el estado sigue siendo
+15. `Recta` es lo único que se teclea; `Avance` es de solo lectura. Pero **el estado sigue siendo
     `feed`**: es lo que va al JSON y a `command[]`. Al cambiar un radio o un
     ángulo se conserva la RECTA y se mueve el avance, nunca al revés. Si inviertes esto, la tabla
     deja de hacer lo que el usuario pidió.
-17. `Recta` y su Δ trabajan sobre la **base**, como el resto de columnas editables; `Avance` y
+16. `Recta` y su Δ trabajan sobre la **base**, como el resto de columnas editables; `Avance` y
     `Σ L` se leen del modelo **efectivo**. Sumar un Δ a `feed` suma exactamente lo mismo a la
     recta, porque los trims no dependen del avance: por eso el Δ de la columna de recta es el
     mismo `data-bd` con `data-k="feed"` de siempre, y la compensación no cambió nada.
-18. Los campos numéricos declaran `step="any"` y llevan el paso en **`data-step`**. Con un paso
+17. Los campos numéricos declaran `step="any"` y llevan el paso en **`data-step`**. Con un paso
     real en `step`, el navegador marca inválido todo lo que no cae en su rejilla —con `step=".1"`
     un `17.905` es un error— y redondea al usar las flechas. `stepField()` lee `data-step`, y
-    `nfield()` (`panels.js`) es quien emite los dos atributos: úsalo en vez de escribir el
+    `nfield()` (`panels/fmt.ts`) es quien emite los dos atributos: úsalo en vez de escribir el
     `<input>` a mano.
-19. Los valores de campo editable van por **`nx()`**, no por `fx()`: rellena a dos decimales y
+18. Los valores de campo editable van por **`nx()`**, no por `fx()`: rellena a dos decimales y
     muestra el tercero solo cuando lo hay, así repintar no se come lo que alguien tecleó. `fx()`
     se queda para las celdas de lectura, donde el ancho fijo alinea mejor.
-20. Enfocar un campo **selecciona su valor** y vaciarlo no escribe un `0`: se devuelve lo que
+19. Enfocar un campo **selecciona su valor** y vaciarlo no escribe un `0`: se devuelve lo que
     había. Las dos cosas están en `bind()`, en `focusin` y al principio de `change`. El
     `preventDefault()` sobre el `mouseup` siguiente es lo que impide que el clic deshaga la
     selección; sin él, seleccionar al enfocar no sirve de nada con el ratón.
-21. Con el tema en `system`, el CSS sigue solo a la preferencia del sistema pero **el lienzo WebGL y
+20. Con el tema en `system`, el CSS sigue solo a la preferencia del sistema pero **el lienzo WebGL y
     la cinta no**: hay un `matchMedia` en `app/theme.ts` que les avisa. Si se te olvida, el 3D se
     queda con el fondo del tema anterior.
-22. **Las etiquetas del 3D también leen sus colores del CSS.** Llevaban un `#fff` a pelo para la
+21. **Las etiquetas del 3D también leen sus colores del CSS.** Llevaban un `#fff` a pelo para la
     seleccionada y era blanco sobre blanco en tema claro. El estado va por clase (`.lbl.sel`) y el
     color por token (`--lblTxt`, `--lblSel`), definidos en las dos paletas. Y la cota lleva su color
     de identidad en un punto, no en el texto: un color elegido sobre fondo oscuro se lava sobre
     fondo claro.
-23. **Los vectores de desviación están acotados** al 6 % de la longitud desarrollada. Se dibujan
+22. **Los vectores de desviación están acotados** al 6 % de la longitud desarrollada. Se dibujan
     ×exag para que una décima se vea, pero con la punta a 20 mm y ×25 salían barras de medio metro
     que tapaban la escena. La dirección se sigue leyendo; la magnitud la dan la tabla y el color.
-24. **La celda de compensación es de hoja de cálculo**: un operador al principio opera sobre lo
+23. **La celda de compensación es de hoja de cálculo**: un operador al principio opera sobre lo
     MOSTRADO (`v`), `c` es el cálculo del lazo y `=` fuerza absoluto. Antes `+2` iba sobre `c` y
     `-3` era el número −3, que no era coherente. Es lo único de la interfaz que cambió de
     significado, y está en el README.
-25. **El lazo puede leer la mediana del lote** (`comp.batch`). Compensar desde una sola pieza mueve
+24. **El lazo puede leer la mediana del lote** (`comp.batch`). Compensar desde una sola pieza mueve
     el comando por la dispersión de esa pieza; con varias, la mediana deja pasar solo lo que se
     repite. La columna ±σ de la tabla de desviación es lo que separa un doblez fuera de sitio de
     uno con mala puntería.
@@ -742,16 +608,16 @@ punteada. Deja ver de un vistazo cuál doblez está fuera. Es clicable.
 ```bash
 cd web && npm run check            # typecheck -> pruebas -> build -> banco, de una
 cd web && npm run typecheck        # tsc --noEmit, con strict
-cd web && node test_motor.js       # 480 pruebas; todas deben pasar
+cd web && node test_motor.js       # 529 pruebas; todas deben pasar
 cd web && node build.mjs           # regenera index.html y barcomp_viewer.html
-cd web && node tools/ui_test.mjs   # 230 pasos de interfaz en Edge headless
+cd web && node tools/ui_test.mjs   # 259 pasos de interfaz en Edge headless
 ```
 
 Dos herramientas más, que no son pruebas sino evidencia:
 
 ```bash
 node tools/strip_diff.mjs src/x.ts   # ¿el puerto a TS fue SOLO anotaciones?
-node tools/export_surface.mjs        # los 83 exports del motor, con tipo y aridad
+node tools/export_surface.mjs        # los 167 exports del motor, con tipo y aridad
 node tools/ui_test.mjs <pág> tools/probe_perf.js   # coste de la escena
 node tools/bundle_report.mjs         # de qué está hecho el bundle
 ```
@@ -777,7 +643,7 @@ de tema, recorre la tabla entera solo con el teclado, arrastra los dos tiradores
 extremos, simula una pieza, aplica compensación, duplica un modelo y cámbiale un ángulo, prueba
 los tres anclajes, inserta y borra puntos, genera el reporte.
 
-Si agregas una función al motor, agrégale una prueba. `test_motor.js` importa `src/engine.js` como
+Si agregas una función al motor, agrégale una prueba. `test_motor.js` importa `src/engine.ts` como
 módulo ES —el mismo archivo que esbuild empotra en el HTML—, así que no hay copia que se
 desincronice ni contexto `vm` que preparar.
 
@@ -785,20 +651,8 @@ desincronice ni contexto `vm` que preparar.
 
 ## 9. Variantes y edición de puntos
 
-> **Aquí vivía «La versión Python».** Hasta el 2026-09-08 hubo un segundo motor
-> (`python/barcomp/core.py`, numpy) con su propio visor Tkinter/matplotlib, que compartía el esquema
-> JSON y se verificaba contra este con `compare_engines.py`. **Salió del alcance por decisión del
-> dueño del proyecto:** lo que importa es que la página web funcione bien, y mantener dos motores
-> costaba el doble por cada cambio de cinemática. Lo que aquel apartado servía —que la cinemática no
-> derive en silencio— lo cubre hoy el fixture congelado de `web/test/fixtures/`, que compara contra
-> PI esperados y no contra otra implementación.
->
-> **Dónde está ahora:** el 2026-09-09 se movió a `../BARCOMP Python/`, una carpeta hermana de este
-> repo, y **queda como un proyecto aparte que ya no se toca**. No lo sincronices, no lo cites en
-> comentarios nuevos y no lo uses para abrir archivos de producción — se quedó en `barcomp/2.2` y su
-> `load_json()` nunca miró el esquema, así que un archivo de hoy lo abre sin avisar de nada.
-
-Lo que sigue no era de Python: son dos mecanismos del MOTOR, y los dos están vivos en el visor web.
+> Aquí vivía «La versión Python». El motor gemelo salió del alcance el 2026-09-08 y vive
+> fuera del repo: ver §0 y §11. Lo que sigue son dos mecanismos del MOTOR, vivos en el visor.
 
 ### Variantes: varios modelos comparables sobre un extremo común
 
@@ -846,42 +700,27 @@ avisar.
 
 ## 10. Estado del proyecto y qué falta
 
-Es un **alfa de demostración**, sin datos reales todavía. Lo que sigue, en orden de impacto:
+**En `README.md` › «Estado».** Es un alfa de demostración: `simulate()` es el único bloque
+que inventa números y sigue ahí a propósito —es la única forma de contestar «con esta
+dispersión de medición, ¿converge el lazo o se pone a oscilar?» antes de gastar material—,
+etiquetado como lo que es. Lo que falta y en qué orden, y qué espera cada cosa, está en
+[`.auditoria/plan-fases.md`](.auditoria/plan-fases.md).
 
-1. **Reemplazar `simulate()` por datos reales.** Es el único bloque que inventa números. Los
-   valores de springback (`sbW`, `sbT`) deben ajustarse contra piezas reales, y **separados por
-   orientación**: doblar contra el ancho y contra el espesor, con el laminado a lo largo, tiene
-   constantes elásticas distintas.
-2. **Extraer los PI desde la nube de GOM.** Hoy el visor recibe puntos ya extraídos. Falta:
-   segmentar tramos rectos → ajustar rectas robustas (RANSAC) → intersectar ejes → PI. Quién lo
-   escriba está sin decidir: espera la respuesta A.3 de metrología.
-3. **Confirmar qué parámetros acepta la dobladora.** Si solo toma ángulo, `doRot` y `doFeed` se
-   quedan apagados y el sesgo de rotación hay que atacarlo por calibración del robot.
-4. Flexión por gravedad en el fixture: en 1.7 m de aluminio puede ser del orden de las tolerancias.
-5. Trazabilidad histórica por lote (el esquema ya guarda varias piezas por archivo).
-6. ~~Consolidar en un solo motor.~~ **Hecho el 2026-09-08:** el motor de Python salió del alcance
-   y el único que queda es `web/src/engine.ts` (ver §9).
-
-### Hallazgo de la validación, importante para las decisiones de diseño
-
-Corrigiendo **solo ángulos**, los ángulos convergen a 0.15° pero la desviación de la punta libre se
-estanca en ~5 mm, porque el sesgo de rotación de ±0.35° se acumula a lo largo de la cadena.
-Activando también rotación y avance, la punta baja a 0.17 mm. Si el criterio de aceptación es la
-posición del extremo maquinado, corregir solo ángulos no basta.
-
-Ganancia recomendada **0.6–0.8**, nunca 1.0: al 100 % el lazo oscila con el ruido de medición.
+Dos cifras de esa sección que conviene tener presentes al decidir cualquier cosa del lazo,
+porque son medidas y no opiniones: corrigiendo **solo ángulos** la punta se estanca en ~5 mm
+—el sesgo de rotación de ±0.35° se acumula a lo largo de la cadena— y con rodado y avance baja
+a 0.17 mm; y la ganancia va de **0.6 a 0.8, nunca 1.0**, porque al 100 % el lazo oscila con el
+ruido de medición.
 
 ---
 
-## 11. Auditoría 2026-09-07 y plan de beta 1.0
+## 11. Lo medido, lo decidido y lo descartado
 
-Un panel de siete auditores revisó el proyecto en paralelo. Informe completo, mapa y
-solicitud de datos a metrología en `.auditoria/`. Aquí solo lo que hace falta para
-trabajar por fases en sesiones siguientes.
-
-**Veredicto en una frase:** como alfa de demostración está por encima de lo normal; como
-programa a punto de recibir barras reales no está listo, porque **hoy nada distingue un
-número correcto de uno que solo lo parece**.
+Dos auditorías (2026-09-07 y 2026-09-10) y el alcance nuevo que pidió el taller dejaron
+cifras que costaron una medición y decisiones que siguen gobernando el código. **Esto no es
+un diario**: el relato de cada cambio está en su mensaje de commit, y el estado de las
+tareas en `.auditoria/plan-fases.md`. Aquí solo lo que hay que tener delante para tocar el
+motor sin deshacer una decisión sin enterarse.
 
 ### Decisión que manda sobre todo lo demás
 
@@ -890,576 +729,45 @@ reales que no se pueden modificar. La corrección no es invertirlos: es **congel
 fixture de pruebas** para que ningún cambio futuro los mueva en silencio. Tocar `ANG_DIR` o
 `ROT_DIR` obliga a subir `SCHEMA` y a regenerar el fixture a propósito.
 
-### Reparto de modelo
-
-**[O] Opus** — cinemática, esquema, parser de datos externos, diseño del lazo, arquitectura.
-**[S] Sonnet** — ediciones de alcance cerrado: CSS, i18n, aplicar `esc()`, deduplicar, rutas
-portables, guardas de existencia, mensajes de error.
-Regla: si se describe en una frase sin ambigüedad y no toca números que van a la máquina,
-es de Sonnet.
-
-### ✔ Fase 0 · Contención — CERRADA (2026-09-08)
-
-Las cuatro redes en verde: `tsc` limpio, 225 pruebas de motor, 145 pasos de
-interfaz, build reproducible. Lo que sigue está hecho.
-
-- [x] **C7 · Sello de versión** [O] — `/*__VER__*/` en `shell.html`, sustituido en
-      `build.mjs` por SHA + fecha, pintado en la barra de estado. Va primero: sin esto
-      ningún arreglo se rastrea hasta una copia concreta.
-- [x] **C3 · Congelar el comportamiento actual** [O] — `SCHEMA` a `barcomp/2.3` +
-      `web/test/fixtures/` con PI esperados tomados de lo que funciona hoy.
-- [x] **A5 · Rechazar esquemas desconocidos** [S] — `SCHEMA_LEGACY` existe y no se usa;
-      hoy `barcomp/9.9` se lee como cinemática 1.0.
-- [x] **C1+A4 · Alineación de rama y eje no observable** [O] — el hallazgo más grave:
-      con 0.1 mm de ruido `compensate()` reescribe 68.4° como 170.8°. `alignBranch()` en
-      `measuredModel`, `deviations`, `bendStats`, `medianPart`.
-- [x] **C2 parcial · Blindar el CSV** [O] — exigir 3 o 4 columnas numéricas y rechazar la
-      línea ambigua en vez de recortar por la derecha; detectar coma decimal; verificar
-      `pts.length - 2 === bends.length`.
-- [x] **C5 · SIM/MED visible en Compensar** [S] — `#app.m-comp #rt{display:none}` oculta
-      la insignia justo donde se decide sobre material.
-- [x] **C6 · Marcar los dobleces sin medir** [O] — hoy se pintan `+0.000`, idénticos a
-      uno perfecto.
-- [x] **C8 · `beforeunload` con documento sucio** [S]
-- [x] **A1 · Guardas del lazo** [O] — banda muerta, tope de Δ, ganancia máx. 1.0, n≥3.
-
-**Lo que cambió respecto de lo que decía la auditoría.** QA-01 daba por hecho que
-un archivo `2.2` abriendo espejado era corrupción. No lo es: `bb76bde` lo decidió a
-propósito —los datos del taller ya traían el sentido contrario y se cambió el motor,
-no los archivos— y convertirlos habría deshecho ese cambio. Así que **no se migra
-nada**: `SCHEMA` sube a `barcomp/2.3` para que los archivos nuevos se identifiquen
-solos, y `barcomp/2.2` entra en `SCHEMA_AMBIGUOUS`: se lee tal cual, sin tocar un
-número, y se avisa de que hay que mirar la FORMA en el 3D.
-
-**Lo que quedó a medias, dicho a las claras.** `AXIS_MIN_DEG` (el umbral de eje no
-observable) vale 1.0 y es **provisional**: la regla es `atan(3σ/avance)` y σ no se ha
-medido. Con ruido alto, el ángulo APARENTE de un doblez casi recto supera el umbral
-y la guarda no dispara. El mecanismo está y probado (170/200 casos inventados → 0
-con el umbral bien puesto); el número se recalcula cuando llegue A.6.
-Lo mismo con la banda muerta del lazo (`dead: 0.05`), elegida por debajo de la
-tolerancia típica a falta de σ real.
-
-**Cierre de fase:** un CSV con columnas de más se rechaza diciendo por qué; un CSV corto
-avisa cuántos dobleces quedaron sin medir; Compensar dice SIM o MED sin salir del modo; el
-pie muestra el SHA; `npm test` incluye el fixture congelado y el barrido de eje, en verde.
-
-### ✔ FASE 1 CERRADA — 2026-09-08 · Ganancias rápidas
-
-Hechos (2026-09-08): **A6** y **A7**, los dos que dolían al importar un lote.
-
-- **A6** — `io.ts` lee con `File.text()` y `Promise.allSettled()`. Antes, con `FileReader`
-  y sin `onerror`, un archivo que el sistema no dejaba leer —movido, o abierto por otro
-  programa— dejaba el contador del lote sin llegar a cero: el callback **no se llamaba
-  nunca** y el lote se colgaba en silencio. Ahora `pickFiles()` entrega dos listas, lo
-  leído y lo ilegible, y lo ilegible sale nombrado en el mismo aviso que el CSV que no
-  servía. Clave nueva `fileUnread`.
-- **A7** — el `commit()` salió del bucle: importar 20 piezas gastaba 20 pasos de deshacer
-  y serializaba el documento 20 veces. `addCsvPiece()` no toca el historial;
-  `importCsvText()` apila el paso de una pieza suelta e `importCsvBatch()` apila uno solo
-  para el lote.
-- El grupo que toca disco se mudó a **`app/files.ts`**: `actions.ts` pasaba de las 400
-  líneas de la regla. Quedan en 293 y 169.
-
-Hechos también: **A3**, **M2** y **M3**, los tres que dejaban pasar geometría imposible.
-
-- **A3** — `trim = radio · tan(θ/2)` tiene una asíntota en θ=180: daba 4.9e17, y a 181°
-  salía NEGATIVO (la recta crecía al doblar más). Dos capas, y la diferencia importa:
-  `bendDecomp` **envuelve** a (-180, 180], que es exacto —girar 200° es girar −160°, la
-  misma pieza—; `trimOf` **topa** en `BEND_MAX_DEG = 170`, que sí es una decisión, y el
-  doblez topado sale listado en vez de disimulado.
-- **M2** — la celda roja de `recta < 25` ya existía en `model.ts` y `focus.ts`, con el
-  número escrito a mano en los dos. Ahora `engine/feasible.ts` tiene `STRAIGHT_MIN_MM` y
-  `feasibility()`, y un `.warnbox` dice con palabras qué dobleces no caben, separando la
-  recta CORTA (umbral discutible) de la NEGATIVA (herramentales cruzados, sin umbral que
-  valga). Se recalcula en `updateModelDerived()` además de al repintar: teclear una recta
-  no reconstruye el panel.
-- **M3** — dos PI a 0.3 mm dan una dirección de puro ruido y de ahí un doblez inventado
-  que además envenena la fila siguiente. Se rechaza al LEER (`parsePointsCsv`), no dentro
-  de `ik()`: editar a mano puede pasar por estados raros, pero un ARCHIVO así está mal
-  extraído. `PI_MIN_MM = 1.0`, provisional como los demás.
-
-**Un tercer valor provisional**, además de AXIS_MIN_DEG y COMP_DEFAULT.dead:
-`STRAIGHT_MIN_MM = 25` y `PI_MIN_MM = 1.0` en `engine/feasible.ts` y `engine/doc.ts`. El
-primero es una cota de la MÁQUINA (mordaza + carrera) y espera B.2; el segundo es `5σ` y
-espera A.6, igual que los otros dos.
-
-Hechos también: **A12**, **A14**, **A13** y **M1**, los cuatro de «el programa no dice lo
-que pasó».
-
-- **A12** — un texto que la celda Δ no entiende ya no se esfuma. Se queda a la vista en
-  rojo (`.badcell`) con el tooltip de qué se admite. Volver al valor de antes, que es lo
-  que hacía, es EXACTAMENTE lo que se ve cuando el ajuste sí se acepta y no mueve nada:
-  dos resultados opuestos con la misma pinta. `markRejected()` está en `panels/focus.ts`,
-  que ya era el dueño de los retoques dirigidos posteriores al repintado, y **no roba el
-  foco**: el `change` salta al SALIR del campo, el cursor ya está en otra celda.
-- **A14** — `cellNote` decía que `+2` operaba sobre lo que calculó el lazo. Desde el
-  cambio del parser opera sobre lo MOSTRADO. Reescrito en es/en/de con los tres grupos
-  nombrados: relativo a lo que ves / relativo al lazo (`c`) / absoluto (`=`). Con él, los
-  dos comentarios de `panels/comp.ts` que repetían la versión vieja y remitían a un
-  `engine.js` inexistente (el parser vive en `engine/expr.ts`).
-- **A13** — el `.warnbox` ya estaba tokenizado; lo que faltaba era `--dim2`, a 3.1:1 en
-  oscuro y 3.2:1 en claro, bajo el 4.5:1 de WCAG 1.4.3. No es decorativo: lo llevan la
-  ayuda de las celdas, los rótulos de sección y las columnas de solo lectura, que son
-  DATOS, a 10 px. Sube en los dos temas medido contra `--panel2`, el fondo más apretado
-  donde aparece. **Consecuencia asumida:** queda muy cerca de `--dim`, así que la
-  jerarquía entre los dos la lleva ya el tamaño y la caja, no el color. El banco mide el
-  contraste real con `getComputedStyle`, así que el umbral no se pierde en silencio.
-- **M1** — cuatro causas de fallo al abrir, cada una con su frase y con qué hacer: no es
-  JSON (casi siempre el CSV de puntos o el informe del escáner), es JSON pero no una pieza
-  (`NotADocError`, tipo propio para que el motor no redacte texto de usuario), esquema
-  desconocido, y roto por dentro —esta conserva la línea técnica, pero DETRÁS de la frase
-  que dice qué pasó, no en su lugar. `openError()` se exporta y el banco comprueba que las
-  cuatro dan textos distintos, y distintos en los tres idiomas.
-
-Hechos también: **M8** y **M9**, los dos de entrada sin validar.
-
-- **M8** — las etiquetas del 3D eran el ÚNICO innerHTML por donde entraba texto que no
-  escribe el programa: el nombre de una cota, que llega de un `.json`. El color iba además
-  dentro de un `style="background:…"`, o sea que una comilla se salía del atributo. Nuevo
-  **`src/safe.ts`** —módulo hoja, sin dependencias, para que motor, 3D y paneles lo usen sin
-  arrastrarse entre ellos— con `esc()` (la definición es UNA ahora; `panels/fmt.ts` la
-  reexporta) y `safeColor()`, lista blanca de hexadecimal, que es lo único que este programa
-  escribe nunca: todos los colores salen de un `<input type="color">`. El filtro de carga
-  está en `fromDoc()`, el único sitio por donde pasan todos los documentos que se abren.
-  **Bajo `file://` esto no es paranoia de servidor:** un `<img onerror>` colado por el
-  nombre de una cota corre con acceso al disco del taller, y el `.json` va y viene por
-  correo y por USB entre calidad y la máquina. Un `red` escrito a mano pierde el rojo y cae
-  al color de reserva: es el precio de una lista blanca que se comprueba de un vistazo.
-- **M9** — las claves de `data-*` las escribe este mismo programa, así que en marcha son
-  buenas; el problema es que eso era una SUPOSICIÓN. El precio de equivocarse es una clave
-  que nadie declaró dentro de `ST.comp`, o un NaN dentro de la geometría, que se propaga a
-  las longitudes, a los PI y a la desviación sin un solo error en la consola. Las listas
-  blancas se derivan de los `*_DEFAULT` congelados, no escritas a mano: una lista a mano se
-  queda vieja el día que se agrega un campo, y lo hace en silencio. De paso, `onChange()`
-  iba en **88 líneas**, sobre el límite de 60: repartido en seis grupos que devuelven si el
-  evento era suyo.
-- **`engine/csv.ts`** sale de `doc.ts`, que con M8 pasaba de las 400 líneas. No comparten
-  nada: `doc.ts` habla de versiones del formato y de migraciones, el CSV habla de
-  separadores y de columnas. Dependencia en un solo sentido, sin ciclo.
-
-Y el último grupo: **M10**, **A2**, **A10**, **M14**, **M15**, **B2**, **B3**, **B4**, **B5**.
-
-- **M10** — `cssVar()` llama a `getComputedStyle()` sobre `:root`, que fuerza recálculo de
-  estilo. Dentro del bucle de la cinta eran hasta cinco por doblez —setenta y cinco en una
-  pieza de quince— y la cinta se repinta con cada tecla que se toca en la tabla. Se leen una
-  vez por repintado; el color sigue viniendo del CSS, que es la regla, y lo que cambia es
-  CUÁNTAS VECES se pregunta. De paso `drawRibbon()` iba en 80 líneas: partido en
-  `drawFrame()` (el armazón, que no depende de ningún doblez) y `drawColumns()`.
-- **A2** — `gainR`/`gainF` existían en el motor desde el principio; lo que faltaba era DÓNDE
-  tocarlas. El panel solo enseñaba «canto» y «plano», así que el 0.5 que nadie eligió era
-  intocable desde el taller. Cada una aparece solo con su corrección encendida, y el porqué
-  va en el tooltip y no en una línea de ayuda: en COMPENSAR cada línea de texto arriba son
-  filas de comando que se dejan de ver. La rejilla pasa a `fgrid pair` por lo mismo, y con
-  eso el bloque ocupa MENOS que antes aun con las cuatro ganancias.
-- **A10 + B5** — los dos bancos llevaban la ruta de UNA máquina escrita a mano, la del
-  navegador y la de la página: solo corrían en el portátil donde se escribieron, y el CI no
-  habría podido ejecutarlos nunca. Nuevo `tools/edge.mjs`: `EDGE` manda sobre todo, y si no
-  está se busca Edge, Chrome o Chromium en las rutas de las tres plataformas y en el PATH.
-  De paso barre los perfiles huérfanos al EMPEZAR —había seis— en vez de insistir al
-  terminar, que es cuando Edge todavía tiene archivos tomados.
-- **M14** — las cuatro dependencias sin `^`. Con el rango, dos `npm install` en fechas
-  distintas dan dos artefactos distintos y el diff de `index.html` en el CI sería ruido
-  permanente. `engines: node >=22.18`.
-- **M15** — el build compilaba con `legalComments: 'none'`, o sea que **borraba el aviso de
-  copyright de three.js del artefacto**. Cada copia del HTML, la de Pages y la del USB, es
-  una redistribución de three.js, y su licencia MIT pide que el aviso viaje con ella. Ahora
-  es `'eof'`, hay `THIRD-PARTY.md` con el texto completo, y **el build FALLA** si el aviso
-  no quedó dentro. **La licencia de BARCOMP sigue pendiente a propósito:** con qué licencia
-  publica su trabajo el dueño del proyecto no es decisión de nadie más.
-- **B2** — había CUATRO copias de `$()` con la misma firma por casualidad, no por contrato.
-  Una sola, en `src/dom.ts`.
-- **B3** — `parseFloat` se para en el segundo punto: «1.2.3» daba 1.2, o sea la celda se
-  quedaba con un valor que nadie escribió. El trozo entero tiene que SER un número.
-- **B4** — comentarios que remitían a `app.js`, `scene.js`, `ribbon.js` y `engine.js`;
-  cabeceras que decían esquema `2.2` cuando `SCHEMA` es 2.3; la cuenta de claves de i18n
-  (decía 169, son 239); las cifras del README.
-
-**Deuda estructural: resuelta el 2026-09-08**, después de cerrar la fase. `i18n.ts` (518) y
-`types.ts` (411) eran TABLAS DE DATOS y se partieron por su corte natural —idioma y
-dominio— sin tocar una línea de lógica: `i18n/{keys,es,en,de}.ts` y
-`types/{model,process,doc,state}.ts`, los dos con barril, así que nadie que importe nota el
-reparto. De paso, los tres diccionarios se anotan ahora `Record<I18nKey, string>`: una clave
-que falte en uno es un error de COMPILACIÓN, que era la promesa desde el principio y hasta
-ahora solo la sostenía la prueba. Verificado quitando una clave a propósito.
-
-`kinematics.ts` (490) **se queda, como excepción consciente y anotada en su cabecera.** No
-tiene corte natural: `fk`, `ik`, `bendDecomp` y las longitudes comparten la convención, y
-separarlos la deja escrita en dos sitios, que es justo el fallo que `SCHEMA_LEGACY`
-documenta tres veces. Un refactor ahí no gana nada funcional y arriesga los números que van
-a la máquina. Si algún día se parte, se parte como salió `feasible.ts`: por lo que ya se
-está separando solo.
-
-Redes al cerrar: `tsc` limpio, **261** pruebas de motor, **162** pasos de interfaz, build
-reproducible con las cuatro dependencias fijadas.
-
-### CI — montado el 2026-09-08 (A9 + A11, D3 resuelto)
-
-`.github/workflows/ci.yml` corre lo mismo que `npm run check` sobre Node **22.18** —el
-suelo declarado en `engines`— y sobre 24, más dos comprobaciones propias del CI.
-
-**D3 resuelto: `index.html` se sigue versionando**, y el CI lo compara SIN el sello. El
-sello es `git rev-parse --short HEAD` al compilar, o sea el commit ANTERIOR al que lleva el
-artefacto: no puede coincidir, por construcción. Todo lo demás sí, y con eso se pillan los
-dos fallos reales —editar `index.html` a mano, y commitear fuente sin recompilar. `sucio`
-sí se compara.
-
-**Regla de flujo:** los dos commits de un cambio —la fuente y el «build: regenerar»— se
-empujan JUNTOS. El disparador evalúa la punta; empujar el de fuente solo deja el CI en rojo
-con razón.
-
-### Fases siguientes (resumen)
-
-- **Fase 1 · Ganancias rápidas** — 20 arreglos de esfuerzo S, casi todos [S]. Destacan:
-  `File.text()`+`allSettled` en `io.ts` (hoy un CSV ilegible cuelga el lote sin avisar),
-  sacar `commit()` del bucle de importación, guarda de θ en `trimOf`, enseñar
-  `machineFeeds`, banco de UI portable, fijar exacto esbuild y typescript.
-- **Fase 2 · Estructural** — ⏳ ARRANCADA 2026-09-08, y **recortada por decisión del
-  cliente del proyecto**: todo lo que dependa de los modelos CAD y de los archivos de
-  inspección se aplaza al final, como actualización posterior a la beta. No está
-  descartado, está esperando —llevaba semanas parado por una respuesta que no llega— y
-  en el plan queda escrito qué respuesta despierta cada punto.
-  Hecho: los dos correos listos para enviar (`.auditoria/correo-a-metrologia.md` y
-  `correo-b-maquina.md`), la guarda de ESCALA del CSV, **la herramienta de fixture**
-  (`engine/fixture.ts` + su pestaña) y la carpeta `piezas/` apartada del repo público.
-  Sigue ⛔ pero NO aplazado: la exportación de comandos a la máquina —hoy no existe
-  ninguna— porque depende del manual de la dobladora (B.1 y B.2) y no del escáner.
-  Sigue ⛔ y a medias: la flecha por gravedad (M6); su geometría ya está modelada, falta
-  el escaneo de barra recta o los datos del material.
-  **Aplazado:** mapeo de columnas por nombre (A.1), prealineación al datum (A.4), el
-  extractor RANSAC (A.3), cotejar el nominal contra el CAD (A.7).
-  **No se inventa ninguno de esos formatos**: el error no se ve hasta que la barra está
-  doblada.
-- **Fase 3 · Cierre de beta** — ✔ CERRADA 2026-09-08, los cinco puntos. Pruebas de
-  `history.ts` (M12, 33 sin navegador; la propiedad que lo sostiene es
-  `snapshot(restore(s)) === s`). Puertas del resorte (M4): `SB_MIN_N = 5`,
-  `SB_MIN_SPAN_DEG = 10` y `SB_MIN_PER_SIDE = 2` contra el punto de palanca; el
-  resultado va en `SbFit.trend` y la pantalla dice qué FALTA en vez de callarse.
-  Tolerancia no solo por color (M13): `!` y `!!` por CSS, que cubre de una vez todos
-  los sitios donde se usa `cls()`. `rebuildGroup(k)` (A8) **medido y descartado**: ~18 ms
-  con 13 piezas contra un presupuesto de 250, y la medición queda como paso de banco.
-  Y `panels/` ya no importa de `app/` (B1): los contadores de deshacer viven en `ST.hist`.
-
-### Un solo motor — 2026-09-08
-
-Después de cerrar la Fase 3, el dueño del proyecto retiró del alcance el motor de Python y su
-visor Tkinter: lo que importa es que la página web funcione bien. Detalle completo en
-`.auditoria/plan-fases.md`, «Retirada del motor de Python». Lo que hay que saber para trabajar:
-
-- **El motor es uno**, `web/src/engine.ts`. No hay nada que replicar ni que sincronizar.
-- **El criterio de aceptación pasa a ser el fixture congelado** de `web/test/fixtures/` (C3).
-  Es más débil que dos implementaciones independientes —congela lo que sale hoy, y si hoy
-  está mal, congela el error— y se acepta a sabiendas: los signos ya estaban congelados a
-  propósito, y `core.py` llevaba desde antes de la Fase 0 sin actualizarse, así que la red
-  cruzada ya solo cubría la cinemática y no las guardas.
-- **Los archivos de versiones anteriores siguen abriéndose.** El dueño avisó que ya no tiene
-  archivos viejos, pero `migrateModel()` no se toca: cuesta cero mantenerlo y su ausencia se
-  paga con geometría equivocada y sin aviso, que es justo lo que le pasa al Python retirado.
-
-### Fase 4 · lo que no depende de nadie de fuera — arrancada 2026-09-08
-
-Con la Fase 2 detenida por respuestas que no llegan, esto es lo que sí se puede
-hacer. Elegido por el dueño del proyecto entre cuatro candidatos.
-
-**✔ Umbrales configurables — hecho 2026-09-08.** Los cuatro números que deciden
-que un dato no se puede creer estaban compilados dentro del HTML: el día que se
-mida σ había que recompilar, volver a publicar y volver a copiar el archivo a
-cada USB para mover uno. Ahora viven en `engine/lims.ts`, viajan en el JSON de
-la pieza y se teclean en la pestaña **Límites** de Modelar.
-
-- `axisMin` · `piMin` · `scaleMin` · `straightMin` en `ST.lims`, y con ellos las
-  cuatro guardas del lazo que existían desde la Fase 0 y **nunca tuvieron dónde
-  tocarse** (`dead`, `deadFeed`, `maxStep`, `maxStepFeed`): decidían el comando
-  de máquina desde un valor por defecto que nadie eligió.
-- **Se pasan por parámetro, no por variable global.** `feasibility(model, lims)`,
-  `parsePointsCsv(txt, lims)`, `csvScaleOk(pts, nom, lims)` y
-  `measuredModel(nom, pts, lims)` los reciben con el de fábrica por defecto, así
-  que el motor sigue siendo puro y las pruebas pueden mover un umbral sin tocar
-  estado compartido.
-- **Un umbral corrupto no apaga la guarda.** `limOf()` recorta al rango y manda
-  al valor de fábrica lo que no sea un número finito: un `NaN` ahí no rechazaría
-  NUNCA nada —toda comparación con NaN es falsa— que es el fallo exacto que
-  estas guardas existen para evitar. Se recorta al TECLEAR y al ABRIR, en el
-  mismo sitio.
-- **Que viajen en el archivo es la mitad del punto:** un `.json` guardado dice
-  con qué umbrales se juzgó esa pieza. Se guardan siempre, también cuando son
-  los de fábrica — un archivo sin la clave no dice «los de fábrica», dice «no se
-  sabe».
-- Entran en el deshacer, porque cambian el resultado y no la vista.
-- La pantalla dice de cada uno si está tocado y **qué respuesta espera** para
-  dejar de ser provisional (A.6 la σ del escaneo, B.2 la cota de la máquina), y
-  cuántas rectas de la pieza en pantalla está dejando fuera ahora mismo. Un
-  umbral sin consecuencia visible se teclea a ciegas.
-- **La pestaña NO está en Compensar**, aunque cuatro de sus ocho números sean
-  del lazo: ese modo no tiene barra de pestañas, y ponerla le come una fila de
-  comando a la tabla —medido: 4 filas donde se veían 5—. Los umbrales se dejan
-  puestos antes de doblar.
-
-**✔ Exportación de comandos a la máquina — hecho 2026-09-08.** Era el punto
-**B1/B2** de la Fase 2 y llevaba ⛔ esperando el manual de la dobladora. Se hace
-sin él, y sin inventarlo: `engine/machine.ts` escribe el comando con un **perfil
-configurable** —qué columnas y en qué orden, separador, decimales, milímetros o
-pulgadas, grados o radianes, el signo del ángulo y el del rodado, el rodado como
-incremento o como eje absoluto, encabezado, CRLF y fila de la cola— y la pestaña
-**Máquina** lo ajusta con una **vista previa que es el archivo**: la pinta
-`machineTable()`, la misma función que escribe el CSV, así que comprobar
-unidades y signos en pantalla vale para algo. El perfil viaja en el JSON.
-
-- **Sale del COMANDO, no del nominal.** `commandModel()` arma el modelo con
-  `ST.command`, porque en cuanto el lazo corrige algo las rectas del comando
-  dejan de ser las del nominal — y esa diferencia es el trabajo entero del
-  programa. Un ajuste manual escrito y sin aplicar no está en `ST.command`, y el
-  panel lo dice antes de exportar.
-- **Los signos invierten el ARCHIVO, no el motor.** `ANG_DIR` y `ROT_DIR` siguen
-  congelados; `signAngle`/`signRot` se aplican al escribir. Por eso son seguros:
-  una máquina puede tener el eje montado al revés sin que eso toque un número de
-  la cinemática. Hay prueba de que el modelo no se mueve al invertirlos.
-- **El rodado, incremento o absoluto.** Las dos formas describen la misma pieza
-  y hay controles de cada tipo; elegir la equivocada dobla bien la primera
-  estación y mal todas las demás. Las dos coinciden en la primera fila, que es
-  justo lo que engaña, y hay una prueba dedicada a eso.
-- **La fila de la cola deja vacías las columnas que no le tocan**, no en cero: un
-  cero en la columna del ángulo es un doblez de cero grados, o sea una
-  instrucción.
-- **La última columna no se puede quitar**: sin ninguna, `machineCsv()` volvería
-  al perfil de fábrica y el panel enseñaría cero columnas mientras el archivo
-  sale con cinco.
-- Lo caro de esto nunca fue escribirlo, sino acertar con unidades y signos. Eso
-  sigue pendiente de B.1/B.2 — lo que cambia es que ahora lo decide quien tenga
-  el manual delante, sin recompilar, y queda escrito en el archivo de la pieza.
-
-**✔ Accesibilidad de la tabla — hecho 2026-09-08.** Estaba diferido a después de
-la beta y se adelantó lo que se paga solo:
-
-- **Blanco de clic de 24×24** (WCAG 2.5.8 AA) en los botones de solo icono, que
-  medían ~10×12: fallar el botón de borrar en una lista de trece piezas es
-  prueba y error con consecuencias. Las filas de capa llegan a 24 px de alto por
-  el `<label>`, sin agrandar la casilla.
-- **Rótulo en los botones de solo icono** (`aria-label`): una ✕ suelta no dice
-  nada.
-- **La tabla de desviación se recorre sin ratón.** Sus filas seleccionaban un
-  doblez desde el principio, pero solo con el ratón: no había forma de tabular
-  hasta ellas. Ahora son enfocables, Enter y Espacio eligen, y ↑ ↓ suben y bajan
-  sin salirse de la tabla. El foco se vuelve a poner DESPUÉS del repintado
-  buscando la fila por su `data-r` — seleccionar reconstruye el panel entero y
-  el nodo de antes ya no está en el documento.
-- El banco lo mide con `getBoundingClientRect()` y con el foco real, no
-  comprobando que el CSS diga 24: lo que importa es el píxel que sale.
-
-### El amarre: la barra sujeta por pines — 2026-09-09
-
-Pedido por el dueño del proyecto y **fuera de la auditoría**: no es un hallazgo,
-es alcance nuevo. La barra deja de estar libre en el espacio.
-
-Un pedestal SOSTIENE y no impide nada; un pin **IMPIDE**. Con pines puestos, mover
-un ángulo ya no mueve libremente todo lo que viene después: la cadena choca
-contra ellos, la pieza se queda en una forma intermedia, y para quedarse ahí
-tiene que deformarse. Esa deformación no se reparte por igual —se concentra donde
-los vanos son cortos— y si en algún punto pasa del límite elástico, la barra no
-vuelve al soltarla: **la pieza que sale de la máquina no es la que dice la
-tabla.**
-
-**Cómo se resuelve, y por qué así.** La corrección se busca en el ESPACIO DE
-PARÁMETROS —ángulos y rodados— y no desplazando puntos: así lo que sale es una
-pieza que la cinemática puede describir, no una nube que ya no corresponde a
-ningún comando. Es la misma idea que sostiene la compensación (§1). El reparto
-entre estaciones lo decide la rigidez `EI/L`: doblar un tramo corto cuesta más,
-así que la deformación se va sola a donde la barra es más flexible. Mínimos
-cuadrados amortiguados, jacobiano numérico, sistema denso —treinta incógnitas
-como mucho— con `solveDense()` nuevo en `engine/math.ts`.
-
-**La propiedad que decide qué se puede afirmar:** con sección constante, **la
-FORMA no depende de E**. El módulo elástico multiplica todos los pesos por igual
-y se cancela en el reparto. E hace falta para pasar de ángulos a ESFUERZO, no
-para saber dónde queda la barra. Por eso la geometría se da con confianza y el
-esfuerzo lleva escrito que el material está sin confirmar. Hay prueba: cambiar E
-de 69 000 a 200 000 MPa no mueve un PI ni 1e-9 mm, y el esfuerzo cambia en la
-razón exacta de los dos módulos.
-
-**El interruptor es de verdad un interruptor.** Apagado, `restrain()` devuelve el
-MISMO objeto que entró —no una copia parecida— y el programa se comporta como
-antes de que los pines existieran. Lo comprueban una prueba de motor y un paso de
-banco que compara los PI uno a uno exigiendo diferencia CERO, no «pequeña».
-
-Lo que hay:
-
-- `engine/pins.ts` — `pinFit()` (contacto: dónde toca, qué hueco queda, si el pin
-  llega a la altura de la barra), `restrain()` (la forma sujeta, el codo de cada
-  estación, la curvatura, la tensión y el peor caso contra el límite elástico),
-  `seedPins()` (siembra alternando de lado: todos del mismo lado dejarían la
-  barra girar sobre ellos) y `sampleAt()` (el contacto se CONGELA en su longitud
-  desarrollada: buscar la muestra más cercana en cada iteración haría saltar el
-  residuo y el jacobiano saldría de ruido).
-- Pestaña **Amarre** en Modelar: el interruptor, los ajustes del solver, el
-  material, la tabla de pines y —la mitad que importa— **lo que el amarre le
-  cuesta a la pieza**: cuánto se mueve la punta respecto de la libre, dónde está
-  el peor codo, qué porcentaje del límite elástico se alcanza y en qué estación.
-- Dos capas nuevas en el 3D: los pines (cilindros, en su color si tocan y en el
-  de fuera de tolerancia si no llegan) y **la barra sujeta** sobre la libre, que
-  es lo que hace visible el motivo entero.
-- `ST.pins`, `ST.restraint` y `ST.mat` viajan en el JSON y entran en el deshacer:
-  mover un pin con el amarre puesto cambia la forma, o sea el resultado.
-- `ST.held` es CACHÉ, con firma de todo lo que entra en la cuenta. El solver
-  construye del orden de cien trayectorias, así que no se puede llamar en cada
-  repintado. Medido en el banco: 3–26 ms contra un presupuesto de 250.
-
-**Lo que esto NO es, dicho antes de que alguien lo confunda:** no hay elementos
-finitos, ni contacto con fricción, ni pandeo, ni torsión inducida por el amarre,
-ni plastificación parcial de la sección. Es un modelo de vigas con codos
-elásticos en las estaciones que ya existen. Es lo que se puede sostener con los
-datos que hay; cuando llegue el material confirmado y una pieza medida CON el
-fixture puesto, se contrasta contra ella.
-
-**Cómo se ve, sin tener que montar la escena a mano:** `ejemplos/` trae la misma
-pieza dos veces, con los mismos pines y el mismo ángulo movido, y una sola
-diferencia entre las dos — el interruptor. Se abren con «Abrir» y el segundo
-enseña las dos formas superpuestas. `ejemplos/README.md` lleva el guion y las
-cifras que tienen que salir, para poder contrastar lo que dice la pantalla.
-Los archivos son sintéticos y se regeneran con `npm run demo:archivos`.
-
-**Cómo se comprueba que funciona, sin creerse el comentario.** `npm run
-demo:amarre` corre cinco escenarios y enseña las cifras:
-
-1. **La prueba de la servilleta.** Una barra de un doblez, un pin contra la cola
-   y el eje congelado: hay una incógnita y un contacto, así que la única forma
-   de volver a tocar el pin es deshacer el ángulo. Predicción escrita antes de
-   calcular —`codo = −δ`— y sale con error de 0.001° a 0.004°. Si esto no
-   saliera, el solver no estaría resolviendo lo que dice.
-2. **Un pin empuja, no tira.** Con el ángulo movido al otro lado, la barra se
-   separa del poste y no se deforma nada. Que esto NO haga nada importa tanto
-   como que lo otro sí: un modelo que arrastrara la barra de vuelta se estaría
-   inventando una fuerza que el fixture no puede hacer.
-3. **El interruptor**, con los PI comparados uno a uno exigiendo cero.
-4. **El material no mueve la barra**: PI idénticos a 1e-9, esfuerzo escalado
-   exactamente por la razón de módulos.
-5. **Falsable**: apagar el pin que empuja tiene que cambiar el resultado, y un
-   pin más bajo que la barra no puede sujetar nada.
-
-**Dos fallos que cazó ese banco, y que no habría cazado ninguna prueba de las
-que ya había:**
-
-- **El contacto se buscaba sobre las MUESTRAS.** `buildPath()` no reparte
-  ninguna a lo largo de una recta, así que un pin —o un PEDESTAL, el mismo fallo
-  estaba ahí desde la herramienta de fixture— en mitad de una recta larga daba
-  como punto más cercano el final de esa recta, a medio metro, y de ahí salía
-  que no tocaba. Ahora se proyecta sobre la polilínea: `engine/path.ts`.
-- **El lado del pin se leía de la forma deformada.** Con un ángulo movido 3° la
-  barra rebasa el eje del poste, la lectura se invierte y el solver cierra el
-  contacto por la cara de atrás: una pieza que atravesó el pin, dada por buena.
-  El lado pasa a ser DATO del fixture (`Pin.side`, con `auto` para lo de antes).
-
-Los dos tienen prueba de motor propia.
-
-**Los pines se pueden inclinar, y por eso el contacto es 3D.** Mientras un pin
-era vertical bastaba la planta —dos rectas verticales guardan la misma distancia
-a cualquier altura—. Con `tilt` y `yaw` eso deja de valer: dos rectas cruzadas se
-acercan en UN punto, así que el contacto se resuelve entre el segmento del poste
-y la polilínea de la barra (`engine/contact.ts`), y lo que asoma de la sección se
-mide en la dirección en la que de verdad se tocan y no sobre la normal
-horizontal. Un pin a plomo da exactamente lo de antes. La columna «Dist.» pasa a
-ser la distancia en el espacio, y la nueva columna del ajuste dice si se tocan
-por el CUERPO del poste o por uno de sus cabos — que es lo que antes decía
-«Llega».
-
-**Y el poste tiene dos cifras, no una: LARGO y ALTURA.** El largo (`Pin.h`) es lo
-que mide el cilindro; la altura (`Pin.z`) es dónde ARRANCA su base sobre la mesa.
-Mientras hubo una sola, subir un pin obligaba a alargarlo, y alargándolo tocaba
-también por abajo — donde a lo mejor pasa otro tramo de la pieza. Con la altura
-aparte, un pin puede empezar en el aire: montado sobre un dado, un suplemento o el
-propio cuerpo del fixture. Lo que lo sostiene ahí no se modela, y está escrito:
-esto dice dónde está el cilindro, no de qué cuelga. Consecuencia directa en el
-motor: «Llega» pasa a mirar los DOS extremos del poste, porque desde que la base
-se levanta la barra puede pasar por DEBAJO igual que por encima, y las dos cosas
-son el mismo fallo. `z` viaja en el JSON y un archivo anterior abre con los pines
-apoyados en la mesa, que es donde estaban todos cuando se guardó.
-
-**Qué barra se enseña se elige en la pestaña**, con `Ver: Libre · Sujeta · Las
-dos`. Mueve las capas `nom` y `held`, que siguen estando en la paleta para quien
-las quiera por separado; lo que aporta es contestar la pregunta «¿cuál de las dos
-estoy mirando?» donde se hace. Con una sola en pantalla la barra va sólida; con
-las dos, la sujeta pasa a alambre — dos sólidos encajados se leen sucios, que es
-la misma regla que ya seguía el nominal con una pieza medida encima.
-
-**Contra qué barra se MIDE, se elige — y manda sobre toda la pantalla.** Con el
-amarre o la carga puestos hay dos formas y las dos preguntas son legítimas:
-contra la LIBRE —el diseño, la pieza fuera del fixture— o contra la que de verdad
-toma MONTADA. La primera dice en qué se diferencian los diseños y dónde estaría la
-pieza sin nada que la sujetara; la segunda, qué está pasando encima de la mesa. El
-selector está en la pestaña Amarre y viaja en el JSON (`restraint.refHeld`).
-
-Nació decidiendo solo con qué forma de la REFERENCIA se comparaban las tarjetas de
-modelo, y esa media medida era el problema que reportó el taller: se elegía
-«sujeta» y el fixture, los pines y las cotas seguían contestando sobre la barra
-libre, así que la pantalla mezclaba dos piezas sin decirlo. Hoy es UN interruptor y
-de él cuelgan las dos tablas —fixture y amarre—, las cotas, la flecha, el color de
-los apoyos en el 3D, dónde nacen los pedestales y los pines sembrados y las cifras
-de cada tarjeta. Se decide en un solo sitio, `shownModel()` en `state.ts`, y el
-resto obedece. Arranca en «sujeta»: con algo puesto, la barra que hay encima del
-fixture ES la sujeta, y una tabla que midiera la otra describiría una pieza que no
-está ahí. Elegir «libre» sigue valiendo, y entonces las dos tablas lo AVISAN — es
-una pregunta hipotética, y una pantalla que no lo dice se lee como la otra.
-
-Lo único que el interruptor NO mueve es dónde se COLOCA la pieza: el anclaje se
-mide siempre contra la referencia libre. Ver la regla de más abajo.
-
-**Y el amarre se dibuja en TODAS las variantes visibles, no solo en la activa.**
-El fixture sujeta a la pieza que haya montada, sea cuál sea: enseñar una sujeta y
-la otra libre no compara nada, es la mitad de cada cosa. El selector `Ver` apaga
-también la capa `var` —las otras variantes libres— cuando se pide «sujeta», y la
-capa `held` dibuja una por variante, cada una en SU color. La capa `diff` compara
-lo que se está viendo, y las tarjetas de modelo miden la variante sujeta cuando
-se mide contra la sujeta: medir una libre contra otra sujeta mezcla la
-diferencia de diseño con lo que el fixture le hace a la barra, y el número no
-contesta ninguna de las dos preguntas.
-
-**Y las variantes DIBUJADAS se anclan contra la referencia libre**, igual que la
-tabla. Era la segunda cara del lazo de T-01 y se quedó abierta: con «medir contra:
-sujeta», la referencia sujeta depende del fixture, así que subir un pedestal
-cambiaba la referencia, la referencia cambiaba la matriz de anclaje y la barra
-libre dibujada se recorría entera por la pantalla mientras la tabla la dejaba
-quieta. El 3D y la tabla colocando la misma pieza en sitios distintos es peor que
-el fallo original. Hay un paso de banco que lo vigila leyendo un vértice de la
-geometría, y no solo la trayectoria que mide la tabla.
-
-`heldFor(slot, …)` sustituye a la caché única: con la referencia comparable
-sujeta hay DOS formas sujetas vivas a la vez —la activa y la referencia— y una
-sola caché las haría turnarse, resolviendo las dos en cada repintado.
-
-**Y una regla que rompe una recursión, escrita donde duele:** el pivote de la
-colocación sale de la referencia **LIBRE**, no de la elegida para comparar. Si
-saliera de la sujeta, calcular esa forma pediría la colocación —para saber dónde
-están los pines— que pediría el pivote, que pediría la forma sujeta. Se muerde la
-cola y el navegador contesta con un desbordamiento de pila. Pasó al montarlo.
-El fixture se monta contra el nominal: esa es la lectura física de la misma regla.
-
-**Lo que falta y no se ha hecho:** el lazo de compensación sigue comparando
-contra la pieza LIBRE. Con el amarre puesto eso significa que el lazo corrige
-hacia una forma que la barra sujeta no puede tomar. Hacerlo bien pide decidir qué
-es el nominal cuando la barra está sujeta —¿la forma que se quiere al soltarla, o
-la que se quiere montada?— y esa pregunta es del taller, no del programa.
-
-### M6 · La flecha por gravedad — 2026-09-10
-
-Llevaba abierto desde la auditoría, y **no estaba bloqueado por falta de fórmula
-sino por falta de material**: meterle un módulo elástico inventado a un número
-que luego alguien resta del nominal es lo que este proyecto no hace. Con el
-bloque de material del amarre —editable y marcado provisional— se puede dar con
-la misma disciplina: la geometría con confianza, la magnitud con el aviso.
-
-`engine/sag.ts`. Cada tramo entre apoyos como viga **biapoyada**
-(`δ = 5wL⁴/384EI`) y cada voladizo de punta como **ménsula** (`δ = wL⁴/8EI`).
-Una viga continua sobre varios apoyos es MÁS rígida que una cadena de tramos
-sueltos, así que esto **sobreestima**: el lado seguro, y evita tener que decidir
-qué apoyo es fijo y cuál desliza, que es un dato del fixture que nadie ha medido.
-
-**La orientación manda más que el vano.** `I` no es una constante de la barra:
-de plano se cuelga `(ancho/espesor)²` veces más que de canto — con 40×12, once
-veces—. `sagI()` proyecta la vertical sobre las dos direcciones principales de la
-sección y devuelve la inercia efectiva; con la barra a plomo devuelve infinito,
-porque una columna no se cuelga.
-
-**Y el resultado contradice a la auditoría, que es lo que había que averiguar.**
-El plan decía que la flecha «probablemente explica el estancamiento a ~5 mm en la
-punta». Con la pieza de demostración y el material provisional:
+De ahí sale la otra mitad: **un `barcomp/2.2` no se migra.** Del 2.2 al 2.3 no cambió ningún
+número, cambió el motor —`bb76bde` invirtió `ANG_DIR` porque los datos del taller ya venían
+con ese sentido—, así que convertirlo deshacía el cambio. `2.2` entra en `SCHEMA_AMBIGUOUS`:
+se lee tal cual, sin tocar un número, y se avisa de que hay que mirar la FORMA en el 3D.
+
+### Cifras medidas
+
+Ninguna de estas se vuelve a sacar leyendo el código.
+
+| Qué | Cuánto | Dónde se midió |
+|---|---|---|
+| Camino crítico con la pieza real | **14.3 ms** contra 250 ms de presupuesto | auditoría 09-10 |
+| Arranque en frío, peor caso (Edge headless sin GPU) | **234 ms** | auditoría 09-10 |
+| `rebuildScene()` con 13 piezas medidas visibles | **~18 ms**, 270 objetos | A8, medido y descartado |
+| `rebuildScene()` con 15 dobleces / con 60 | **2.8 ms / 9.6 ms** | `tools/probe_perf.js` |
+| Un paso de deshacer | **6 µs, 5.3 KB** | `tools/probe_perf.js` |
+| Clave de `heldCache` | **0.006 ms** contra 14–100 ms del solver | PERF, 09-10 |
+| Solver del amarre, una pieza | **3–26 ms** | banco del amarre |
+| Amarre con 6 modelos, antes → después de PERF-02 | Node **73 → 51 ms**; Edge **82 → 55 ms**; repintado **122 → 86 ms** | PERF-02 |
+| Etiquetas 3D por fotograma (15 etiquetas) | **0.13 → 0.07 ms** | PERF-03 |
+| Bundle: parte de three.js | **71.5 %**, sin grasa | `tools/bundle_report.mjs` |
+| Ruido del lazo: σ=1.0° | el lazo **empeora** la pieza, 0.38° → 0.80°; con n=5 y mediana, 0.10° | validación |
+| Corrigiendo solo ángulos | ángulos a 0.15°, punta estancada en **~5 mm**; con rodado y avance, **0.17 mm** | validación |
+| Eje no observable: casos inventados | **170 de 200** pasaban sin la guarda, 0 con el umbral puesto | C1+A4 |
+| `GJ/EIz` para 40×12 | **1.22** (J = 18 684 mm⁴ por la serie exacta, Iz = 5 760 mm⁴, ν = 0.33) | FIS-07 |
+| Punta sujeta solo con pines: muelle 0.5 vs 1.22 | **15.3 mm vs 4.8 mm**; esfuerzo 16 % vs 5 % del límite | FIS-07 |
+| Con peso y apoyos, muelle 0.5 vs 1.22 | caída 0.0117 → 0.0207 mm, reacciones <5 % | FIS-07 |
+| Servilleta de la carga, una estación | **0.229° de cedida, 2.00 mm de punta**, reacción `w·a/2`, a la quinta cifra | `demo_amarre` |
+| Palanca hecha a mano | R = w·a²/2d = **15.89 N** contra 15.88 N del motor, raíz −3.16 N | X-04 |
+| Palanca sobre la demo, pedestal suelto | **51 N** sobre una pieza de 23.7 N, raíz **−27.7 N** | X-04 |
+| Fixture sembrado + carga: los apoyos suman | **41.7 N** sobre 23.7 N, sin converger | FIS-10, abierto |
+| Rigidez de contacto sembrando | κ ≈ **6 000 N/mm**; ±4 µm de alto = ±24 N de precarga | FIS-10 |
+| Dos columnas de apoyo en desacuerdo | a **0.9 mm** una decía «apoya» y la de al lado 0.00 N | X-05 |
+| Interferencia con varios modelos, antes → después de FIS-08 | **149 de 270 casos, peor 82 mm** → **19 de 270, peor 14 mm** | FIS-08 |
+| Primer tramo con entrada recta de 700 mm | **dos** pedestales a 0.00 N, indeterminados | X-02 |
+| Una recta de 1700 mm decía «Peso: 0.0 N» | pesa **21.6 N** | X-06 |
+| `--dim2` antes de A13 | 3.1:1 en oscuro y 3.2:1 en claro, bajo el 4.5:1 de WCAG 1.4.3 | A13 |
+
+**La flecha por gravedad, con la pieza de demostración y el material provisional:**
 
 | apoyos | peor flecha |
 |---|---|
@@ -1468,141 +776,265 @@ punta». Con la pieza de demostración y el material provisional:
 | 3 | 0.125 mm |
 | 2 | 0.046 mm |
 
-Dos órdenes de magnitud por debajo de la tolerancia de punto, y tres por debajo
-de los 5 mm. **La flecha no explica ese estancamiento**, al menos con esta pieza
-—que va mayormente de canto— y con E y ρ de manual, que para el aluminio son
-buenos a un ±5 % y no a un factor 50. Lo que sí puede: una pieza que vaya de
-plano en un vano largo, o un fixture con dos apoyos mal puestos. Por eso el
-número se enseña por TRAMO y no como un total: el que importa es el peor, y
-suele estar en un voladizo.
+Dos órdenes de magnitud por debajo de la tolerancia de punto y tres por debajo de los 5 mm
+de la punta. **La flecha no explica ese estancamiento**, que era la hipótesis de la
+auditoría —al menos con una pieza que va mayormente de canto—, y E y ρ del aluminio son
+buenos a un ±5 %, no a un factor 50. Lo que sí puede dar flecha del orden de la tolerancia:
+una pieza que vaya de PLANO en un vano largo —once veces más con 40×12— o un fixture con dos
+apoyos mal repartidos. Por eso el número se enseña **por tramo** y no como total.
 
-La cadena de unidades está escrita en `lineLoad()` y comprobada contra algo que
-se puede hacer a mano: la barra de 1.7 m pesa 2.2 kg. Sin eso, el resultado sale
-mil o mil millones de veces mayor y nadie lo nota.
+### Decisiones que siguen gobernando el código
 
-**Sigue pendiente lo que no se puede calcular:** el escaneo de una barra recta
-certificada montada en el fixture (punto A.5). Con él, esto se contrasta contra
-la flecha MEDIDA y deja de ser una estimación. Lo que ha cambiado es que ahora
-hay un número contra el que contrastar, y una predicción que se puede desmentir.
+- **La corrección se busca en el ESPACIO DE PARÁMETROS**, no desplazando puntos: así lo que
+  sale es una pieza que la cinemática puede describir, no una nube que ya no corresponde a
+  ningún comando. Vale para el lazo, para el amarre y para la carga.
+- **Con sección constante, la FORMA sujeta no depende de E.** El módulo elástico multiplica
+  todos los pesos por igual y se cancela en el reparto. E hace falta para pasar de ángulos a
+  ESFUERZO, no para saber dónde queda la barra — por eso la geometría se da con confianza y
+  el esfuerzo lleva escrito que el material está sin confirmar. Hay prueba: cambiar E de
+  69 000 a 200 000 MPa no mueve un PI ni 1e-9 mm, y el esfuerzo cambia en la razón exacta.
+  **Con una fuerza aplicada, E deja de cancelarse**, y esa es la diferencia con `load.ts`:
+  media E es el doble de caída. Hay una prueba de cada cosa y siguen siendo compatibles.
+- **Los interruptores son interruptores de verdad.** Apagado, `restrain()` devuelve el MISMO
+  objeto que entró y `settle()` devuelve `restrain()` sin tocar un número. Lo comprueban una
+  prueba de motor y un paso de banco que comparan los PI uno a uno exigiendo diferencia
+  **CERO**, no «pequeña».
+- **El fixture se monta contra el nominal.** El anclaje, el pivote de la colocación y las
+  variantes dibujadas se miden siempre contra la referencia **LIBRE** (`refModelFree()`,
+  `placeAt()`). Si salieran de la sujeta se cierra un lazo: mover un pedestal cambia la
+  referencia, la referencia cambia el anclaje y la barra entera se recorre por la pantalla —
+  o, con el pivote, el navegador contesta con un desbordamiento de pila. **Pasó las dos
+  veces** (T-01, y otra vez en `scene/build.ts`). Es la misma regla con dos caras.
+- **El solver congela sus contactos contra la barra libre.** Un contacto que dependiera de la
+  respuesta se muerde la cola y el jacobiano sale de ruido. Lo que sí se relee, y por eso
+  existe `CONTACT_PASSES`, es dónde está la barra después de caer decenas de milímetros.
+- **Lo que se ve es lo que se mide.** Hay UN interruptor, `Ver: Libre · Sujeta · Las dos`,
+  que escribe `restraint.refHeld`. De él cuelgan las dos tablas, las cotas, la flecha, los
+  colores del 3D, dónde nacen los pedestales y los pines sembrados, los puntos, las etiquetas
+  y el encuadre. Se decide en un solo sitio, `shownModel()` en `state.ts`. Arranca en
+  **sujeta**: con algo puesto, la barra que hay encima del fixture ES la sujeta. Elegir
+  «libre» sigue valiendo y las dos tablas lo AVISAN, porque es una pregunta hipotética.
+  No se mueven a propósito: la colocación y los apoyos (atornillados a la mesa; lo que cambia
+  es su color), las coordenadas tecleables de Puntos (son el diseño) y la desviación de
+  piezas medidas (se calcula contra el diseño).
+- **Un umbral corrupto no apaga la guarda.** `limOf()` recorta al rango y manda al valor de
+  fábrica lo que no sea un número finito: un `NaN` ahí no rechazaría NUNCA nada —toda
+  comparación con NaN es falsa— que es el fallo exacto que estas guardas existen para evitar.
+  Se recorta al TECLEAR y al ABRIR, en el mismo sitio. Lo mismo hace `normMat()`: `E` y
+  `yield` no bajan de un mínimo físico, porque un cero convierte cualquier esfuerzo en
+  «0 %», el mismo veredicto falso que el `NaN`; `rho` sí admite cero, que es como la flecha
+  dice «falta el dato». `Number.isFinite` y no el global: `isFinite(null)` es `true`.
+- **Los umbrales viajan en el archivo**, también cuando son los de fábrica. Un `.json` sin la
+  clave no dice «los de fábrica», dice «no se sabe».
+- **Los signos de la máquina invierten el ARCHIVO, no el motor.** `signAngle`/`signRot` se
+  aplican al escribir el CSV; `ANG_DIR` y `ROT_DIR` siguen congelados. Hay prueba de que
+  invertirlos no mueve un solo PI. Por eso son seguros.
+- **El comando sale del COMANDO, no del nominal** (`commandModel()` con `ST.command`): en
+  cuanto el lazo corrige algo, las rectas del comando dejan de ser las del nominal, y esa
+  diferencia es el trabajo entero del programa.
+- **La fila de la cola deja vacías las columnas que no le tocan**, no en cero: un cero en la
+  columna del ángulo es un doblez de cero grados, o sea una instrucción. Y **la última
+  columna del perfil no se puede quitar**: sin ninguna, `machineCsv()` volvería al perfil de
+  fábrica y el panel enseñaría cero columnas mientras el archivo sale con cinco.
+- **Un apoyo activo aporta `½·κ·(gap₀ + J·Δ)²`: las dos mitades o ninguna.** Con un apoyo que
+  todavía no toca fuera del hessiano, el paso de Newton sale como si no existiera —la pieza
+  vuela dentro del pedestal y la búsqueda se rinde sin moverse—; metido en el hessiano SIN su
+  mitad del gradiente, pasa lo contrario y avanza micras por iteración. Los dos fallos
+  costaron encontrarlos y están anotados en `load.ts`.
+- **`root` negativo no es un error**: es la barra haciendo palanca sobre un pedestal, que
+  lleva más que la pieza entera mientras la mordaza tira hacia abajo lo que sobra. Con una
+  mordaza que aguanta cualquier fuerza, la suma de fuerzas se cumple por construcción, así
+  que el residuo no se enseña; lo que se enseña es el SIGNO, con aviso bajo el −1 % del peso.
+- **Un solo predicado de «apoya»**, `bears(f, tol, carrying?)` en `engine/fixture.ts`. Por
+  geometría: le pasa por encima y la cuna la toca dentro de `tol.point`. Con la carga
+  resuelta manda la reacción: apoya el que lleva peso, y un apoyo ciego cae a la geometría
+  porque por fuerzas no se puede juzgar. Lo usan la flecha y el color del 3D, que lo tenían
+  escrito a mano cada uno.
+- **El resorte tiene tres puertas y no se apaga poniendo ceros.** `SB_MIN_N = 5`,
+  `SB_MIN_SPAN_DEG = 10` y `SB_MIN_PER_SIDE = 2` —el punto de palanca: cuatro piezas a 30° y
+  una a 60° cumplen las dos primeras y sin embargo la recta la decide esa única pieza—. El
+  resultado va en `SbFit.trend` y la pantalla dice QUÉ FALTA. Con tres puntos, puro ruido
+  cruza `|r| > 0.6` cerca de una de cada tres veces. La MEDIANA del resorte no pasa por la
+  puerta: estimarlo con lo que haya está bien, afirmar que depende del ángulo no.
+- **`kinematics.ts` pasa de 400 líneas como excepción consciente**, anotada en su cabecera.
+  No tiene corte natural: `fk`, `ik`, `bendDecomp` y las longitudes comparten la convención,
+  y separarlos la deja escrita en dos sitios, que es justo el fallo que `SCHEMA_LEGACY`
+  documenta tres veces. Un refactor ahí no gana nada y arriesga los números que van a la
+  máquina.
+- **`index.html` se versiona, y el CI lo compara SIN el sello de versión.** El sello es
+  `git rev-parse --short HEAD` al compilar, o sea el commit ANTERIOR al que lleva el
+  artefacto: no puede coincidir por construcción. Todo lo demás sí, y con eso se pillan los
+  dos fallos reales —editar `index.html` a mano y commitear fuente sin recompilar—. `sucio`
+  **sí** se compara: un artefacto publicado con «+sucio» se compiló sobre cambios sin
+  confirmar. **Regla de flujo:** los dos commits de un cambio —la fuente y el «build:
+  regenerar»— se empujan JUNTOS; el disparador evalúa la punta.
+- **`migrateModel()` no se toca** aunque el dueño avise de que ya no tiene archivos viejos.
+  Cuesta cero mantenerlo y su ausencia se paga con geometría equivocada y sin aviso.
 
-### La carga — 2026-09-10
+### Probado y descartado, con el motivo
 
-Lo pidió el taller con una observación que el programa no sabía contestar: «ya
-tengo mis amarres bien anotados, pero algunos dobleces alejan la pieza de ellos
-y por gravedad la pieza tiende a irse hacia ellos, no a quedarse en el espacio».
-Las dos mitades de esa frase eran agujeros distintos del modelo:
+Sin esto alguien lo reintenta.
 
-· **La pieza no pesaba.** El amarre resuelve un problema geométrico —los pines
-  están, la barra tiene que tocarlos— y en un problema geométrico no hay
-  fuerzas. Por eso la forma sujeta no dependía de E, cosa que hay probada.
-· **Y los contactos TIRABAN.** El amarre cierra el contacto como una igualdad:
-  si un doblez alejaba la pieza de un pin, el solver la traía de vuelta. Un
-  poste no tiene imán. Eso no es una imprecisión, es el signo cambiado.
+- **`rebuildGroup(k)`** — partir la reconstrucción de la escena por capas. Medido: ~18 ms con
+  13 piezas contra 250 ms de presupuesto, factor 14 de margen. Optimizar lo que no duele, y
+  encima añade un camino donde una capa puede quedarse vieja. **La medición quedó como paso
+  de banco**, que además vigila que la escena no CREZCA al reconstruirla.
+- **Cambiar el mecanismo de clave de `heldCache`** — ARQ lo pidió por coste, PERF lo midió en
+  0.02 % del total. Gana la medida. De ARQ-04 sobrevivió solo la fuga de ranuras.
+- **El arranque en caliente del solver** — haría que el mismo estado diera cifras distintas
+  según por dónde se llegó (al deshacer, por ejemplo). En un comparador eso es peor que la
+  espera.
+- **Un tope de TIEMPO en el solver** — ya está acotado por iteraciones y pasadas; un tope de
+  reloj haría que la misma pieza diera otra forma en un PC más lento. Y **resolver en
+  diferido** enseñaría un momento formas viejas con cifras nuevas; las ediciones son
+  discretas (Enter, clic), no continuas.
+- **Sellar el artefacto con hash del contenido** — hace el build determinista pero pierde la
+  trazabilidad a un commit, que era el motivo entero de C7. Y **sacar `index.html` del repo**
+  deja al taller sin un HTML listo para copiar a un USB.
+- **Cuatro intentos contra FIS-10**, todos con cifra y ninguno en el código: cuatro contactos
+  por esquina (no converge y rompe FIS-08 con 1.31 mm); probar el tanteo cuando el paso no
+  baja (sin efecto); partir el paso 30 veces en vez de 8 (dos iteraciones más, 47.6 N);
+  sembrar con 10/20/50 µm de aire (tampoco converge; con 50 µm un pedestal lleva 55 N).
+- **Consolidar los dos motores en uno** — revocado el 2026-09-08 en el sentido contrario:
+  el motor de Python sale del alcance entero. Fusionarlos era caro y arriesgado; retirar uno
+  no cuesta nada. **Lo que se pierde, dicho a las claras:** la verificación cruzada entre dos
+  implementaciones independientes, que es más fuerte que un fixture —un fixture congela lo
+  que HOY sale, y si hoy está mal, congela el error—. Se acepta porque los signos ya están
+  congelados a propósito y porque `core.py` llevaba desde antes de la Fase 0 sin actualizarse:
+  la red cruzada ya solo cubría la cinemática, no las guardas.
 
-`engine/load.ts`. Se minimiza la energía potencial total —muelle de las
-estaciones, más el trabajo de la carga, más un muelle de contacto que SOLO
-empuja— con las mismas incógnitas del amarre, así que lo que sale sigue siendo
-una pieza que la cinemática sabe describir. Los pedestales entran en la cuenta
-por primera vez: sin fuerzas no sostienen nada, con peso son lo único que hay
-debajo. Newton amortiguado, con el jacobiano del contacto y el gradiente de la
-carga sacados de las mismas trayectorias perturbadas: la carga no cuesta ni una
-construcción más que el amarre.
+---
 
-**Con una fuerza aplicada, E deja de cancelarse**, y esa es la diferencia
-práctica con el archivo de al lado: la forma SUJETA no depende del material y la
-forma CARGADA sí, al doble de caída por cada mitad de módulo. Hay una prueba de
-cada cosa, y siguen siendo compatibles.
+## 12. El amarre: la barra sujeta por pines
 
-**Las dos cifras que hay que leer** no están en la tabla de pines: son cuánto
-del peso llevan los apoyos y cuánto se queda aguantando la mordaza. Si la
-segunda se lo lleva casi todo, lo que hay en pantalla es un voladizo y no una
-pieza montada — que es exactamente la pregunta «¿me hacen falta pedestales?»,
-contestada con un número en newton en vez de con una opinión.
+Alcance nuevo, fuera de la auditoría. La barra deja de estar libre en el espacio.
 
-**El punto ciego, escrito antes de que alguien lea un cero:** las incógnitas son
-los codos de las ESTACIONES, así que en este modelo **una recta no se cuelga por
-el medio**; esa parte la da `engine/sag.ts` (M6), aparte y al lado. Hay una
-prueba que lo afirma en positivo, para que la limitación sea un hecho conocido y
-no un descubrimiento. Y la rigidez de una estación se toma como `EI/L`, que para
-un voladizo es unas cuatro veces más blanda que la exacta: esto da el ORDEN y la
-DIRECCIÓN, no una flecha certificada.
+Un pedestal SOSTIENE y no impide nada; un pin **IMPIDE**. Con pines puestos, mover un ángulo
+ya no mueve libremente lo que viene después: la cadena choca contra ellos, la pieza se queda
+en una forma intermedia, y para quedarse ahí tiene que deformarse. Esa deformación no se
+reparte por igual —se concentra donde los vanos son cortos— y si en algún punto pasa del
+límite elástico, la barra no vuelve al soltarla: **la pieza que sale de la máquina no es la
+que dice la tabla.**
 
-**Lo que se pudo comprobar a mano**, que es lo que licencia enseñar los números:
-una pieza de una sola estación tiene un grado de libertad y se resuelve en una
-servilleta. El voladizo pide a la estación un momento `w·a²/2`, el muelle vale
-`EI/L`, y de ahí salen 0.229° de cedida y 2.00 mm de caída de la punta — que es
-lo que devuelve el solver hasta la quinta cifra. Con un tope debajo de la punta,
-la reacción sale `w·a/2` y no depende de la rigidez, que es lo que la hace buena
-prueba. La suma de reacciones más lo que aguanta la raíz da el peso, siempre.
+El reparto entre estaciones lo decide la rigidez `EI/L`: doblar un tramo corto cuesta más,
+así que la deformación se va sola a donde la barra es más flexible. Mínimos cuadrados
+amortiguados, jacobiano numérico, sistema denso —treinta incógnitas como mucho— con
+`solveDense()` en `engine/math.ts`.
 
-**Dos fallos del solver que costaron encontrar**, los dos del mismo sitio —qué
-apoyos entran en el hessiano— y anotados en el código porque son la clase de
-cosa que se vuelve a romper:
+Lo que hay:
 
-· con un apoyo que todavía no toca fuera del hessiano, el paso de Newton sale
-  como si no existiera: la pieza vuela dos milímetros dentro del pedestal, la
-  energía del muelle se dispara, la búsqueda parte el paso ocho veces y se rinde
-  sin haberse movido — cero iteraciones con un tope justo debajo de la punta;
-· y al meterlo en el hessiano SIN su mitad del gradiente, pasa lo contrario: el
-  paso sale frenado por un muro que aún no está ahí y la pieza avanza micras por
-  iteración. Un apoyo activo aporta `½·κ·(gap₀ + J·Δ)²`: las dos mitades o
-  ninguna.
+- `engine/pins.ts` — `pinFit()` (dónde toca, qué hueco queda, si el pin llega a la altura de
+  la barra), `restrain()` (la forma sujeta, el codo de cada estación, la curvatura, la
+  tensión y el peor caso contra el límite elástico), `seedPins()` (siembra alternando de
+  lado: todos del mismo lado dejarían la barra girar sobre ellos) y `sampleAt()`.
+- Pestaña **Amarre** en Modelar: el interruptor, los ajustes del solver, el material, la
+  tabla de pines y —la mitad que importa— **lo que el amarre le cuesta a la pieza**.
+- Dos capas nuevas en el 3D: los pines y **la barra sujeta** sobre la libre.
+- `ST.pins`, `ST.restraint` y `ST.mat` viajan en el JSON y entran en el deshacer.
+- `ST.held` es CACHÉ, con firma de todo lo que entra en la cuenta. El solver construye del
+  orden de cien trayectorias, así que no se puede llamar en cada repintado. `heldFor(slot,…)`
+  y no una caché única: con la referencia comparable sujeta hay DOS formas sujetas vivas a la
+  vez y una sola caché las haría turnarse.
 
-**Una limitación que conviene saber:** un apoyo puesto en el primer tramo lee
-0 N. Ese tramo no se mueve —la raíz lo sujeta— y en este modelo lo que no se
-hunde no empuja. Hay prueba de ello, por lo mismo que del punto ciego.
+**Lo que esto NO es, dicho antes de que alguien lo confunda:** no hay elementos finitos, ni
+contacto con fricción, ni pandeo, ni torsión inducida por el amarre, ni plastificación
+parcial de la sección. Es un modelo de vigas con codos elásticos en las estaciones que ya
+existen.
 
-### La casilla que se quedaba en 0.00 — 2026-09-10
+**Los pines se inclinan, y por eso el contacto es 3D.** Mientras un pin era vertical bastaba
+la planta —dos rectas verticales guardan la misma distancia a cualquier altura—. Con `tilt` y
+`yaw` dos rectas cruzadas se acercan en UN punto, así que el contacto se resuelve entre el
+segmento del poste y la polilínea de la barra (`engine/contact.ts`), y lo que asoma de la
+sección se mide en la dirección en la que de verdad se tocan. Un pin a plomo da exactamente
+lo de antes.
 
-Lo reportó el taller: se escribía −0.7 en una casilla de compensación de la
-pestaña Modelo, **la geometría cambiaba y la casilla se quedaba en 0.00**. Había
-que teclear el mismo número una segunda vez para verlo, y esa segunda vez ya no
-movía nada — porque el valor ya estaba puesto.
+**Y el poste tiene dos cifras: LARGO (`Pin.h`) y ALTURA (`Pin.z`).** El largo es lo que mide
+el cilindro; la altura es dónde ARRANCA su base sobre la mesa. Con una sola, subir un pin
+obligaba a alargarlo, y alargándolo tocaba también por abajo. Lo que sostiene el poste a esa
+altura **no se modela, y está dicho**: la cifra dice dónde está el cilindro, no de qué
+cuelga. Consecuencia en el motor: «Llega» mira los DOS extremos, porque desde que la base se
+levanta la barra puede pasar por DEBAJO igual que por encima.
 
-Eran DOS fallos encadenados, los dos en el camino «confirmar una celda».
+**El fixture sujeta a TODOS los modelos visibles, no solo al activo.** Enseñar una sujeta y
+otra libre no compara nada. Lo que NO cabe se dice: `Settled.clash`, aviso rojo en la tarjeta
+del modelo y un rombo con los mm en el 3D. Los 19 casos de 270 que quedan no son
+convergencia: son piezas que no caben.
 
-**Uno: Enter no confirmaba, seleccionaba la fila.** `bindDevRows()` escucha
-Enter y las flechas sobre `tr[data-r]` para que la tabla de DESVIACIÓN se pueda
-recorrer sin ratón. Pero `data-r` lo llevan las tres tablas —modelo,
-compensación y desviación— y en las dos primeras hay celdas editables dentro. Un
-Enter para confirmar subía hasta ahí, seleccionaba el doblez y reconstruía
-`#panes` entero a media edición. La corrección es exigir que el objetivo SEA la
-fila: enfocable solo lo es la de desviación (`tabindex` en `panels/meas.ts`), así
-que la condición deja fuera a las otras dos sin tener que nombrarlas.
+**Cómo se comprueba sin creerse el comentario.** `npm run demo:amarre` corre cinco
+escenarios con las cifras a la vista: la prueba de la servilleta (`codo = −δ`, error de
+0.001° a 0.004°), que un pin **empuja y no tira**, el interruptor con los PI a cero, que el
+material no mueve la barra, y que es falsable —apagar el pin que empuja tiene que cambiar el
+resultado—. `ejemplos/` trae la misma pieza dos veces con una sola diferencia, el
+interruptor, y su `README.md` lleva las cifras que tienen que salir.
 
-**Dos: repintar con una celda sucia se muerde la cola.** Asignar `innerHTML`
-arranca del documento el campo enfocado; eso dispara su `blur`, el `blur`
-dispara el `change`, el `change` escribe el valor y manda repintar — todo desde
-DENTRO de la asignación que aún no ha terminado. El navegador lo dice tal cual:
-«the node to be removed is no longer a child of this node. Perhaps it was moved
-in a blur event handler?». Y el HTML que quedaba instalado se había armado ANTES
-de que el valor existiera, que es exactamente el 0.00 de la pantalla con la
-geometría ya cambiada.
+**Dos fallos que cazó ese banco y que ninguna prueba anterior habría cazado:**
 
-`renderRight()` ahora **suelta el campo enfocado antes de mirar el modelo**: se
-confirma, se pinta con el dato ya escrito, y `restoreFocus()` devuelve el cursor
-donde estaba. Es la tercera capa de la disciplina del foco que ya había
-(actualización dirigida · guardar y restaurar · **confirmar antes de repintar**),
-y la única que además arregla lo que se PINTA y no solo dónde queda el cursor.
+- **El contacto se buscaba sobre las MUESTRAS.** `buildPath()` no reparte ninguna a lo largo
+  de una recta, así que un pin —o un PEDESTAL, el mismo fallo— en mitad de una recta larga
+  daba como punto más cercano el final de esa recta, a medio metro, y de ahí salía que no
+  tocaba. Ahora se proyecta sobre la polilínea: `engine/path.ts`.
+- **El lado del pin se leía de la forma deformada.** Con un ángulo movido 3° la barra rebasa
+  el eje del poste, la lectura se invierte y el solver cierra el contacto por la cara de
+  atrás: una pieza que atravesó el pin, dada por buena. El lado pasa a ser DATO del fixture
+  (`Pin.side`, con `auto` para lo de antes).
 
-Dos pasos de banco nuevos, uno por fallo, y los dos escriben de verdad
-(`execCommand insertText`): asignar `.value` por script no marca el campo sucio
-y entonces el navegador no dispara `change` al desenfocar, que es justo el camino
-que había que probar.
+**Lo que falta:** el lazo de compensación sigue comparando contra la pieza LIBRE. Con el
+amarre puesto eso corrige hacia una forma que la barra sujeta no puede tomar. Hacerlo bien
+pide decidir qué es el nominal cuando la barra está sujeta, y esa pregunta es del taller.
 
-De paso, una prueba de banco que fallaba una de cada tres veces sin que nada
-estuviera roto: comparaba el coste de la caché del amarre contra «la mitad de
-0.0 ms», o sea contra el ruido de `performance.now()`. Ahora lleva un suelo de
-medio milisegundo. Una prueba que falla al azar enseña a no leer los fallos.
+## 13. La flecha por gravedad y la carga
 
-### Diferido a después de beta 1.0
+Son dos archivos distintos, **complementarios y NO aditivos**, y el solapamiento está
+declarado.
 
-Cp/Cpk y cartas de control (necesitan ≥20 piezas, la beta verá 13), accesibilidad completa,
-rendimiento de etiquetas 3D e `InstancedMesh` (medir antes de optimizar), pruebas de
-`state.ts`, y **el extractor RANSAC — no escribir una línea hasta saber si el
-plan de inspección de ZEISS puede exportar los puntos de intersección directamente.**
+### `engine/sag.ts` — la flecha entre apoyos (M6)
 
-### Los tres hallazgos que hay que tener presentes al tocar el motor
+Cada tramo entre apoyos como viga **biapoyada** (`δ = 5wL⁴/384EI`) y cada voladizo de punta
+como **ménsula** (`δ = wL⁴/8EI`). Una viga continua sobre varios apoyos es MÁS rígida que una
+cadena de tramos sueltos, así que esto **sobreestima**: el lado seguro, y evita decidir qué
+apoyo es fijo y cuál desliza, que es un dato del fixture que nadie ha medido.
+
+**La orientación manda más que el vano.** `I` no es una constante de la barra: de plano se
+cuelga `(ancho/espesor)²` veces más que de canto —con 40×12, once veces—. `sagI()` proyecta
+la vertical sobre las dos direcciones principales de la sección; con la barra a plomo
+devuelve infinito, porque una columna no se cuelga.
+
+La cadena de unidades está escrita en `lineLoad()` y comprobada contra algo que se puede
+hacer a mano: la barra de 1.7 m pesa 2.2 kg. Sin eso el resultado sale mil o mil millones de
+veces mayor y nadie lo nota.
+
+### `engine/load.ts` — la pieza pesa
+
+Lo pidió el taller: «algunos dobleces alejan la pieza de mis amarres, pero por gravedad
+tiende a irse hacia ellos, no a quedarse en el espacio». Eran dos agujeros distintos:
+
+· **La pieza no pesaba.** El amarre resuelve un problema geométrico, y ahí no hay fuerzas.
+· **Y los contactos TIRABAN.** El amarre cierra el contacto como una igualdad: si un doblez
+  alejaba la pieza de un pin, el solver la traía de vuelta. Un poste no tiene imán. Eso no
+  es una imprecisión, es el signo cambiado.
+
+Se minimiza la energía potencial total —muelle de las estaciones, más el trabajo de la carga,
+más un muelle de contacto que SOLO empuja— con las mismas incógnitas del amarre, así que lo
+que sale sigue siendo una pieza que la cinemática sabe describir. Los pedestales entran en la
+cuenta por primera vez: sin fuerzas no sostienen nada. Newton amortiguado; `settle()` plantea
+el problema y junta el resultado, y `touches()`, `equilibrium()` y `reactions()` hacen los
+tres trabajos sobre un `Problem` compartido.
+
+**Las dos cifras que hay que leer** no están en la tabla de pines: son cuánto del peso llevan
+los apoyos y cuánto se queda aguantando la mordaza. Si la segunda se lo lleva casi todo, lo
+que hay en pantalla es un voladizo y no una pieza montada — que es la pregunta «¿me hacen
+falta pedestales?» contestada con un número en newton en vez de con una opinión. La suma de
+reacciones más lo que aguanta la raíz da el peso, siempre, y contra ese invariante hay prueba.
+
+**El punto ciego, escrito antes de que alguien lea un cero:** las incógnitas son los codos de
+las ESTACIONES, así que **una recta no se cuelga por el medio**; esa parte la da `sag.ts`,
+aparte y al lado. Hay una prueba que lo afirma en positivo, para que la limitación sea un
+hecho conocido y no un descubrimiento. Y la rigidez de una estación se toma como `EI/L`, que
+para un voladizo es unas cuatro veces más blanda que la exacta: esto da el ORDEN y la
+DIRECCIÓN, no una flecha certificada. **Un apoyo puesto en el primer tramo lee 0 N** —ese
+tramo no se mueve y en este modelo lo que no se hunde no empuja—; también hay prueba.
+
+## 14. Los tres hallazgos que hay que tener presentes al tocar el motor
 
 1. **Frontera ±90° de `canonRot`** — las estaciones de canto tienen eje absoluto exactamente
    90; el ruido cruza la rama, `canonRot` devuelve −90 con el ángulo negado, y `deviations`

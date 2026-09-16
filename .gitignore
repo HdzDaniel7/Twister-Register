@@ -7,10 +7,9 @@
 # documento de traspaso —mapa de módulos, decisiones que no se revisitan,
 # estado de las fases— y es el «léeme primero». Estando aquí no llegaba nunca
 # a un clon nuevo, y solo existía en un disco.
-PROMPT_WEB_V2.md
-PROMPT_WEB_V3.md
-PROMPT_WEB_V4.md
-PROMPT_WEB_V5.md
+# Los PROMPT_WEB_V2..V5.md se borraron el 2026-09-15: eran guiones de un solo uso
+# para el refactor v4, que cerró en 3e265a5. Lo que decían lo cubren README.md,
+# CONTEXTO_BARCOMP.md y .auditoria/plan-fases.md.
 
 # --------------------------------------------------------------- artefactos
 # index.html (raíz) ES la página publicada y sí se versiona.
