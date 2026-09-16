@@ -379,3 +379,12 @@ Diagnóstico en una frase: lo construido está bien hecho por dentro y mal conta
 | ID | Qué se hizo | Commit |
 |---|---|---|
 | A1-bis | `LOOP_MIN_N` deja de ser letra muerta: «Aplicar» apagado con menos de tres piezas en el lazo, y la guarda también dentro de `case 'apply'` | `ac6e8ed` |
+
+## Fase 5.5 · El solver con apoyos a micras — CERRADA EN PARTE
+
+Sigue abierto FIS-10b (la búsqueda que se rinde) y FIS-10c (el sembrado de pines).
+
+| ID | Qué se hizo | Commit |
+|---|---|---|
+| Pregunta 7 | κ contrastado contra una solución exacta: la penetración residual es `R/κ`, no un artefacto. `tools/demo_carga.mjs` | `132e512` |
+| FIS-10a | Los 47 N eran el redondeo del alto sembrado a centésimas: 6.16 N por micra. Y el paso de banco que pasaba con 0.02 N | `6a19200` |
