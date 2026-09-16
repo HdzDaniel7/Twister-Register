@@ -1124,6 +1124,26 @@ Abierta el 2026-09-15, encontrada al cerrar X-04.
       solo con el reparto contrastado contra un caso hecho a mano, porque declarar convergido un
       reparto de 2× el peso sería peor que el aviso de hoy. · M
 
+### Fase 5.6 · Lo que sale al usar la página
+
+Abierta el 2026-09-15, avisada por el taller: «no puedo seleccionar qué modelos se ven desde la
+ventana de modelos».
+
+- [x] **[UX-09] La casilla de VER de un modelo no hacía nada · [C]** — hecho 2026-09-15.
+      En el cajón de Modelos, la casilla de ver y el color viven DENTRO de la tarjeta, y la
+      tarjeta entera lleva `data-vsel`: activa el modelo. El guardia de `onClick()` dejaba pasar
+      las casillas, los colores y los radios a propósito —una casilla suelta dentro de una fila
+      la selecciona igual—, así que el clic subía a la tarjeta y activaba el modelo. Activar
+      repinta el cajón, y el `change` llega DESPUÉS del `click`: cuando llegaba, la casilla ya
+      estaba arrancada del documento, el manejador nunca corría y el interruptor volvía solo a
+      su sitio. Lo mismo con el color, que además perdía el selector del sistema.
+      Arreglo: el guardia sale también cuando el campo lleva su propio `data-*` —ese campo es
+      suyo y lo atiende `change`—. Un solo `if`; los campos sin `data-*` siguen como estaban.
+      Por qué el banco no lo veía: su ayuda `check()` escribe `.checked` y dispara el `change` a
+      mano, sin `click`, que es justo por donde se rompía. Cuatro pasos nuevos con clic de verdad
+      (ver un modelo, que ver no active, que el color no active, y la pieza medida de guardia);
+      los tres primeros fallan contra el artefacto anterior. · S
+
 ### Preguntas para el taller (bloquean o cierran tareas de arriba)
 
 1. **¿El fixture real tiene mordaza en el primer extremo?** Decide si X-04 es una imprecisión del

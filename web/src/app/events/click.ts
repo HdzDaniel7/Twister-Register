@@ -42,9 +42,20 @@ export function bindClick(): void {
 function onClick(e: MouseEvent): void {
   {
     /* guardia: un clic dentro de un campo no debe disparar la selección de
-       fila, o destruiría el input que se está editando. NO lo quites. */
-    if (/^(INPUT|SELECT|TEXTAREA)$/.test((e.target as HTMLElement).tagName) && !(e.target as HTMLElement).dataset.v) {
-      if (!['checkbox', 'color', 'radio'].includes((e.target as HTMLInputElement).type)) return;
+       fila, o destruiría el input que se está editando. NO lo quites.
+       Las casillas, los colores y los radios SÍ siguen: una casilla suelta
+       dentro de una fila la selecciona igual. Salvo que el campo lleve su
+       propio data-*: ese campo es suyo y lo atiende `change`, y el clic no
+       tiene nada más que hacer. Sin esta segunda salida, un clic en la casilla
+       de VER de un modelo pasaba a la tarjeta que lo envuelve y ACTIVABA el
+       modelo; activar repinta el cajón, y el `change` —que es donde se apunta
+       el valor— llega DESPUÉS del `click`, ya sobre una casilla arrancada del
+       documento. El interruptor se volvía solo a su sitio y no había manera de
+       ocultar un modelo desde el cajón. */
+    const campo = e.target as HTMLElement;
+    if (/^(INPUT|SELECT|TEXTAREA)$/.test(campo.tagName) && !campo.dataset.v) {
+      if (!['checkbox', 'color', 'radio'].includes((campo as HTMLInputElement).type)) return;
+      if (Object.keys(campo.dataset).length) return;
     }
     const t = (e.target as HTMLElement).closest(
       '[data-a],[data-v],[data-dm],[data-l],[data-th],[data-md],[data-dr],[data-dx],[data-dsel],[data-cm],[data-mx],[data-px],' +

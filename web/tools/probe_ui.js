@@ -654,6 +654,56 @@ step('el indicador de ejes gira con la colocacion', () => {
 
 step('duplicar modelo', () => { drawer('models'); click('[data-a="vardup"]'); });
 step('hay dos modelos', () => { if (S().variants.length !== 2) throw new Error(S().variants.length); });
+/* Con un CLIC de verdad, no con el `check()` de aquí arriba: `check()` dispara
+   el `change` a mano y se salta el `click`, que es justo por donde se rompía.
+   Un clic en la casilla llegaba a la tarjeta, la tarjeta activaba el modelo,
+   activar repintaba el cajón y el `change` —que llega DESPUÉS del `click`—
+   caía sobre una casilla ya arrancada del documento: el interruptor volvía
+   solo a su sitio y no se podía ocultar ningún modelo desde el cajón. */
+step('la casilla de ver oculta el modelo con un clic de verdad', () => {
+  drawer('models');
+  const id = S().variants[0].id;
+  const antes = S().variants[0].visible;
+  click(`#lf input[data-vv="${id}"]`);
+  const ahora = S().variants.find(v => v.id === id).visible;
+  if (ahora === antes) throw new Error('visible sigue ' + ahora);
+  drawer('models');
+  const cb = q(`#lf input[data-vv="${id}"]`);
+  if (cb.checked !== ahora) throw new Error('la casilla repintada dice ' + cb.checked);
+  click(`#lf input[data-vv="${id}"]`);
+  if (S().variants.find(v => v.id === id).visible !== antes) throw new Error('no vuelve');
+});
+step('la casilla de ver NO cambia de modelo activo', () => {
+  drawer('models');
+  const otro = S().variants[1].id;
+  click(`[data-vsel="${S().variants[0].id}"]`);
+  const antes = S().active;
+  drawer('models');
+  click(`#lf input[data-vv="${otro}"]`);
+  if (S().active !== antes) throw new Error('el clic en ver activó ' + S().active);
+  drawer('models');
+  click(`#lf input[data-vv="${otro}"]`);
+});
+step('el color del modelo tampoco cambia el modelo activo', () => {
+  drawer('models');
+  const otro = S().variants[1].id;
+  click(`[data-vsel="${S().variants[0].id}"]`);   // activo = el PRIMERO, a propósito
+  const antes = S().active;
+  if (antes === otro) throw new Error('no se pudo activar el primero');
+  drawer('models');
+  click(`#lf input[data-vc="${otro}"]`);
+  if (S().active !== antes) throw new Error('el clic en el color activó ' + S().active);
+});
+step('la casilla de ver de una pieza medida aguanta el clic', () => {
+  if (!S().datasets.length) return;
+  drawer('pieces');
+  const id = S().datasets[0].id;
+  const antes = S().datasets[0].visible;
+  click(`#lf input[data-dv="${id}"]`);
+  if (S().datasets.find(d => d.id === id).visible === antes) throw new Error('no cambió');
+  drawer('pieces');
+  click(`#lf input[data-dv="${id}"]`);
+});
 step('Δ en la copia', () => setval('input[data-bd="5"][data-k="rot"]', '3'));
 step('anclaje end/best/start', () => {
   drawer('models');
