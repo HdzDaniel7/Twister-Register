@@ -243,6 +243,7 @@ export const en: Record<I18nKey, string> = {
  compSim: 'WARNING: {n} of the parts feeding this calculation are SIMULATED, not measured. What comes out of here does not describe any real bar.',
  compShort: 'Only {a} of {b} bends are measured. The rest are marked with — and are NOT compensated.',
  rowNoMeas: 'This bend is not measured: the part carried fewer points than the model. The command is left as is.',
+ compFewN: 'The loop reads {a} part(s) and {n} are needed. With fewer, the command chases that part’s scatter and the next one can come out worse.',
  batchUse: 'Use the median of the visible parts ·',
  batchTip: 'With a single part the loop also corrects what was scatter in that part, '
    + 'and the next one can come out worse. With several, the median only lets '

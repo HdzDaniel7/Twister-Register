@@ -78,7 +78,9 @@ tiene internet.
   piezas reales hay variación, y compensar desde una sola mueve el comando por
   lo que fue dispersión de esa pieza: la siguiente puede salir peor. Con dos
   piezas o más, la tabla de desviación añade una columna **±σ** —MAD escalado—
-  que separa un doblez sistemáticamente fuera de uno con mala puntería.
+  que separa un doblez sistemáticamente fuera de uno con mala puntería. Y
+  **«Aplicar» pide al menos tres piezas en el lazo** (`LOOP_MIN_N`): con menos,
+  el botón está apagado y la pantalla dice cuántas hay y cuántas hacen falta.
 - **El resorte se mide, no se teclea a ojo**: `sb = 1 − ángulo medido / ángulo
   comandado`, por orientación, con su dispersión y su `n`. Avisa si depende del
   ángulo comandado —ahí una constante única miente— y si las piezas visibles son
@@ -299,7 +301,7 @@ npm run check        # typecheck -> pruebas -> build -> banco de interfaz
 npm run typecheck    # tsc --noEmit, con strict
 npm test             # 528 pruebas del motor y del i18n
 npm run build        # regenera index.html (y web/barcomp_viewer.html en local)
-npm run test:ui      # 259 pasos de interfaz en Edge headless, por CDP
+npm run test:ui      # 262 pasos de interfaz en Edge headless, por CDP
 npm run demo:amarre  # cinco escenarios del amarre, con las cifras a la vista
 npm run demo:archivos # regenera ejemplos/amarre-{libre,sujeta}.json
 ```

@@ -12,7 +12,7 @@ import {
   addMark, addPedestal, setPedestals, seedFixture, shownPath, shownPis,
   anchoredShownPis,
   addPin, setPins, seedPinsFor,
-  syncTweak, zeroTweak, compensatedCommand, loopMeasured,
+  syncTweak, zeroTweak, compensatedCommand, loopMeasured, loopPieces,
   measuredSpringback,
 } from '../state.ts';
 import { rebuildScene, fitView } from '../scene.ts';
@@ -369,6 +369,15 @@ export function action(a: string): void {
     case 'apply': {
       const D = activeDataset();
       if (!D) { alert(T('noMeas')); return; }
+      /* A1-bis. El botón ya sale deshabilitado, pero la guarda vive AQUÍ: es el
+         único sitio por el que se escribe ST.command, y un panel es una opinión
+         sobre lo que se puede hacer, no la puerta. Con menos de LOOP_MIN_N
+         piezas el lazo corrige la dispersión de una pieza suelta. */
+      const nP = loopPieces().length;
+      if (nP < E.LOOP_MIN_N) {
+        alert(T('compFewN').replace('{a}', String(nP)).replace('{n}', String(E.LOOP_MIN_N)));
+        return;
+      }
       /* lo que se aplica es lo que muestra la tabla: cálculo del lazo MÁS el
          ajuste escrito a mano. Una vez aplicado, el ajuste ya está dentro del
          comando, así que se pone a cero. */

@@ -1307,6 +1307,42 @@ step('el lazo puede leer la mediana del lote en vez de la última pieza', () => 
   if (doc.comp.batch !== true) throw new Error('comp.batch no viaja en el JSON');
   check('input[data-c="batch"]', false);
 });
+/* A1-bis. LOOP_MIN_N está en el motor desde la Fase 0 y hasta ahora no lo leía
+   nadie: se podía aplicar el lazo con UNA pieza, que es perseguir la dispersión
+   de esa pieza. El botón se apaga, dice por qué, y la guarda de verdad vive en
+   la acción: un panel es una opinión, no la puerta. */
+step('con menos de LOOP_MIN_N piezas en el lazo, Aplicar está apagado', () => {
+  check('input[data-c="batch"]', false);   // el lazo vuelve a leer la pieza activa y nada más
+  const b = q('[data-a="apply"]');
+  if (!b.disabled) throw new Error('el botón sigue activo con una sola pieza en el lazo');
+  if (!b.title) throw new Error('no dice por qué está apagado');
+  const av = [...document.querySelectorAll('#panes .warnbox')].map(x => x.textContent).join(' ');
+  if (!av.includes(String(window.BARCOMP.E.LOOP_MIN_N))) {
+    throw new Error('no dice cuántas piezas hacen falta: ' + av);
+  }
+});
+step('y aplicar de todas formas no toca el comando', () => {
+  const antes = JSON.stringify(S().command);
+  click('[data-a="apply"]');
+  if (JSON.stringify(S().command) !== antes) {
+    throw new Error('el comando cambió compensando desde una sola pieza');
+  }
+});
+step('con el lote puesto y suficientes piezas visibles, Aplicar vuelve', () => {
+  for (const d of S().datasets) d.visible = true;
+  /* el lazo pide tres y el banco llega aquí con dos: se simulan las que falten,
+     que es el camino que de verdad usa el taller para llenar el lote */
+  drawer('pieces');
+  for (let i = 0; S().datasets.filter(d => d.visible).length < window.BARCOMP.E.LOOP_MIN_N && i < 5; i++) {
+    click('[data-a="sim"]');
+  }
+  if (S().drawer === 'pieces') click('[data-dr="pieces"]');   // y se cierra el cajón
+  check('input[data-c="batch"]', true);
+  const vis = S().datasets.filter(d => d.visible).length;
+  if (vis < window.BARCOMP.E.LOOP_MIN_N) throw new Error('solo hay ' + vis + ' piezas visibles');
+  const b = q('[data-a="apply"]');
+  if (b.disabled) throw new Error('sigue apagado con ' + vis + ' piezas en el lazo');
+});
 /* La tabla de comandos tiene que hablar el MISMO idioma que la de dobleces: si
    una enseña -17.9 y la otra +17.9, el ajuste manual se escribe al revés. */
 step('la tabla de comandos enseña el ángulo tal como está guardado', () => {

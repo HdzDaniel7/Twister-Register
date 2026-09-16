@@ -58,6 +58,11 @@ export function paneComp(M: Model): string {
   /* lo que sugiere el lazo, sin tocar */
   /* lo que consume el lazo: la pieza activa, o la mediana de las visibles */
   const piezas = loopPieces();
+  /* A1-bis. Compensar desde menos de LOOP_MIN_N piezas persigue la dispersión
+     de esa pieza y la siguiente puede salir peor: la constante existe desde la
+     Fase 0 y hasta hoy no la leía nadie. El botón se apaga y dice por qué; la
+     salida es marcar la casilla del lote, que es lo que sube la cuenta. */
+  const pocas = piezas.length < E.LOOP_MIN_N;
   /* la casilla cuenta las que ENTRARÍAN si se marca —las visibles—, no las que
      entran ahora: con la casilla apagada siempre sería «1» y no diría nada */
   const vis = ST.datasets.filter(d => d.visible);
@@ -147,7 +152,10 @@ export function paneComp(M: Model): string {
       ? `<div class="hintline">${T('batchOn').replace('%n', String(piezas.length))}</div>`
       : (ST.datasets.filter(d => d.visible).length > 1
          ? `<div class="hintline">${T('batchHint')}</div>` : '')}
-    <div class="row mt6"><button class="btn pri grow" data-a="apply">${T('apply')}</button>
+    ${pocas ? `<div role="alert" class="warnbox mt6">${T('compFewN')
+      .replace('{a}', String(piezas.length)).replace('{n}', String(E.LOOP_MIN_N))}</div>` : ''}
+    <div class="row mt6"><button class="btn pri grow" data-a="apply" ${pocas ? 'disabled' : ''}
+      ${pocas ? `title="${esc(T('compFewN').replace('{a}', String(piezas.length)).replace('{n}', String(E.LOOP_MIN_N)))}"` : ''}>${T('apply')}</button>
       <button class="btn" data-a="resetcmd">${T('reset')}</button></div>
   </div></div>
   <div class="grp"><div class="eyebrow">${T('cmdTbl')} ${fuente}</div><div class="body">

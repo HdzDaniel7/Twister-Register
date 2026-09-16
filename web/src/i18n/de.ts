@@ -251,6 +251,7 @@ export const de: Record<I18nKey, string> = {
  compSim: 'ACHTUNG: {n} der Teile in dieser Rechnung sind SIMULIERT, nicht gemessen. Das Ergebnis beschreibt keine reale Stange.',
  compShort: 'Nur {a} von {b} Biegungen sind gemessen. Die übrigen sind mit — markiert und werden NICHT kompensiert.',
  rowNoMeas: 'Diese Biegung ist nicht gemessen: das Teil hatte weniger Punkte als das Modell. Der Befehl bleibt unverändert.',
+ compFewN: 'Der Regelkreis liest {a} Teil(e), nötig sind {n}. Mit weniger verfolgt der Befehl die Streuung dieses Teils und das nächste kann schlechter ausfallen.',
  batchUse: 'Median der sichtbaren Teile verwenden ·',
  batchTip: 'Mit nur einem Teil korrigiert der Regelkreis auch dessen Streuung, und das '
    + 'nächste Teil kann schlechter ausfallen. Mit mehreren lässt der Median nur '

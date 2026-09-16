@@ -246,6 +246,7 @@ export const es: Record<I18nKey, string> = {
  compSim: 'CUIDADO: {n} de las piezas que alimentan este cálculo son SIMULADAS, no medidas. Lo que salga de aquí no describe ninguna barra real.',
  compShort: 'Solo {a} de {b} dobleces están medidos. Los que faltan salen marcados con — y NO se compensan.',
  rowNoMeas: 'Este doblez no está medido: la pieza traía menos puntos que el modelo. El comando se deja como está.',
+ compFewN: 'El lazo lee {a} pieza(s) y hacen falta {n}. Con menos, el comando persigue la dispersión de esa pieza y la siguiente puede salir peor.',
  /* Compensar desde una sola pieza persigue la dispersión de esa pieza. Con
     varias, la mediana separa lo sistemático de la mala puntería. */
  batchUse: 'Usar la mediana de las piezas visibles ·',

@@ -59,18 +59,6 @@ Abierta el 2026-09-15, encontrada al cerrar X-04.
       solo con el reparto contrastado contra un caso hecho a mano, porque declarar convergido un
       reparto de 2× el peso sería peor que el aviso de hoy. · M
 
-## Fase 5.7 · Lo que destapó el adelgazamiento de la documentación (2026-09-15)
-
-- [ ] **[A1-bis] `LOOP_MIN_N` está escrito y no lo lee nadie · [S]** — la Fase 0 dio por
-      cerrado el A1 con «"Aplicar" deshabilitado con n<3», y esa guarda no existe.
-      `engine/compensate.ts:239` declara `LOOP_MIN_N = 3` con su comentario, y la única
-      aparición en todo el repo es esa línea: `case 'apply'` (`app/actions.ts:369`) solo exige
-      que haya una pieza activa, y el `piezas.length > 1` de `panels/comp.ts:91` es la mediana
-      del lote, otra cosa. Compensar desde una sola pieza persigue la dispersión de esa pieza,
-      que es justo lo que la constante existe para impedir. · S
-      Cierre: el botón deshabilitado con `loopPieces().length < LOOP_MIN_N`, su frase de por
-      qué, y un paso de banco que lo exija.
-
 ## El amarre por pines laterales — lo que queda
 
 Detalle del mecanismo en `CONTEXTO_BARCOMP.md`, «El amarre: la barra sujeta por pines».

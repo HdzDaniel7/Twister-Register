@@ -60,7 +60,7 @@ export type I18nKey =
   | 'lim_axisMinTip' | 'lim_piMinTip' | 'lim_scaleMinTip' | 'lim_straightMinTip'
   | 'lim_dead' | 'lim_deadFeed' | 'lim_maxStep' | 'lim_maxStepFeed'
   | 'lim_deadTip' | 'lim_deadFeedTip' | 'lim_maxStepTip' | 'lim_maxStepFeedTip'
-  | 'compSim' | 'compShort' | 'rowNoMeas'
+  | 'compSim' | 'compShort' | 'rowNoMeas' | 'compFewN'
   | 'batchUse' | 'batchTip' | 'batchOn' | 'batchHint' | 'spread' | 'spreadTip'
   | 'sbMeas' | 'sbUse' | 'sbNote' | 'sbCircular' | 'sbSpreadTip'
   | 'sbTrend' | 'sbTrendTip'
