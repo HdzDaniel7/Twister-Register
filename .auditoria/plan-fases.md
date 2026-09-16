@@ -363,3 +363,9 @@ Diagnóstico en una frase: lo construido está bien hecho por dentro y mal conta
 
 > Dos hallazgos distintos llevan el código **UX-09** —el interruptor único de la Fase 5.2 y
 > la casilla de ver de la 5.6—. No se renumeran: los mensajes de commit los citan así.
+
+## Fase 5.7 · Lo que destapó el adelgazamiento de la documentación — CERRADA 2026-09-16
+
+| ID | Qué se hizo | Commit |
+|---|---|---|
+| A1-bis | `LOOP_MIN_N` deja de ser letra muerta: «Aplicar» apagado con menos de tres piezas en el lazo, y la guarda también dentro de `case 'apply'` | `ac6e8ed` |
