@@ -97,7 +97,12 @@ export const reacCell = (reac: number, ciego: boolean): string =>
         reac > 0 ? fx(reac, 1) : '—'}</td>`;
 /** Insignia W/T. La letra sola no dice nada a quien llega nuevo: el tooltip
  *  lleva la explicación larga, que ya estaba traducida en los tres idiomas. */
-export const oriTag = (o: Orientation): string => `<span class="ori ${o}" title="${T(('or' + o) as I18nKey)}">${o}</span>`;
+/** Insignia de ORIENTACIÓN del doblez. En una sección REDONDA no hay ninguna
+ *  —`Iz = Iy`, ver `orientations()`— y `W`/`T` ahí serían una letra inventada,
+ *  así que se pinta `Ø` y el título dice por qué. */
+export const oriTag = (o: Orientation, redonda = false): string => (redonda
+  ? `<span class="ori R" title="${esc(T('orR'))}">Ø</span>`
+  : `<span class="ori ${o}" title="${T(('or' + o) as I18nKey)}">${o}</span>`);
 export const sgn = (v: number, n: number): string => (v > 0 ? '+' : '') + fx(v, n);
 
 /* El ángulo se enseña TAL CUAL lo guarda el modelo. Hubo una temporada en que

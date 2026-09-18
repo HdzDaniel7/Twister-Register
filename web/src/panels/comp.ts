@@ -51,6 +51,7 @@ function gainExtra(C: typeof ST.comp): string {
    que se escribe ahí lo interpreta evalCell(), en engine/expr.ts.           */
 export function paneComp(M: Model): string {
   const D = activeDataset(), C = ST.comp, ori = E.orientations(M);
+  const redonda = M.section.kind === 'round';
   if (!D) return `<div class="pane on"><div class="grp"><div class="body">
     <div role="alert" class="warnbox mt10">${T('noMeas')}</div></div></div></div>`;
   const cmd = ST.command;
@@ -131,15 +132,22 @@ export function paneComp(M: Model): string {
     const dirty = ST.tweak[i].angle || ST.tweak[i].rot || ST.tweak[i].feed;
     rows.push(`<tr class="clk ${i === ST.sel ? 'sel' : ''} ${dirty ? 'hasd' : ''} ${sinMedir ? 'nomeas' : ''}"
       title="${sinMedir ? T('rowNoMeas') : (dirty ? T('tweakOn') : '')}" data-r="${i}">
-      <td>B${i + 1}</td><td>${oriTag(ori[i])}</td>${cells}</tr>`);
+      <td>B${i + 1}</td><td>${oriTag(ori[i], redonda)}</td>${cells}</tr>`);
   }
 
   return `<div class="pane on"><div class="grp"><div class="eyebrow">${T('gains')}</div><div class="body">
-    <div class="fgrid pair"><label>${T('gainW')} ${oriTag('W')}</label>
+    ${/* En una redonda `gainW` y `gainT` son dos nombres de un número (ver
+          `orientations()`), y el motor ya solo lee uno. Enseñar los dos campos
+          invitaba a teclear en el que no se usa. */''}
+    <div class="fgrid pair">${redonda
+      ? `<label>${T('gainOne')} ${oriTag('T', true)}</label>
+      ${nfield('.05', 'min="0" max="1" data-c="gainT"', C.gainT)}`
+      : `<label>${T('gainW')} ${oriTag('W')}</label>
       ${nfield('.05', 'min="0" max="1" data-c="gainW"', C.gainW)}
       <label>${T('gainT')} ${oriTag('T')}</label>
-      ${nfield('.05', 'min="0" max="1" data-c="gainT"', C.gainT)}
+      ${nfield('.05', 'min="0" max="1" data-c="gainT"', C.gainT)}`}
       ${gainExtra(C)}</div>
+    ${redonda ? `<div class="hintline">${T('secOneConst')}</div>` : ''}
     <div class="eyebrow" style="padding-left:0">${T('what')}</div>
     <div class="row wrap">
       ${[['doAngle', 'cAng'], ['doRot', 'cRot'], ['doFeed', 'cFeed']].map(([k, l]) =>

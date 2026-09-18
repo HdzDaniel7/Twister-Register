@@ -436,6 +436,7 @@ td.dcol input[type=text]{text-align:right}
   padding:0 3px;border:1px solid}
 .ori.W{color:var(--oriW);border-color:var(--oriWbd)}
 .ori.T{color:var(--oriT);border-color:var(--oriTbd)}
+.ori.R{color:var(--dim);border-color:var(--line2)}
 .v-ok{color:var(--ok)}.v-warn{color:var(--warn)}.v-bad{color:var(--bad)}
 /* WCAG 1.4.1: fuera de tolerancia NO puede decirse solo con el color.
    Una de cada doce personas no distingue el rojo del verde, y estas tablas

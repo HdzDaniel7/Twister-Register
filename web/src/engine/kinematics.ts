@@ -285,9 +285,24 @@ export function ik(
  *  sigue doblando de canto. Confundir uno con otro etiquetaba media tabla al
  *  revés y elegía la ganancia equivocada.
  *
- *  El corte va en 45°, donde deja de haber una cara dominante. */
+ *  El corte va en 45°, donde deja de haber una cara dominante.
+ *
+ *  Y EN UNA REDONDA NO HAY CARA. `Iz = Iy` y la fibra es la misma, así que el
+ *  eje absoluto sigue diciendo hacia dónde se dobla pero ya no dice CONTRA QUÉ:
+ *  doblar una barra redonda «de canto» y «de plano» es la misma operación. Esta
+ *  letra no es un rótulo: `compensate.ts` elige con ella el retorno elástico
+ *  (`proc.sbW`/`sbT`), el reparto del lote y la ganancia del lazo. Repartiendo
+ *  por una distinción que la sección ya no tiene, media pieza se compensaba con
+ *  el retorno de la otra mitad — y las dos constantes describen lo MISMO.
+ *
+ *  Así que en una redonda salen todas iguales y el motor consulta un solo
+ *  número. La `T` no quiere decir «de plano» ahí: quiere decir «el único». Que
+ *  eso no se lea mal es cosa de la pantalla, y por eso `oriTag()` pinta `Ø` en
+ *  vez de la letra y los paneles enseñan UN campo en lugar de dos. */
 export const orientations = (model: Model): Orientation[] =>
-  axisAngles(model).map(a => (Math.abs(Math.sin(a * D2R)) > Math.SQRT1_2 ? 'W' : 'T'));
+  (model.section?.kind === 'round'
+    ? model.bends.map(() => 'T' as Orientation)
+    : axisAngles(model).map(a => (Math.abs(Math.sin(a * D2R)) > Math.SQRT1_2 ? 'W' : 'T')));
 
 /** Parte el doblez en {axis, theta}: el doblez es SIEMPRE un solo arco.
  *

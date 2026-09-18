@@ -429,7 +429,8 @@ una ventana que escribe un campo que nadie lee es exactamente lo que fue `LOOP_M
 | SEC-01 | `engine/section.ts`: las seis cuentas que la forma cambia, en un solo sitio. Refactor puro, superficie del motor 165 → 168 exports y ni una cifra movida | `e5f0798` |
 | SEC-02 | Las cuatro formas —rectangular y redonda, macizas y huecas—, `barcomp/2.4`, el 3D barriendo el contorno de verdad y la ventana de la sección | `4da0a64` |
 | SEC-04 | Medido: la guarda del eje mide el PLANO del doblez, y una redonda no borra el plano. Lo que borra es el retorcido, y ahí sí había un doble conteo — ver Fase 6.1 | `f784446` |
-| SEC-06 | La sección deja de ser un cajón y pasa a ser PESTAÑA, con el dibujo de la cara a escala y las cotas encima. Devuelto por el taller: la barra de menús se corta cuando la ventana no es ancha y el botón del cajón podía no verse. De paso, las medidas dejan de estar en dos sitios | `(esta pasada)` |
+| SEC-06 | La sección deja de ser un cajón y pasa a ser PESTAÑA, con el dibujo de la cara a escala y las cotas encima. Devuelto por el taller: la barra de menús se corta cuando la ventana no es ancha y el botón del cajón podía no verse. De paso, las medidas dejan de estar en dos sitios | `1143361` |
+| SEC-05 | En una redonda `orientations()` sale toda igual, así que el motor lee UNA constante y no dos. Repartir por una cara que `Iz = Iy` ya no distingue movía los dobleces hasta **4.10°** sobre el demo con `sbT=2` y `sbW=6`. La tabla pinta `Ø` en vez de `W`/`T`, y Medir y Compensar enseñan un campo en lugar de dos | `(esta pasada)` |
 
 Abierto, y con su motivo:
 
@@ -441,15 +442,6 @@ Abierto, y con su motivo:
       criterio pide o una norma que el taller acepte o piezas dobladas de las que aprenderlo.
       Mientras no haya una cosa ni la otra, **el aviso es la respuesta honesta**: inventar un
       umbral sería darle cara de dato a una opinión. · M
-- [ ] **[SEC-05] Con la barra redonda, `sbT`/`sbW` y `gainT`/`gainW` son dos columnas para
-      una sola cosa · [S]** — salido el 2026-09-18 al cerrar SEC-04. `orientations()` etiqueta
-      cada doblez de plano o de canto, y `compensate.ts` elige con esa letra el retorno
-      (`proc.sbT`/`sbW`, línea 32), el reparto del lote (:171) y la ganancia del lazo (:264).
-      En una redonda `Iz = Iy` y la fibra es la misma, así que los dos números tienen que ser
-      el MISMO número y nada lo dice ni lo comprueba: quien deje puestos los de una pletina
-      compensa un doblez con el retorno del otro. Cerrarlo es pequeño —o se igualan solos, o
-      se avisa— pero es un cambio de comportamiento sobre la compensación y quiere su pasada
-      y su cifra. · S
 
 ## Fase 6.1 · La torsión contada dos veces — CERRADA 2026-09-18
 

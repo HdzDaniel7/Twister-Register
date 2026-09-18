@@ -11,6 +11,7 @@ import { fx, esc, cls, oriTag, sgn, srcTag } from './fmt.ts';
 /* --- pestaña MEDICIÓN --------------------------------------------------- */
 export function paneMeas(M: Model): string {
   const p = ST.proc, D = activeDataset(), ori = E.orientations(M);
+  const redonda = M.section.kind === 'round';
   /* Con dos piezas o más, la dispersión por doblez es lo que dice si un doblez
      está sistemáticamente fuera o solo tuvo mala puntería. Con una sola pieza
      la columna no existe: no hay nada que dispersar. */
@@ -53,7 +54,7 @@ export function paneMeas(M: Model): string {
       ${falta ? `<span class="n" title="${esc(falta.tip)}">${falta.txt}</span>` : ''}</div>`;
   };
   const sbBlock = `<div class="grp"><div class="eyebrow">${T('sbMeas')}</div><div class="body">
-    ${sbLine('W', T('sbW'))}${sbLine('T', T('sbT'))}
+    ${redonda ? sbLine('T', T('sbOne')) : sbLine('W', T('sbW')) + sbLine('T', T('sbT'))}
     <div class="row mt6"><button class="btn sm grow" data-a="usesb"
       ${sb && (sb.W.stat.n || sb.T.stat.n) ? '' : 'disabled'}>${T('sbUse')}</button></div>
     <div class="hintline">${sbSim
@@ -62,7 +63,8 @@ export function paneMeas(M: Model): string {
   </div></div>`;
   const proc = `<div class="grp"><div class="eyebrow">${T('proc')}</div><div class="body">
     <div class="fgrid" style="grid-template-columns:1fr 1fr;gap:4px 8px">
-      ${rr('sbW', T('sbW'), 0, 4, .05, '%')}${rr('sbT', T('sbT'), 0, 4, .05, '%')}
+      ${redonda ? rr('sbT', T('sbOne'), 0, 4, .05, '%')
+        : rr('sbW', T('sbW'), 0, 4, .05, '%') + rr('sbT', T('sbT'), 0, 4, .05, '%')}
       ${rr('slip', T('slip'), 0, 1, .01, '%')}${rr('biasRot', T('biasR'), -2, 2, .05, '°')}
       ${rr('noiseA', T('noise') + ' °', 0, .3, .01, '')}${rr('seed', T('seed'), 1, 99, 1, '')}</div>
     <button class="btn pri mt6" style="width:100%" data-a="sim">${T('simulate')}</button>
@@ -88,7 +90,7 @@ export function paneMeas(M: Model): string {
       ${M.bends.slice(0, D.dev!.angle.length).map((b, i) => `<tr class="clk ${i === ST.sel ? 'sel' : ''}" data-r="${i}"
         tabindex="0" aria-label="${T('devRowTip').replace('{b}', 'B' + (i + 1))}"
         ${i === ST.sel ? 'aria-current="true"' : ''}><td>B${i + 1}</td>
-        <td>${oriTag(ori[i])}</td>
+        <td>${oriTag(ori[i], redonda)}</td>
         <td class="${cls(D.dev!.angle[i], M.tol.angle)}">${sgn(D.dev!.angle[i], 3)}</td>
         ${lote ? `<td class="v-dim">${st[i] ? '±' + fx(st[i].angle.sigma, 3) : '—'}</td>` : ''}
         <td class="${cls(D.dev!.rot[i], M.tol.rot)}">${sgn(D.dev!.rot[i], 3)}</td>

@@ -3169,6 +3169,44 @@ step('un tubo pesa menos, se le ve el hueco y lo dice el aviso de los umbrales',
     ponSeccion(antes);
   }
 });
+/* SEC-05: la letra W/T elige el retorno elástico y la ganancia del lazo. En
+   una redonda esa distinción no existe, y repartir por ella compensaba un
+   doblez con el retorno del otro: 4.10° sobre el demo con sbT=2 y sbW=6. */
+const insignias = () => [...document.querySelectorAll('#panes .ori')].map(t => t.textContent);
+step('con una pletina, la tabla etiqueta cada doblez de canto o de plano', () => {
+  click('#tabs [data-t="model"]');
+  const tags = insignias();
+  if (!tags.includes('W') || !tags.includes('T')) throw new Error('insignias: ' + tags.join(''));
+});
+step('con la barra redonda, la tabla deja de inventarse una cara', () => {
+  const antes = { ...S().model.section };
+  try {
+    pestSeccion();
+    click('#panes [data-sk="round"]');
+    click('#tabs [data-t="model"]');
+    const tags = insignias();
+    if (!tags.length) throw new Error('sin insignias de orientación');
+    if (tags.some(t => t !== 'Ø')) throw new Error('insignias: ' + tags.join(''));
+  } finally {
+    ponSeccion(antes);
+  }
+});
+step('y el retorno elástico pasa de dos deslizadores a uno', () => {
+  const antes = { ...S().model.section };
+  try {
+    click('[data-md="meas"]');
+    if (!document.querySelector('[data-pr="sbW"]')) throw new Error('faltaba el de canto');
+    click('[data-md="model"]');
+    pestSeccion();
+    click('#panes [data-sk="round"]');
+    click('[data-md="meas"]');
+    if (document.querySelector('[data-pr="sbW"]')) throw new Error('sigue el de canto');
+    if (!document.querySelector('[data-pr="sbT"]')) throw new Error('no queda ninguno');
+  } finally {
+    click('[data-md="model"]');
+    ponSeccion(antes);
+  }
+});
 step('la forma viaja en el archivo y vuelve', () => {
   const antes = { ...S().model.section };
   try {

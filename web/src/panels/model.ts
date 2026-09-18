@@ -48,6 +48,7 @@ export function paneModel(M: Model): string {
      editables. El AVANCE es de solo lectura y se lee del modelo efectivo: es la
      consecuencia de la recta más lo que el doblez le come por los dos lados. */
   const base = v.base.bends, ori = E.orientations(M);
+  const redonda = M.section.kind === 'round';
   /* El eje de doblado ABSOLUTO tras cada giro. La columna «Rodado» dice cuánto
      GIRA el eje, no dónde queda, así que una fila de ceros no significa «eje a
      cero» sino «no lo muevas»: la celda lleva el resultado en su tooltip. */
@@ -73,7 +74,7 @@ export function paneModel(M: Model): string {
     const hasD = E.DELTA_KEYS.some(k => v.deltas[i][k]);
     const bb = base[i];
     return `<tr class="clk ${i === ST.sel ? 'sel' : ''} ${hasD ? 'hasd' : ''}" data-r="${i}">
-      <td>B${i + 1}</td><td>${oriTag(ori[i])}</td>
+      <td>B${i + 1}</td><td>${oriTag(ori[i], redonda)}</td>
       <td>${nfield('.5', `data-st="${i}" class="${BASE[i].straight < ST.lims.straightMin ? 'v-bad' : ''}"`,
                    BASE[i].straight)}</td>
       <td class="dcol">${dnum(i, 'feed', '.1')}</td>

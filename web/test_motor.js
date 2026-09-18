@@ -2049,6 +2049,49 @@ console.log('\n— las formas de la sección: tubo y redondo contra la fórmula 
 }
 
 /* ======================================================================== */
+console.log('\n— SEC-05: en una redonda no hay dos constantes, hay una —');
+{
+  const rec = E.normalizeModel({ ...E.demoModel() });
+  const red = E.normalizeModel({ ...E.demoModel(),
+    section: { kind: 'round', width: 30, wall: 0, chamfer: 0, endLen: 20 } });
+  const oRec = E.orientations(rec), oRed = E.orientations(red);
+  ok('en una rectangular sigue habiendo canto y plano',
+     new Set(oRec).size === 2, oRec.join(''));
+  ok('en una redonda todas las estaciones salen iguales',
+     new Set(oRed).size === 1, oRed.join(''));
+
+  /* Lo que de verdad importa: la letra elige el RETORNO ELÁSTICO. Con dos
+     números distintos, media pieza se simulaba con el de la otra mitad. */
+  const proc = { ...E.PROC_DEFAULT, sbT: 2, sbW: 6 };
+  const ang = (M, o, p) => E.simulate(M.bends, p, o, false).map(b => b.angle);
+  const dif = (a, b) => maxAbs(a.map((x, i) => x - b[i]));
+  const redA = ang(red, oRed, proc), redB = ang(red, oRed, { ...proc, sbW: 0 });
+  ok('en una redonda, mover el retorno de CANTO no mueve ni un doblez',
+     dif(redA, redB) === 0, `${dif(redA, redB)}°`);
+  const recA = ang(rec, oRec, proc), recB = ang(rec, oRec, { ...proc, sbW: 0 });
+  ok('y en una rectangular sí lo mueve: la prueba de arriba no es vacía',
+     dif(recA, recB) > 1, `${dif(recA, recB).toFixed(2)}°`);
+  /* Y con el retorno de PLANO puesto, la redonda entera responde a ese. */
+  const redC = ang(red, oRed, { ...proc, sbT: 0 });
+  ok('en una redonda manda un solo número, y lo nota la pieza entera',
+     dif(redA, redC) > 1 && red.bends.every((b, i) =>
+       Math.abs(redA[i] - b.angle * (1 - 2 / 100)) < 1e-9),
+     `${dif(redA, redC).toFixed(2)}°`);
+
+  /* Lo mismo con la GANANCIA del lazo, que es el otro sitio que reparte. */
+  const comp = { ...E.COMP_DEFAULT, gainT: 0.5, gainW: 1, doAngle: true,
+                 dead: 0, maxStep: 90 };
+  const meas = E.simulate(red.bends, proc, oRed, false);
+  const corr = (c) => E.compensate(red.bends, red.bends, meas, c, oRed)
+    .map(b => b.angle);
+  ok('en una redonda, mover la ganancia de CANTO no mueve la corrección',
+     dif(corr(comp), corr({ ...comp, gainW: 0 })) === 0);
+  ok('y moverla la de PLANO sí: es la que manda',
+     dif(corr(comp), corr({ ...comp, gainT: 0 })) > 0.1,
+     `${dif(corr(comp), corr({ ...comp, gainT: 0 })).toFixed(3)}°`);
+}
+
+/* ======================================================================== */
 console.log('\n— esquemas: qué se convierte, qué se avisa y qué se rechaza —');
 {
   const M = E.demoModel();

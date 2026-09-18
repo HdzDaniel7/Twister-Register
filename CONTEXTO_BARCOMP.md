@@ -627,7 +627,11 @@ punteada. Deja ver de un vistazo cuál doblez está fuera. Es clicable.
     puede observar. Eso se avisa en su pestaña, al lado del dibujo de la cara. Lo que NO choca con nada es la guarda del eje
     no observable (C1+A4): medido el 2026-09-18, esa guarda mide el PLANO del doblez, y el
     plano se lee de la línea media, que una sección redonda no borra. Lo que una redonda borra
-    es el retorcido y el par T/W — ver la trampa 27 y SEC-05.
+    es el retorcido —trampa 27— y el par T/W: `orientations()` sale toda igual en una
+    redonda, así que `compensate.ts` lee UNA constante y no dos. Repartir por una cara que
+    `Iz = Iy` ya no distingue movía los dobleces hasta **4.10°** sobre el demo con `sbT=2` y
+    `sbW=6`. La `T` no quiere decir «de plano» ahí: quiere decir «la única», y por eso la
+    tabla pinta `Ø` y Medir y Compensar enseñan un campo en lugar de dos.
 27. **La torsión viaja DENTRO de los puntos PI, no al lado.** `Rx(twist)` rueda el marco, así
     que el rodado de la estación SIGUIENTE se lee ya girado: 12° de torsión en la estación *i*
     y 12° menos de rodado en la *i+1* dan los mismos PI **hasta 1.5e-13 mm**. De unos puntos
@@ -649,9 +653,9 @@ punteada. Deja ver de un vistazo cuál doblez está fuera. Es clicable.
 ```bash
 cd web && npm run check            # typecheck -> pruebas -> build -> banco, de una
 cd web && npm run typecheck        # tsc --noEmit, con strict
-cd web && node test_motor.js       # 568 pruebas; todas deben pasar
+cd web && node test_motor.js       # 575 pruebas; todas deben pasar
 cd web && node build.mjs           # regenera index.html y barcomp_viewer.html
-cd web && node tools/ui_test.mjs   # 276 pasos de interfaz en Edge headless
+cd web && node tools/ui_test.mjs   # 279 pasos de interfaz en Edge headless
 cd web && node tools/demo_carga.mjs # κ contra una solución exacta, y el codo del hueco
 ```
 
@@ -851,6 +855,14 @@ volvían a pegar encima la del nominal. Con una sola estación torcida 12° sobr
 Y la cifra que obliga a arrastrar la torsión en vez de leerla: **12° de torsión en la
 estación *i* y 12° menos de rodado en la *i+1* dan los mismos PI hasta 1.5e-13 mm**. Los
 puntos no pueden separarlas; la pieza sí, si la sección no es redonda. Ver la trampa 27.
+
+**La cara que una redonda no tiene (2026-09-18).** `orientations()` repartía cada doblez en
+`W`/`T` por el eje absoluto, y esa letra elige el retorno elástico, el reparto del lote y la
+ganancia del lazo. En una redonda `Iz = Iy`: la distinción no existe y las dos constantes
+describen lo mismo. Con `sbT = 2` y `sbW = 6` sobre el demo, los dobleces se movían hasta
+**4.10°** según qué letra les tocara. Ahora salen todas iguales y el motor lee un solo
+número; en una rectangular no cambia nada, y hay prueba de que el 4.10° sigue ahí para que
+la de la redonda no sea vacía.
 
 ### Decisiones que siguen gobernando el código
 
