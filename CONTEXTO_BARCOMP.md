@@ -622,7 +622,7 @@ cd web && npm run typecheck        # tsc --noEmit, con strict
 cd web && node test_motor.js       # 533 pruebas; todas deben pasar
 cd web && node build.mjs           # regenera index.html y barcomp_viewer.html
 cd web && node tools/ui_test.mjs   # 264 pasos de interfaz en Edge headless
-cd web && node tools/demo_carga.mjs # κ contra una solución exacta, con las cifras
+cd web && node tools/demo_carga.mjs # κ contra una solución exacta, y el codo del hueco
 ```
 
 Dos herramientas más, que no son pruebas sino evidencia:
@@ -779,6 +779,10 @@ Ninguna de estas se vuelve a sacar leyendo el código.
 | Fixture sembrado + carga, con el alto redondeado a 0.01 | **47.4 N** sobre 23.7 N, mordaza −23.7 N | FIS-10, la causa |
 | El MISMO fixture sembrado sin redondear el alto | **9.8 N** en los apoyos, 13.9 N en la mordaza | FIS-10, arreglado |
 | Rigidez de contacto sobre la demo | κ = **6 158 N/mm**, o sea **6.16 N por MICRA** de interferencia | `demo_carga` |
+| El hueco del pedestal empinado, pendiente | **13.27 mm/grado** junto al punto de contacto y **27.23** a una milésima de grado | FIS-10b, `demo_carga` |
+| El mismo hueco donde la barra va tendida (cuna a 20°) | **1.065 mm/grado** por los dos lados, liso | FIS-10b, `demo_carga` |
+| Paso de Newton de la carga contra la distancia al codo | **1.4e-2°** de paso contra **1e-3°** de recta válida: catorce veces | FIS-10b |
+| Donde la búsqueda se rinde, ¿es mínimo? | no: mover UNA incógnita 1e-4° baja Φ **6.2e-3 N·mm** | FIS-10b |
 | Dos columnas de apoyo en desacuerdo | a **0.9 mm** una decía «apoya» y la de al lado 0.00 N | X-05 |
 | Interferencia con varios modelos, antes → después de FIS-08 | **149 de 270 casos, peor 82 mm** → **19 de 270, peor 14 mm** | FIS-08 |
 | Primer tramo con entrada recta de 700 mm | **dos** pedestales a 0.00 N, indeterminados | X-02 |
@@ -927,6 +931,17 @@ Sin esto alguien lo reintenta.
   no deja bajar a `GRAD_TOL`»—: los 47 N eran κ multiplicando el redondeo del alto sembrado,
   6.16 N por micra, y se fueron quitando el `toFixed(2)` de `seedPedestals()`. Queda abierto
   lo otro, que la búsqueda se rinda cuando partir el paso ocho veces no baja la energía.
+- **Tres intentos más contra lo que quedaba (FIS-10b), el 2026-09-17**, ninguno en el código
+  y todos contra el reparto bueno, que es 9.78 N en los apoyos y 13.89 en la mordaza sobre
+  una pieza de 23.67 N: **test de razón** sobre el paso —cortarlo donde el primer contacto
+  cambia de estado— muerde de verdad (la primera vuelta se queda en el 1.6 % del paso) y no
+  mueve el resultado ni una centésima; **perturbar más fino** (H de 0.02° a 1e-4…1e-6) hace
+  que la búsqueda se crea la rama local del codo y se meta dentro de los apoyos: 60.29 N
+  arriba y **−36.62 N** en la mordaza, 7.1 µm de penetración; **caída por coordenadas** cuando
+  Newton muere baja la energía pero no converge y el reparto vagabundea con el presupuesto de
+  vueltas —13.68 N con 6, 27.00 con 25, 14.84 con 200— y el tiempo pasa de 16 a **1 916 ms**.
+  El diagnóstico bueno está en el escenario 5 de `demo_carga`: el hueco se dobla antes de una
+  milésima de grado y Newton da pasos catorce veces más largos que eso.
 - **Consolidar los dos motores en uno** — revocado el 2026-09-08 en el sentido contrario:
   el motor de Python sale del alcance entero. Fusionarlos era caro y arriesgado; retirar uno
   no cuesta nada. **Lo que se pierde, dicho a las claras:** la verificación cruzada entre dos

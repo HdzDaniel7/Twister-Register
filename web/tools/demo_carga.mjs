@@ -268,6 +268,87 @@ tit('4 · La demo con siete pedestales: de dónde salían los 47 N');
   console.log('  cuánto se queda la mordaza.');
 }
 
+/* ══════════════════════════════════════════════════════════════════════════
+   5 · POR QUÉ LA BÚSQUEDA SE RINDE — el hueco de un apoyo tiene un CODO.
+
+   Esto es FIS-10b, y hasta el 2026-09-17 se le echaba la culpa al ruido de las
+   diferencias finitas. No era eso. El hueco de un pedestal, como función de las
+   incógnitas, se DOBLA a menos de una milésima de grado de donde el apoyo toca:
+   junto al punto baja 13.3 mm por grado, y a 1e-3° ya baja 27.2 — el doble. El
+   paso de Newton mide 1.4e-2°, o sea CATORCE VECES más que la distancia a la
+   que la recta deja de valer, y Φ lleva ½κ·hueco²: la parábola que el método se
+   cree no existe en el tramo que recorre. Por eso la búsqueda parte el paso
+   ocho veces y ninguna baja la energía.
+
+   De dónde sale el codo: `pedestalFit()` busca el punto de la barra más cercano
+   al pedestal EN PLANTA (`nearestOnPath(samples, ped.x, ped.y)`) y mide ahí la
+   cara de abajo. Con un tramo casi vertical la proyección en planta de la barra
+   es casi un punto, así que ese mínimo está mal condicionado: mover el doblez
+   una diezmilésima de grado corre el punto de contacto DÉCIMAS DE MILÍMETRO a
+   lo largo de la barra, y la z de la barra cambia mucho a lo largo de s.
+
+   O sea que FIS-10b y lo que quedó de FIS-08 son EL MISMO trabajo: mientras el
+   apoyo se mida con una proyección en planta, el hueco de un tramo a plomo no
+   es una función lisa y ningún criterio de parada lo va a arreglar.           */
+tit('5 · El codo del hueco: por qué Newton no puede cerrar FIS-10');
+{
+  const M = E.demoModel();
+  const p0 = E.buildPath(M, 8).samples;
+  const peds = E.seedPedestals(p0, M.section, 7)
+    .map((p, i) => ({ ...p, id: `pd${i + 1}`, name: `P${i + 1}` }));
+  /* el pedestal empinado es el que lleva casi toda la carga (ver §11) */
+  const kEmp = peds.reduce((a, p, i) => (Math.abs(p.tilt) > Math.abs(peds[a].tilt) ? i : a), 0);
+  const hueco = (k, j, h) => {
+    const m = { ...M, bends: M.bends.map((b, i) => (i === j ? { ...b, angle: b.angle + h } : b)) };
+    return E.pedestalFit(E.buildPath(m, 8).samples, M.section, peds[k]).gap;
+  };
+  const pendientes = (k) => {
+    const g0 = hueco(k, 0, 0);
+    const H = 1e-4;
+    return { atras: (g0 - hueco(k, 0, -H)) / H, alante: (hueco(k, 0, H) - g0) / H,
+             lejos: (hueco(k, 0, 1e-3) - g0) / 1e-3 };
+  };
+  const emp = pendientes(kEmp);
+  const llano = pendientes(1);
+  console.log(`  pedestal empinado P${kEmp + 1}, cuna a ${f(peds[kEmp].tilt, 1)}°`);
+  console.log(`    hueco: ${f(emp.atras, 2)} mm/grado aquí mismo (±1e-4°)`
+            + ` · ${f(emp.lejos, 2)} a una milésima de grado: se dobla`);
+  console.log(`  pedestal tendido P2, cuna a ${f(peds[1].tilt, 1)}°`);
+  console.log(`    hueco: ${f(llano.atras, 2)} mm/grado por detrás · ${f(llano.alante, 2)} por delante`);
+
+  ok(rel(llano.alante, llano.atras) < 1e-2,
+     'donde la barra va tendida el hueco sí es liso: la misma pendiente por los dos lados',
+     `${f(llano.atras, 3)} vs ${f(llano.alante, 3)} mm/grado`);
+  /* TRIPWIRE, y está puesto del derecho a propósito: esta comprobación dice que
+     el codo SIGUE AHÍ. El día que falle será porque el apoyo ya no se mide en
+     planta —lo que pide FIS-08— y entonces FIS-10b se puede reabrir con
+     esperanza, que hoy no la tiene. */
+  ok(rel(emp.lejos, emp.atras) > 0.5,
+     'y donde va a plomo se dobla antes de una milésima: el codo de FIS-10b sigue ahí',
+     `${f(emp.atras, 2)} contra ${f(emp.lejos, 2)} mm/grado`);
+
+  console.log('\n  PROBADO Y DESCARTADO el 2026-09-17, con las cifras, para que nadie lo');
+  console.log('  vuelva a intentar (el reparto bueno es 9.78 N en los apoyos y 13.89 en');
+  console.log('  la mordaza, sobre una pieza de 23.67 N):');
+  console.log('   · test de razón sobre el paso —cortarlo donde el primer contacto cambia');
+  console.log('     de estado—: el corte SÍ muerde (el paso se queda en el 1.6 % en la');
+  console.log('     primera vuelta) y el resultado no se mueve ni una centésima: 9.78 /');
+  console.log('     13.89 N y ok=false igual. El problema no es pasarse de largo.');
+  console.log('   · perturbar más fino (H de 0.02° a 1e-4 … 1e-6): la búsqueda se cree la');
+  console.log('     rama local del codo y se mete dentro de los apoyos: 60.29 N en los');
+  console.log('     apoyos y −36.62 N en la mordaza, 7.1 µm de penetración. Peor, y sigue');
+  console.log('     sin converger.');
+  console.log('   · caída por coordenadas cuando Newton muere —probar una incógnita cada');
+  console.log('     vez—: baja la energía, sí, pero no converge y el reparto vagabundea');
+  console.log('     con el presupuesto de vueltas: 13.68 N con 6, 27.00 con 25, 14.84 con');
+  console.log('     200, y de 16 ms se pasa a 1 916 ms.');
+  console.log('  Lo que sí quedó medido: donde la búsqueda se rinde todavía hay bajada');
+  console.log('  —mover UNA incógnita 1e-4° baja Φ 6.2e-3 N·mm—, o sea que `loadStuck` no');
+  console.log('  miente: no es un mínimo. Pero la bajada no está en ninguna dirección que');
+  console.log('  un método de segundo orden pueda construir con un hessiano que ahí no');
+  console.log('  existe.');
+}
+
 console.log(`\n${malas ? `${malas} COMPROBACIÓN(ES) EN ROJO` : 'todo lo que se dijo, se cumplió'}\n`);
 console.log('Esto valida el MUELLE: κ = 1e5 deja una penetración predecible y el sesgo');
 console.log('que mete en la reacción está medido. No valida el MODELO contra una barra');

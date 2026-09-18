@@ -35,22 +35,42 @@ regenerar el fixture a propósito.
 
 Abierta el 2026-09-15, encontrada al cerrar X-04.
 
-- [ ] **[FIS-10b] La búsqueda sigue rindiéndose antes de llegar al mínimo · [O]** — lo que
-      queda del hallazgo, ya con el reparto creíble. Con el sembrado arreglado el caso normal
-      da apoyos 9.8 N + mordaza 13.9 N = el peso, pero `ok=false` y la pantalla lo avisa con
-      `loadStuck`. Medido el 2026-09-16 instrumentando `equilibrium()`: no es ruido de
-      diferencias finitas —el `dV` y el `J` salen de funciones suaves y su error relativo es
-      de 1e-11—, es que el paso de Newton mide 0.014° mientras los huecos miden micras, o sea
-      que mueve la barra 0.4 mm donde el contacto cambia de estado en 0.003 mm. La búsqueda
-      parte el paso ocho veces, con f = 1/128 todavía no baja la energía, y se rinde; el
-      gradiente entre tanto SUBE (250 → 295 N·mm/grado). Probado y descartado: partir el paso
-      40 veces y quedarse con el mejor f converge por `STEP_TOL` pero da el MISMO reparto
-      (47.4 → 47.8 N con el sembrado viejo), o sea que declara convergido lo que ya había.
-      Lo que queda por probar, por orden: un **test de razón** sobre el paso —cortarlo en el f
-      donde el primer contacto cambia de estado, que es como se resuelve un QP con
-      restricciones y deja Φ exactamente cuadrática en el tramo—; y solo después, un criterio
-      de parada por energía estancada. El muelle ya NO es sospechoso: `demo_carga` lo contrasta
-      contra una solución exacta y coincide a cinco cifras (pregunta 7). · M
+- [ ] **[FIS-10b] La búsqueda se rinde porque el hueco de un apoyo se dobla · [O]** — lo que
+      queda del hallazgo, ya con el reparto creíble: apoyos 9.78 N + mordaza 13.89 N = el peso
+      de 23.67 N, pero `ok=false` y la pantalla lo avisa con `loadStuck`.
+      **Diagnóstico bueno, del 2026-09-17** (los dos anteriores estaban equivocados, ver abajo):
+      el hueco de un pedestal no es una función lisa de las incógnitas. En el pedestal empinado
+      de la demo —cuna a −78.3°, el que lleva 8.8 de los 9.8 N— el hueco baja **13.27 mm/grado**
+      junto al punto de contacto y **27.23** a una milésima de grado: se dobla. Donde la barra va
+      tendida (cuna a 20°) es liso, 1.065 por los dos lados. Y el paso de Newton mide 1.4e-2°,
+      **catorce veces** la distancia a la que la recta deja de valer. Φ lleva ½κ·hueco², así que
+      ahí Φ tampoco es derivable: el método se cree una parábola que en ese tramo no existe, y
+      por eso partir el paso ocho veces no baja la energía. Medido también que NO es un mínimo:
+      mover una sola incógnita 1e-4° baja Φ 6.2e-3 N·mm, o sea que `loadStuck` dice la verdad.
+      **De dónde sale el codo, y por qué esto ya no es un problema del solver:** `pedestalFit()`
+      busca el punto de la barra más cercano al pedestal **en planta** y mide ahí la cara de
+      abajo. Con un tramo casi a plomo la proyección en planta de la barra es casi un punto, ese
+      mínimo está mal condicionado, y mover un doblez una diezmilésima de grado corre el punto de
+      contacto décimas de milímetro a lo largo de la barra. **Es el mismo defecto que «El apoyo
+      del pedestal solo mira de abajo arriba» (lo que quedó de FIS-08)**: mientras el apoyo se
+      mida con una proyección en planta, ningún criterio de parada ni ningún paso más listo lo
+      arregla. Los dos puntos se cierran con el mismo trabajo —tratar la cuna como un sólido y
+      resolver segmento contra caja, como ya hace `engine/contact.ts` para los pines— y ese
+      trabajo no se empieza a medias: detrás van `bears()`, la columna «Hueco», el dibujo 3D y
+      el barrido de 270 casos de FIS-08.
+      Probado y descartado el 2026-09-17, con cifra, para que nadie lo repita: **test de razón**
+      sobre el paso —cortarlo donde el primer contacto cambia de estado, que era el camino que
+      este plan proponía— muerde de verdad (la primera vuelta se queda en el 1.6 % del paso) y no
+      mueve el resultado ni una centésima: 9.78 / 13.89 N y `ok=false` igual; **perturbar más
+      fino** (H de 0.02° a 1e-4…1e-6) mete la barra dentro de los apoyos, 60.29 N arriba y
+      −36.62 N en la mordaza con 7.1 µm de penetración; **caída por coordenadas** cuando Newton
+      muere baja la energía pero no converge —13.68 N con 6 vueltas, 27.00 con 25, 14.84 con
+      200— y el tiempo pasa de 16 a 1 916 ms. Lo anterior, del 2026-09-16: partir el paso 40
+      veces y quedarse con el mejor f converge por `STEP_TOL` y da el MISMO reparto.
+      El muelle NO es sospechoso: `demo_carga` lo contrasta contra una solución exacta y coincide
+      a cinco cifras (pregunta 7). El escenario 5 de `demo_carga` reproduce el codo y lleva un
+      tripwire puesto del derecho: el día que esa comprobación falle será porque el apoyo ya no
+      se mide en planta, y entonces esto se puede reabrir con esperanza. · M
 
 - [ ] **[FIS-10c] Los pines sembrados siguen redondeando su posición · [O]** — abierto el
       2026-09-16 al cerrar FIS-10a. `seedPins()` redondea `x`, `y` y `h` a centésimas por el
@@ -105,6 +125,12 @@ Detalle en `CONTEXTO_BARCOMP.md`, «La carga».
       sólido y resolver segmento contra caja —lo que `engine/contact.ts` ya hace
       para los pines—, y detrás van `bears()`, la columna «Hueco», el dibujo 3D y
       el barrido de 270 casos de FIS-08. No se empieza a medias.
+      **Y desde el 2026-09-17 no es solo un punto ciego de modelo: es también la
+      causa de FIS-10b.** Medir el apoyo por la proyección EN PLANTA hace que el
+      hueco de un tramo a plomo no sea una función lisa —13.27 mm/grado junto al
+      contacto, 27.23 a una milésima de grado—, y sobre eso el solver de la carga
+      no puede converger por mucho que se le afine el paso. Los dos puntos se
+      cierran con el mismo trabajo y ya no tiene sentido planificarlos aparte.
 
 ## Aplazado a futuras actualizaciones (decisión 2026-09-08)
 
