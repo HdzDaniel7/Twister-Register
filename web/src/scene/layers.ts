@@ -63,10 +63,23 @@ export function layerFixtures(ctx: SceneCtx): void {
     groups.fix.add(col);
     /* La cuna: mira por donde va la barra en planta, pero se inclina con SU
        propio `tilt` y no con el que la barra pide. Si no coinciden se ve la
-       cuña de aire, que es la lectura que la columna Δ da en números. */
-    const cuna = new Mesh(new BoxGeometry(Math.max(ped.pad, 8), 44, 6), mat.clone());
-    cuna.position.set(ped.x, ped.y, E.TABLE_Z + ped.h + 3);
-    cuna.rotation.set(0, ped.tilt * E.D2R, (f ? f.head : 0) * E.D2R, 'ZYX');
+       cuña de aire, que es la lectura que la columna Δ da en números.
+
+       ES LA MISMA CAJA QUE MIDE `cradleBox()`, y desde el 2026-09-18 de verdad:
+       antes se dibujaba con `Ry(+tilt)`, que deja el eje largo de la cuna con
+       el seno cambiado de signo, o sea inclinada al revés que la que la física
+       mide. Con la barra tendida no se notaba; con un tramo empinado la chapa
+       de la pantalla apuntaba a un lado y la cuenta al otro.
+
+       Y el GRUESO cuelga hacia abajo. Lo que sostiene es la CARA de arriba, y
+       esa cara es el plano que pasa por (x, y, TABLE_Z + h): el mismo contra el
+       que se mide el hueco. Dibujando la caja centrada ahí, la tapa quedaba
+       tres milímetros por encima del plano medido y la barra parecía flotar. */
+    const CH = 6;                                    // grueso dibujado, mm
+    const cuna = new Mesh(new BoxGeometry(ped.pad, E.CRADLE_W, CH), mat.clone());
+    cuna.rotation.set(0, -ped.tilt * E.D2R, (f ? f.head : 0) * E.D2R, 'ZYX');
+    const box = E.cradleBox(ped, f ? f.head : 0);
+    cuna.position.copy(box.c).addScaledVector(box.e[2], -CH / 2);
     groups.fix.add(cuna);
   }
 }

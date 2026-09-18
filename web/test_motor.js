@@ -1543,16 +1543,51 @@ console.log('\n— el fixture: pedestales, apoyo y vanos —');
        semilla: lo que se prueba aquí es la fórmula del hueco, no lo que la
        siembra escribe en la tabla. */
     const cero = E.pedestalFit(path, M.section, ped(s0));
-    const exacta = { ...s0, h: cero.low - E.TABLE_Z };
-    ok('a la altura justa, hueco cero',
-       Math.abs(E.pedestalFit(path, M.section, ped(exacta)).gap) < 1e-9);
-    /* Cinco milímetros MÁS de pedestal levantan la barra: el hueco se hace
-       negativo, que es «el pedestal estorba». El signo importa: con el
-       contrario, el aviso mandaría a subir el que ya sobra. */
-    const alto = E.pedestalFit(path, M.section, ped({ ...exacta, h: exacta.h + 5 }));
-    ok('cinco mm de más dan hueco −5', Math.abs(alto.gap + 5) < 1e-9, `${alto.gap}`);
-    const bajo = E.pedestalFit(path, M.section, ped({ ...exacta, h: exacta.h - 5 }));
-    ok('cinco mm de menos dan hueco +5', Math.abs(bajo.gap - 5) < 1e-9, `${bajo.gap}`);
+
+    /* LA LEY DEL HUECO CONTRA EL ALTO, y se prueba sobre una barra RECTA
+       INCLINADA a propósito, no sobre la demo.
+
+       El hueco se mide contra la CARA de la cuna, o sea sobre su NORMAL, y la
+       normal de una cuna inclinada no es la vertical: subir el pedestal un
+       milímetro no cierra un milímetro de hueco, cierra `cos(tilt)`. Eso es lo
+       que hay que fijar aquí, y sobre la demo no se puede: `head` —el rumbo en
+       planta de la cuna— no se guarda en el pedestal, se deduce de la barra que
+       le queda encima, así que al subir el pedestal la cuna TAMBIÉN gira un
+       poco y el coseno deja de salir limpio. Medido sobre los siete sembrados
+       de la demo: en el pedestal tendido la pendiente sale 0.99055 contra un
+       coseno de 0.99046, y en el empinado 0.61610 contra 0.53759. No es un
+       error de la ley, es que ahí se está midiendo otra cosa además.
+
+       Con la barra recta el rumbo es el mismo en todo el tramo, la cuna apoya a
+       ras sobre su cara y queda solo la ley. Y la inclinación es de 30°, o sea
+       coseno 0.866: si esto se hiciera con la cuna tendida, la prueba no
+       distinguiría este modelo del que medía en planta. */
+    {
+      const secR = { width: 40, thickness: 12, chamfer: 1.2, endLen: 20 };
+      const Mr = E.normalizeModel({ name: 'RAMPA', tail: 900, section: secR,
+        bends: [E.newBend({ feed: 300, rot: 270, angle: 30, radius: 30 })] });
+      const pr = E.buildPath(Mr).samples;
+      /* El ÚLTIMO de tres: la siembra reparte del 5% al 95%, así que ese cae
+         de lleno en el tramo recto de arriba. Con uno solo caía al 50%, que en
+         esta pieza es el codo, y ahí la barra no lleva los 30°. */
+      const sr = E.seedPedestals(pr, secR, 3)[2];
+      const fr = E.pedestalFit(pr, secR, ped(sr));
+      ok('en la rampa la cuna se siembra a los 30° que sube la barra',
+         Math.abs(Math.abs(sr.tilt) - 30) < 0.01, `${sr.tilt}°`);
+      ok('y apoyando, hueco cero', Math.abs(fr.gap) < 1e-9, `${fr.gap.toExponential(2)}`);
+      const cos = Math.cos(sr.tilt * Math.PI / 180);
+      const g = (d) => E.pedestalFit(pr, secR, ped({ ...sr, h: sr.h + d })).gap;
+      /* Cinco milímetros MÁS de pedestal levantan la barra: el hueco se hace
+         negativo, que es «el pedestal estorba». El signo importa: con el
+         contrario, el aviso mandaría a subir el que ya sobra. */
+      ok('cinco mm de más dan hueco −5·cos(tilt)',
+         Math.abs(g(5) + 5 * cos) < 1e-9, `${g(5)} vs ${-5 * cos}`);
+      ok('cinco mm de menos dan hueco +5·cos(tilt)',
+         Math.abs(g(-5) - 5 * cos) < 1e-9, `${g(-5)} vs ${5 * cos}`);
+      ok('y el coseno no es decorativo: esta cuna está inclinada de verdad',
+         Math.abs(cos - 1) > 0.1, `cos ${cos.toFixed(4)}`);
+    }
+
     /* Y la siembra cumple lo que promete: dos decimales, o sea medio centésimo
        de milímetro en el peor caso. Se redondea a propósito —son cotas que
        alguien lee con un flexómetro— y aquí queda dicho cuánto cuesta. */
@@ -1589,25 +1624,82 @@ console.log('\n— el fixture: pedestales, apoyo y vanos —');
        enOrden.filter(v => !isFinite(v)).length === 1);
   }
 
+  /* --- la cuna que se dibuja ES la que se mide -------------------------- */
+  {
+    /* `scene/layers.ts` dibuja la cuna con un Euler ZYX y la física la mide con
+       `cradleBox()`. Son dos escrituras de la misma rotación, y si se separan
+       nadie se entera: la chapa de la pantalla apunta a un lado y la cuenta al
+       otro. Pasó —el 3D usaba `Ry(+tilt)`, que deja el eje largo de la cuna con
+       el seno cambiado de signo— y con la barra tendida no se notaba.
+
+       Aquí se comprueba la IDENTIDAD, no un caso: los tres ejes de la caja
+       contra los tres ejes de la rotación que dibuja, en veinte combinaciones de
+       rumbo e inclinación, incluidas las de cerca de la vertical. */
+    let peor = 0;
+    for (const head of [0, 37, -110, 175]) {
+      for (const tilt of [0, 12, -57.5, 80, -80]) {
+        const box = E.cradleBox(ped({ x: 10, y: -20, h: 100, tilt }), head);
+        const m = new Matrix4().makeRotationFromEuler(
+          new Euler(0, -tilt * Math.PI / 180, head * Math.PI / 180, 'ZYX'));
+        [new Vector3(1, 0, 0), new Vector3(0, 1, 0), new Vector3(0, 0, 1)]
+          .forEach((v, k) => { peor = Math.max(peor, v.applyMatrix4(m).distanceTo(box.e[k])); });
+      }
+    }
+    ok('la cuna que dibuja el 3D es la misma que mide la física',
+       peor < 1e-12, `peor ${peor.toExponential(2)}`);
+    /* Y el eje largo de la cuna sale PARALELO a la barra cuando la cuna lleva
+       la inclinación que la barra pide. Es el signo que estaba al revés, y la
+       forma de verlo sin mirar la pantalla. */
+    const s1 = E.seedPedestals(path, M.section, 7)[3];
+    const f1 = E.pedestalFit(path, M.section, ped(s1));
+    const b1 = E.cradleBox(ped(s1), f1.head);
+    const q1 = E.sampleAt(path, f1.s);
+    ok('  y con la inclinación que la barra pide, la cuna va a lo largo de ella',
+       Math.abs(Math.abs(b1.e[0].dot(q1.x)) - 1) < 0.05,
+       `cos ${b1.e[0].dot(q1.x).toFixed(4)}`);
+  }
+
   /* --- el despegue: lo que hace comparable un Δ con una tolerancia ------ */
   {
-    const s0 = E.seedPedestals(path, M.section, 1)[0];
+    /* SOBRE LA RAMPA RECTA, y por el mismo motivo que la ley del hueco: `want`
+       es la pendiente de la CUERDA que la cuna cubre —no la tangente de un
+       punto—, así que sobre una pieza curvada cambiarle el largo a la cuna
+       cambia la cuerda y con ella el Δ. Eso es lo que la medida tiene que
+       decir, pero aquí lo que se fija es OTRA cosa: que un Δ dado se convierta
+       en los milímetros que la barra se despega. Sobre una recta la cuerda es
+       la misma para cualquier largo de cuna y queda solo el despegue. */
+    const secR = { width: 40, thickness: 12, chamfer: 1.2, endLen: 20 };
+    const Mr = E.normalizeModel({ name: 'RAMPA', tail: 900, section: secR,
+      bends: [E.newBend({ feed: 300, rot: 270, angle: 30, radius: 30 })] });
+    const pr = E.buildPath(Mr).samples;
+    const s0 = E.seedPedestals(pr, secR, 3)[2];
     /* Dos grados EXACTOS sobre lo que la barra pide, sin el redondeo de la
        siembra por medio. */
-    const want = E.pedestalFit(path, M.section, ped(s0)).want;
-    const f = E.pedestalFit(path, M.section, ped({ ...s0, tilt: want + 2, pad: 100 }));
+    const want = E.pedestalFit(pr, secR, ped(s0)).want;
+    const f = E.pedestalFit(pr, secR, ped({ ...s0, tilt: want + 2, pad: 100 }));
     ok('2° de más se convierten en despegue', Math.abs(f.dTilt - 2) < 1e-9, `${f.dTilt}`);
     ok('y el despegue es medio largo de cuna por la tangente',
        Math.abs(f.lift - 50 * Math.tan(2 * Math.PI / 180)) < 1e-9, `${f.lift.toFixed(3)} mm`);
     /* La misma inclinación en una cuna corta levanta menos: es exactamente el
        motivo de que Δ solo no se pueda juzgar contra una tolerancia. */
-    const corta = E.pedestalFit(path, M.section, ped({ ...s0, tilt: want + 2, pad: 20 }));
+    const corta = E.pedestalFit(pr, secR, ped({ ...s0, tilt: want + 2, pad: 20 }));
     ok('la misma desviación en una cuna corta levanta menos', corta.lift < f.lift / 4);
     /* Y el despegue no tiene signo: una cuña de aire por delante o por detrás
        despega lo mismo. El signo lo lleva Δ, que es el que dice hacia dónde. */
-    const menos = E.pedestalFit(path, M.section, ped({ ...s0, tilt: want - 2, pad: 100 }));
+    const menos = E.pedestalFit(pr, secR, ped({ ...s0, tilt: want - 2, pad: 100 }));
     ok('despegar hacia el otro lado despega igual',
        Math.abs(menos.lift - f.lift) < 1e-9 && menos.dTilt < 0);
+
+    /* Y LO QUE Δ MIDE SOBRE UNA PIEZA CURVADA, que es donde se usa: la cuna es
+       una chapa recta y la barra no, así que una cuna LARGA sobre un codo no
+       puede casar con los dos extremos de lo que cubre. El Δ que sale de ahí no
+       es un defecto de la cuenta: es la cuna mordiendo por una punta, y es lo
+       que la columna tiene que enseñar. Se comprueba que crece con el largo. */
+    const curvo = E.seedPedestals(path, M.section, 7)[3];
+    const dCorta = E.pedestalFit(path, M.section, ped({ ...curvo, pad: 20 })).want;
+    const dLarga = E.pedestalFit(path, M.section, ped({ ...curvo, pad: 200 })).want;
+    ok('en un codo, alargar la cuna cambia la recta que la barra pide',
+       Math.abs(dLarga - dCorta) > 1, `${dCorta.toFixed(2)}° a 20 mm · ${dLarga.toFixed(2)}° a 200 mm`);
   }
 
   /* --- casos degenerados: la guarda no puede reventar ------------------- */
@@ -2916,13 +3008,36 @@ console.log('\n— la carga: el peso propio y el empuje (engine/load.ts) —');
      que se lleva el muelle de la estación. */
   {
     const d = 100;
-    const cerca = cae(VERT, mat, {}, [], [{ ...tope, id: 'p3', x: 500 + d }]);
-    const R = w * a * a / (2 * d);
-    ok('un tope cerca de la estación lleva lo que pide la palanca',
-       cerca.ok && Math.abs(cerca.pedN[0] - R) < 1e-2 * R,
-       `${cerca.pedN[0].toFixed(3)} N vs ${R.toFixed(3)} N`);
+    /* EL BRAZO LLEGA HASTA DONDE LA CUNA TOCA, no hasta el pie del pedestal, y
+       desde el 2026-09-18 la cuenta lo sabe. Una cuna es una chapa de `pad`
+       milímetros; debajo de una barra que BAJA, una chapa horizontal no toca en
+       su centro, toca por su canto de abajo, o sea `pad/2` más allá del pie.
+       Con la cuna de 60 el brazo son 130 mm y no 100, y la reacción baja de
+       15.89 N a 12.22 N. Eso no es un error de la palanca: es lo que hace una
+       chapa de sesenta milímetros, y quien lo dice es la estación que devuelve
+       `pedestalFit()`. Con la proyección en planta esto no se veía.
+
+       Se barren tres largos de cuna a propósito: así la prueba no comprueba un
+       número, comprueba la LEY —y de paso ata la estación que se enseña en la
+       tabla con la fuerza que sale del solver, que son dos columnas que tienen
+       que contar lo mismo. */
+    for (const pad of [60, 20, 2]) {
+      const cerca = cae(VERT, mat, {}, [], [{ ...tope, id: 'p3', x: 500 + d, pad }]);
+      const P = E.buildPath(cerca.model).samples;
+      const sc = E.pedestalFit(P, sec, { ...tope, id: 'p3', x: 500 + d, pad }).s;
+      ok(`  la cuna de ${pad} mm toca por su canto, a pad/2 del pie`,
+         Math.abs(sc - (500 + d + pad / 2)) < 0.5, `s ${sc.toFixed(2)}`);
+      const R = w * a * a / (2 * (sc - 500));
+      ok(`  y con brazo ${(sc - 500).toFixed(0)} mm lleva lo que pide la palanca`,
+         cerca.ok && Math.abs(cerca.pedN[0] - R) < 1e-2 * R,
+         `${cerca.pedN[0].toFixed(3)} N vs ${R.toFixed(3)} N`);
+    }
+    /* Y con la cuna corta —brazo 101 mm, casi el del pie— el tope lleva MÁS que
+       la pieza entera y la mordaza tira hacia abajo lo que sobra. El taller
+       confirmó el 2026-09-15 que la mordaza existe, así que eso es física. */
+    const corta = cae(VERT, mat, {}, [], [{ ...tope, id: 'p3', x: 500 + d, pad: 2 }]);
     ok('  más que la pieza entera, así que la mordaza tira hacia abajo',
-       cerca.pedN[0] > cerca.weight && cerca.root < 0, `raíz ${cerca.root.toFixed(3)} N`);
+       corta.pedN[0] > corta.weight && corta.root < 0, `raíz ${corta.root.toFixed(3)} N`);
   }
 
   /* UN SOLO «APOYA» (X-05). Un tope en la punta y otro bajado 0.9 mm en mitad
@@ -2933,7 +3048,7 @@ console.log('\n— la carga: el peso propio y el empuje (engine/load.ts) —');
     const bajo = { ...tope, id: 'p4', x: 750, h: 239.1 };
     const peds = [tope, bajo];
     const r = cae(VERT, mat, {}, [], peds);
-    const P = E.buildPath(r.model, 8).samples;
+    const P = E.buildPath(r.model).samples;
     const tol = VERT.tol.point;
     const f = E.pedestalFit(P, sec, bajo);
     ok('un pedestal a 0.9 mm: la geometría dice que apoya y la carga que no lleva nada',
@@ -3045,27 +3160,51 @@ console.log('\n— la carga: el peso propio y el empuje (engine/load.ts) —');
        Math.abs(cae(recta, mat, { g: 0, tip: 40 }).weight - 40) < 1e-9);
   }
 
-  /* EL FIXTURE SEMBRADO NO PUEDE LLEVAR MÁS QUE LA PIEZA (FIS-10). Con κ del
-     orden de 6 000 N/mm, cada MICRA de interferencia son 6 N sobre una pieza que
-     pesa 24: un sembrado que redondee el alto a centésimas nace con ±5 µm y por
-     tanto con decenas de newton que nadie puso. Así salía el hallazgo —los siete
-     apoyos sumaban 47.4 N sobre 23.7 N de pieza—, y no era la búsqueda: era el
-     sembrado. `tools/demo_carga.mjs` lo enseña con las dos cifras al lado. */
+  /* LO QUE EL FIXTURE SEMBRADO METE EN LA PIEZA (FIS-10), reescrito el
+     2026-09-18 porque la pregunta de antes no era una ley.
+
+     Decía «los apoyos no llevan más que la pieza entera, y la mordaza no tira
+     hacia abajo». Lo segundo es falso, y hay una prueba de ello unas líneas más
+     arriba: con un tope pegado a la estación, la mordaza tira hacia abajo, y
+     eso es la palanca y no un error. Una barra empotrada en la raíz y posada
+     sobre SIETE apoyos es hiperestática; que la raíz tire hacia abajo de 3.2 N
+     sobre una pieza de 23.7 es un reparto, no una precarga.
+
+     Lo que sí es ley, y es lo que el hallazgo decía de verdad: SEMBRAR NO METE
+     FUERZA. Un fixture recién sembrado, sin peso encima, tiene que llevar cero.
+     Eso se comprueba directo, sin pasar por la hiperestática.
+
+     Y la cifra del hallazgo, re-medida: con el apoyo medido contra la CARA de
+     la cuna, redondear el alto a centésimas mueve el reparto 0.33 N —27.17
+     contra 26.84— y no los treinta y tantos de antes. El 47.4 N sobre 23.7 se
+     midió con el apoyo en planta y con el conjunto activo decidido por el signo
+     de un hueco de 1e-14; no es comparable con esto, y no se compara. */
   {
     const M = E.demoModel();
-    const p0 = E.buildPath(M, 8).samples;
+    const p0 = E.buildPath(M).samples;
     const peds = E.seedPedestals(p0, M.section, 7)
       .map((q, i) => ({ ...q, id: `pd${i + 1}`, name: `P${i + 1}` }));
     const huecos = peds.map(q => Math.abs(E.pedestalFit(p0, M.section, q).gap));
     const peor = Math.max(...huecos);
     ok('lo sembrado nace SIN precarga, no «casi sin»',
        peor < 1e-9, `peor interferencia ${peor.toExponential(2)} mm`);
-    const r = E.settle(M, [], peds, M.section, { ...E.RESTRAINT_DEFAULT, on: false },
-                       mat, { ...E.LOAD_DEFAULT, on: true });
-    ok('  y con el peso puesto los apoyos no llevan más que la pieza entera',
-       r.carried <= r.weight && r.root >= 0,
-       `apoyos ${r.carried.toFixed(2)} N · mordaza ${r.root.toFixed(2)} N · `
-       + `peso ${r.weight.toFixed(2)} N`);
+    const OFF = { ...E.RESTRAINT_DEFAULT, on: false };
+    const sinPeso = E.settle(M, [], peds, M.section, OFF, mat,
+                             { ...E.LOAD_DEFAULT, on: true, g: 0 });
+    ok('  y sin peso encima no lleva nada: sembrar no mete fuerza',
+       sinPeso.carried === 0 && sinPeso.ok,
+       `apoyos ${sinPeso.carried.toFixed(3)} N · ok=${sinPeso.ok}`);
+    const r = E.settle(M, [], peds, M.section, OFF, mat, { ...E.LOAD_DEFAULT, on: true });
+    /* Lo que SÍ tiene que cerrar siempre, converja o no: las fuerzas suman. */
+    ok('  y con el peso puesto, apoyos y mordaza suman la pieza',
+       Math.abs(r.carried + r.root - r.weight) < 1e-6,
+       `${r.carried.toFixed(2)} + ${r.root.toFixed(2)} = ${r.weight.toFixed(2)} N`);
+    /* Y el redondeo del alto ya no decide el reparto. Era el hallazgo. */
+    const ayer = peds.map(q => ({ ...q, h: +q.h.toFixed(2) }));
+    const ra = E.settle(M, [], ayer, M.section, OFF, mat, { ...E.LOAD_DEFAULT, on: true });
+    ok('  y redondear el alto a centésimas ya no mueve el reparto medio newton',
+       Math.abs(ra.carried - r.carried) < 0.5,
+       `${ra.carried.toFixed(2)} N redondeado vs ${r.carried.toFixed(2)} N sin redondear`);
   }
 }
 
@@ -3136,7 +3275,7 @@ console.log('\n— el fixture sujeta a todos los modelos —');
   /* Medido como la tabla, sobre la barra sujeta colocada donde de verdad está. */
   const dentro = v => {
     const P = placeMatrix().multiply(E.anchorTransform(E.effectiveModel(v), refModelFree(), ST.anchor));
-    const p = E.placePath(P, E.buildPath(heldOfVariant(v).model, 8).samples);
+    const p = E.placePath(P, E.buildPath(heldOfVariant(v).model).samples);
     return E.worstPenetration(p, ST.model.section, ST.restraint.on ? ST.pins : [], ST.fixture);
   };
   for (const [r, l, como] of [[true, false, 'con los pines'], [false, true, 'con el peso'],
@@ -3149,17 +3288,73 @@ console.log('\n— el fixture sujeta a todos los modelos —');
        dentro(ST.variants[0]) <= tol && heldOfVariant(ST.variants[0]).clash.length === 0);
   }
 
-  /* Y el que NO cabe lo tiene que decir. Con el doblez 6 abierto 8° la barra
-     libre queda al otro lado del pin 3: ninguna deformación elástica la devuelve
-     atravesándolo, y la forma sujeta es la más cercana, no una montable. */
+  /* EL BARRIDO DE 270, rehecho el 2026-09-18 contra el apoyo medido como cara.
+     Son los 15 dobleces × 9 desviaciones × 2 signos que se midieron el
+     2026-09-14: entonces 149 de los 270 atravesaban algo más de un milímetro y
+     el peor se metía 82 mm. Se deja aquí porque el modelo del apoyo cambió
+     entero y un número de evidencia que nadie vuelve a medir es un número que
+     ya no se sabe si es verdad. Cuesta unos segundos; corre una vez. */
+  {
+    ST.restraint.on = true; ST.load.on = true;
+    const V = E.cloneVariant(ST.variants[0], 'S', '#888888', 'vSweep');
+    ST.variants.push(V);
+    let peor = 0, mudos = 0, avisados = 0, casos = 0, peorAvisado = 0;
+    for (let k = 0; k < V.deltas.length; k++) {
+      for (const da of [-8, -6, -4, -2, 2, 4, 6, 8, 12]) {
+        V.deltas.forEach(d => { d.angle = 0; });
+        V.deltas[k].angle = da;
+        casos++;
+        const d = dentro(V);
+        if (d > peor) peor = d;
+        if (d <= tol) continue;
+        /* No cabe. Lo único que no vale es que no lo diga. */
+        if (heldOfVariant(V).clash.length) { avisados++; peorAvisado = Math.max(peorAvisado, d); }
+        else mudos++;
+      }
+    }
+    ST.variants = ST.variants.filter(v => v.id !== 'vSweep');
+    /* LO QUE SE PROMETE NO ES «TODOS CABEN», y esa distinción es de FIS-08: hay
+       piezas que NO caben en un fixture, y eso es una respuesta y no un fallo.
+       Lo que no puede pasar es que una que no cabe se dibuje como si cupiera.
+       De los 135 casos, 3 no caben —el peor se mete 82 mm en un pedestal— y los
+       3 salen en la lista de choques. Hasta el 2026-09-18 no salían: `gap` se
+       topa cuando la barra se mete más que el radio de su sección, 21 mm en
+       esta, y por encima de eso el aviso era mudo (ver `PedFit.deep`). */
+    ok('ningún modelo atraviesa el fixture sin que se diga',
+       mudos === 0,
+       `${casos} casos · ${avisados} no caben y lo dicen · ${mudos} mudos · `
+       + `peor ${peor.toFixed(2)} mm`);
+    /* Y QUE EL BARRIDO ENCUENTRE ALGO. Sin esto la prueba de arriba pasa en
+       vacío: quitando `PedFit.deep` la penetración ni se mide —el peor de los
+       135 baja de 82.30 mm a 0.99— y «0 mudos de 0 que no caben» sale verde sin
+       haber probado nada. Comprobado quitándolo a mano el 2026-09-18. */
+    ok('  y el barrido encuentra de verdad piezas que no caben',
+       avisados > 0 && peorAvisado > 10,
+       `${avisados} avisadas · peor ${peorAvisado.toFixed(1)} mm`);
+  }
+
+  /* Y el que NO cabe lo tiene que decir. Con el doblez 6 abierto 16° la barra
+     se va a donde están los pedestales y los atraviesa: ninguna deformación
+     elástica la devuelve al otro lado de una chapa.
+
+     ERA 8° HASTA EL 2026-09-18 y era un pin el que chocaba. Con el apoyo medido
+     contra la cara de la cuna y no en planta, esa pieza SÍ entra: se queda con
+     0.61 mm metidos, que caben en la tolerancia de punto. Decir que choca
+     cuando entra sería tan malo como lo contrario, así que la prueba se muda al
+     caso que de verdad no cabe, y de paso pasa a comprobar el aviso por
+     PEDESTAL, que es el que estaba ciego: `gap` se topa cuando la barra se mete
+     más que el radio de su sección —21 mm en esta— y con 16° la barra entra 90.
+     Sin `PedFit.deep` esto salía como «no choca con nada». */
   ST.restraint.on = true; ST.load.on = false;
   const C = E.cloneVariant(ST.variants[0], 'C', '#F0A02E', 'vC');
-  C.deltas[6].angle = 8;
+  C.deltas[6].angle = 16;
   ST.variants.push(C);
   const cl = heldOfVariant(C).clash;
   ok('un modelo que no cabe dice contra qué apoyo choca y cuánto se mete',
      cl.length > 0 && cl[0].depth > tol && Number.isInteger(cl[0].k),
      cl.map(c => `${c.pin ? 'pin' : 'ped'}${c.k} ${c.depth.toFixed(1)}`).join(' · '));
+  ok('  y lo dice aunque se meta más que el radio de la sección, que es donde el hueco se topa',
+     cl[0].depth > 30, `${cl[0].depth.toFixed(1)} mm`);
   ok('  el peor primero', cl.every((c, i) => !i || cl[i - 1].depth >= c.depth));
   ok('  y con todo apagado no hay fixture contra el que chocar',
      (() => { ST.restraint.on = false; return heldOfVariant(C).clash.length === 0; })());

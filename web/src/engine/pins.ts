@@ -44,7 +44,7 @@
    ========================================================================= */
 import { Vector3 } from 'three';
 import { clamp, solveDense, D2R, R2D } from './math.ts';
-import { buildPath, rowLengths, tailStraight } from './kinematics.ts';
+import { buildPath, rowLengths, tailStraight, PATH_SEG } from './kinematics.ts';
 import { normalizeModel } from './bend.ts';
 import { TABLE_Z, pedestalFit } from './fixture.ts';
 import { sectionDrop, sectionHalf, sectionFibre } from './section.ts';
@@ -461,7 +461,11 @@ export function worstPenetration(P: PathSample[], sec: Section, pins: Pin[],
   }
   for (const ped of peds) {
     const f = pedestalFit(P, sec, ped);
-    if (f && f.over && -f.gap > w) w = -f.gap;
+    /* `deep` Y `−gap`, no uno de los dos: `gap` mide el apoyo y se topa cuando
+       la barra se mete más que su propio radio, que es justo cuando el choque
+       empieza a ser grave. Ver `PedFit.deep`. */
+    const d = f ? Math.max(-f.gap, f.deep) : 0;
+    if (f && f.over && d > w) w = d;
   }
   return w;
 }
@@ -497,7 +501,9 @@ export function clashes(P: PathSample[], sec: Section, pins: Pin[], peds: Pedest
   });
   peds.forEach((ped, k) => {
     const f = pedestalFit(P, sec, ped);
-    if (f && f.over && -f.gap > lim) out.push({ pin: false, k, depth: -f.gap, p: sampleAt(P, f.s).p.clone() });
+    if (!f || !f.over) return;
+    const d = Math.max(-f.gap, f.deep);      // ver `PedFit.deep`
+    if (d > lim) out.push({ pin: false, k, depth: d, p: sampleAt(P, f.s).p.clone() });
   });
   return out.sort((a, b) => b.depth - a.depth);
 }
@@ -580,7 +586,7 @@ export function restrain(model: Model, pins: Pin[], sec: Section,
   const free = restrainedFree(model);
   if (!opt.on || !model.bends.length) return free;
 
-  const path0 = place(buildPath(model, 8).samples);
+  const path0 = place(buildPath(model, PATH_SEG).samples);
   let act = holdsAt(path0, sec, pins, peds, opt.tol, []);
   if (!act.length) return free;
 
@@ -604,7 +610,7 @@ export function restrain(model: Model, pins: Pin[], sec: Section,
   }
 
   const resid = (m: Model): number[] => {
-    const p = place(buildPath(m, 8).samples);
+    const p = place(buildPath(m, PATH_SEG).samples);
     return act.map(a => holdGap(p, sec, a));
   };
 
@@ -668,7 +674,7 @@ export function restrain(model: Model, pins: Pin[], sec: Section,
     /* ¿Siguen siendo estos los contactos? Se miran sobre la forma a la que se
        llegó; si alguno se ha quedado atrás, se vuelven a leer desde ahí y el
        bucle sigue con lo que ya cedió cada estación, no desde cero. */
-    const P = place(buildPath(withDelta(model, du, doRot), 8).samples);
+    const P = place(buildPath(withDelta(model, du, doRot), PATH_SEG).samples);
     const actual = act, rAct = r;
     const frozen = (pin: boolean, k: number): number | null => {
       const i = actual.findIndex(a => !!a.pin === pin && a.k === k);

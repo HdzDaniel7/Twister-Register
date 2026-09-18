@@ -646,6 +646,23 @@ punteada. Deja ver de un vistazo cuál doblez está fuera. Es clicable.
     escrituras se distinguen mirando la pieza, porque la cara cambia (`orientations()`); en una
     REDONDA no se distinguen ni mirándola.
 
+28. **Un apoyo es una CARA, y hay UNA sola polilínea.** Dos trampas que salieron juntas al
+    cerrar FIS-10b el 2026-09-18, y las dos muerden en silencio.
+    *La cara:* la cuna no es un punto ni una sombra en planta. Es un rectángulo de `pad` × 44
+    con su rumbo y su inclinación, y el hueco es la distancia con signo de la sección a ese
+    rectángulo. De ahí salen tres cosas que sorprenden si se espera lo de antes: subir el
+    pedestal δ cierra **δ·cos(tilt)** de hueco y no δ; el brazo de la palanca llega hasta
+    donde la cuna toca —bajo una barra que baja, media cuna más allá del pie—; y `gap` deja
+    de mirar la barra en cuanto se mete más que el radio de su sección, porque eso ya no es
+    apoyo, es choque, y lo contesta `deep`.
+    *La polilínea:* `PATH_SEG` es uno para todo el programa. La pantalla usaba 12 segmentos
+    por arco y los solventes 8 —dos curvas distintas de la misma pieza, **25 µm** de
+    diferencia— y a 6.16 N por micra eso son 150 N. Nadie lo veía porque cada mitad del
+    programa era coherente consigo misma; se vio cuando un fixture sembrado a hueco cero
+    llevaba **0.01 N** de una pieza de 23.7. Si alguna vez hace falta bajar la resolución del
+    solver por tiempo, no se hace con un número suelto en su llamada: se hace sabiendo que
+    quien siembre contra otra tiene que sembrar contra la misma.
+
 ---
 
 ## 8. Antes de dar por terminado un cambio
@@ -653,9 +670,9 @@ punteada. Deja ver de un vistazo cuál doblez está fuera. Es clicable.
 ```bash
 cd web && npm run check            # typecheck -> pruebas -> build -> banco, de una
 cd web && npm run typecheck        # tsc --noEmit, con strict
-cd web && node test_motor.js       # 575 pruebas; todas deben pasar
+cd web && node test_motor.js       # 590 pruebas; todas deben pasar
 cd web && node build.mjs           # regenera index.html y barcomp_viewer.html
-cd web && node tools/ui_test.mjs   # 279 pasos de interfaz en Edge headless
+cd web && node tools/ui_test.mjs   # 281 pasos de interfaz en Edge headless
 cd web && node tools/demo_carga.mjs # κ contra una solución exacta, y el codo del hueco
 ```
 
@@ -807,21 +824,22 @@ Ninguna de estas se vuelve a sacar leyendo el código.
 | Lo que κ le quita a la reacción | **K/(K+κJ²) = 7.6e-5**, o sea siete cienmilésimas | `demo_carga` |
 | Hasta dónde la fórmula del muelle sigue al solver | **κ equivalente ≈ 16**, cuatro décadas por debajo de 1e5, con error < 0.5 % | `demo_carga` |
 | Demo sembrada + carga: κ·pene | **21.6 N**, que es exactamente la mayor reacción; se hunde 3.5 µm | `demo_carga` |
-| La demo llega a | **80.8°** de inclinación; un pedestal sembrado nace con la cuna a −78.3° y es el que más carga lleva | FIS-08, lo que queda |
+| La demo llega a | **80.8°** de inclinación; el pedestal más empinado nace con la cuna a **−57.5°** y es el que más carga lleva | FIS-08, cerrado |
 | Palanca hecha a mano | R = w·a²/2d = **15.89 N** contra 15.88 N del motor, raíz −3.16 N | X-04 |
 | Palanca sobre la demo, pedestal suelto | **51 N** sobre una pieza de 23.7 N, raíz **−27.7 N** | X-04 |
-| Fixture sembrado + carga, con el alto redondeado a 0.01 | **47.4 N** sobre 23.7 N, mordaza −23.7 N | FIS-10, la causa |
-| El MISMO fixture sembrado sin redondear el alto | **9.8 N** en los apoyos, 13.9 N en la mordaza | FIS-10, arreglado |
+| Fixture sembrado + carga, medido en planta (hasta 09-18) | **9.8 N** apoyos + 13.9 mordaza, `ok=false` | FIS-10 |
+| El MISMO, medido contra la cara de la cuna | **26.8 N** apoyos, **−3.2 N** mordaza, `ok=true` en 4 vueltas | FIS-10b, cerrado |
 | Rigidez de contacto sobre la demo | κ = **6 158 N/mm**, o sea **6.16 N por MICRA** de interferencia | `demo_carga` |
 | Tubo rectangular 40×12 con 2 de pared | pesa el **40 %** del macizo y resiste el **73 %** (Iz 4 224 contra 5 760 mm⁴) | formas, 09-17 |
 | Tubo redondo de acero Ø30×2 | **1.381 kg/m**, contra 1.38 de catálogo | formas, 09-17 |
 | Redonda maciza Ø30 | A = 706.86 mm², I = 39 760.8 mm⁴ **iguales las dos**: no hay «de plano» ni «de canto» | formas, 09-17 |
-| El hueco del pedestal empinado, pendiente | **13.27 mm/grado** junto al punto de contacto y **27.23** a una milésima de grado | FIS-10b, `demo_carga` |
-| El mismo hueco donde la barra va tendida (cuna a 20°) | **1.065 mm/grado** por los dos lados, liso | FIS-10b, `demo_carga` |
-| Paso de Newton de la carga contra la distancia al codo | **1.4e-2°** de paso contra **1e-3°** de recta válida: catorce veces | FIS-10b |
-| Donde la búsqueda se rinde, ¿es mínimo? | no: mover UNA incógnita 1e-4° baja Φ **6.2e-3 N·mm** | FIS-10b |
+| El hueco del pedestal empinado, pendiente (en planta) | **13.27 mm/grado** junto al contacto y **27.23** a una milésima: se doblaba | FIS-10b, la causa |
+| El mismo hueco, medido contra la cara de la cuna | **−8.09 mm/grado** por los dos lados: liso | FIS-10b, cerrado |
+| Subir el pedestal δ sobre una rampa recta | el hueco responde **−δ·cos(tilt)** exacto a 3e-14 | FIS-10b, `test_motor` |
+| Dos resoluciones de la misma curva (pantalla 12 / solver 8) | **25 µm**, o sea 150 N a 6.16 N/µm | `PATH_SEG`, 09-18 |
 | Dos columnas de apoyo en desacuerdo | a **0.9 mm** una decía «apoya» y la de al lado 0.00 N | X-05 |
 | Interferencia con varios modelos, antes → después de FIS-08 | **149 de 270 casos, peor 82 mm** → **19 de 270, peor 14 mm** | FIS-08 |
+| El mismo barrido con el apoyo medido como cara | **3 de 135 no caben** —peor 82.3 mm— y los 3 salen en la lista de choques | FIS-08, 09-18 |
 | Primer tramo con entrada recta de 700 mm | **dos** pedestales a 0.00 N, indeterminados | X-02 |
 | Una recta de 1700 mm decía «Peso: 0.0 N» | pesa **21.6 N** | X-06 |
 | `--dim2` antes de A13 | 3.1:1 en oscuro y 3.2:1 en claro, bajo el 4.5:1 de WCAG 1.4.3 | A13 |
@@ -863,6 +881,53 @@ describen lo mismo. Con `sbT = 2` y `sbW = 6` sobre el demo, los dobleces se mov
 **4.10°** según qué letra les tocara. Ahora salen todas iguales y el motor lee un solo
 número; en una rectangular no cambia nada, y hay prueba de que el 4.10° sigue ahí para que
 la de la redonda no sea vacía.
+
+**El apoyo dejó de medirse en planta (2026-09-18) — FIS-10b y lo que quedaba de FIS-08.**
+Eran el mismo defecto: `pedestalFit()` buscaba el punto de la barra más cercano al pedestal
+**en planta** y medía ahí la cara de abajo. Con un tramo casi a plomo la proyección en planta
+de la barra es casi un punto, ese mínimo está mal condicionado, y el hueco dejaba de ser una
+función lisa de las incógnitas. Ahora un apoyo es una **cara** —el rectángulo de la cuna, con
+su rumbo y su inclinación— y el hueco es la distancia con signo de la sección a esa cara.
+
+| Qué | Antes (en planta) | Ahora (contra la cara) |
+|---|---|---|
+| Hueco del pedestal empinado: pendiente aquí / a 1e-3° | 13.27 / 27.23 mm/grado: se dobla | −8.09 / −8.09: liso |
+| La demo sembrada, con el peso puesto | 9.78 N apoyos + 13.89 mordaza, `ok=false` | **26.84 + −3.17**, `ok=true` en 4 vueltas |
+| Afinar el paso de perturbación `H` | 1e-4° metía la barra dentro: 60.29 / −36.62 N | 0.02° → 25.83/−2.15 sin converger; **2e-4° → 26.84/−3.17 y converge**; de 2e-4 a 2e-5 no se mueve |
+| Redondear el alto sembrado a centésimas | decidía la respuesta: 47.4 N sobre 23.7 | mueve **0.33 N** (27.17 contra 26.84) |
+| Barrido de 135 casos contra el fixture | 149 de 270 atravesaban, el peor 82 mm, sin decirlo | 3 no caben, el peor 82.3 mm, **y los 3 lo dicen** |
+| Amarre de 6 modelos sujetos | 55 ms | **98 ms**, sobre un presupuesto de 250 |
+
+Lo que costó, y hay que saberlo antes de tocarlo:
+
+- **`PATH_SEG` es uno solo.** La pantalla construía la polilínea con 12 segmentos por arco y
+  los solventes con 8: dos curvas distintas de la misma pieza, **25 µm** de diferencia. A 6.16 N
+  por micra eso son 150 N, y se veía al revés —un fixture sembrado contra la polilínea de la
+  pantalla llevaba **0.01 N** de una pieza de 23.7— porque cada mitad del programa era
+  coherente consigo misma. Ver `engine/kinematics.ts`.
+- **El brazo de la palanca llega hasta donde la cuna TOCA, no hasta el pie.** Una cuna es una
+  chapa de `pad` milímetros y debajo de una barra que baja toca por su canto de abajo, media
+  cuna más allá. Con el pie a 100 mm de la estación el brazo son 130 y la reacción baja de
+  15.89 N a 12.22. Medido con tres largos de cuna, la reacción sigue `w·a²/2·brazo` al 0.07 %.
+- **El signo del hueco por debajo de 1e-9 mm es ruido, no información.** Un fixture recién
+  sembrado deja los huecos en ±1e-14; preguntando `gap <= 0`, cinco de los siete pedestales
+  entraban como activos y dos no, repartidos por el último bit. Con ese arranque la búsqueda
+  devolvía **cero iteraciones** y la pieza entera colgando de la mordaza.
+- **`gap` y `deep` son dos preguntas.** `gap` mide el APOYO y deja de mirar la barra en cuanto
+  se mete más que el radio de su sección —21 mm en la de 40×12—, porque un trozo de barra
+  pasado de largo no está apoyado: sin ese tope los apoyos pasan a llevar 0.00 N. Pero eso
+  dejaba ciego el aviso de CHOQUE, que es la pregunta del taller antes de montar: una pieza
+  clavada 82 mm dentro de un pedestal salía como «no toca». `deep` la contesta aparte.
+- **La cuna que dibuja el 3D es la que mide la física**, y hay prueba de la identidad en las
+  dos. Se dibujaba con `Ry(+tilt)`, que deja el eje largo con el seno cambiado de signo: bajo
+  un tramo empinado la chapa de la pantalla apuntaba a **79°** de donde la cuenta la ponía.
+
+**Y lo que NO se cerró:** el reparto sigue diciendo que los apoyos llevan 26.8 N sobre una
+pieza de 23.7, con la mordaza tirando hacia abajo 3.2. Eso no es una precarga —sembrar sin
+peso encima da 0.00 N, y hay prueba— sino el reparto de una barra empotrada en la mordaza y
+posada sobre siete apoyos, que es hiperestática. La pregunta «¿cuánto lleva cada apoyo?» no
+la puede contestar un fixture medido con flexómetro: 6.16 N por micra de alto. La que sí se
+puede contestar, y es la del taller, es cuánto llevan los apoyos EN TOTAL y cuánto la mordaza.
 
 ### Decisiones que siguen gobernando el código
 

@@ -35,42 +35,20 @@ regenerar el fixture a propósito.
 
 Abierta el 2026-09-15, encontrada al cerrar X-04.
 
-- [ ] **[FIS-10b] La búsqueda se rinde porque el hueco de un apoyo se dobla · [O]** — lo que
-      queda del hallazgo, ya con el reparto creíble: apoyos 9.78 N + mordaza 13.89 N = el peso
-      de 23.67 N, pero `ok=false` y la pantalla lo avisa con `loadStuck`.
-      **Diagnóstico bueno, del 2026-09-17** (los dos anteriores estaban equivocados, ver abajo):
-      el hueco de un pedestal no es una función lisa de las incógnitas. En el pedestal empinado
-      de la demo —cuna a −78.3°, el que lleva 8.8 de los 9.8 N— el hueco baja **13.27 mm/grado**
-      junto al punto de contacto y **27.23** a una milésima de grado: se dobla. Donde la barra va
-      tendida (cuna a 20°) es liso, 1.065 por los dos lados. Y el paso de Newton mide 1.4e-2°,
-      **catorce veces** la distancia a la que la recta deja de valer. Φ lleva ½κ·hueco², así que
-      ahí Φ tampoco es derivable: el método se cree una parábola que en ese tramo no existe, y
-      por eso partir el paso ocho veces no baja la energía. Medido también que NO es un mínimo:
-      mover una sola incógnita 1e-4° baja Φ 6.2e-3 N·mm, o sea que `loadStuck` dice la verdad.
-      **De dónde sale el codo, y por qué esto ya no es un problema del solver:** `pedestalFit()`
-      busca el punto de la barra más cercano al pedestal **en planta** y mide ahí la cara de
-      abajo. Con un tramo casi a plomo la proyección en planta de la barra es casi un punto, ese
-      mínimo está mal condicionado, y mover un doblez una diezmilésima de grado corre el punto de
-      contacto décimas de milímetro a lo largo de la barra. **Es el mismo defecto que «El apoyo
-      del pedestal solo mira de abajo arriba» (lo que quedó de FIS-08)**: mientras el apoyo se
-      mida con una proyección en planta, ningún criterio de parada ni ningún paso más listo lo
-      arregla. Los dos puntos se cierran con el mismo trabajo —tratar la cuna como un sólido y
-      resolver segmento contra caja, como ya hace `engine/contact.ts` para los pines— y ese
-      trabajo no se empieza a medias: detrás van `bears()`, la columna «Hueco», el dibujo 3D y
-      el barrido de 270 casos de FIS-08.
-      Probado y descartado el 2026-09-17, con cifra, para que nadie lo repita: **test de razón**
-      sobre el paso —cortarlo donde el primer contacto cambia de estado, que era el camino que
-      este plan proponía— muerde de verdad (la primera vuelta se queda en el 1.6 % del paso) y no
-      mueve el resultado ni una centésima: 9.78 / 13.89 N y `ok=false` igual; **perturbar más
-      fino** (H de 0.02° a 1e-4…1e-6) mete la barra dentro de los apoyos, 60.29 N arriba y
-      −36.62 N en la mordaza con 7.1 µm de penetración; **caída por coordenadas** cuando Newton
-      muere baja la energía pero no converge —13.68 N con 6 vueltas, 27.00 con 25, 14.84 con
-      200— y el tiempo pasa de 16 a 1 916 ms. Lo anterior, del 2026-09-16: partir el paso 40
-      veces y quedarse con el mejor f converge por `STEP_TOL` y da el MISMO reparto.
-      El muelle NO es sospechoso: `demo_carga` lo contrasta contra una solución exacta y coincide
-      a cinco cifras (pregunta 7). El escenario 5 de `demo_carga` reproduce el codo y lleva un
-      tripwire puesto del derecho: el día que esa comprobación falle será porque el apoyo ya no
-      se mide en planta, y entonces esto se puede reabrir con esperanza. · M
+- [x] **[FIS-10b] La búsqueda se rinde porque el hueco de un apoyo se dobla · [O]** — **cerrado
+      el 2026-09-18**, junto con «El apoyo del pedestal solo mira de abajo arriba», que era el
+      mismo trabajo. El diagnóstico del 09-17 era el bueno: `pedestalFit()` buscaba el punto de
+      la barra más cercano al pedestal **en planta** y medía ahí la cara de abajo; con un tramo
+      casi a plomo esa proyección es casi un punto, el mínimo está mal condicionado y el hueco
+      dejaba de ser liso —13.27 mm/grado junto al contacto y 27.23 a una milésima—. Ahora un
+      apoyo es una **cara**: el rectángulo de la cuna, con su rumbo y su inclinación, y el
+      hueco es la distancia con signo de la sección a esa cara (`nearestToBox`, `overBox`,
+      `throughBox`). El hueco sale liso por los dos lados —−8.09 contra −8.09— y la demo
+      sembrada con el peso puesto resuelve **26.84 N en los apoyos y −3.17 en la mordaza con
+      `ok=true` en cuatro vueltas**, contra 9.78/13.89 y `ok=false`. La prueba de que se
+      arregló y no se tapó: afinar el paso de perturbación ya MEJORA la respuesta en vez de
+      romperla, así que `H` baja de 0.02° a 2e-4° y de ahí a 2e-5 no se mueve ni una centésima.
+      Cifras, lo que costó y lo que sigue abierto, en `CONTEXTO_BARCOMP.md` §11 y trampa 28.
 
 - [ ] **[FIS-10c] Los pines sembrados siguen redondeando su posición · [O]** — abierto el
       2026-09-16 al cerrar FIS-10a. `seedPins()` redondea `x`, `y` y `h` a centésimas por el
@@ -111,26 +89,27 @@ Detalle en `CONTEXTO_BARCOMP.md`, «La carga».
       dobleces que no existen. **No se hace mientras no haya una medida que lo
       exija**: el número que falta ya se está dando, en otra columna y con su
       nombre.
-- [ ] **El apoyo del pedestal solo mira de abajo arriba · [O]** — abierto al cerrar
-      FIS-08. Un tramo casi vertical que roza el costado de la cuna no se modela:
-      `pedestalFit()` mide la cara de ABAJO de la sección (`sectionDrop`) contra la
-      cuna, y con la barra a plomo la cara que toca es el costado.
-      **No es hipotético, y eso es nuevo del 2026-09-16:** la pieza de demostración
-      llega a **80.8°** de inclinación —79 de sus 1 862 mm van por encima de 70°— y
-      de los siete pedestales sembrados uno nace con la cuna a **−78.3°**. Con la
-      carga puesta ese pedestal es **el que más lleva**: 8.8 N de los 9.8 que llevan
-      los apoyos. O sea que la cifra que más pesa en la tabla sale del apoyo peor
-      modelado.
-      Cerrarlo es trabajo de modelo, no un arreglo: pide tratar la cuna como un
-      sólido y resolver segmento contra caja —lo que `engine/contact.ts` ya hace
-      para los pines—, y detrás van `bears()`, la columna «Hueco», el dibujo 3D y
-      el barrido de 270 casos de FIS-08. No se empieza a medias.
-      **Y desde el 2026-09-17 no es solo un punto ciego de modelo: es también la
-      causa de FIS-10b.** Medir el apoyo por la proyección EN PLANTA hace que el
-      hueco de un tramo a plomo no sea una función lisa —13.27 mm/grado junto al
-      contacto, 27.23 a una milésima de grado—, y sobre eso el solver de la carga
-      no puede converger por mucho que se le afine el paso. Los dos puntos se
-      cierran con el mismo trabajo y ya no tiene sentido planificarlos aparte.
+- [x] **El apoyo del pedestal solo mira de abajo arriba · [O]** — **cerrado el 2026-09-18**
+      con FIS-10b, que era el mismo trabajo. Un apoyo es una CARA y el hueco es la distancia
+      con signo de la sección a ella, así que la barra a plomo que roza el costado de la cuna
+      ya entra en la cuenta. Lo que se movió detrás, que es lo que hacía que no se pudiera
+      empezar a medias: `bears()`, la columna «Hueco», el brazo de la palanca, el aviso de
+      choque, el dibujo 3D de la cuna —que se dibujaba con el seno cambiado de signo y bajo un
+      tramo empinado apuntaba a 79° de donde la física la ponía—, la siembra de pedestales y
+      el barrido de casos. Del barrido: **3 de 135 no caben, el peor se mete 82.3 mm, y los 3
+      lo dicen**; antes de `PedFit.deep` ese aviso era mudo por encima del radio de la sección.
+
+- [ ] **La cuna no bascula y no siempre puede casar con la barra · [—]** — abierto al cerrar
+      FIS-08 el 2026-09-18. La cuna es una chapa recta de `pad` × 44, y sobre una pieza
+      curvada la recta que mejor casa con lo que cubre depende del largo de la cuna: sobre un
+      codo de la demo, pasar de 20 a 200 mm de cuna mueve la inclinación que la barra pide de
+      −48.7° a −63.4°. Hoy la siembra elige la cuerda de lo que la cuna cubre y la columna Δ
+      dice lo que queda de desajuste, con `lift` para poder compararlo con una tolerancia; en
+      la demo eso deja Δ por debajo de 0.004°. **Se decidió avisar y no modelar más**: las
+      otras dos salidas son cunas más cortas donde la barra se curva —`pad` ya es un campo
+      por pedestal, así que no cuesta código— o una cuna en V o basculante, que es modelo
+      nuevo y campo nuevo en el esquema. ⛔ Es una pregunta de taller: qué cunas hay montadas.
+
 
 ## Aplazado a futuras actualizaciones (decisión 2026-09-08)
 
@@ -468,9 +447,10 @@ Reportado desde el taller, no salido de una auditoría.
 
 ## Fase 5.5 · El solver con apoyos a micras — CERRADA EN PARTE
 
-Sigue abierto FIS-10b (la búsqueda que se rinde) y FIS-10c (el sembrado de pines).
+Sigue abierto FIS-10c (el sembrado de pines).
 
 | ID | Qué se hizo | Commit |
 |---|---|---|
 | Pregunta 7 | κ contrastado contra una solución exacta: la penetración residual es `R/κ`, no un artefacto. `tools/demo_carga.mjs` | `132e512` |
 | FIS-10a | Los 47 N eran el redondeo del alto sembrado a centésimas: 6.16 N por micra. Y el paso de banco que pasaba con 0.02 N | `6a19200` |
+| FIS-10b + FIS-08 | Un apoyo es una CARA, no una sombra en planta. El hueco sale liso, la carga converge —26.84 N apoyos y −3.17 mordaza, `ok=true` en 4 vueltas— y el paso de perturbación baja de 0.02° a 2e-4° porque ahora afinarlo mejora en vez de romper | *(este)* |

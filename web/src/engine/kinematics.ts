@@ -464,7 +464,24 @@ const BP_G = new Matrix4(), BP_T = new Matrix4(), BP_RX = new Matrix4();
 const BP_RA = new Matrix4(), BP_ROT = new Matrix4();
 const BP_V = new Vector3(), BP_X = new Vector3(1, 0, 0);
 
-export function buildPath(model: Model, arcSeg = 12): { samples: PathSample[]; total: number } {
+/** SEGMENTOS POR ARCO, y uno solo para todo el programa.
+ *
+ *  Hubo dos: la pantalla dibujaba y medía con 12 y los solventes resolvían con
+ *  8. Son dos polilíneas distintas de la misma curva, y la diferencia entre
+ *  ellas —25 µm sobre la demo— es enorme donde importa: el muelle de contacto
+ *  vale 6 N por MICRA, así que un fixture sembrado a hueco cero contra la
+ *  polilínea de la pantalla nacía con hasta 150 N de desajuste contra la del
+ *  solver. En la demo eso salía al revés —los siete apoyos abriendo hueco y
+ *  llevando 0.01 N de una pieza de 23.7— y nadie lo veía, porque cada mitad
+ *  del programa era coherente consigo misma.
+ *
+ *  Se queda en 12, que es el fino de los dos: bajar la pantalla a 8 para
+ *  ahorrar en el solver sería pagar en lo que se ve. Lo que cuesta está
+ *  medido: el amarre de seis modelos pasa de 84 a 98 ms sobre un presupuesto
+ *  de 250. */
+export const PATH_SEG = 12;
+
+export function buildPath(model: Model, arcSeg = PATH_SEG): { samples: PathSample[]; total: number } {
   const S: PathSample[] = [];
   const F = eye();
   let s = 0;

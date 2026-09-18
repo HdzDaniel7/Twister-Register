@@ -52,7 +52,7 @@
    ========================================================================= */
 import { Vector3 } from 'three';
 import { solveDense, D2R, clamp } from './math.ts';
-import { buildPath, fk } from './kinematics.ts';
+import { buildPath, fk, PATH_SEG } from './kinematics.ts';
 import { pedestalFit } from './fixture.ts';
 import { sampleAt } from './path.ts';
 import { lineLoad } from './sag.ts';
@@ -317,7 +317,25 @@ function equilibrium(pb: Problem, path0: PathSample[], u0: number[] | null): Equ
   const u = u0 ? u0.slice() : new Array<number>(nu).fill(0);
   let P = path0;
   let F = phi(u, P);
-  const H = 0.02;                       // grados de perturbación
+  /** El paso con el que se perturba cada incógnita para sacar el jacobiano por
+   *  diferencias hacia delante, grados.
+   *
+   *  ERA 0.02 HASTA EL 2026-09-18, y no por gusto: con el apoyo medido EN
+   *  PLANTA el hueco tenía un codo —bajo un tramo empinado la pendiente se
+   *  doblaba antes de una milésima de grado—, así que un paso fino leía la rama
+   *  local del codo y la búsqueda se metía dentro de los apoyos. Medido
+   *  entonces: de 0.02° a 1e-4° el reparto saltaba de 9.78/13.89 N a
+   *  60.29/−36.62 N con 7.1 µm de penetración. El paso gordo era una venda.
+   *
+   *  Con el apoyo medido contra la CARA de la cuna el codo no está, y entonces
+   *  afinar hace lo que tiene que hacer. Medido sobre la demo con siete
+   *  pedestales: 0.02° da 25.83/−2.15 N sin converger en 12 vueltas, y 2e-4°
+   *  da 26.84/−3.17 N con `ok=true` en CUATRO. De 2e-4 a 2e-5 no se mueve ni
+   *  una centésima, o sea que la cifra ya no depende del paso, que era
+   *  exactamente lo que FIS-10b pedía demostrar. */
+  const H = 2e-4;
+  /** por debajo de esto el signo del hueco es ruido: ver `aprieta` */
+  const CONTACT_EPS = 1e-9;          // mm
   const maxIt = Math.max(2, 2 * Math.max(1, opt.iters));
   /* `stuck` empieza PUESTO y solo lo quita haber llegado a un mínimo. Al revés
      —que es como estaba— agotar las iteraciones sin converger salía como «bien»
@@ -335,7 +353,7 @@ function equilibrium(pb: Problem, path0: PathSample[], u0: number[] | null): Equ
     for (let j = 0; j < nu; j++) {
       const up = [...u];
       up[j] += H;
-      const pp = place(buildPath(withDelta(model, up, doRot), 8).samples);
+      const pp = place(buildPath(withDelta(model, up, doRot), PATH_SEG).samples);
       dV.push((potential(pp) - V0) / H);
       J.push(cs.map((c, k) => (gapOf(pp, c) - g0[k]) / H));
     }
@@ -362,7 +380,23 @@ function equilibrium(pb: Problem, path0: PathSample[], u0: number[] | null): Equ
       }
       return g;
     };
-    const aprieta = g0.map((g, k) => g <= 0 && !blind[k]);
+    /* TOCA EL QUE ESTÁ A CERO, no solo el que ya está metido, y ese `1e-9` no
+       es una holgura física: es la frontera por debajo de la cual el SIGNO del
+       hueco es ruido de coma flotante y no información. Un fixture recién
+       sembrado deja los huecos en ±1e-14 mm; preguntando `g <= 0`, cinco de los
+       siete pedestales de la demo entraban como activos y dos no, repartidos
+       por el signo del último bit. Con ese arranque el paso de Newton sale de
+       un problema que no es el que hay, la búsqueda no encuentra bajada ni
+       partiendo el paso ocho veces, y `settle` devolvía CERO iteraciones: la
+       pieza entera colgando de la mordaza —23.67 N— con siete apoyos debajo
+       tocándola y llevando 0.00 N.
+
+       Un picómetro de hueco son 6e-6 N con κ = 6.16 N/µm, o sea que dar por
+       tocado lo que está a menos de eso no mueve ninguna cifra que nadie pueda
+       medir; lo que sí mueve es que el conjunto activo deje de depender del
+       ruido. Con el tope puesto, la demo sembrada resuelve 25.44 N en los
+       apoyos y −1.77 N en la mordaza. */
+    const aprieta = g0.map((g, k) => g <= CONTACT_EPS && !blind[k]);
     const gn = Math.max(...gradWith(aprieta).map(Math.abs));
     if (!it) gRef = gn;
     /* Criterio primero: el gradiente bajó lo que tenía que bajar. */
@@ -420,7 +454,7 @@ function equilibrium(pb: Problem, path0: PathSample[], u0: number[] | null): Equ
     let done = false;
     for (let back = 0; back < 8; back++) {
       const un = u.map((v, i) => v + step[i] * f);
-      const pn = place(buildPath(withDelta(model, un, doRot), 8).samples);
+      const pn = place(buildPath(withDelta(model, un, doRot), PATH_SEG).samples);
       const Fn = phi(un, pn);
       if (Fn <= F) {
         for (let i = 0; i < nu; i++) u[i] = un[i];
@@ -430,9 +464,15 @@ function equilibrium(pb: Problem, path0: PathSample[], u0: number[] | null): Equ
       f /= 2;
     }
     /* Ni partiendo el paso ocho veces baja la energía, y el gradiente de arriba
-       decía que todavía había por dónde bajar: eso no es un mínimo, es un
-       problema mal condicionado. Se para y se dice. */
-    if (!done) break;
+       decía que todavía había por dónde bajar.
+       AHORA BIEN, ¿a qué escala se rindió? Si el paso que ya no bajaba la
+       energía movía MENOS de lo que nadie puede medir, eso no es un problema
+       mal condicionado: es el mínimo, y el gradiente sigue diciendo que hay por
+       dónde bajar solo porque sale de diferencias finitas y no es exacto. Es el
+       mismo criterio de la línea de abajo —`big * f <= STEP_TOL`— aplicado al
+       paso al que se RINDIÓ en vez de al que aceptó. Si se rindió con un paso
+       grande, entonces sí, eso no es un mínimo y se dice. */
+    if (!done) { if (big * f <= STEP_TOL) stuck = false; break; }
     /* Criterio segundo, y el que cierra la mayoría de los casos reales: si el
        paso ACEPTADO mueve menos de lo que nadie puede medir, la búsqueda
        terminó aunque el gradiente —que sale de diferencias finitas con H=0.02°
@@ -670,7 +710,7 @@ function settleShape(model: Model, pins: Pin[], peds: Pedestal[], sec: Section,
   const w = lineLoad(sec, mat) * (load.g || 0);
   const tip = +load.tip || 0;
   const dir = loadDir(load);
-  const path0 = place(buildPath(model, 8).samples);
+  const path0 = place(buildPath(model, PATH_SEG).samples);
   if (!path0.length) return noLoad(held(), pins.length, peds.length, false);
   const total = path0[path0.length - 1].s;
   /* Lo que pesa se calcula ANTES de cualquier salida temprana: es un dato de la
@@ -727,10 +767,10 @@ function settleShape(model: Model, pins: Pin[], peds: Pedestal[], sec: Section,
     if (!opt.on || !nu) return r;
     const lim = Math.max(model.tol.point, opt.tol);
     const dentro = (m: Model): number =>
-      worstPenetration(place(buildPath(m, 8).samples), sec, pins, peds);
+      worstPenetration(place(buildPath(m, PATH_SEG).samples), sec, pins, peds);
     const antes = dentro(r.model);
     if (antes <= lim) return r;
-    const p0 = place(buildPath(model, 8).samples);
+    const p0 = place(buildPath(model, PATH_SEG).samples);
     if (!p0.length) return r;
     /* Sin peso la forma no depende de E —la rigidez y el muelle crecen juntos—,
        así que un material sin módulo no impide contestar dónde queda la barra. */
@@ -767,7 +807,7 @@ export function settle(model: Model, pins: Pin[], peds: Pedestal[], sec: Section
   const s = settleShape(model, pins, peds, sec, opt, mat, load, place);
   if (!opt.on && !load.on) return s;
   const lim = Math.max(model.tol.point, opt.tol);
-  const P = place(buildPath(s.model, 8).samples);
+  const P = place(buildPath(s.model, PATH_SEG).samples);
   return { ...s, clash: clashes(P, sec, opt.on ? pins : [], peds, lim) };
 }
 

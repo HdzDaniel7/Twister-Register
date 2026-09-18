@@ -60,7 +60,7 @@ const base = E.normalizeModel({
   bends: [E.newBend({ feed: A, rot: 90, angle: 0, radius: 30 })],
 });
 const SEC = base.section;
-const PATH = E.buildPath(base, 8).samples;
+const PATH = E.buildPath(base).samples;
 const MAT = E.MAT_DEFAULT;
 const OFF = { ...E.RESTRAINT_DEFAULT, on: false };   // sin pines: aquí solo pesa
 const CARGA = { ...E.LOAD_DEFAULT, on: true };
@@ -79,16 +79,32 @@ const pedAt = (d) => {
   const q = E.sampleAt(PATH, A + d);
   return {
     id: 'pd1', name: 'P1', visible: true, x: A + d, y: 0,
-    h: q.p.z - E.sectionDrop(q, SEC) - E.TABLE_Z, tilt: 0, pad: 60,
+    h: q.p.z - E.sectionDrop(q, SEC) - E.TABLE_Z, tilt: 0, pad: PAD,
   };
 };
 
-/** La servilleta, para un brazo `d`. Todo sale de aquí: al motor solo se le
- *  piden las constantes que él mismo publica. */
+/** EL BRAZO DE VERDAD, que no es `d`.
+ *
+ *  `d` es lo que separa el PIE del pedestal de la estación, y la palanca no
+ *  llega hasta el pie: llega hasta donde la cuna TOCA. Una cuna es una chapa de
+ *  `PAD` milímetros, y debajo de una barra que BAJA una chapa horizontal no
+ *  toca en su centro: toca por su canto de abajo, media cuna más allá. Así que
+ *  el brazo es `d + PAD/2`, y eso se puede escribir antes de calcular nada.
+ *
+ *  Con `d = 400` son 430 y no 400, o sea un 7 %: exactamente el error que daba
+ *  esta servilleta contra el solver el 2026-09-18, con el solver teniendo
+ *  razón. Con el apoyo medido en planta el punto de contacto caía bajo el pie y
+ *  este término no existía. */
+const PAD = 60;
+const brazo = (d) => d + PAD / 2;
+
+/** La servilleta, para un pedestal con el pie a `d` de la estación. Todo sale
+ *  de aquí: al motor solo se le piden las constantes que él mismo publica, y el
+ *  brazo, que es geometría suya. */
 const mano = (d, g = 1, Emod = MAT.E) => {
   const k = K * (Emod / MAT.E), kp = KAP * (Emod / MAT.E);
   const Q = -W * g * (TOT - A) ** 2 / 2 * D2R;
-  const J = -d * D2R;
+  const J = -brazo(d) * D2R;
   const u = -Q / (k + kp * J * J);
   const pene = Math.abs(J * u);
   return { Q, J, u, pene, R: kp * pene, Rinf: Math.abs(Q / J), kap: kp, K: k };
@@ -218,7 +234,7 @@ tit('3 · La reacción no depende de E, y todo es lineal en g');
 tit('4 · La demo con siete pedestales: de dónde salían los 47 N');
 {
   const M = E.demoModel();
-  const p0 = E.buildPath(M, 8).samples;
+  const p0 = E.buildPath(M).samples;
   const L = p0[p0.length - 1].s;
   const kap = E.CONTACT_K * MAT.E * E.sectionI(M.section).Iz / L ** 3;
   const nombrar = (l) => l.map((p, i) => ({ ...p, id: `pd${i + 1}`, name: `P${i + 1}` }));
@@ -243,15 +259,31 @@ tit('4 · La demo con siete pedestales: de dónde salían los 47 N');
 
   const Sa = E.settle(M, [], ayer, M.section, OFF, MAT, CARGA);
   const Sh = E.settle(M, [], hoy, M.section, OFF, MAT, CARGA);
+  const sinPeso = E.settle(M, [], hoy, M.section, OFF, MAT, { ...CARGA, g: 0 });
   ok(Math.max(...huecos(hoy).map(Math.abs)) < 1e-9,
      'sembrando sin redondear, la interferencia de partida es cero',
      `${e(Math.max(...huecos(hoy).map(Math.abs)), 2)} mm`);
-  ok(Sh.carried <= Sh.weight && Sh.root >= 0,
-     'y los apoyos ya no llevan más que la pieza entera',
-     `${f(Sh.carried, 2)} N de ${f(Sh.weight, 2)} N · mordaza ${f(Sh.root, 2)} N`);
-  ok(Sa.carried > Sa.weight,
-     'con el redondeo sí lo hacían, y ese era el hallazgo FIS-10',
-     `${f(Sa.carried, 2)} N de ${f(Sa.weight, 2)} N`);
+  /* EL HALLAZGO, DONDE DE VERDAD VIVE: sin peso encima, un fixture recién
+     sembrado no puede llevar nada. Se comprobaba antes con `carried <= weight`
+     y esa no es una ley: la barra va empotrada en la mordaza y posada sobre
+     siete apoyos, o sea hiperestática, y la mordaza puede tirar hacia abajo.
+     Lo hace: −6.0 N sobre una pieza de 23.7. Eso es un reparto, no una
+     precarga, y confundirlos era lo que tenía esta comprobación en rojo. */
+  ok(sinPeso.carried === 0 && sinPeso.ok,
+     'sin peso encima el fixture sembrado no lleva nada: sembrar no mete fuerza',
+     `${f(sinPeso.carried, 3)} N · ok=${sinPeso.ok}`);
+  ok(Math.abs(Sh.carried + Sh.root - Sh.weight) < 1e-6,
+     'y con el peso puesto la cuenta cierra: apoyos + mordaza = pieza',
+     `${f(Sh.carried, 2)} + ${f(Sh.root, 2)} = ${f(Sh.weight, 2)} N`);
+  /* Y LA CIFRA DEL HALLAZGO, RE-MEDIDA. Era «el redondeo del alto mete decenas
+     de newton»: ±5 µm a 6.16 N/µm son ±31 N, y así salían 47.4 N de apoyos
+     sobre 23.7 de pieza. Con el apoyo medido contra la CARA de la cuna y con el
+     conjunto activo que ya no lo decide el signo de un hueco de 1e-14, mueve
+     cuatro décimas. El sembrado sigue sin redondear —no cuesta nada y es lo
+     correcto— pero ya no es lo que decidía la respuesta. */
+  ok(Math.abs(Sa.carried - Sh.carried) < 0.5,
+     'y redondear el alto ya no mueve el reparto medio newton',
+     `${f(Sa.carried, 2)} N redondeado vs ${f(Sh.carried, 2)} N sin redondear`);
   ok(rel(kap * Sh.pene, Math.max(...Sh.pedN)) < 1e-6,
      'κ·pene es exactamente la mayor de las reacciones: manda el muelle, no el azar',
      `${f(kap * Sh.pene, 3)} vs ${f(Math.max(...Sh.pedN), 3)} N`);
@@ -269,38 +301,41 @@ tit('4 · La demo con siete pedestales: de dónde salían los 47 N');
 }
 
 /* ══════════════════════════════════════════════════════════════════════════
-   5 · POR QUÉ LA BÚSQUEDA SE RINDE — el hueco de un apoyo tiene un CODO.
+   5 · EL CODO DEL HUECO — cómo se cerró FIS-10b.
 
-   Esto es FIS-10b, y hasta el 2026-09-17 se le echaba la culpa al ruido de las
-   diferencias finitas. No era eso. El hueco de un pedestal, como función de las
-   incógnitas, se DOBLA a menos de una milésima de grado de donde el apoyo toca:
-   junto al punto baja 13.3 mm por grado, y a 1e-3° ya baja 27.2 — el doble. El
-   paso de Newton mide 1.4e-2°, o sea CATORCE VECES más que la distancia a la
-   que la recta deja de valer, y Φ lleva ½κ·hueco²: la parábola que el método se
-   cree no existe en el tramo que recorre. Por eso la búsqueda parte el paso
-   ocho veces y ninguna baja la energía.
+   Hasta el 2026-09-17 esto era una autopsia. El hueco de un pedestal, como
+   función de las incógnitas, se DOBLABA a menos de una milésima de grado de
+   donde el apoyo toca: junto al punto bajaba 13.3 mm por grado y a 1e-3° ya
+   bajaba 27.2, el doble. El paso de Newton medía 1.4e-2°, o sea catorce veces
+   más que la distancia a la que la recta dejaba de valer, y Φ lleva ½κ·hueco²:
+   la parábola que el método se cree no existía en el tramo que recorría. Por
+   eso la búsqueda partía el paso ocho veces y ninguna bajaba la energía.
 
-   De dónde sale el codo: `pedestalFit()` busca el punto de la barra más cercano
-   al pedestal EN PLANTA (`nearestOnPath(samples, ped.x, ped.y)`) y mide ahí la
-   cara de abajo. Con un tramo casi vertical la proyección en planta de la barra
-   es casi un punto, así que ese mínimo está mal condicionado: mover el doblez
-   una diezmilésima de grado corre el punto de contacto DÉCIMAS DE MILÍMETRO a
-   lo largo de la barra, y la z de la barra cambia mucho a lo largo de s.
+   De dónde salía: `pedestalFit()` buscaba el punto de la barra más cercano al
+   pedestal EN PLANTA y medía ahí la cara de abajo. Con un tramo casi vertical
+   la proyección en planta de la barra es casi un punto, así que ese mínimo
+   estaba mal condicionado: mover el doblez una diezmilésima de grado corría el
+   punto de contacto DÉCIMAS DE MILÍMETRO a lo largo de la barra, y la z de la
+   barra cambia mucho a lo largo de s.
 
-   O sea que FIS-10b y lo que quedó de FIS-08 son EL MISMO trabajo: mientras el
-   apoyo se mida con una proyección en planta, el hueco de un tramo a plomo no
-   es una función lisa y ningún criterio de parada lo va a arreglar.           */
-tit('5 · El codo del hueco: por qué Newton no puede cerrar FIS-10');
+   Lo que lo cerró, el 2026-09-18, fue dejar de medir en planta. Un apoyo es una
+   CARA —el rectángulo de la cuna, con su rumbo y su inclinación— y el hueco es
+   la distancia con signo de la sección a esa cara. Entonces el punto de
+   contacto no sale de un mínimo mal condicionado en planta, y el codo no está.
+
+   Esto lo comprueba, y de paso lo comprueba donde antes fallaba: sobre el
+   pedestal que la demo pone bajo el tramo más empinado.                       */
+tit('5 · El codo del hueco: cómo se cerró FIS-10b');
 {
   const M = E.demoModel();
-  const p0 = E.buildPath(M, 8).samples;
+  const p0 = E.buildPath(M).samples;
   const peds = E.seedPedestals(p0, M.section, 7)
     .map((p, i) => ({ ...p, id: `pd${i + 1}`, name: `P${i + 1}` }));
   /* el pedestal empinado es el que lleva casi toda la carga (ver §11) */
   const kEmp = peds.reduce((a, p, i) => (Math.abs(p.tilt) > Math.abs(peds[a].tilt) ? i : a), 0);
   const hueco = (k, j, h) => {
     const m = { ...M, bends: M.bends.map((b, i) => (i === j ? { ...b, angle: b.angle + h } : b)) };
-    return E.pedestalFit(E.buildPath(m, 8).samples, M.section, peds[k]).gap;
+    return E.pedestalFit(E.buildPath(m).samples, M.section, peds[k]).gap;
   };
   const pendientes = (k) => {
     const g0 = hueco(k, 0, 0);
@@ -312,41 +347,46 @@ tit('5 · El codo del hueco: por qué Newton no puede cerrar FIS-10');
   const llano = pendientes(1);
   console.log(`  pedestal empinado P${kEmp + 1}, cuna a ${f(peds[kEmp].tilt, 1)}°`);
   console.log(`    hueco: ${f(emp.atras, 2)} mm/grado aquí mismo (±1e-4°)`
-            + ` · ${f(emp.lejos, 2)} a una milésima de grado: se dobla`);
+            + ` · ${f(emp.lejos, 2)} a una milésima de grado`);
   console.log(`  pedestal tendido P2, cuna a ${f(peds[1].tilt, 1)}°`);
   console.log(`    hueco: ${f(llano.atras, 2)} mm/grado por detrás · ${f(llano.alante, 2)} por delante`);
 
   ok(rel(llano.alante, llano.atras) < 1e-2,
-     'donde la barra va tendida el hueco sí es liso: la misma pendiente por los dos lados',
+     'donde la barra va tendida el hueco es liso: la misma pendiente por los dos lados',
      `${f(llano.atras, 3)} vs ${f(llano.alante, 3)} mm/grado`);
-  /* TRIPWIRE, y está puesto del derecho a propósito: esta comprobación dice que
-     el codo SIGUE AHÍ. El día que falle será porque el apoyo ya no se mide en
-     planta —lo que pide FIS-08— y entonces FIS-10b se puede reabrir con
-     esperanza, que hoy no la tiene. */
-  ok(rel(emp.lejos, emp.atras) > 0.5,
-     'y donde va a plomo se dobla antes de una milésima: el codo de FIS-10b sigue ahí',
+  /* LO QUE ERA EL TRIPWIRE. Estuvo puesto DEL DERECHO desde el 2026-09-17 —decía
+     «el codo sigue ahí»— para que nadie reabriera FIS-10b con esperanza. Falló
+     el 2026-09-18, que es el día en que el apoyo dejó de medirse en planta, y
+     ahora está puesto del revés: lo que se vigila es que el codo NO vuelva. */
+  ok(rel(emp.lejos, emp.atras) < 1e-2,
+     'y donde va a plomo TAMBIÉN: el codo de FIS-10b ya no está',
      `${f(emp.atras, 2)} contra ${f(emp.lejos, 2)} mm/grado`);
 
-  console.log('\n  PROBADO Y DESCARTADO el 2026-09-17, con las cifras, para que nadie lo');
-  console.log('  vuelva a intentar (el reparto bueno es 9.78 N en los apoyos y 13.89 en');
-  console.log('  la mordaza, sobre una pieza de 23.67 N):');
-  console.log('   · test de razón sobre el paso —cortarlo donde el primer contacto cambia');
-  console.log('     de estado—: el corte SÍ muerde (el paso se queda en el 1.6 % en la');
-  console.log('     primera vuelta) y el resultado no se mueve ni una centésima: 9.78 /');
-  console.log('     13.89 N y ok=false igual. El problema no es pasarse de largo.');
-  console.log('   · perturbar más fino (H de 0.02° a 1e-4 … 1e-6): la búsqueda se cree la');
-  console.log('     rama local del codo y se mete dentro de los apoyos: 60.29 N en los');
-  console.log('     apoyos y −36.62 N en la mordaza, 7.1 µm de penetración. Peor, y sigue');
-  console.log('     sin converger.');
-  console.log('   · caída por coordenadas cuando Newton muere —probar una incógnita cada');
-  console.log('     vez—: baja la energía, sí, pero no converge y el reparto vagabundea');
-  console.log('     con el presupuesto de vueltas: 13.68 N con 6, 27.00 con 25, 14.84 con');
-  console.log('     200, y de 16 ms se pasa a 1 916 ms.');
-  console.log('  Lo que sí quedó medido: donde la búsqueda se rinde todavía hay bajada');
-  console.log('  —mover UNA incógnita 1e-4° baja Φ 6.2e-3 N·mm—, o sea que `loadStuck` no');
-  console.log('  miente: no es un mínimo. Pero la bajada no está en ninguna dirección que');
-  console.log('  un método de segundo orden pueda construir con un hessiano que ahí no');
-  console.log('  existe.');
+  /* Y LA CONSECUENCIA, que es la que importaba: si el hueco es liso, afinar el
+     paso de las diferencias finitas tiene que MEJORAR la respuesta en vez de
+     romperla. Es la comprobación que separa «se arregló» de «se tapó». */
+  const S = E.settle(M, [], peds, M.section, OFF, MAT, CARGA);
+  console.log(`\n  con el hueco liso, la demo sembrada resuelve: apoyos ${f(S.carried, 2)} N ·`
+            + ` mordaza ${f(S.root, 2)} N · pene ${f(S.pene * 1000, 2)} µm · ok=${S.ok}`);
+  ok(S.ok, 'y con el codo fuera, la búsqueda CONVERGE en la pieza de verdad',
+     `${S.iters} vuelta(s)`);
+  ok(Math.abs(S.carried + S.root - S.weight) < 1e-6,
+     '  con las fuerzas cerrando',
+     `${f(S.carried, 2)} + ${f(S.root, 2)} = ${f(S.weight, 2)} N`);
+
+  console.log('\n  LO QUE COSTÓ, dicho con las cifras, porque nada de esto salió gratis:');
+  console.log('   · el paso de perturbación H pasa de 0.02° a 2e-4°. Con el codo puesto,');
+  console.log('     afinarlo hacía que la búsqueda se creyera la rama local y se metiera');
+  console.log('     dentro de los apoyos: 60.29 N de apoyos y −36.62 en la mordaza. Sin');
+  console.log('     codo, afinar converge: 25.83/−2.15 con ok=false a 0.02°, y 26.84/−3.17');
+  console.log('     con ok=true en cuatro vueltas a 2e-4°. De 2e-4 a 2e-5 no se mueve.');
+  console.log('   · medir contra una cara en vez de contra una planta cuesta tiempo: el');
+  console.log('     amarre de seis modelos sujetos pasa de 55 ms a 98, sobre un');
+  console.log('     presupuesto de 250 ms que el banco vigila.');
+  console.log('   · y hubo que unificar la polilínea: la pantalla la construía con 12');
+  console.log('     segmentos por arco y el solver con 8, o sea que eran dos curvas');
+  console.log('     distintas. 25 µm de diferencia, que a 6.16 N/µm son 150 N. Ahora hay');
+  console.log('     un solo `PATH_SEG`.');
 }
 
 console.log(`\n${malas ? `${malas} COMPROBACIÓN(ES) EN ROJO` : 'todo lo que se dijo, se cumplió'}\n`);

@@ -1640,7 +1640,7 @@ step('el vano mayor se dice arriba, no escondido en una columna', () => {
   const v = parseFloat(chip.textContent.replace(/[^\d.]/g, ''));
   if (!(v > 100 && v < 2000)) throw new Error('vano mayor absurdo: ' + chip.textContent);
 });
-step('subir un pedestal 5 mm abre un hueco de 5 mm y lo pinta en rojo', () => {
+step('subir un pedestal 5 mm lo mete en la barra y lo pinta en rojo', () => {
   /* Sin redondear a centésimas, ni al subirlo ni al devolverlo: el alto sembrado
      lleva todos sus decimales desde FIS-10 —el muelle de contacto vale unos 6 N
      por micra— y recortarlo aquí dejaría el pedestal precargado para los pasos
@@ -1651,7 +1651,22 @@ step('subir un pedestal 5 mm abre un hueco de 5 mm y lo pinta en rojo', () => {
   const fila = q(`#panes [data-pd="${p.id}"][data-k="h"]`).closest('tr');
   const rojo = fila.querySelector('.v-bad');
   if (!rojo) throw new Error('el pedestal que estorba no se marca');
-  if (!/-5/.test(rojo.textContent)) throw new Error('el hueco no dice −5: ' + rojo.textContent);
+  /* CINCO MILÍMETROS DE PEDESTAL NO SON CINCO DE HUECO, y este paso pedía −5
+     hasta el 2026-09-18. El hueco se mide contra la CARA de la cuna, o sea
+     sobre su normal, y subir el pie en vertical la mueve menos que eso sobre
+     esa normal: aquí salen −4.95. La ley —`−δ·cos(tilt)` exacta— está clavada
+     en `test_motor.js` sobre una rampa recta, que es donde el rumbo de la cuna
+     no se mueve al subir el pie y el coseno sale limpio. Lo que toca comprobar
+     AQUÍ es lo otro: que la tabla enseñe el número que el motor calcula —no un
+     texto suyo— y que lo enseñe en rojo. */
+  const B = window.BARCOMP;
+  const real = B.E.pedestalFit(B.placedPath(), S().model.section, S().fixture[2]).gap;
+  if (!(real < -4 && real > -5.0001)) {
+    throw new Error('subir 5 mm no metió el pedestal 5: hueco ' + real.toFixed(3));
+  }
+  if (!rojo.textContent.includes(real.toFixed(2))) {
+    throw new Error(`la tabla dice «${rojo.textContent}» y el motor ${real.toFixed(2)}`);
+  }
   /* WCAG 1.4.1: fuera de tolerancia no puede decirse SOLO con el color. Una de
      cada doce personas no distingue el rojo del verde, y la tabla se fotocopia
      en blanco y negro para llevarla a la máquina. */
@@ -2153,12 +2168,92 @@ step('sembrar y encender el peso no inventa reacciones', () => {
   S().load.on = true;
   B.renderAll();
   const R = B.heldResult();
-  if (R.carried > R.weight + 1e-6) {
-    throw new Error(`los apoyos llevan ${R.carried.toFixed(1)} N sobre una pieza `
-      + `de ${R.weight.toFixed(1)} N`);
+  /* LO QUE SE COMPRUEBA ES QUE LAS FUERZAS CIERREN, no que los apoyos lleven
+     menos que la pieza. Esto pedía `carried <= weight` hasta el 2026-09-18 y
+     esa no es una ley: la barra va empotrada en la mordaza y posada sobre
+     siete apoyos, o sea hiperestática, y la mordaza puede tirar hacia abajo.
+     Con la demo sembrada lo hace: 26.8 N en los apoyos y −3.2 en la mordaza.
+     Lo que no puede pasar es que la suma no dé el peso. */
+  if (Math.abs(R.carried + R.root - R.weight) > 1e-6) {
+    throw new Error(`no cierra: ${R.carried.toFixed(2)} + ${R.root.toFixed(2)} `
+      + `≠ ${R.weight.toFixed(2)} N`);
   }
+  /* Y el hallazgo de verdad: sembrar no mete fuerza. Sin peso encima, cero. */
+  S().load.g = 0;
+  B.renderAll();
+  const sinPeso = B.heldResult();
+  if (sinPeso.carried !== 0) {
+    throw new Error('sin peso los apoyos llevan ' + sinPeso.carried.toFixed(3) + ' N');
+  }
+  S().load.g = B.E.LOAD_DEFAULT.g;
   S().load.on = antes;
   B.renderAll();
+});
+/* LA CUNA SEMBRADA CASA CON LA BARRA. Hasta el 2026-09-18 la siembra fijaba la
+   inclinación en la estación objetivo y no donde la cuna acaba tocando, y donde
+   la barra va casi a plomo esos dos sitios no son el mismo: en la demo quedaban
+   pedestales con la chapa hasta CINCUENTA grados cruzada respecto de la barra.
+   La columna Δ lo enseñaba —hacía su trabajo— pero quien lo había puesto ahí
+   era el botón de sembrar, y no había nada que corregir a mano. */
+/* LA CHAPA QUE SE VE ES LA QUE SE MIDE. El 3D dibuja la cuna con un Euler y la
+   física la mide con `cradleBox()`: dos escrituras de la misma rotación que
+   pueden separarse sin que salte nada. Se separaron —el 3D la inclinaba con el
+   seno cambiado de signo— y con la barra tendida no se notaba, pero bajo un
+   tramo empinado la chapa de la pantalla apuntaba a un lado y la cuenta al
+   otro. Se comprueba sobre el pedestal MÁS EMPINADO, que es donde se ve. */
+step('la cuna del 3D apunta a lo largo de la barra, no cruzada con ella', () => {
+  const B = window.BARCOMP;
+  click('[data-md="model"]');
+  click('#tabs [data-t="fixture"]');
+  click('#panes [data-a="seedped"]');
+  B.rebuildScene();
+  const peds = S().fixture;
+  const k = peds.reduce((a, p, i) => (Math.abs(p.tilt) > Math.abs(peds[a].tilt) ? i : a), 0);
+  const ped = peds[k];
+  if (Math.abs(ped.tilt) < 20) throw new Error('ninguna cuna empinada: ' + ped.tilt);
+  /* La cuna es la caja que mide `pad` de largo; la columna mide 28. */
+  const cunas = [];
+  B.groups.fix.traverse(o => {
+    const g = o.geometry && o.geometry.parameters;
+    if (g && Math.abs(g.width - ped.pad) < 1e-6 && Math.abs(g.depth - 6) < 1e-6) cunas.push(o);
+  });
+  if (!cunas.length) throw new Error('no hay ninguna cuna en la escena');
+  /* la que está sobre ESTE pedestal: la más cercana a su pie */
+  const cuna = cunas.reduce((a, o) => {
+    const d = (x) => Math.hypot(x.position.x - ped.x, x.position.y - ped.y);
+    return d(o) < d(a) ? o : a;
+  });
+  /* el eje largo de la caja, sacado de la propia escena: sin construir un
+     vector de three, que el banco no tiene a mano. `updateMatrixWorld` a mano
+     porque la escena se acaba de reconstruir y todavía no se ha pintado. */
+  cuna.updateMatrixWorld(true);
+  const m = cuna.matrixWorld.elements;
+  const eje = { x: m[0], y: m[1], z: m[2] };
+  const f = B.E.pedestalFit(B.placedPath(), S().model.section, ped);
+  const tg = B.E.sampleAt(B.placedPath(), f.s).x;
+  const cos = Math.abs(eje.x * tg.x + eje.y * tg.y + eje.z * tg.z);
+  if (cos < 0.9) {
+    throw new Error('la cuna dibujada va a ' + (Math.acos(cos) * 180 / Math.PI).toFixed(1)
+      + '° de la barra (cuna ' + ped.tilt.toFixed(1) + '°)');
+  }
+});
+step('lo sembrado nace con la cuna casada con la barra, no cruzada', () => {
+  const B = window.BARCOMP;
+  click('[data-md="model"]');
+  click('#tabs [data-t="fixture"]');
+  click('#panes [data-a="seedped"]');
+  const sec = S().model.section;
+  const path = B.placedPath();
+  const peor = Math.max(...S().fixture.map(p =>
+    Math.abs(B.E.pedestalFit(path, sec, p).dTilt)));
+  if (peor > 0.05) {
+    throw new Error('la peor cuna queda ' + peor.toFixed(2) + '° cruzada con la barra');
+  }
+  /* Y el despegue que eso deja en la punta de la cuna, que es lo que se puede
+     comparar con una tolerancia: por debajo de la micra. */
+  const lift = Math.max(...S().fixture.map(p =>
+    B.E.pedestalFit(path, sec, p).lift));
+  if (lift > 0.01) throw new Error('despega ' + (lift * 1000).toFixed(1) + ' µm en la punta');
 });
 step('la pestaña Amarre existe y arranca con el amarre apagado', () => {
   click('[data-md="model"]');
@@ -2616,15 +2711,20 @@ step('sembrar pedestales le quita ese peso de encima', () => {
   if (!(suma > 0.1 * R.weight)) {
     throw new Error(`los apoyos solo llevan ${suma.toFixed(2)} N de ${R.weight.toFixed(2)} N`);
   }
-  /* Y NO MÁS QUE LA PIEZA. Con el alto sembrado redondeado a centésimas, el
-     muelle de contacto convertía ±5 µm en decenas de newton y aquí salían 47 N
-     sobre una pieza de 23.7 N, con la mordaza tirando hacia abajo para cuadrar
-     la suma. Ese era el hallazgo FIS-10, y no era la búsqueda: era el sembrado. */
-  if (suma > R.weight + 1e-6) {
-    throw new Error(`los apoyos llevan MÁS que la pieza entera: ${suma.toFixed(2)} N `
-      + `de ${R.weight.toFixed(2)} N`);
+  /* Y LA SUMA CIERRA. Esto pedía «no más que la pieza entera, y la mordaza sin
+     tirar hacia abajo» hasta el 2026-09-18, y ninguna de las dos es una ley:
+     una barra empotrada en la mordaza y posada sobre siete apoyos es
+     hiperestática, y la mordaza puede tirar hacia abajo —hay un paso del motor
+     que lo demuestra con la palanca—. Sobre la demo salen 26.8 N en los apoyos
+     y −3.2 en la mordaza. Lo que no puede fallar nunca es que sumen el peso.
+
+     El hallazgo FIS-10 se comprueba donde de verdad vive, que es sin peso
+     encima: sembrar no mete fuerza. Ver el paso «sembrar y encender el peso no
+     inventa reacciones». */
+  if (Math.abs(R.carried + R.root - R.weight) > 1e-6) {
+    throw new Error(`no cierra: ${R.carried.toFixed(2)} + ${R.root.toFixed(2)} `
+      + `≠ ${R.weight.toFixed(2)} N`);
   }
-  if (!(R.root >= 0)) throw new Error('la mordaza tira hacia abajo: ' + R.root.toFixed(2) + ' N');
   if (!(R.root < R.weight)) throw new Error('la raíz sigue con todo');
   /* y la columna de reacción aparece en la tabla: el número tiene que estar
      donde se teclean los pedestales, no solo en un chip */

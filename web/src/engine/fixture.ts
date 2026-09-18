@@ -24,10 +24,12 @@
    la mesa y sube `h`. Ver scene/layers.ts.
    ========================================================================= */
 import { Matrix4, Vector3 } from 'three';
-import { clamp, R2D } from './math.ts';
+import { clamp, D2R, R2D } from './math.ts';
 import { sampleAt, nearestOnPath } from './path.ts';
 import type { PathSample, Section, Pedestal } from '../types.ts';
 import { sectionDrop } from './section.ts';
+import { nearestToSegment, nearestToBox, overBox, throughBox } from './contact.ts';
+import type { OBB } from './contact.ts';
 
 /** La cota de la mesa del fixture, mm.
  *
@@ -85,6 +87,15 @@ export type PedFit = {
   lift: number;
   /** ¿la barra pasa por encima de la cuna? */
   over: boolean;
+  /** cuánto ATRAVIESA la barra la cara de la cuna, mm; 0 si no la atraviesa.
+   *
+   *  No es `−gap`, y tiene que ser otro número: `gap` es la medida del APOYO y
+   *  deja de mirar la barra en cuanto se mete más que su propio radio por
+   *  debajo de la cara, porque un trozo de barra pasado de largo no está
+   *  apoyado en la cuna. Con la sección de 40×12 eso son 21 mm, así que una
+   *  pieza clavada 34 mm dentro de un pedestal salía como «no toca» y el aviso
+   *  de choque no la veía. Ver `throughBox()`. */
+  deep: number;
 };
 
 /** La trayectoria movida al sitio donde de verdad está la pieza.
@@ -117,34 +128,102 @@ export function placePath(M: Matrix4, samples: PathSample[]): PathSample[] {
   }));
 }
 
+/** El ANCHO de una cuna, mm. No es un campo del pedestal: es la medida con la
+ *  que el 3D la dibuja desde siempre, y ahora también la que la física usa, que
+ *  es lo que hace que el dibujo y la cifra digan lo mismo. El día que el taller
+ *  quiera cunas de dos tamaños, esto sube al `Pedestal` y al esquema.
+ *
+ *  El GRUESO no está aquí porque la física no lo necesita: lo que sostiene es
+ *  la CARA de arriba, y una cara no tiene grueso. Ver `nearestToBox()`. */
+export const CRADLE_W = 44;
+
+/** La cuna como CAJA: centro, ejes y medias medidas.
+ *
+ *  `head` es el rumbo en planta al que mira la cuna. No se guarda en el
+ *  pedestal —la cuna se orienta a mano hasta que la barra apoya a lo largo— así
+ *  que sale de la barra; ver `pedestalFit()`.
+ *
+ *  Los ejes salen de la MISMA rotación que usa el 3D (`ZYX`, primero el rumbo y
+ *  luego la inclinación), así que la cuna que se dibuja y la que se mide son la
+ *  misma: `u` a lo largo de la cuna, `v` a lo ancho y `n` la normal de la cara
+ *  de apoyo. El centro ES el punto de apoyo, (x, y, TABLE_Z + h) —el mismo
+ *  contra el que se medía antes— y la media medida en `n` es CERO: lo que
+ *  sostiene es la cara, y una cara no tiene grueso. */
+export function cradleBox(ped: Pedestal, head: number): OBB {
+  const ch = Math.cos(head * D2R), sh = Math.sin(head * D2R);
+  const ct = Math.cos(ped.tilt * D2R), st = Math.sin(ped.tilt * D2R);
+  /* EL SIGNO DE `st` NO ES LIBRE, y costó encontrarlo: `tilt` es positivo si la
+     cuna SUBE en el sentido de la barra, así que con `tilt = want` el eje largo
+     de la cuna tiene que salir PARALELO a la tangente de la barra. Con el signo
+     al revés salía a 86.7° de ella —casi perpendicular— y entonces la barra
+     asomaba por la punta de la cuna en cuanto el tramo se empinaba. */
+  const u = new Vector3(ct * ch, ct * sh, st);
+  const n = new Vector3(-st * ch, -st * sh, ct);
+  const v = n.clone().cross(u);
+  const c = new Vector3(ped.x, ped.y, TABLE_Z + ped.h);
+  return { c, e: [u, v, n], h: [ped.pad / 2, CRADLE_W / 2, 0] };
+}
+
 /** Qué le pasa a un pedestal con la barra que tiene encima.
  *
  *  `samples` tiene que venir YA colocada (ver `placePath`): el fixture es
  *  físico y le importa dónde está la pieza de verdad, no dónde la dibujaría el
- *  modelo en el origen. */
+ *  modelo en el origen.
+ *
+ *  DOS PASADAS, y la primera no es un refinamiento: es que la cuna no guarda su
+ *  rumbo. Hace falta saber por dónde va la barra para orientar la caja, y hace
+ *  falta la caja para saber dónde toca la barra. Se rompe el círculo con el
+ *  punto de la barra más cercano al centro de la cara de apoyo EN EL ESPACIO
+ *  —que es una distancia de verdad y no se degenera con la barra a plomo— y de
+ *  ahí sale el rumbo. La segunda pasada ya es la buena: la barra contra la caja.
+ *
+ *  ANTES SE MEDÍA EN PLANTA, y eso era dos defectos con una sola causa: la
+ *  proyección en planta de un tramo casi vertical es casi un punto, así que el
+ *  punto de contacto estaba mal condicionado (FIS-10b), y medir la cara de
+ *  ABAJO dejaba fuera el apoyo de costado, que es el único que hay con la barra
+ *  a plomo (lo que quedó de FIS-08). Ver `nearestToBox()`. */
 export function pedestalFit(samples: PathSample[], sec: Section,
                             ped: Pedestal): PedFit | null {
   if (!samples.length) return null;
-  /* Sobre la POLILÍNEA, no sobre las muestras: `buildPath()` no reparte
-     ninguna a lo largo de una recta, así que un pedestal en mitad de una recta
-     larga daba como punto más cercano el final de esa recta y salía como que la
-     barra no le pasa por encima. Se cazó con el banco del amarre, y es el mismo
-     fallo aquí. Ver engine/path.ts. */
-  const { s: sc, d } = nearestOnPath(samples, ped.x, ped.y);
+  const apoyo = new Vector3(ped.x, ped.y, TABLE_Z + ped.h);
+  const pre = nearestToSegment(samples, apoyo, apoyo);
+  /* LA CUERDA QUE LA CUNA CUBRE, no la tangente de un punto, y por dos motivos
+     distintos que apuntan al mismo sitio:
+
+     · una cuna de 60 mm no toca en un punto, toca en sesenta milímetros de
+       barra. Si la barra se curva ahí, la tangente del centro deja la chapa
+       mordiendo por una punta. La cuerda es la recta que un montador pone
+       debajo, y es la misma que elige `seedPedestals()`;
+     · la tangente se tomaba EN EL PUNTO DE CONTACTO, que se mueve al girar la
+       cuna. Entonces `want` dependía de `tilt` y `dTilt` dejaba de ser una
+       medida del desajuste: subir la cuna 2° sobre lo que la barra pide salía
+       como −1.55° de Δ.
+
+     El ancla es `pre`, el punto de la barra más cercano al pie, que no sabe de
+     `tilt`: así girar la cuna cambia el contacto pero no la referencia contra
+     la que se la juzga. */
+  const sMin = samples[0].s, sMax = samples[samples.length - 1].s;
+  const a0 = sampleAt(samples, Math.max(sMin, pre.s - ped.pad / 2));
+  const a1 = sampleAt(samples, Math.min(sMax, pre.s + ped.pad / 2));
+  const cuerda = a1.p.clone().sub(a0.p);
+  const cL = cuerda.length() || 1;
+  const head = Math.atan2(cuerda.y, cuerda.x) * R2D;
+  const want = Math.asin(clamp(cuerda.z / cL, -1, 1)) * R2D;
+  const box = cradleBox(ped, head);
+  const { s: sc, gap } = nearestToBox(samples, sec, box);
   const q = sampleAt(samples, sc);
   const low = q.p.z - sectionDrop(q, sec);
-  /* `x.z` es el seno del ángulo que forma el eje de la barra con la horizontal:
-     la base viene normalizada, así que el clamp es solo contra el ruido de
-     coma flotante que puede sacarlo de [-1,1] por un epsilon. */
-  const want = Math.asin(clamp(q.x.z, -1, 1)) * R2D;
   return {
-    s: sc, plan: d, low,
-    gap: low - (TABLE_Z + ped.h),
+    s: sc, plan: nearestOnPath(samples, ped.x, ped.y).d, low,
+    gap,
     want, dTilt: ped.tilt - want,
-    head: Math.atan2(q.x.y, q.x.x) * R2D,
+    head,
     lift: Math.abs(Math.tan((ped.tilt - want) / R2D)) * ped.pad / 2,
-    /* media cuna más medio ancho: hasta ahí la barra todavía pisa algo */
-    over: d <= ped.pad / 2 + sec.width / 2,
+    /* PISA LA CUNA: una pregunta de HUELLA, no del punto de contacto. Ver
+       `overBox()`: en el punto de tangencia los tres ejes se rozan y cualquier
+       comparación local salía al revés por tres diezmilésimas. */
+    over: overBox(samples, sec, box),
+    deep: throughBox(samples, sec, box),
   };
 }
 
@@ -205,10 +284,22 @@ export function seedPedestals(samples: PathSample[], sec: Section,
       if (d < bd) { bd = d; bi = i; }
     }
     const q = samples[bi];
+    /* LA INCLINACIÓN SALE DE LA CUERDA QUE CUBRE LA CUNA, no de la tangente en
+       un punto, y es la diferencia entre una cuna que apoya y una que hace de
+       cuchillo. Una cuna de 60 mm no toca en un punto: toca en sesenta
+       milímetros de barra, y si la barra se curva ahí, la tangente del centro
+       deja la chapa mordiendo por una punta. Con la tangente, tres de los siete
+       pedestales de la demo tocaban a ochenta milímetros de su estación y uno
+       quedaba CINCUENTA GRADOS cruzado respecto de la barra donde de verdad
+       apoyaba. Con la cuerda, es la recta que un montador pone debajo. */
+    const sMin = samples[0].s, sMax = samples[samples.length - 1].s;
+    const a0 = sampleAt(samples, Math.max(sMin, q.s - pad / 2));
+    const a1 = sampleAt(samples, Math.min(sMax, q.s + pad / 2));
+    const cuerda = a1.p.clone().sub(a0.p);
     const cand = {
       x: +q.p.x.toFixed(2), y: +q.p.y.toFixed(2),
       h: +(q.p.z - sectionDrop(q, sec) - TABLE_Z).toFixed(2),
-      tilt: +(Math.asin(clamp(q.x.z, -1, 1)) * R2D).toFixed(2),
+      tilt: +(Math.asin(clamp(cuerda.z / (cuerda.length() || 1), -1, 1)) * R2D).toFixed(2),
       pad, visible: true,
     };
     /* Un paso de corrección contra la barra DE VERDAD, no contra la muestra.
@@ -228,11 +319,87 @@ export function seedPedestals(samples: PathSample[], sec: Section,
        1.4e-14 mm en una sola pasada.
 
        La INCLINACIÓN sí se redondea: está medido que no mueve el hueco ni una
-       micra, porque el hueco se mide donde la cuna toca y no en su punta. */
-    const fit = pedestalFit(samples, sec, { id: '', name: '', ...cand });
-    if (fit) {
-      cand.h += fit.gap;
-      cand.tilt = +fit.want.toFixed(2);
+       micra, porque el hueco se mide donde la cuna toca y no en su punta.
+
+       EL PASO NO ES `h += gap`, y desde el 2026-09-18 tampoco lo aparenta.
+       Subir el pedestal un milímetro no cierra un milímetro de hueco: lo cierra
+       en la dirección de la NORMAL de la cuna, así que cierra `cos(tilt)`. Con
+       la cuna tendida da igual —era la cuenta de antes— pero con la cuna
+       empinada son varios milímetros por cada uno, y el pedestal nacía con la
+       barra metida en la cuna.
+
+       Y NO BASTA UNA VUELTA, por dos motivos que se retroalimentan: al mover el
+       alto cambia el punto donde la barra toca, y en el punto nuevo la barra
+       lleva otra inclinación, así que la cuna tiene que volver a girar. Fijando
+       la inclinación en la primera vuelta —lo que se intentó primero— el
+       pedestal más empinado de la demo OSCILABA entre −6.5 y +6.2 mm de hueco
+       sin converger nunca, porque la cuna se quedaba 30° cruzada respecto de la
+       barra. Girando la cuna en cada vuelta convergen los siete: la demo baja a
+       1e-7 mm en once vueltas o menos.
+
+       EL COSENO SE TOPA a 0.35. Cerca de la vertical `1/cos` se dispara y el
+       paso se pasa de largo; el tope solo limita cuánto se amplifica, no hacia
+       dónde se va, así que sigue convergiendo y deja de rebotar. */
+    /* LA CUNA SÍ PERSIGUE A LA BARRA, desde el 2026-09-18, y ese día cambió el
+       motivo por el que antes no podía. Se intentó al principio y no convergía:
+       `want` se leía en el PUNTO DE CONTACTO, girar la cuna movía el contacto,
+       el contacto pedía otro giro y tres de los siete pedestales de la demo
+       entraban en ciclo —uno acababa a −36.7° bajo un tramo que sube 13.9°—.
+       Ahora `want` es la cuerda que la cuna cubre anclada en el pie, que no sabe
+       de `tilt`, así que el ciclo no existe y la cuna puede ir a por ella.
+
+       Y hace falta: fijando la inclinación en la estación objetivo, el pedestal
+       del tramo que va casi a plomo nacía con la cuna a −78.75° debajo de una
+       barra que ahí pide −48.7°. TREINTA GRADOS cruzada, y no por un error de
+       cuenta: con la barra a plomo el pie se pone bajo la planta de la estación,
+       pero la barra que le queda encima es otro trozo, sesenta milímetros más
+       adelante. Es el mismo mal condicionado de FIS-10b visto desde la siembra.
+
+       EL ORDEN DE CADA VUELTA: primero la inclinación, redondeada, y luego se
+       cierra el alto. Un `tilt` con dos decimales es una cifra de taller y se
+       queda; lo que ya no se puede decir —lo decía este comentario hasta hoy—
+       es que redondearlo no mueva el hueco. Con la cuna medida como sólido el
+       brazo es media cuna, 30 mm, así que media centésima de grado son 2.6 µm...
+       y el muelle de contacto vale 6 N por micra (FIS-10a). Redondeando al
+       final, el sembrado se quedaba en 3.5e-4 mm y no bajaba de ahí.
+
+       EL PASO NO ES `h += gap`: subir el pedestal un milímetro no cierra un
+       milímetro de hueco, lo cierra en la dirección de la NORMAL de la cuna, o
+       sea `cos(tilt)`. Con la cuna tendida da igual —era la cuenta de antes— y
+       con la cuna empinada son varios milímetros por cada uno. El coseno SE
+       TOPA a 0.35: cerca de la vertical `1/cos` se dispara y el paso se pasa de
+       largo; el tope limita cuánto se amplifica, no hacia dónde se va. */
+    const cierra = (t: number, fit: PedFit): void => {
+      cand.h += fit.gap / Math.max(0.35, Math.abs(Math.cos(t * D2R)));
+    };
+    const mira = (): PedFit | null =>
+      pedestalFit(samples, sec, { id: '', name: '', ...cand });
+    /* FASE 1: la cuna busca su inclinación y el alto la sigue. */
+    for (let it = 0; it < 20; it++) {
+      const fit = mira();
+      if (!fit) break;
+      const t = +fit.want.toFixed(2);
+      const quieta = t === cand.tilt;
+      cand.tilt = t;
+      cierra(t, fit);
+      if (quieta && Math.abs(fit.gap) < 1e-12) break;
+    }
+    /* FASE 2: LA INCLINACIÓN SE QUEDA QUIETA Y SOLO SE CIERRA EL ALTO, y las
+       dos fases no son una por si acaso: con las dos cosas moviéndose a la vez
+       hay pedestales que NO convergen nunca. El de la demo que va casi a plomo
+       pide 57.3331° con un alto y 57.3351° con el siguiente, y esas dos cifras
+       redondean a centésimas distintas, así que la cuna rebotaba entre −57.33 y
+       −57.34 en un ciclo de tres que no se rompía solo: el sembrado se quedaba
+       en 1.7e-3 mm de interferencia, que a 6 N por micra son DIEZ NEWTON de
+       precarga sobre una pieza de 24. Congelada la inclinación, cerrar el alto
+       es una recta y baja a 1e-13. Dos centésimas de grado de más en la cuna
+       cuestan, sobre media cuna, cinco micras de despegue en la punta —y eso lo
+       dice la columna Δ—; diez newton que nadie puso no los dice nadie. */
+    for (let it = 0; it < 30; it++) {
+      const fit = mira();
+      if (!fit) break;
+      cierra(cand.tilt, fit);
+      if (Math.abs(fit.gap) < 1e-12) break;
     }
     out.push(cand);
   }
