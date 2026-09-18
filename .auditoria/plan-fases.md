@@ -418,6 +418,34 @@ Diagnóstico en una frase: lo construido está bien hecho por dentro y mal conta
 |---|---|---|
 | A1-bis | `LOOP_MIN_N` deja de ser letra muerta: «Aplicar» apagado con menos de tres piezas en el lazo, y la guarda también dentro de `case 'apply'` | `ac6e8ed` |
 
+## Fase 6 · La forma de la sección — EN CURSO
+
+Pedida por el taller el 2026-09-17: poder elegir la sección de la barra, no solo sus medidas.
+Tres pasadas, y el orden no es negociable: **el motor primero y la ventana al final**, porque
+una ventana que escribe un campo que nadie lee es exactamente lo que fue `LOOP_MIN_N` (A1-bis).
+
+| ID | Qué se hizo | Commit |
+|---|---|---|
+| SEC-01 | `engine/section.ts`: las seis cuentas que la forma cambia, en un solo sitio. Refactor puro, superficie del motor 165 → 168 exports y ni una cifra movida | `e5f0798` |
+| SEC-02 | Las cuatro formas —rectangular y redonda, macizas y huecas—, `barcomp/2.4`, el 3D barriendo el contorno de verdad y la ventana de la sección | (esta pasada) |
+
+Abierto, y con su motivo:
+
+- [ ] **[SEC-03] Los umbrales de un tubo no son los de una barra maciza · [O]** — el radio
+      mínimo que admite un tubo lo mandan la relación diámetro/pared y la ovalización al
+      doblarlo, no el material. `engine/lims.ts` sigue juzgando con los de una barra maciza,
+      así que **en pantalla un tubo se dobla más fácil de lo que se dobla en la máquina**. Hoy
+      se avisa con palabras en la ventana de la sección; cerrarlo pide un criterio, y un
+      criterio pide o una norma que el taller acepte o piezas dobladas de las que aprenderlo.
+      Mientras no haya una cosa ni la otra, **el aviso es la respuesta honesta**: inventar un
+      umbral sería darle cara de dato a una opinión. · M
+- [ ] **[SEC-04] Con la barra redonda, la guarda del eje no observable mide algo que ya no
+      existe · [S]** — `Iz = Iy`, así que el rodado no cambia con qué resiste la sección y el
+      retorcido de la pieza no se puede observar. La guarda de C1+A4 sigue puesta y sigue
+      juzgando el eje como si se distinguiera. No se tocó en esta pasada a propósito: mover
+      una guarda que rechaza casos es un cambio de comportamiento con sus propias cifras, y
+      esta pasada ya traía el esquema. Hoy se avisa en la ventana. · S
+
 ## Fase 5.8 · El id repetido de un modelo — CERRADA 2026-09-17
 
 Reportado desde el taller, no salido de una auditoría.

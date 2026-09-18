@@ -1,6 +1,6 @@
 # Fixtures congelados
 
-`demo-2.3.json` no es un ejemplo: es un **candado**. Guarda los PI que el motor
+`demo-2.4.json` no es un ejemplo: es un **candado**. Guarda los PI que el motor
 produce hoy para `demoModel()`, junto con `ANG_DIR`, `ROT_DIR` y los ejes
 absolutos que salen de esos dobleces.
 
@@ -41,6 +41,13 @@ en este orden:
 Nunca regeneres el fixture solo para que la prueba pase en verde. Ese es el
 único uso que lo vuelve inútil.
 
+**Tercer caso, y es el único en el que regenerar no cuesta una decisión:** sube
+`SCHEMA` por algo que NO es el sentido de giro. Pasó el 2026-09-17 con el 2.4,
+que abrió la sección a tubos y redondos sin tocar una fórmula. Entonces falla
+solo la primera comprobación —la de la etiqueta—, las coordenadas pasan, y al
+regenerar **el `pis` tiene que salir idéntico carácter por carácter**. Si no sale
+idéntico, el cambio movió la pieza y estás en uno de los dos casos de arriba.
+
 ## Regenerar
 
 ```bash
@@ -57,5 +64,5 @@ process.stdout.write(JSON.stringify({
   pis: P.map(p => [+p.x.toFixed(9), +p.y.toFixed(9), +p.z.toFixed(9)]),
   ejesAbsolutos: M.bends.map(b => +(a += b.rot).toFixed(6)),
 }, null, 1));
-" > test/fixtures/demo-2.3.json
+" > test/fixtures/demo-2.4.json
 ```

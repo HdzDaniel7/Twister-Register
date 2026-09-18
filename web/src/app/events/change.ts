@@ -33,7 +33,7 @@ import {
 const COMP_KEYS = new Set(Object.keys(E.COMP_DEFAULT));
 const PROC_KEYS = new Set(Object.keys(E.PROC_DEFAULT));
 const PLACE_KEYS = new Set(Object.keys(E.PLACE_DEFAULT));
-const SECTION_KEYS = new Set(['width', 'thickness', 'chamfer', 'endLen']);
+const SECTION_KEYS = new Set(['width', 'thickness', 'wall', 'chamfer', 'endLen']);
 const TOL_KEYS = new Set(['angle', 'rot', 'feed', 'point']);
 const DELTA_SET = new Set<string>(E.DELTA_KEYS);
 const POINT_KEYS = new Set(['x', 'y', 'z']);

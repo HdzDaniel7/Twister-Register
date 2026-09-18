@@ -31,10 +31,27 @@ export type DeltaKey = keyof Bend;
 /** Columna de correcciones de una fila: base + delta = valor efectivo. */
 export type Delta = Record<DeltaKey, number>;
 
-/** Sección rectangular de la barra, mm. */
+/** Qué forma tiene la sección de la barra.
+ *
+ *  Solo formas SIMÉTRICAS respecto de sus dos ejes. Un angular o un perfil en U
+ *  tienen el centro de cortante fuera del de gravedad: doblarlos retuerce, y ni
+ *  la cinemática LRA ni el muelle de torsión de este motor lo describen. Meterlos
+ *  aquí daría números con la misma cara de siempre y ninguno cierto. */
+export type SecKind = 'rect' | 'round';
+
+/** Sección de la barra, mm.
+ *
+ *  `width` y `thickness` son las dos medidas EXTERIORES, y en una redonda
+ *  `width` es el diámetro. `wall` es la pared: 0 es maciza.
+ *
+ *  En una redonda `thickness` no lo mira ninguna cuenta. Se guarda igual, y a
+ *  propósito: así pasar a redonda y volver no pierde el espesor que había. */
 export type Section = {
+  kind: SecKind;
   width: number;
   thickness: number;
+  /** espesor de pared, mm. 0 = maciza */
+  wall: number;
   chamfer: number;
   /** longitud del tocho de extremo que se dibuja en los cabos */
   endLen: number;

@@ -900,7 +900,7 @@ ok('un modelo de 1 doblez funciona',
   const doc = E.toDoc(M, M.bends, { ...E.COMP_DEFAULT }, { ...E.PROC_DEFAULT }, [],
                       [V, W], 'v1', 'end', extra);
   ok('el documento lleva el esquema compartido', doc.schema === E.SCHEMA);
-  ok('y el esquema vigente es 2.3', E.SCHEMA === 'barcomp/2.3');
+  ok('y el esquema vigente es 2.4', E.SCHEMA === 'barcomp/2.4');
 
   /* MIGRACIÓN 2.1 -> 2.2. En 2.1 cada fila declaraba el eje ABSOLUTO; ahora
      declara cuánto gira. Un archivo anterior tiene que abrir con la MISMA
@@ -992,7 +992,10 @@ console.log('\n— idiomas —');
     en: new Set([...COMUNES, 'cmode', 'distPi', 'nearPi', 'stDatum', 'twist',
                  /* «pin» es la palabra del taller también en inglés, y «no» se
                     escribe igual en los dos idiomas. */
-                 'fixture', 'addPed', 'addPin', 'pinNo']),
+                 'fixture', 'addPed', 'addPin', 'pinNo',
+                 /* «Rectangular» se escribe igual en español y en inglés. En
+                    alemán es Rechteckig y ahí la prueba la sigue vigilando. */
+                 'secRect']),
     de: new Set(COMUNES),
   };
   for (const l of ['en', 'de']) {
@@ -1846,7 +1849,7 @@ console.log('\n— candado de convención (fixture congelado) —');
      compara contra PI escritos en disco: si el motor deja de producir la forma
      que produce hoy, falla aquí y no en la máquina.
      Ver test/fixtures/README.md antes de regenerar el archivo. */
-  const FX = JSON.parse(readFileSync(new URL('./test/fixtures/demo-2.3.json', import.meta.url), 'utf8'));
+  const FX = JSON.parse(readFileSync(new URL('./test/fixtures/demo-2.4.json', import.meta.url), 'utf8'));
 
   ok('el fixture es del esquema vigente', FX.schema === E.SCHEMA, `${FX.schema}`);
   ok('ANG_DIR no ha cambiado', E.ANG_DIR === FX.ANG_DIR, `${E.ANG_DIR}`);
@@ -1877,6 +1880,128 @@ console.log('\n— candado de convención (fixture congelado) —');
   const ejes = dm.bends.map(b => +(acc += b.rot).toFixed(6));
   ok('los ejes absolutos son los congelados',
      ejes.every((a, i) => Math.abs(a - FX.ejesAbsolutos[i]) < 1e-9), `${ejes.join(',')}`);
+}
+
+/* ======================================================================== */
+console.log('\n— las formas de la sección: tubo y redondo contra la fórmula de manual —');
+{
+  const PI = Math.PI;
+  /* RECTANGULAR HUECA. Lo de fuera menos lo de dentro, y el interior de un
+     40×12 con 2 de pared es 36×8. Se comprueba contra la resta hecha aparte,
+     no contra la misma expresión escrita dos veces. */
+  {
+    const t = E.normSection({ kind: 'rect', width: 40, thickness: 12, wall: 2, chamfer: 0, endLen: 0 });
+    ok('el tubo rectangular sanea sus medidas', t.kind === 'rect' && t.wall === 2);
+    ok('área = 40·12 − 36·8', Math.abs(E.sectionArea(t) - (480 - 288)) < 1e-9,
+       `${E.sectionArea(t)} mm²`);
+    const I = E.sectionI(t);
+    ok('Iz = (40·12³ − 36·8³)/12', Math.abs(I.Iz - (40 * 1728 - 36 * 512) / 12) < 1e-9, `${I.Iz} mm⁴`);
+    ok('Iy = (12·40³ − 8·36³)/12', Math.abs(I.Iy - (12 * 64000 - 8 * 46656) / 12) < 1e-9, `${I.Iy} mm⁴`);
+    /* Lo que de verdad importa del hueco, dicho como lo diría el taller: quita
+       mucho peso y poca rigidez, que es para lo que sirve un tubo. */
+    const m = E.normSection({ kind: 'rect', width: 40, thickness: 12, chamfer: 0, endLen: 0 });
+    const pesa = E.sectionArea(t) / E.sectionArea(m);
+    const resiste = E.sectionI(t).Iz / E.sectionI(m).Iz;
+    ok('el tubo pesa mucho menos de lo que resiste menos', resiste > pesa,
+       `pesa ${(pesa * 100).toFixed(1)} % y resiste ${(resiste * 100).toFixed(1)} %`);
+  }
+  /* REDONDA MACIZA: A = πD²/4, I = πD⁴/64, y las dos inercias iguales. */
+  {
+    const r = E.normSection({ kind: 'round', width: 30, chamfer: 0, endLen: 0 });
+    /* El espesor guardado no lo mira ninguna de las seis cuentas, y se conserva
+       para que pasar a redonda y volver no pierda la medida que había. */
+    const ida = E.normSection({ kind: 'round', width: 30, thickness: 12, chamfer: 0, endLen: 0 });
+    const vuelta = E.normSection({ ...ida, kind: 'rect' });
+    ok('pasar a redonda y volver no pierde el espesor',
+       vuelta.thickness === 12 && vuelta.width === 30, JSON.stringify(vuelta));
+    ok('área = πD²/4', Math.abs(E.sectionArea(r) - PI * 900 / 4) < 1e-9, `${E.sectionArea(r).toFixed(2)} mm²`);
+    const I = E.sectionI(r);
+    ok('I = πD⁴/64', Math.abs(I.Iz - PI * 30 ** 4 / 64) < 1e-9, `${I.Iz.toFixed(1)} mm⁴`);
+    ok('y las dos inercias son la misma: no hay «de plano» ni «de canto»', I.Iz === I.Iy);
+    ok('la fibra es el radio, se doble contra lo que se doble',
+       E.sectionFibre(r, false) === 15 && E.sectionFibre(r, true) === 15);
+  }
+  /* TUBO REDONDO: A = π(D²−d²)/4, I = π(D⁴−d⁴)/64 con d = D − 2e. */
+  {
+    const t = E.normSection({ kind: 'round', width: 30, wall: 2, chamfer: 0, endLen: 0 });
+    ok('área = π(30²−26²)/4', Math.abs(E.sectionArea(t) - PI * (900 - 676) / 4) < 1e-9,
+       `${E.sectionArea(t).toFixed(2)} mm²`);
+    ok('I = π(30⁴−26⁴)/64', Math.abs(E.sectionI(t).Iz - PI * (810000 - 456976) / 64) < 1e-9,
+       `${E.sectionI(t).Iz.toFixed(1)} mm⁴`);
+  }
+  /* LO QUE EL CONTACTO VE, que es el motivo de que el hueco salga tan barato:
+     la función soporte mira el perfil EXTERIOR y nada más. */
+  {
+    const m = E.normSection({ kind: 'round', width: 30, chamfer: 0, endLen: 0 });
+    const t = E.normSection({ kind: 'round', width: 30, wall: 2, chamfer: 0, endLen: 0 });
+    let peor = 0, minR = Infinity, maxR = 0;
+    for (let g = 0; g <= 360; g += 1) {
+      const a = g * Math.PI / 180;
+      const q = { p: new Vector3(), x: new Vector3(1, 0, 0),
+                  y: new Vector3(0, Math.cos(a), Math.sin(a)),
+                  z: new Vector3(0, -Math.sin(a), Math.cos(a)), s: 0 };
+      peor = Math.max(peor, Math.abs(E.sectionDrop(q, m) - E.sectionDrop(q, t)));
+      const d = E.sectionDrop(q, m);
+      minR = Math.min(minR, d); maxR = Math.max(maxR, d);
+    }
+    ok('el tubo apoya donde apoyaría el macizo del mismo tamaño', peor === 0);
+    ok('y una redonda baja el radio, mire por donde mire',
+       Math.abs(minR - 15) < 1e-12 && Math.abs(maxR - 15) < 1e-12,
+       `entre ${minR} y ${maxR} mm`);
+    /* Contra el rectángulo, que sí depende de cómo esté puesto: esa diferencia
+       es justo lo que hace que el rodado mueva el fixture en uno y no en otro. */
+    const rec = E.normSection({ kind: 'rect', width: 40, thickness: 12, chamfer: 0, endLen: 0 });
+    const q45 = { p: new Vector3(), x: new Vector3(1, 0, 0),
+                  y: new Vector3(0, Math.SQRT1_2, Math.SQRT1_2),
+                  z: new Vector3(0, -Math.SQRT1_2, Math.SQRT1_2), s: 0 };
+    const q0 = { p: new Vector3(), x: new Vector3(1, 0, 0), y: new Vector3(0, 0, 1),
+                 z: new Vector3(0, 1, 0), s: 0 };
+    ok('en el rectángulo sí cambia con la posición',
+       Math.abs(E.sectionDrop(q45, rec) - E.sectionDrop(q0, rec)) > 1,
+       `${E.sectionDrop(q0, rec)} vs ${E.sectionDrop(q45, rec).toFixed(2)} mm`);
+  }
+  /* SANEADO: lo que no se entiende no envenena el motor. */
+  {
+    const mala = E.normSection({ kind: 'rect', width: 40, thickness: 12, wall: 99 });
+    ok('una pared mayor que media sección sale maciza, no con área negativa',
+       E.sectionArea(mala) > 0 && !E.isHollow(mala), `${E.sectionArea(mala)} mm²`);
+    const rara = E.normSection({ kind: 'trapecio', width: 'x', thickness: -5, wall: NaN });
+    ok('una forma que no existe cae en rectangular', rara.kind === 'rect');
+    ok('y las medidas imposibles vuelven a las de fábrica',
+       rara.width === 40 && rara.thickness === 12 && rara.wall === 0);
+  }
+  /* PESO: la cadena de unidades de lineLoad tiene que seguir cerrando con una
+     forma nueva. Un tubo de acero de 30×2 pesa 1.38 kg el metro, que es una
+     cifra de catálogo y se puede comprobar sin este programa. */
+  {
+    const t = E.normSection({ kind: 'round', width: 30, wall: 2, chamfer: 0, endLen: 0 });
+    const acero = { ...E.MAT_DEFAULT, rho: 7850 };
+    const kgPorMetro = E.lineLoad(t, acero) * 1000 / 9.81;
+    ok('un tubo de acero de 30×2 pesa 1.38 kg el metro', Math.abs(kgPorMetro - 1.38) < 0.01,
+       `${kgPorMetro.toFixed(3)} kg/m`);
+  }
+  /* EL ARCHIVO: la forma tiene que ir y volver, y un 2.3 tiene que abrirse. */
+  {
+    const M = E.normalizeModel({ ...E.demoModel(),
+      section: { kind: 'round', width: 30, wall: 2, chamfer: 0, endLen: 0 } });
+    const doc = JSON.parse(JSON.stringify(
+      E.toDoc(M, M.bends, { ...E.COMP_DEFAULT }, { ...E.PROC_DEFAULT }, [])));
+    ok('el documento sale como 2.4', doc.schema === 'barcomp/2.4', doc.schema);
+    const ida = E.fromDoc(doc).model.section;
+    ok('la forma vuelve del archivo entera',
+       ida.kind === 'round' && ida.width === 30 && ida.wall === 2, JSON.stringify(ida));
+    /* Un 2.3 es por definición rectangular macizo: ni convierte ni avisa. */
+    const viejo = { ...doc, schema: 'barcomp/2.3',
+                    model: { ...doc.model, section: { width: 40, thickness: 12, chamfer: 1.2, endLen: 20 } } };
+    const leido = E.fromDoc(viejo);
+    ok('un 2.3 se abre sin convertir y sin avisar', !leido.legacy && !leido.ambiguous);
+    ok('y su sección sale rectangular maciza',
+       leido.model.section.kind === 'rect' && leido.model.section.wall === 0);
+    /* Y uno que no conocemos sigue sin adivinarse. */
+    let paro = false;
+    try { E.fromDoc({ ...doc, schema: 'barcomp/9.9' }); } catch { paro = true; }
+    ok('un esquema desconocido sigue parando en seco', paro);
+  }
 }
 
 /* ======================================================================== */
@@ -2973,6 +3098,7 @@ console.log('\n— atributos de los paneles —');
     cell: 'celda derivada: nadie la despacha, focus.ts solo la busca para reescribirla',
     c: 'ST.comp: las guardas del lazo se editan desde Umbrales con el mismo manejador que en Compensar',
     t: 'pestañas (click, solo dentro de #tabs) y tolerancias (change, solo type=number): ni el evento ni el elemento coinciden',
+    s: 'la sección: la ventana la edita entera y la pestaña Modelo deja a mano las medidas del día a día. Mismo manejador y MISMO dato —v.base.section—, así que son dos vistas de uno, no dos copias',
   };
   const dir = new URL('./src/panels/', import.meta.url);
   const quien = {};

@@ -2969,4 +2969,128 @@ step('duplicar despues de cargar y deshacer no repite el id del modelo', () => {
     if (chapas !== 1) throw new Error('hay ' + chapas + ' chapas de referencia');
   }
 });
+/* ------------------------------------------------------ la sección ------ */
+/* `B` en el ámbito del bloque: los pasos de arriba lo declaran cada uno dentro
+   del suyo, y estos son siete. */
+const B = window.BARCOMP;
+
+/* Deshacer por la PUERTA, no escribiendo en el estado: la sección efectiva se
+   recalcula en `syncModel()`, así que dejar `base.section` a mano y repintar
+   deja `ST.model` con la forma anterior y el paso siguiente mide otra pieza.
+   Esto pasa por los mismos controles que usa quien está delante. */
+function ponSeccion(sec) {
+  drawer('section');
+  click(`#lf [data-sk="${sec.kind}"]`);
+  for (const k of ['width', 'thickness', 'wall', 'chamfer', 'endLen']) {
+    drawer('section');
+    const el = document.querySelector(`#lf input[data-s="${k}"]`);
+    if (!el) continue;                       // el espesor no sale en una redonda
+    el.value = String(sec[k]);
+    el.dispatchEvent(new Event('change', { bubbles: true }));
+  }
+}
+/* La ventana de la sección: elegir forma, medidas y pared. Va al final del
+   banco a propósito, como el paso del id repetido: cambiar la barra a redonda
+   mueve el peso, las inercias y la silueta, y no tiene sentido que los pasos
+   de después midan una pieza distinta de la que midieron los de antes. Cada
+   paso deja la sección como la encontró. */
+step('la ventana de la sección se abre y trae la forma puesta', () => {
+  drawer('section');
+  const botones = [...document.querySelectorAll('#lf [data-sk]')].map(b => b.dataset.sk);
+  if (botones.join(',') !== 'rect,round') throw new Error('formas: ' + botones.join(','));
+  const on = document.querySelector('#lf [data-sk].on');
+  if (!on || on.dataset.sk !== S().model.section.kind) throw new Error('no marca la forma actual');
+});
+step('las cifras de la ventana son las del motor, no un texto suelto', () => {
+  drawer('section');
+  const sec = S().model.section;
+  const I = B.E.sectionI(sec);
+  const txt = document.querySelector('#lf .grp .body').textContent.replace(/\s+/g, ' ');
+  for (const n of [B.E.sectionArea(sec), I.Iz, I.Iy]) {
+    /* se buscan con separador de millares, que es como las pinta fx() */
+    const como = Math.round(n).toLocaleString('es-ES').replace(/ /g, ' ');
+    const suelto = String(Math.round(n));
+    if (!txt.includes(como) && !txt.includes(suelto)) {
+      throw new Error('no está ' + suelto + ' en: ' + txt.slice(0, 200));
+    }
+  }
+});
+step('poner la barra redonda cambia el peso y las dos inercias se igualan', () => {
+  drawer('section');
+  const antes = { ...S().model.section };
+  const pesaAntes = B.E.sectionArea(antes);
+  try {
+    click('#lf [data-sk="round"]');
+    const sec = S().model.section;
+    if (sec.kind !== 'round') throw new Error('sigue en ' + sec.kind);
+    const I = B.E.sectionI(sec);
+    if (I.Iz !== I.Iy) throw new Error('las inercias no se igualaron');
+    if (B.E.sectionArea(sec) === pesaAntes) throw new Error('el área no cambió');
+    /* y el aviso de que el rodado deja de significar lo que significaba */
+    drawer('section');
+    const aviso = [...document.querySelectorAll('#lf .warnbox')].map(w => w.textContent).join(' ');
+    if (!/RODADO|ROLL|DREHUNG/.test(aviso)) throw new Error('sin aviso de la redonda: ' + aviso.slice(0, 120));
+  } finally {
+    ponSeccion(antes);
+  }
+});
+step('en redonda la pestaña pide DIÁMETRO y no enseña un espesor que no usa', () => {
+  const antes = { ...S().model.section };
+  try {
+    drawer('section');
+    click('#lf [data-sk="round"]');
+    click('[data-md="model"]');
+    click('#tabs [data-t="model"]');
+    if (document.querySelector('#panes input[data-s="thickness"]')) {
+      throw new Error('sigue el campo de espesor');
+    }
+    if (!document.querySelector('#panes input[data-s="width"]')) throw new Error('no hay campo de diámetro');
+  } finally {
+    ponSeccion(antes);
+  }
+});
+step('una pared imposible sale topada, no con área negativa', () => {
+  const antes = { ...S().model.section };
+  try {
+    drawer('section');
+    setval('#lf input[data-s="wall"]', '99');
+    const sec = S().model.section;
+    if (!(B.E.sectionArea(sec) > 0)) throw new Error('área ' + B.E.sectionArea(sec));
+    if (sec.wall > Math.min(sec.width, sec.thickness) / 2 + 1e-9) throw new Error('pared ' + sec.wall);
+  } finally {
+    ponSeccion(antes);
+  }
+});
+step('un tubo pesa menos y lo dice el aviso de los umbrales', () => {
+  const antes = { ...S().model.section };
+  const macizo = B.E.sectionArea(antes);
+  try {
+    drawer('section');
+    setval('#lf input[data-s="wall"]', '2');
+    const sec = S().model.section;
+    if (!(B.E.sectionArea(sec) < macizo)) throw new Error('no adelgazó');
+    if (!B.E.isHollow(sec)) throw new Error('no salió hueca');
+    drawer('section');
+    const aviso = [...document.querySelectorAll('#lf .warnbox')].map(w => w.textContent).join(' ');
+    if (!/MACIZA|SOLID|MASSIVE/.test(aviso)) throw new Error('sin aviso del radio mínimo');
+  } finally {
+    ponSeccion(antes);
+  }
+});
+step('la forma viaja en el archivo y vuelve', () => {
+  const antes = { ...S().model.section };
+  try {
+    drawer('section');
+    click('#lf [data-sk="round"]');
+    setval('#lf input[data-s="wall"]', '2');
+    const doc = JSON.parse(JSON.stringify(B.E.toDoc(S().model, S().command,
+      S().comp, S().proc, [])));
+    if (doc.schema !== 'barcomp/2.4') throw new Error('esquema ' + doc.schema);
+    const vuelta = B.E.fromDoc(doc).model.section;
+    if (vuelta.kind !== 'round' || vuelta.wall !== 2) throw new Error(JSON.stringify(vuelta));
+  } finally {
+    ponSeccion(antes);
+  }
+});
+
 return log.join('\n');

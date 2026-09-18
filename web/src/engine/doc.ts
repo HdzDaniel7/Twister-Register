@@ -1,5 +1,5 @@
 /* =========================================================================
-   ESQUEMA Y DOCUMENTO — el esquema `barcomp/2.3`, la lectura/escritura del
+   ESQUEMA Y DOCUMENTO — el esquema `barcomp/2.4`, la lectura/escritura del
    JSON y la migración de archivos de versiones anteriores.
 
    El esquema lo escribe y lo lee una sola implementación desde el 2026-09-08:
@@ -32,7 +32,7 @@ import type { MachineFmt } from './machine.ts';
 import { PLACE_DEFAULT } from './fitting.ts';
 import { safeColor } from '../safe.ts';
 
-export const SCHEMA = 'barcomp/2.3';
+export const SCHEMA = 'barcomp/2.4';
 /** Esquemas anteriores, cada uno con su cinemática. Se convierten al abrirlos.
  *  · 1.0  `rot` era un doblez de canto y `angle` tenía el signo contrario
  *  · 2.0  `rot` rodaba la barra de verdad y la sección salía girada
@@ -53,6 +53,23 @@ export const SCHEMA_LEGACY: string[] = ['barcomp/1.0', 'barcomp/2.0', 'barcomp/2
  *  Se abre con la convención de hoy y se avisa. Los archivos que
  *  escribe esta versión salen ya como 2.3 y no son ambiguos. */
 export const SCHEMA_AMBIGUOUS: string[] = ['barcomp/2.2'];
+
+/** Esquemas anteriores que se leen TAL CUAL y sin avisar de nada: misma
+ *  cinemática, mismos números, misma lectura. Lo único que los separa del
+ *  vigente es lo que el archivo PUEDE decir, no lo que dice.
+ *
+ *  `barcomp/2.3` es el primero. Del 2.3 al 2.4 no cambió ni un signo ni una
+ *  fórmula: lo que cambió es que la sección ya no es forzosamente un rectángulo
+ *  macizo —puede ser hueca, y puede ser redonda—. Un 2.3 es por definición
+ *  rectangular macizo, así que «migrarlo» es no hacer nada: `normSection()`
+ *  rellena `kind: 'rect'` y `wall: 0`, que es justo lo que ese archivo decía.
+ *
+ *  Entonces, ¿por qué subir el número si no hay nada que convertir? Por el otro
+ *  sentido de la compatibilidad, que es el que muerde: un archivo con un TUBO
+ *  abierto por una copia anterior del programa se leería como barra maciza, con
+ *  más peso y más rigidez, y no avisaría nadie. Con el número subido, esa copia
+ *  se para y dice que no conoce el esquema. */
+export const SCHEMA_COMPAT: string[] = ['barcomp/2.3'];
 
 /* ---------------------------------------------------------------------- E/S */
 /** Una pieza medida, tal como la ve `toDoc()`: solo lo que hace falta para
@@ -269,7 +286,8 @@ export function fromDoc(d: DocIn): LoadedDoc {
   const from = schemaOf(d);
   /* Un esquema que no conocemos NO se adivina. Antes caía a la cinemática 1.0
      y abría la pieza con la forma equivocada, en silencio. */
-  if (from !== SCHEMA && !SCHEMA_LEGACY.includes(from) && !SCHEMA_AMBIGUOUS.includes(from)) {
+  if (from !== SCHEMA && !SCHEMA_LEGACY.includes(from)
+      && !SCHEMA_AMBIGUOUS.includes(from) && !SCHEMA_COMPAT.includes(from)) {
     throw new UnknownSchemaError(from);
   }
   if (!d || !d.model || !Array.isArray(d.model.bends)) throw new NotADocError();

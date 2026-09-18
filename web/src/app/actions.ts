@@ -168,6 +168,25 @@ export function editTweak(i: number, key: 'angle' | 'rot' | 'feed', text: string
   renderRight(); renderSide(); renderStatus();
 }
 
+/* -------------------------------------------------------------- sección */
+/** Cambia la FORMA de la barra del modelo activo.
+ *
+ *  Va por `normSection()` y no escribiendo la clave a pelo, que es lo que hace
+ *  que cambiar de forma sanee de paso lo que ya había: una pared de 6 mm es
+ *  legal en una pletina de 40×12 y deja de serlo en una redonda de Ø10, y así
+ *  sale topada en vez de dando un área negativa.
+ *
+ *  Escribe en `base` —el dato del modelo— y no en el efectivo, como todo lo que
+ *  se edita: el efectivo se recalcula solo en `syncModel()`. */
+export function setSecKind(kind: string): void {
+  const v = V();
+  if (kind !== 'rect' && kind !== 'round') return;
+  if (v.base.section.kind === kind) return;
+  v.base.section = E.normSection({ ...v.base.section, kind });
+  syncModel();
+  refresh();
+}
+
 /* ------------------------------------------------------------ variantes */
 export function variantById(id: string): Variant | undefined { return ST.variants.find(v => v.id === id); }
 

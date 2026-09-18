@@ -8,6 +8,7 @@
    acíclico.
    ========================================================================= */
 import type { Bend, Model } from '../types.ts';
+import { normSection } from './section.ts';
 
 /* ------------------------------------------------------------------ modelo */
 export const BEND_DEFAULT: Bend = Object.freeze({
@@ -40,7 +41,10 @@ export function normalizeModel(m: RawModel | null | undefined): Model {
   return {
     ...o,
     name: o.name ?? 'MODELO',
-    section: { width: 40, thickness: 12, chamfer: 1.2, endLen: 20, ...(o.section || {}) },
+    /* La sección pasa por su propio saneado: desde que hay FORMAS, «rellenar
+       los defaults» ya no es bastante —una redonda tiene que igualar el espesor
+       al diámetro y una pared imposible tiene que salir maciza. Ver normSection. */
+    section: normSection(o.section),
     tol: { angle: .3, rot: .5, feed: .5, point: 1.0, ...(o.tol || {}) },
     tail: o.tail ?? 150,
     bends: (o.bends || []).map(bendFrom),

@@ -251,7 +251,7 @@ web/
     engine/compensate.ts  pieza simulada, lazo, desviaciones, lote, resorte
     engine/expr.ts        la celda de compensación (parser propio, sin eval)
     engine/machine.ts     el comando que sale a la dobladora: columnas, unidades, signos
-    engine/doc.ts         esquema barcomp/2.3, migración de archivos anteriores
+    engine/doc.ts         esquema barcomp/2.4, migración de archivos anteriores
     engine/csv.ts         la nube de PI: lectura tolerante y escritura
     engine/section.ts     LO QUE LA SECCIÓN SABE DE SÍ MISMA: área, inercias, cuánto
                           asoma, la fibra del esfuerzo. Un solo sitio, y es donde
@@ -281,7 +281,7 @@ web/
   src/app.css       tokens de diseño y layout; la paleta de los DOS temas
   src/shell.html    esqueleto con los marcadores del build
   build.mjs         esbuild: src/ + three  ->  index.html
-  test_motor.js     540 pruebas del motor y del i18n, en Node y sin navegador
+  test_motor.js     562 pruebas del motor y del i18n, en Node y sin navegador
   tools/            banco de interfaz por CDP y las sondas de medición
 index.html          SALIDA GENERADA — no se edita a mano
 ```
@@ -306,9 +306,9 @@ cd web
 npm install          # una sola vez: three + esbuild
 npm run check        # typecheck -> pruebas -> build -> banco de interfaz
 npm run typecheck    # tsc --noEmit, con strict
-npm test             # 540 pruebas del motor y del i18n
+npm test             # 562 pruebas del motor y del i18n
 npm run build        # regenera index.html (y web/barcomp_viewer.html en local)
-npm run test:ui      # 264 pasos de interfaz en Edge headless, por CDP
+npm run test:ui      # 271 pasos de interfaz en Edge headless, por CDP
 npm run demo:amarre  # cinco escenarios del amarre, con las cifras a la vista
 npm run demo:carga   # el muelle de contacto contra una solución exacta, y el codo
                      # del hueco que impide cerrar FIS-10b
@@ -571,7 +571,7 @@ escaneo de una barra recta certificada montada en el fixture.
 
 ## Formato de archivo
 
-Esquema `barcomp/2.3`, un JSON con el modelo, los comandos de máquina, las
+Esquema `barcomp/2.4`, un JSON con el modelo, los comandos de máquina, las
 ganancias, los parámetros del simulador, las piezas medidas y los modelos
 comparados. Las claves `variants`, `ref`, `anchor`, `place`, `marks`, `fixture` y
 `tweak` son opcionales: los archivos viejos siguen abriendo.
@@ -583,8 +583,8 @@ Los archivos de piezas reales **no se versionan**: el repo es público y un
 
 ### Archivos de versiones anteriores
 
-Han existido cuatro esquemas, y los mismos números describen otra pieza en
-cada uno:
+Han existido cinco esquemas. En los cuatro primeros los mismos números describen
+otra pieza en cada uno:
 
 | esquema | qué era `rot` |
 |---|---|
@@ -593,6 +593,15 @@ cada uno:
 | `barcomp/2.1` | la posición ABSOLUTA del eje del arco, declarada en cada fila |
 | `barcomp/2.2` | **cuánto GIRA** ese eje; el eje se sostiene entre estaciones |
 | `barcomp/2.3` | igual que 2.2, pero el ángulo y el rodado doblan al otro lado |
+| `barcomp/2.4` | lo mismo; lo que cambia es que la sección ya puede ser hueca y redonda |
+
+Un `barcomp/2.4` **no dice nada nuevo de la forma de la pieza**: del 2.3 al 2.4
+no cambió ni un signo ni una fórmula, y un 2.3 se abre tal cual, sin convertir y
+sin avisar. Lo que cambió es lo que el archivo PUEDE decir: la sección ya no es
+forzosamente un rectángulo macizo. El número sube por el otro sentido de la
+compatibilidad, que es el que muerde: un archivo con un tubo abierto por una
+copia anterior del programa se leería como barra maciza —más peso, más rigidez—
+y no avisaría nadie. Con el número subido, esa copia se para y lo dice.
 
 Un `barcomp/2.2` **no se convierte**: se lee tal cual y se avisa. Del 2.2 al 2.3
 no cambió ningún número, cambió el motor —`ANG_DIR` y `ROT_DIR` pasaron a −1
@@ -614,10 +623,10 @@ teclea.
 
 ```jsonc
 {
-  "schema": "barcomp/2.3",
+  "schema": "barcomp/2.4",
   "model": {
     "name": "...",
-    "section": { "width": 40, "thickness": 12, "chamfer": 1.2, "endLen": 20 },
+    "section": { "kind": "rect", "width": 40, "thickness": 12, "wall": 0, "chamfer": 1.2, "endLen": 20 },
     "tol":     { "angle": 0.3, "rot": 0.5, "feed": 0.5, "point": 1.0 },
     "tail": 160,
     "bends": [{ "feed":100, "rot":0, "angle":30, "radius":30, "twist":0, "twistLen":0 }]

@@ -198,7 +198,7 @@ Todas puras y todas en `web/src/engine.ts`, que no toca el DOM.
 | `medianPart(piezas)` | → `bends[]` | la pieza mediana del lote; se detiene en la más CORTA |
 | `springback(muestras,ori)` | → `{W,T}` | `sb = 1 − medido/comandado`, con pendiente y r |
 | `evalCell(texto,c,v)` | → número \| null | la celda de compensación; parser propio, sin `eval` |
-| `toDoc` / `fromDoc` | → `doc` / estado | esquema `barcomp/2.3`; migra los anteriores al abrir |
+| `toDoc` / `fromDoc` | → `doc` / estado | esquema `barcomp/2.4`; migra los anteriores al abrir |
 
 `barGeometry(path, sec, devFn)` vive en `scene/geometry.ts`, no en el motor: devuelve una `BufferGeometry` y
 por lo tanto depende de three.
@@ -515,7 +515,7 @@ punteada. Deja ver de un vistazo cuál doblez está fuera. Es clicable.
 ## 7. Trampas conocidas
 
 0. **El eje acumula; la sección no rueda.** Es la trampa que ha costado una versión entera,
-   así que va primero. `SCHEMA` es `barcomp/2.3` y la cinemática es la de 2.2:
+   así que va primero. `SCHEMA` es `barcomp/2.4` y la cinemática es la de 2.2:
 
        2.0  Rx(rot) · Rz(-angle)              la sección salía RODADA   ← mal
        2.1  Rx(rot) · Rz(-angle) · Rx(-rot)   solo se inclina el eje    ← bien
@@ -616,6 +616,16 @@ punteada. Deja ver de un vistazo cuál doblez está fuera. Es clicable.
     con el botón de fijarla, o sea la referencia dejaba de poder elegirse— y `varDelete()`
     borrando las dos de una, que filtra por id. Arreglado el 2026-09-17; `newVid()` además
     salta cualquier id ocupado, porque la invariante es el id único y no el contador.
+26. **La forma de la sección cambia seis cuentas y ninguna más**, y están todas en
+    `engine/section.ts`: área, las dos inercias, cuánto asoma, cuánto baja y la fibra del
+    esfuerzo, más el contorno que dibuja el 3D. Lo que hay que saber antes de tocar nada:
+    **el hueco no toca el contacto**. La función soporte mira el perfil EXTERIOR, así que un
+    tubo apoya donde apoyaría el macizo del mismo tamaño —hay prueba en las 360 posiciones— y
+    ni FIS-08 ni FIS-10 se enteran de que existe. Lo que el hueco cambia es lo que pesa y lo
+    que resiste. Y **una redonda no tiene rodado útil**: `Iz = Iy`, así que `rot` sigue
+    diciendo hacia dónde se dobla pero ya no cambia con qué resiste, y el retorcido no se
+    puede observar. Eso se avisa en su ventana, y choca de frente con la guarda del eje no
+    observable (C1+A4): con una redonda esa guarda mide algo que la geometría ya no distingue.
 
 ---
 
@@ -624,9 +634,9 @@ punteada. Deja ver de un vistazo cuál doblez está fuera. Es clicable.
 ```bash
 cd web && npm run check            # typecheck -> pruebas -> build -> banco, de una
 cd web && npm run typecheck        # tsc --noEmit, con strict
-cd web && node test_motor.js       # 540 pruebas; todas deben pasar
+cd web && node test_motor.js       # 562 pruebas; todas deben pasar
 cd web && node build.mjs           # regenera index.html y barcomp_viewer.html
-cd web && node tools/ui_test.mjs   # 264 pasos de interfaz en Edge headless
+cd web && node tools/ui_test.mjs   # 271 pasos de interfaz en Edge headless
 cd web && node tools/demo_carga.mjs # κ contra una solución exacta, y el codo del hueco
 ```
 
@@ -784,6 +794,9 @@ Ninguna de estas se vuelve a sacar leyendo el código.
 | Fixture sembrado + carga, con el alto redondeado a 0.01 | **47.4 N** sobre 23.7 N, mordaza −23.7 N | FIS-10, la causa |
 | El MISMO fixture sembrado sin redondear el alto | **9.8 N** en los apoyos, 13.9 N en la mordaza | FIS-10, arreglado |
 | Rigidez de contacto sobre la demo | κ = **6 158 N/mm**, o sea **6.16 N por MICRA** de interferencia | `demo_carga` |
+| Tubo rectangular 40×12 con 2 de pared | pesa el **40 %** del macizo y resiste el **73 %** (Iz 4 224 contra 5 760 mm⁴) | formas, 09-17 |
+| Tubo redondo de acero Ø30×2 | **1.381 kg/m**, contra 1.38 de catálogo | formas, 09-17 |
+| Redonda maciza Ø30 | A = 706.86 mm², I = 39 760.8 mm⁴ **iguales las dos**: no hay «de plano» ni «de canto» | formas, 09-17 |
 | El hueco del pedestal empinado, pendiente | **13.27 mm/grado** junto al punto de contacto y **27.23** a una milésima de grado | FIS-10b, `demo_carga` |
 | El mismo hueco donde la barra va tendida (cuna a 20°) | **1.065 mm/grado** por los dos lados, liso | FIS-10b, `demo_carga` |
 | Paso de Newton de la carga contra la distancia al codo | **1.4e-2°** de paso contra **1e-3°** de recta válida: catorce veces | FIS-10b |

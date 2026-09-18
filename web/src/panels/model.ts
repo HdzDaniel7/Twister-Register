@@ -98,8 +98,15 @@ export function paneModel(M: Model): string {
     <div class="mcol nm"><div class="eyebrow">${T('model')}</div>
       <input type="text" data-m="name" value="${esc(M.name)}"></div>
     <div class="mcol"><div class="eyebrow">${T('section')}</div>
-      <div class="fgrid pair"><label>${T('width')} (mm)</label>${nfield('.1', 'data-s="width"', M.section.width)}
-      <label>${T('thick')} (mm)</label>${nfield('.1', 'data-s="thickness"', M.section.thickness)}
+      ${/* En una redonda el espesor no lo mira ninguna cuenta (ver
+           engine/section.ts), así que tampoco se enseña: un campo que se puede
+           escribir y no cambia nada es peor que no tenerlo. La FORMA y la
+           PARED se eligen en su ventana, que es donde se ven las consecuencias;
+           aquí siguen las medidas que se teclean a diario. */''}
+      <div class="fgrid pair"><label>${T(M.section.kind === 'round' ? 'dia' : 'width')} (mm)</label>${
+        nfield('.1', 'data-s="width"', M.section.width)}
+      ${M.section.kind === 'round' ? ''
+        : `<label>${T('thick')} (mm)</label>${nfield('.1', 'data-s="thickness"', M.section.thickness)}`}
       <label>${T('chamfer')} (mm)</label>${nfield('.1', 'data-s="chamfer"', M.section.chamfer)}
       <label>${T('endlen')} (mm)</label>${nfield('.5', 'data-s="endLen"', M.section.endLen)}
       <label>${T('tail')} (mm)</label>${nfield('.5', 'data-m="tail"', v.base.tail)}</div></div>

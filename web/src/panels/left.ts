@@ -97,9 +97,63 @@ export function renderLeft(): void {
   restoreFocus(f);
 }
 
+/** LA VENTANA DE LA SECCIÓN: qué forma tiene la barra y cuánto mide.
+ *
+ *  Es un cajón y no un bloque más de la pestaña «Modelo» por dos motivos. Uno:
+ *  la forma no se toca por doblez ni por pieza, se elige una vez al empezar y
+ *  se olvida, que es exactamente lo que vive en un cajón. Y dos: elegirla pide
+ *  ver las consecuencias —lo que pesa, con qué resiste— y eso no cabe en la
+ *  banda de la cabecera sin echar la tabla fuera de vista.
+ *
+ *  Los campos escriben en el MISMO sitio que los de la pestaña, con el mismo
+ *  `data-s`: no hay dos copias del dato, hay dos vistas de una.
+ *
+ *  Las cifras de abajo no son decoración: son la única manera de que quien
+ *  elige un tubo vea en el acto lo que acaba de hacer —un 30×2 pesa el 40 % de
+ *  lo que pesaba y resiste el 73 %— sin tener que fabricarlo para enterarse. */
+function secWin(): string {
+  const M = ST.model!;
+  const sec = M.section;
+  const redonda = sec.kind === 'round';
+  const I = E.sectionI(sec);
+  const area = E.sectionArea(sec);
+  /* kg por metro: el mismo camino que usa la flecha, pasado a lo que dice un
+     catálogo. Si no hay material puesto no se inventa: se deja en blanco. */
+  const kgm = ST.mat.rho ? E.lineLoad(sec, ST.mat) * 1000 / 9.81 : null;
+  const opciones: [string, I18nKey][] = [['rect', 'secRect'], ['round', 'secRound']];
+  return `
+   <div class="grp"><div class="eyebrow">${T('section')}</div><div class="body">
+     <div class="hintline">${T('secTip')}</div>
+     <div class="seg mt6" role="group" aria-label="${esc(T('secKind'))}">
+       ${opciones.map(([k, lab]) => `<button data-sk="${k}"
+         class="${sec.kind === k ? 'on' : ''}"
+         aria-pressed="${sec.kind === k}">${T(lab)}</button>`).join('')}</div>
+     <div class="fgrid pair mt6">
+       <label>${T(redonda ? 'dia' : 'width')} (mm)</label>${nfield('.1', 'data-s="width"', sec.width)}
+       ${redonda ? '' : `<label>${T('thick')} (mm)</label>${nfield('.1', 'data-s="thickness"', sec.thickness)}`}
+       <label>${T('wall')} (mm)</label>${nfield('.1', 'data-s="wall"', sec.wall)}
+       <label>${T('chamfer')} (mm)</label>${nfield('.1', 'data-s="chamfer"', sec.chamfer)}
+       <label>${T('endlen')} (mm)</label>${nfield('.5', 'data-s="endLen"', sec.endLen)}
+     </div>
+     <div class="hintline">${T('wallHint')}</div>
+     <div class="row mt6"><span class="chip">${
+       T(E.isHollow(sec) ? 'secHollow' : 'secSolid')}</span></div>
+     <div class="fgrid pair mt6">
+       <label>${T('secArea')}</label><b>${fx(area, 1)} mm²</b>
+       <label>${T('secInertia')} Iz</label><b>${fx(I.Iz, 0)} mm⁴</b>
+       <label>${T('secInertia')} Iy</label><b>${fx(I.Iy, 0)} mm⁴</b>
+       <label>${T('secMass')}</label><b>${kgm === null ? '—' : `${fx(kgm, 3)} kg/m`}</b>
+     </div>
+     ${redonda ? `<div role="alert" class="warnbox mt6">${T('secRoundWarn')}</div>` : ''}
+     ${E.isHollow(sec) ? `<div role="alert" class="warnbox mt6">${T('secHollowWarn')}</div>` : ''}
+   </div></div>`;
+}
+
 /** Los cajones, uno por entrada de menú. La clave es la misma que va en
  *  `data-dr` y en ST.drawer. */
 const DRAWERS: Record<string, () => string> = {
+  section: secWin,
+
   file: () => `
    <div class="grp"><div class="eyebrow">${T('mnFile')}</div><div class="body">
      <div class="col">

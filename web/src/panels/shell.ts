@@ -13,11 +13,12 @@ import type { Mode } from '../types.ts';
    `T(('mode' + m) as I18nKey)` el tipo dejaría de comprobar que la clave
    existe, que es justo la red que hace que falte una traducción sea un error
    de compilación y no un hueco en pantalla. */
-/* Los cuatro menús. Lo que abren son cajones (ver DRAWERS en left.ts): la
+/* Los menús. Lo que abren son cajones (ver DRAWERS en left.ts): la
    columna fija de 250 px se pagaba siempre, y casi todo lo que había ahí
    —capas, colocación, extremo fijo— se toca una vez y se olvida. */
 const MENUS: [string, I18nKey][] = [
-  ['file', 'mnFile'], ['models', 'mnModel'], ['view', 'mnView'], ['pieces', 'mnPieces'],
+  ['file', 'mnFile'], ['models', 'mnModel'], ['section', 'section'],
+  ['view', 'mnView'], ['pieces', 'mnPieces'],
 ];
 
 const MODE_LAB: Record<Mode, I18nKey> = {
