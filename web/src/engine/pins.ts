@@ -46,9 +46,10 @@ import { Vector3 } from 'three';
 import { clamp, solveDense, D2R, R2D } from './math.ts';
 import { buildPath, rowLengths, tailStraight } from './kinematics.ts';
 import { normalizeModel } from './bend.ts';
-import { TABLE_Z, sectionDrop, pedestalFit } from './fixture.ts';
+import { TABLE_Z, pedestalFit } from './fixture.ts';
+import { sectionDrop, sectionHalf, sectionFibre } from './section.ts';
 import { sampleAt } from './path.ts';
-import { halfExtent, nearestToSegment } from './contact.ts';
+import { nearestToSegment } from './contact.ts';
 import type { Model, PathSample, Section, Pin, Pedestal, Mat, Restraint } from '../types.ts';
 
 /** Un pin recién nacido, y la lista blanca de sus campos escribibles. Mismo
@@ -196,7 +197,7 @@ export function pinAxis(pin: Pin): { base: Vector3; tip: Vector3; dir: Vector3 }
  *  horizontal y se suman en valor absoluto — la misma cuenta que
  *  `sectionDrop()` hace en vertical, y por el mismo motivo. */
 export function planHalfWidth(q: PathSample, sec: Section, n: Vector3): number {
-  return Math.abs((sec.thickness / 2) * q.y.dot(n)) + Math.abs((sec.width / 2) * q.z.dot(n));
+  return sectionHalf(q, sec, n);
 }
 
 /** La normal horizontal de la barra en esa muestra: perpendicular al eje,
@@ -245,7 +246,7 @@ export function pinFit(samples: PathSample[], sec: Section, pin: Pin): PinFit | 
   const nrm = planNormal(q);
   const lado = nrm ? (u.dot(nrm) >= 0 ? 1 : -1) : 1;
   if (pin.side && nrm && lado !== pin.side) u.negate();
-  const need = pin.dia / 2 + halfExtent(q, sec, u);
+  const need = pin.dia / 2 + sectionHalf(q, sec, u);
   return {
     s: sc, t, dist: d, need, gap: d - need,
     side: pin.side || lado,
@@ -285,7 +286,7 @@ export function gapAt(samples: PathSample[], sec: Section, pin: Pin,
   u.normalize();
   const { base, tip } = pinAxis(pin);
   const pOn = base.clone().lerp(tip, t);
-  return pOn.clone().sub(q.p).dot(u) - (pin.dia / 2 + halfExtent(q, sec, u));
+  return pOn.clone().sub(q.p).dot(u) - (pin.dia / 2 + sectionHalf(q, sec, u));
 }
 
 /** El tramo libre asociado a cada estación, mm: la recta que entra más la que
@@ -372,7 +373,7 @@ export function elasticReport(kink: { angle: number; rot: number }[], span: numb
      de verdad trabaja en cada estación. No hace falta la inercia: se cancela
      entre el momento y el módulo resistente. */
   const cOf = (k: { angle: number; rot: number }): number =>
-    (Math.abs(k.rot) > Math.abs(k.angle) ? sec.width : sec.thickness) / 2;
+    sectionFibre(sec, Math.abs(k.rot) > Math.abs(k.angle));
   const stress = kink.map((k, i) => (mat.E || 0) * cOf(k) * curv[i]);
   let worst = 0, worstAt = -1;
   stress.forEach((s, i) => {

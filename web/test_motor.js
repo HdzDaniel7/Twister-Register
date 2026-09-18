@@ -1434,6 +1434,38 @@ console.log('\n— el fixture: pedestales, apoyo y vanos —');
        `${peor.toFixed(3)} vs ${diag.toFixed(3)} mm`);
   }
 
+  /* --- lo que la sección sabe de sí misma ------------------------------- */
+  /* Las cinco cuentas viven en engine/section.ts desde el 2026-09-17, y tres
+     de ellas eran la MISMA escrita tres veces. Esto fija las que ahora son
+     públicas contra el valor hecho a mano, que es lo que hará falta el día que
+     entren el tubo y el redondo: la forma cambia estas cinco y nada más. */
+  {
+    const sec = { width: 40, thickness: 12, chamfer: 0, endLen: 0 };
+    ok('el área del rectángulo es ancho por espesor',
+       Math.abs(E.sectionArea(sec) - 480) < 1e-9, `${E.sectionArea(sec)} mm²`);
+    const I = E.sectionI(sec);
+    ok('Iz = w·t³/12, a mano', Math.abs(I.Iz - 40 * 12 ** 3 / 12) < 1e-9, `${I.Iz} mm⁴`);
+    ok('Iy = t·w³/12, a mano', Math.abs(I.Iy - 12 * 40 ** 3 / 12) < 1e-9, `${I.Iy} mm⁴`);
+    ok('de plano se cuelga (w/t)² veces más que de canto',
+       Math.abs(I.Iy / I.Iz - (40 / 12) ** 2) < 1e-9, `${(I.Iy / I.Iz).toFixed(2)}×`);
+    ok('la fibra del codo de ángulo es medio espesor',
+       Math.abs(E.sectionFibre(sec, false) - 6) < 1e-9);
+    ok('y la del codo de rodado, medio ancho',
+       Math.abs(E.sectionFibre(sec, true) - 20) < 1e-9);
+    /* `sectionHalf` contra la vertical TIENE que dar lo mismo que
+       `sectionDrop`: son la misma cuenta, y ese era el motivo de juntarlas. */
+    let peor = 0;
+    for (let g = 0; g <= 360; g += 1) {
+      const a = g * Math.PI / 180;
+      const q = { p: new Vector3(), x: new Vector3(1, 0, 0),
+                  y: new Vector3(0, Math.cos(a), Math.sin(a)),
+                  z: new Vector3(0, -Math.sin(a), Math.cos(a)), s: 0 };
+      peor = Math.max(peor, Math.abs(E.sectionHalf(q, sec, new Vector3(0, 0, 1)) - E.sectionDrop(q, sec)));
+    }
+    ok('sectionHalf en vertical ES sectionDrop, en las 360 posiciones',
+       peor < 1e-12, `peor ${peor.toExponential(1)} mm`);
+  }
+
   /* --- sembrar deja un fixture que ya apoya ----------------------------- */
   {
     const semilla = E.seedPedestals(path, M.section);

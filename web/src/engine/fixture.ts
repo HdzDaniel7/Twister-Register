@@ -27,6 +27,7 @@ import { Matrix4, Vector3 } from 'three';
 import { clamp, R2D } from './math.ts';
 import { sampleAt, nearestOnPath } from './path.ts';
 import type { PathSample, Section, Pedestal } from '../types.ts';
+import { sectionDrop } from './section.ts';
 
 /** La cota de la mesa del fixture, mm.
  *
@@ -115,20 +116,6 @@ export function placePath(M: Matrix4, samples: PathSample[]): PathSample[] {
     s: q.s,
   }));
 }
-
-/** Cuánto baja la cara de abajo de la barra respecto del eje neutro, en esa
- *  muestra y medido a plomo.
- *
- *  La sección es un rectángulo de `thickness` en la dirección `y` y `width` en
- *  la `z`, así que el punto más bajo de la caja es el que suma las dos
- *  proyecciones verticales. Con la barra de canto manda el ancho y con la barra
- *  de plano manda el espesor, y entre medias se reparten: por eso son las dos
- *  con valor absoluto y no un `if`.
- *
- *  El chaflán no entra: quita material de las esquinas y solo puede hacer la
- *  barra MÁS alta, nunca más baja. Ignorarlo es el lado seguro. */
-export const sectionDrop = (q: PathSample, sec: Section): number =>
-  Math.abs((sec.thickness / 2) * q.y.z) + Math.abs((sec.width / 2) * q.z.z);
 
 /** Qué le pasa a un pedestal con la barra que tiene encima.
  *

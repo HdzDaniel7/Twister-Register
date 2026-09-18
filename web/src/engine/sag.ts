@@ -46,6 +46,7 @@
 import type { Model, PathSample, Section, Mat, Pedestal } from '../types.ts';
 import { sampleAt } from './path.ts';
 import { pedestalFit, bears } from './fixture.ts';
+import { sectionArea, sectionI } from './section.ts';
 
 /** Aceleración de la gravedad, mm/s². Aquí y no en math.ts: es lo único de
  *  todo el motor que sabe que existe la Tierra. */
@@ -59,21 +60,7 @@ export const G = 9810;
  *  con `E` en MPa y `I` en mm⁴. Sin esta cadena de unidades escrita, el número
  *  sale mil o mil millones de veces mayor y nadie lo nota. */
 export const lineLoad = (sec: Section, mat: Mat): number =>
-  (mat.rho || 0) * 1e-9 * (sec.width * sec.thickness) * G / 1000;
-
-/** Los dos momentos de inercia principales del rectángulo, mm⁴.
- *
- *  `Iz` es el de la flexión que hunde en `y` —la que trabaja con el espesor, y
- *  la que produce el codo de ÁNGULO de una estación— e `Iy` el de la que hunde
- *  en `z`, con el ancho. Vive en una función desde que la carga los necesita
- *  igual que la flecha: escritos dos veces, basta con cambiar la sección en un
- *  sitio para que la barra se cuelgue con una inercia y pese con otra. */
-export function sectionI(sec: Section): { Iz: number; Iy: number } {
-  return {
-    Iz: sec.width * sec.thickness ** 3 / 12,
-    Iy: sec.thickness * sec.width ** 3 / 12,
-  };
-}
+  (mat.rho || 0) * 1e-9 * sectionArea(sec) * G / 1000;
 
 /** El momento de inercia que de verdad resiste el peso en esa muestra, mm⁴.
  *

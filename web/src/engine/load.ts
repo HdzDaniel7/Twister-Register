@@ -55,7 +55,8 @@ import { solveDense, D2R, clamp } from './math.ts';
 import { buildPath, fk } from './kinematics.ts';
 import { pedestalFit } from './fixture.ts';
 import { sampleAt } from './path.ts';
-import { lineLoad, sectionI } from './sag.ts';
+import { lineLoad } from './sag.ts';
+import { sectionI } from './section.ts';
 import {
   MAT_DEFAULT, RESTRAINT_DEFAULT, pinFit, restrain, restrainedFree,
   stationSpans, withDelta, gapAt, kinksOf, elasticReport, contactDrift, CONTACT_PASSES,

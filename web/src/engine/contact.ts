@@ -16,20 +16,6 @@
 import { Vector3 } from 'three';
 import type { PathSample, Section } from '../types.ts';
 
-/** Cuánto asoma la sección desde su eje neutro en la dirección `u`.
- *
- *  No es `width/2` sin más: con la barra de canto lo que asoma de lado es el
- *  espesor, y de plano es el ancho. Entre medias se reparten, así que se
- *  proyectan las dos direcciones de la sección sobre `u` y se suman en valor
- *  absoluto — la misma cuenta que `sectionDrop()` hace en vertical, y por el
- *  mismo motivo.
- *
- *  El chaflán no entra: quita material de las esquinas y solo puede hacer la
- *  sección MÁS pequeña, nunca mayor. Ignorarlo es el lado seguro, porque hace
- *  que el contacto se declare antes y no después. */
-export const halfExtent = (q: PathSample, sec: Section, u: Vector3): number =>
-  Math.abs((sec.thickness / 2) * q.y.dot(u)) + Math.abs((sec.width / 2) * q.z.dot(u));
-
 /** El punto más cercano entre dos segmentos, `[a0,a1]` y `[b0,b1]`.
  *
  *  Devuelve los dos parámetros en [0,1] y la distancia. Es el caso general de

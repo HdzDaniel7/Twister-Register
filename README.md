@@ -253,12 +253,15 @@ web/
     engine/machine.ts     el comando que sale a la dobladora: columnas, unidades, signos
     engine/doc.ts         esquema barcomp/2.3, migración de archivos anteriores
     engine/csv.ts         la nube de PI: lectura tolerante y escritura
+    engine/section.ts     LO QUE LA SECCIÓN SABE DE SÍ MISMA: área, inercias, cuánto
+                          asoma, la fibra del esfuerzo. Un solo sitio, y es donde
+                          entrarán el tubo y el redondo
     engine/fixture.ts     los pedestales: dónde apoyan, qué hueco dejan, qué vano queda
     engine/pins.ts        EL AMARRE: la forma que toma la barra sujeta y lo que le cuesta
     engine/load.ts        la carga: el peso propio contra apoyos que empujan pero no tiran
     engine/sag.ts         la flecha por gravedad entre apoyos
     engine/path.ts        mirar la barra donde NO hay muestra: sampleAt, nearestOnPath
-    engine/contact.ts     distancia entre segmentos y cuánto asoma la sección
+    engine/contact.ts     distancia entre segmentos
   src/app.ts        arranque y cableado; el resto en app/
     app/render.ts · app/theme.ts · app/actions.ts · app/files.ts · app/history.ts
     app/events/{click,change,keyboard,grips}.ts
@@ -278,7 +281,7 @@ web/
   src/app.css       tokens de diseño y layout; la paleta de los DOS temas
   src/shell.html    esqueleto con los marcadores del build
   build.mjs         esbuild: src/ + three  ->  index.html
-  test_motor.js     533 pruebas del motor y del i18n, en Node y sin navegador
+  test_motor.js     540 pruebas del motor y del i18n, en Node y sin navegador
   tools/            banco de interfaz por CDP y las sondas de medición
 index.html          SALIDA GENERADA — no se edita a mano
 ```
@@ -303,7 +306,7 @@ cd web
 npm install          # una sola vez: three + esbuild
 npm run check        # typecheck -> pruebas -> build -> banco de interfaz
 npm run typecheck    # tsc --noEmit, con strict
-npm test             # 533 pruebas del motor y del i18n
+npm test             # 540 pruebas del motor y del i18n
 npm run build        # regenera index.html (y web/barcomp_viewer.html en local)
 npm run test:ui      # 264 pasos de interfaz en Edge headless, por CDP
 npm run demo:amarre  # cinco escenarios del amarre, con las cifras a la vista

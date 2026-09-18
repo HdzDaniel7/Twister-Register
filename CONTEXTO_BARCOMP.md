@@ -66,6 +66,11 @@ la razón de media docena de decisiones de abajo.
   compartido.
 - `src/safe.ts` y `src/dom.ts` son **módulos hoja, sin dependencias**, a propósito: los usan
   el motor, el 3D y los paneles sin arrastrarse entre ellos.
+- `engine/section.ts` es **lo que la sección sabe de sí misma**: área, las dos inercias,
+  cuánto asoma en una dirección, cuánto baja la cara de abajo y la fibra del esfuerzo. Las
+  cinco juntas porque son las cinco que cambian con la FORMA —tubo, redondo— y repartidas se
+  olvida la que no se tocó: la barra pesaría como un tubo y se apoyaría como un macizo. Tres
+  de ellas eran la misma cuenta escrita tres veces, con tres nombres, hasta el 2026-09-17.
 - `barGeometry()` vive en `scene/geometry.ts` y **no** en el motor: devuelve una
   `BufferGeometry`, así que depende de three.
 - Ningún archivo de `panels/` ni de `scene/` importa de `app/`. Los paneles están por DEBAJO;
@@ -619,7 +624,7 @@ punteada. Deja ver de un vistazo cuál doblez está fuera. Es clicable.
 ```bash
 cd web && npm run check            # typecheck -> pruebas -> build -> banco, de una
 cd web && npm run typecheck        # tsc --noEmit, con strict
-cd web && node test_motor.js       # 533 pruebas; todas deben pasar
+cd web && node test_motor.js       # 540 pruebas; todas deben pasar
 cd web && node build.mjs           # regenera index.html y barcomp_viewer.html
 cd web && node tools/ui_test.mjs   # 264 pasos de interfaz en Edge headless
 cd web && node tools/demo_carga.mjs # κ contra una solución exacta, y el codo del hueco
