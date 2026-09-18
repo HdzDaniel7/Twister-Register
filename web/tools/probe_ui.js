@@ -2927,4 +2927,46 @@ step('con la mordaza tirando hacia abajo, la pantalla lo dice con la cifra', () 
   }
 });
 
+/* El id de un modelo tiene que ser SUYO. `newVid()` salia de un contador que
+   `loadModel()` ponia en el NUMERO de variantes del documento —no en el mayor
+   de sus ids— y que «Demo» y «Nuevo» bajaban a 1. Un documento con v2 y v3
+   —que es justo lo que queda al borrar el modelo que no es referencia y
+   duplicar otro— dejaba el contador en 2 y la copia siguiente nacia v3: dos
+   tarjetas con el mismo id. Desde ahi ST.ref apuntaba a las DOS a la vez, las
+   dos salian con la chapa de REFERENCIA y ninguna con el boton de fijarla —o
+   sea no habia manera de volver a elegir cual era la referencia—, y borrar una
+   borraba las dos, que filtran por id. Va al final del banco a proposito:
+   carga la demo y eso tira el fixture y las piezas medidas. */
+step('duplicar despues de cargar y deshacer no repite el id del modelo', () => {
+  drawer('models');
+  click('[data-a="vardup"]');                               // v1 + v2
+  const otro = S().variants.find(v => v.id !== S().ref).id;
+  drawer('models');
+  click(`[data-vr="${otro}"]`);                             // la referencia es v2
+  const noRef = S().variants.find(v => v.id !== S().ref).id;
+  drawer('models');
+  click(`[data-vx="${noRef}"]`);                            // fuera el que no lo es
+  drawer('models');
+  click('[data-a="vardup"]');                               // quedan v2 y v3
+  drawer('file');
+  click('[data-a="demo"]');                                 // esto rebajaba el contador
+  hotkey('z', { ctrlKey: true });                           // y vuelven v2 y v3
+  drawer('models');
+  click('[data-a="vardup"]');
+  const ids = S().variants.map(v => v.id);
+  if (new Set(ids).size !== ids.length) throw new Error('dos modelos con el mismo id: ' + ids.join(','));
+  drawer('models');
+  const botones = document.querySelectorAll('#lf [data-vr]').length;
+  if (botones !== ids.length - 1) {
+    throw new Error(botones + ' botones de referencia para ' + ids.length + ' modelos');
+  }
+  /* y la referencia se puede mover a cualquiera de los otros dos */
+  for (const id of ids.filter(v => v !== S().ref)) {
+    drawer('models');
+    click(`[data-vr="${id}"]`);
+    if (S().ref !== id) throw new Error('la referencia no se movio a ' + id);
+    const chapas = document.querySelectorAll('#lf .refbadge').length;
+    if (chapas !== 1) throw new Error('hay ' + chapas + ' chapas de referencia');
+  }
+});
 return log.join('\n');

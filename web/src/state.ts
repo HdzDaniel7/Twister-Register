@@ -115,7 +115,31 @@ export function syncModel(): Model {
   ST.model = E.effectiveModel(v);
   return ST.model;
 }
-export function newVid(): string { varSeq += 1; return `v${varSeq}`; }
+/** El siguiente id de modelo, y que no sea el de ninguno de los que ya hay.
+ *
+ *  El contador solo no bastaba, y no es teórico: `loadModel()` lo ponía en el
+ *  NÚMERO de variantes del documento —que no es el mayor de sus ids— y
+ *  «Demo»/«Nuevo» lo bajaban a 1. Un documento con v2 y v3 —justo lo que queda
+ *  al borrar el modelo que no es la referencia y duplicar otro— dejaba el
+ *  contador en 2 y la copia siguiente nacía «v3»: DOS tarjetas con el mismo id.
+ *  Desde ahí `ST.ref` apuntaba a las dos a la vez —las dos con la chapa de
+ *  REFERENCIA y ninguna con el botón de fijarla, o sea no había forma de volver
+ *  a elegir cuál era— y borrar una borraba las dos, que filtran por id.
+ *
+ *  La comprobación se queda aquí además de arreglar el contador porque el id
+ *  ÚNICO es la invariante, y así no depende de que todo el que mueva `varSeq`
+ *  se acuerde de por qué. */
+export function newVid(): string {
+  varSeq += 1;
+  while (ST.variants.some(v => v.id === `v${varSeq}`)) varSeq += 1;
+  return `v${varSeq}`;
+}
+/** El contador que dejan unas variantes recién puestas: el MAYOR de sus ids.
+ *  Un id que no siga el patrón `v<n>` —un archivo tocado a mano— no cuenta:
+ *  de eso ya se defiende `newVid()`. */
+function seqOf(list: Variant[]): number {
+  return list.reduce((a, v) => Math.max(a, +((/^v(\d+)$/.exec(v.id) || [])[1] || 0)), 1);
+}
 
 /** Reemplaza el espacio de trabajo entero por un modelo (o un juego de
  *  variantes venido de un archivo). */
@@ -125,11 +149,11 @@ export function loadModel(
 ): void {
   if (variants && variants.length) {
     ST.variants = variants;
-    varSeq = Math.max(varSeq, variants.length);
   } else {
-    varSeq = 1;
     ST.variants = [E.newVariant(model, model.name, VAR_COLORS[0], 'v1')];
   }
+  /* De los ids que HAY, no de cuántos son: ver newVid(). */
+  varSeq = seqOf(ST.variants);
   const ids = ST.variants.map(v => v.id);
   ST.active = ids[0];
   ST.ref = ids.includes(ref as string) ? (ref as string) : ids[0];

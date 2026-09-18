@@ -305,7 +305,7 @@ npm run check        # typecheck -> pruebas -> build -> banco de interfaz
 npm run typecheck    # tsc --noEmit, con strict
 npm test             # 533 pruebas del motor y del i18n
 npm run build        # regenera index.html (y web/barcomp_viewer.html en local)
-npm run test:ui      # 263 pasos de interfaz en Edge headless, por CDP
+npm run test:ui      # 264 pasos de interfaz en Edge headless, por CDP
 npm run demo:amarre  # cinco escenarios del amarre, con las cifras a la vista
 npm run demo:carga   # el muelle de contacto contra una solución exacta
 npm run demo:archivos # regenera ejemplos/amarre-{libre,sujeta}.json

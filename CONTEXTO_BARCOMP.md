@@ -600,6 +600,17 @@ punteada. Deja ver de un vistazo cuál doblez está fuera. Es clicable.
     el comando por la dispersión de esa pieza; con varias, la mediana deja pasar solo lo que se
     repite. La columna ±σ de la tabla de desviación es lo que separa un doblez fuera de sitio de
     uno con mala puntería.
+25. **El id de una variante es el ÚNICO id que sobrevive al documento.** Los de cotas,
+    pedestales, pines y piezas medidas se reasignan al abrir (`setMarks`, `setPedestals`,
+    `setPins`) y por eso `toDoc()` ni los guarda; el de la variante sí se guarda y sí vuelve.
+    O sea que el contador de `newVid()` no puede salir de CUÁNTAS variantes hay: tiene que
+    salir del MAYOR de los ids que hay. Salía del número, y `loadModel()` lo bajaba a 1 con
+    «Demo»/«Nuevo», así que un documento con `v2` y `v3` —lo que queda al borrar el modelo que
+    no es la referencia y duplicar otro— paría la copia siguiente como `v3`: dos tarjetas con
+    el mismo id, `ST.ref` apuntando a las dos —las dos con la chapa de REFERENCIA y ninguna
+    con el botón de fijarla, o sea la referencia dejaba de poder elegirse— y `varDelete()`
+    borrando las dos de una, que filtra por id. Arreglado el 2026-09-17; `newVid()` además
+    salta cualquier id ocupado, porque la invariante es el id único y no el contador.
 
 ---
 
@@ -610,7 +621,7 @@ cd web && npm run check            # typecheck -> pruebas -> build -> banco, de 
 cd web && npm run typecheck        # tsc --noEmit, con strict
 cd web && node test_motor.js       # 533 pruebas; todas deben pasar
 cd web && node build.mjs           # regenera index.html y barcomp_viewer.html
-cd web && node tools/ui_test.mjs   # 263 pasos de interfaz en Edge headless
+cd web && node tools/ui_test.mjs   # 264 pasos de interfaz en Edge headless
 cd web && node tools/demo_carga.mjs # κ contra una solución exacta, con las cifras
 ```
 
