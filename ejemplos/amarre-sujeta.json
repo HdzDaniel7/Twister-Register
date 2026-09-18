@@ -1,11 +1,13 @@
 {
- "schema": "barcomp/2.3",
- "saved": "2026-09-16T06:14:16.820Z",
+ "schema": "barcomp/2.4",
+ "saved": "2026-09-18T05:54:28.300Z",
  "model": {
   "name": "AMARRE — sujeta",
   "section": {
+   "kind": "rect",
    "width": 40,
    "thickness": 12,
+   "wall": 0,
    "chamfer": 1.2,
    "endLen": 20
   },
@@ -322,8 +324,10 @@
    "base": {
     "name": "AMARRE — sujeta",
     "section": {
+     "kind": "rect",
      "width": 40,
      "thickness": 12,
+     "wall": 0,
      "chamfer": 1.2,
      "endLen": 20
     },
