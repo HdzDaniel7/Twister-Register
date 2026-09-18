@@ -392,6 +392,14 @@ Diagnóstico en una frase: lo construido está bien hecho por dentro y mal conta
 |---|---|---|
 | A1-bis | `LOOP_MIN_N` deja de ser letra muerta: «Aplicar» apagado con menos de tres piezas en el lazo, y la guarda también dentro de `case 'apply'` | `ac6e8ed` |
 
+## Fase 5.8 · El id repetido de un modelo — CERRADA 2026-09-17
+
+Reportado desde el taller, no salido de una auditoría.
+
+| ID | Qué se hizo | Commit |
+|---|---|---|
+| VAR-01 | `newVid()` sale del mayor id que hay, no de cuántas variantes son, y salta cualquier id ocupado. Dos modelos podían nacer como `v3` y la referencia dejaba de poder elegirse: las dos tarjetas con la chapa y ninguna con el botón | `266bce0` |
+
 ## Fase 5.5 · El solver con apoyos a micras — CERRADA EN PARTE
 
 Sigue abierto FIS-10b (la búsqueda que se rinde) y FIS-10c (el sembrado de pines).
