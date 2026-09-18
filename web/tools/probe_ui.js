@@ -748,6 +748,28 @@ step('pestaña Puntos', () => {
   click('#tabs [data-t="points"]');
 });
 step('mover un PI', () => setval('input[data-p="4"][data-k="z"]', '60'));
+/* La torsión viaja DENTRO de los puntos: rueda el marco, y el rodado de la
+   estación siguiente se lee ya girado. Mover un PI replantea la cadena entera
+   por inversa, así que si la inversa no sabe de la torsión, la vuelve a pegar
+   encima y un toque que no cambia nada mueve la pieza. En el motor eran 137.8
+   mm; aquí se comprueba por donde se toca de verdad. */
+step('con torsión puesta, reescribir un PI con su valor no mueve la pieza', () => {
+  click('#tabs [data-t="model"]');
+  const tw0 = q('input[data-b="1"][data-k="twist"]').value;
+  try {
+    setval('input[data-b="1"][data-k="twist"]', '12');
+    click('#tabs [data-t="points"]');
+    const antes = window.BARCOMP.E.fk(S().model).pis.map(p => p.clone());
+    setval('input[data-p="4"][data-k="z"]', q('input[data-p="4"][data-k="z"]').value);
+    const peor = window.BARCOMP.E.fk(S().model).pis
+      .reduce((m, p, i) => Math.max(m, p.distanceTo(antes[i])), 0);
+    if (peor > 0.5) throw new Error('la pieza se movió ' + peor.toFixed(1) + ' mm');
+  } finally {
+    click('#tabs [data-t="model"]');
+    setval('input[data-b="1"][data-k="twist"]', tw0);
+    click('#tabs [data-t="points"]');
+  }
+});
 step('insertar y borrar un punto', () => {
   click('tr[data-r="3"]'); click('[data-a="insp"]');
   click('tr[data-r="3"]'); click('[data-a="delp"]');

@@ -624,8 +624,23 @@ punteada. Deja ver de un vistazo cuál doblez está fuera. Es clicable.
     ni FIS-08 ni FIS-10 se enteran de que existe. Lo que el hueco cambia es lo que pesa y lo
     que resiste. Y **una redonda no tiene rodado útil**: `Iz = Iy`, así que `rot` sigue
     diciendo hacia dónde se dobla pero ya no cambia con qué resiste, y el retorcido no se
-    puede observar. Eso se avisa en su ventana, y choca de frente con la guarda del eje no
-    observable (C1+A4): con una redonda esa guarda mide algo que la geometría ya no distingue.
+    puede observar. Eso se avisa en su ventana. Lo que NO choca con nada es la guarda del eje
+    no observable (C1+A4): medido el 2026-09-18, esa guarda mide el PLANO del doblez, y el
+    plano se lee de la línea media, que una sección redonda no borra. Lo que una redonda borra
+    es el retorcido y el par T/W — ver la trampa 27 y SEC-05.
+27. **La torsión viaja DENTRO de los puntos PI, no al lado.** `Rx(twist)` rueda el marco, así
+    que el rodado de la estación SIGUIENTE se lee ya girado: 12° de torsión en la estación *i*
+    y 12° menos de rodado en la *i+1* dan los mismos PI **hasta 1.5e-13 mm**. De unos puntos
+    sueltos, entonces, no se puede sacar cuál de las dos fue — por eso `measuredModel()` y
+    `migrateModel()` arrastran la torsión del nominal en vez de leerla. Lo que estaba mal
+    hasta el 2026-09-18: `ik()` leía el rodado con el marco SIN rodar, se tragaba la torsión
+    dentro del rodado, y encima se le volvía a pegar la del nominal. Contada dos veces. La
+    pieza reconstruida se separaba **137.8 mm** de los puntos de los que salió, un `barcomp/1.0`
+    torcido se movía **63.7 mm** al abrirlo, y en el visor un PI reescrito con su propio valor
+    movía la pieza **129.4 mm**. Ahora `ik()` recibe las torsiones que ya se saben y aplica la
+    misma `Rx` que `fk()`: es su inversa exacta otra vez. En una barra RECTANGULAR las dos
+    escrituras se distinguen mirando la pieza, porque la cara cambia (`orientations()`); en una
+    REDONDA no se distinguen ni mirándola.
 
 ---
 
@@ -634,9 +649,9 @@ punteada. Deja ver de un vistazo cuál doblez está fuera. Es clicable.
 ```bash
 cd web && npm run check            # typecheck -> pruebas -> build -> banco, de una
 cd web && npm run typecheck        # tsc --noEmit, con strict
-cd web && node test_motor.js       # 562 pruebas; todas deben pasar
+cd web && node test_motor.js       # 568 pruebas; todas deben pasar
 cd web && node build.mjs           # regenera index.html y barcomp_viewer.html
-cd web && node tools/ui_test.mjs   # 271 pasos de interfaz en Edge headless
+cd web && node tools/ui_test.mjs   # 272 pasos de interfaz en Edge headless
 cd web && node tools/demo_carga.mjs # κ contra una solución exacta, y el codo del hueco
 ```
 
@@ -822,6 +837,20 @@ auditoría —al menos con una pieza que va mayormente de canto—, y E y ρ del
 buenos a un ±5 %, no a un factor 50. Lo que sí puede dar flecha del orden de la tolerancia:
 una pieza que vaya de PLANO en un vano largo —once veces más con 40×12— o un fixture con dos
 apoyos mal repartidos. Por eso el número se enseña **por tramo** y no como total.
+
+**La torsión contada dos veces (2026-09-18).** `ik()` leía el rodado con el marco sin rodar,
+así que la torsión se le colaba dentro del rodado, y `measuredModel()`/`migrateModel()` le
+volvían a pegar encima la del nominal. Con una sola estación torcida 12° sobre el demo:
+
+| por dónde se toca | separación antes | después |
+|---|---|---|
+| `measuredModel()` sobre sus propios PI | 137.8 mm | 4.3e-13 mm |
+| abrir un `barcomp/1.0` torcido | 63.7 mm | 2.8e-14 mm |
+| reescribir un PI con su propio valor, en el visor | 129.4 mm | 0 |
+
+Y la cifra que obliga a arrastrar la torsión en vez de leerla: **12° de torsión en la
+estación *i* y 12° menos de rodado en la *i+1* dan los mismos PI hasta 1.5e-13 mm**. Los
+puntos no pueden separarlas; la pieza sí, si la sección no es redonda. Ver la trampa 27.
 
 ### Decisiones que siguen gobernando el código
 

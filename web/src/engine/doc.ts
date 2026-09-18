@@ -234,7 +234,8 @@ export function fkLegacy(model: Model, schema = 'barcomp/1.0'): { pis: Vector3[]
 export function migrateModel(model: RawModel, schema = 'barcomp/1.0'): Model {
   const m = normalizeModel(model);
   if (!m.bends.length) return m;
-  const out = ik(fkLegacy(m, schema).pis, m.bends.map(b => b.radius));
+  const out = ik(fkLegacy(m, schema).pis, m.bends.map(b => b.radius), 0,
+                 m.bends.map(b => b.twist));
   /* la torsión no depende de la convención: viaja tal cual */
   out.bends.forEach((b, i) => {
     b.twist = m.bends[i].twist || 0;

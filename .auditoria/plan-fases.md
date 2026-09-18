@@ -427,7 +427,8 @@ una ventana que escribe un campo que nadie lee es exactamente lo que fue `LOOP_M
 | ID | Qué se hizo | Commit |
 |---|---|---|
 | SEC-01 | `engine/section.ts`: las seis cuentas que la forma cambia, en un solo sitio. Refactor puro, superficie del motor 165 → 168 exports y ni una cifra movida | `e5f0798` |
-| SEC-02 | Las cuatro formas —rectangular y redonda, macizas y huecas—, `barcomp/2.4`, el 3D barriendo el contorno de verdad y la ventana de la sección | (esta pasada) |
+| SEC-02 | Las cuatro formas —rectangular y redonda, macizas y huecas—, `barcomp/2.4`, el 3D barriendo el contorno de verdad y la ventana de la sección | `4da0a64` |
+| SEC-04 | Medido: la guarda del eje mide el PLANO del doblez, y una redonda no borra el plano. Lo que borra es el retorcido, y ahí sí había un doble conteo — ver Fase 6.1 | `(esta pasada)` |
 
 Abierto, y con su motivo:
 
@@ -439,12 +440,30 @@ Abierto, y con su motivo:
       criterio pide o una norma que el taller acepte o piezas dobladas de las que aprenderlo.
       Mientras no haya una cosa ni la otra, **el aviso es la respuesta honesta**: inventar un
       umbral sería darle cara de dato a una opinión. · M
-- [ ] **[SEC-04] Con la barra redonda, la guarda del eje no observable mide algo que ya no
-      existe · [S]** — `Iz = Iy`, así que el rodado no cambia con qué resiste la sección y el
-      retorcido de la pieza no se puede observar. La guarda de C1+A4 sigue puesta y sigue
-      juzgando el eje como si se distinguiera. No se tocó en esta pasada a propósito: mover
-      una guarda que rechaza casos es un cambio de comportamiento con sus propias cifras, y
-      esta pasada ya traía el esquema. Hoy se avisa en la ventana. · S
+- [ ] **[SEC-05] Con la barra redonda, `sbT`/`sbW` y `gainT`/`gainW` son dos columnas para
+      una sola cosa · [S]** — salido el 2026-09-18 al cerrar SEC-04. `orientations()` etiqueta
+      cada doblez de plano o de canto, y `compensate.ts` elige con esa letra el retorno
+      (`proc.sbT`/`sbW`, línea 32), el reparto del lote (:171) y la ganancia del lazo (:264).
+      En una redonda `Iz = Iy` y la fibra es la misma, así que los dos números tienen que ser
+      el MISMO número y nada lo dice ni lo comprueba: quien deje puestos los de una pletina
+      compensa un doblez con el retorno del otro. Cerrarlo es pequeño —o se igualan solos, o
+      se avisa— pero es un cambio de comportamiento sobre la compensación y quiere su pasada
+      y su cifra. · S
+
+## Fase 6.1 · La torsión contada dos veces — CERRADA 2026-09-18
+
+Salió al medir SEC-04, y no es de la sección: es de la inversa. No lo vio nadie hasta hoy
+porque `demoModel()` trae todas las torsiones a cero, así que la prueba que decía
+«`measuredModel` sobre los PI del nominal reproduce el nominal» no podía fallar.
+
+| ID | Qué se hizo | Commit |
+|---|---|---|
+| TW-01 | `ik()` recibe las torsiones que ya se saben y aplica la misma `Rx` que `fk()`. Antes leía el rodado con el marco sin rodar, se tragaba la torsión dentro del rodado, y `measuredModel()`/`migrateModel()` le pegaban encima la del nominal. 137.8 mm de separación en el motor, 63.7 al abrir un `barcomp/1.0` torcido, 129.4 en el visor al reescribir un PI con su propio valor | `(esta pasada)` |
+
+Y la cifra que explica por qué la torsión se arrastra y no se lee: 12° de torsión en la
+estación *i* y 12° menos de rodado en la *i+1* dan los mismos PI **hasta 1.5e-13 mm**. De
+unos puntos sueltos no se puede sacar cuál de las dos fue. De la PIEZA sí, si la sección no
+es redonda — que es justo lo que dice el aviso de la ventana de la sección.
 
 ## Fase 5.8 · El id repetido de un modelo — CERRADA 2026-09-17
 

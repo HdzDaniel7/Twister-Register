@@ -220,6 +220,8 @@ export function ik(
   radii: (number | undefined)[] | null | undefined,
   /** desvío mínimo (grados) para creerle al eje; 0 = confiar siempre */
   minBendDeg = 0,
+  /** la torsión que YA se sabe de cada estación, °; sin ella se cuenta dos veces */
+  twists?: (number | undefined)[] | null,
 ): { bends: Bend[]; tail: number; unobservable: number[] } {
   const P = points, n = P.length - 2, bends: Bend[] = [];
   /** índices cuyo eje no se pudo leer y heredó el de la estación anterior */
@@ -259,6 +261,11 @@ export function ik(
     }));
     const nx = bendDecomp({ rot, angle: c.angle });
     F = F.multiply(rotAxis(nx.axis, nx.theta));
+    /* La MISMA `Rx(twist)` que pone fk(), y por el mismo motivo: si el marco no
+       rueda aquí, el rodado de la estación siguiente se lee girado y se queda
+       con la torsión encima. Ver el comentario de la torsión, arriba. */
+    const tw = twists && twists[i - 1] ? +twists[i - 1]! : 0;
+    if (tw) F = F.multiply(rotX(tw * D2R));
     prevRot = rot;
   }
   return { bends, tail: P[n + 1].distanceTo(P[n]), unobservable };

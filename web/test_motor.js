@@ -322,6 +322,16 @@ ok('trimOf usa el ángulo del doblez y no depende del rodado',
      E.axisAngles(nuevo).map(a => a.toFixed(1)).join(','));
   ok('migrateModel conserva la orientación de cada doblez',
      E.orientations(nuevo).join('') === 'TWT');
+  /* Y con torsión, que es el caso que se contaba dos veces: `migrateModel`
+     replantea la cadena con ik(), así que abrir un archivo VIEJO de una pieza
+     torcida movía la pieza. Medido antes del arreglo: 63.7 mm. */
+  const viejoTw = E.normalizeModel({ ...viejo,
+    bends: viejo.bends.map((b, i) => ({ ...b, twist: i === 0 ? 20 : 0 })) });
+  const aTw = E.fkLegacy(viejoTw, 'barcomp/1.0').pis;
+  const dTw = E.fk(E.migrateModel(viejoTw, 'barcomp/1.0')).pis;
+  const sepTw = maxAbs(aTw.map((q, i) => q.distanceTo(dTw[i])));
+  ok('migrateModel conserva la forma de una pieza CON torsión',
+     sepTw < 1e-9, `${sepTw.toExponential(2)} mm`);
   ok('isLegacyDoc distingue los esquemas anteriores',
      E.isLegacyDoc({ schema: 'barcomp/1.0' }) && E.isLegacyDoc({ schema: 'barcomp/2.0' }) &&
      !E.isLegacyDoc({ schema: E.SCHEMA }));
@@ -624,6 +634,40 @@ console.log('\n— importar una pieza medida —');
   ok('measuredModel arrastra radio y torsión del nominal',
      same.bends.every((b, i) => Math.abs(b.radius - M.bends[i].radius) < 1e-12 &&
                                 Math.abs(b.twist - M.bends[i].twist) < 1e-12));
+
+  /* LA TORSIÓN QUE YA SE SABE NO SE CUENTA DOS VECES.
+     El demo trae todas las torsiones a cero, así que la prueba de arriba no
+     podía fallar aunque `ik()` se comiera la torsión. Con una sola estación
+     torcida se ve: los puntos SÍ llevan la torsión dentro —rueda el marco, y
+     el rodado de la estación siguiente se lee ya girado—, así que leer el
+     rodado con el marco sin rodar y encima volver a pegar la torsión del
+     nominal la aplicaba dos veces. Medido antes del arreglo: 137.8 mm de
+     separación entre la pieza reconstruida y los puntos de los que salió. */
+  const Mt = E.normalizeModel({ ...E.demoModel() });
+  Mt.bends = Mt.bends.map((b, i) => ({ ...b, twist: i === 1 ? 12 : 0 }));
+  const Pt = E.fk(Mt).pis;
+  const vuelta = E.measuredModel(Mt, Pt);
+  const sep = maxAbs(E.fk(vuelta).pis.map((q, i) => q.distanceTo(Pt[i])));
+  ok('measuredModel de una pieza CON torsión vuelve a sus propios puntos',
+     sep < 1e-9, `${sep.toExponential(2)} mm`);
+  ok('y el rodado sale el del nominal, no el del nominal más la torsión',
+     vuelta.bends.every((b, i) => Math.abs(b.rot - Mt.bends[i].rot) < 1e-9),
+     vuelta.bends.map(b => b.rot.toFixed(1)).join(','));
+
+  /* POR QUÉ SE ARRASTRA Y NO SE LEE: la torsión y el rodado de la estación
+     SIGUIENTE mueven los PI exactamente igual —`Rx` conmuta con el avance y
+     gira el eje del doblez que viene— así que de unos puntos sueltos no se
+     puede sacar cuál de las dos fue. En una barra RECTANGULAR se distinguen
+     mirando la pieza, porque la cara cambia; en una REDONDA no se distinguen
+     ni mirándola, y eso es lo que dice el aviso de la ventana de la sección
+     (SEC-04). Aquí se fija la igualdad, que es la que obliga a arrastrarla. */
+  const conTw = E.normalizeModel({ ...E.demoModel() });
+  conTw.bends = conTw.bends.map((b, i) => ({ ...b, twist: i === 1 ? 12 : 0 }));
+  const conRot = E.normalizeModel({ ...E.demoModel() });
+  conRot.bends = conRot.bends.map((b, i) => ({ ...b, rot: i === 2 ? b.rot - 12 : b.rot }));
+  const gemelas = maxAbs(E.fk(conTw).pis.map((q, i) => q.distanceTo(E.fk(conRot).pis[i])));
+  ok('12° de torsión y 12° menos de rodado en la siguiente dan los MISMOS PI',
+     gemelas < 1e-9, `${gemelas.toExponential(2)} mm`);
 
   /* Una pieza escaneada puede llegar con un doblez de menos. Ya reventó una
      vez, así que aquí se comprueba que entra y que se puede medir contra el
