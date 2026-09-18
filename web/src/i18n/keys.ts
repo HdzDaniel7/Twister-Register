@@ -64,6 +64,7 @@ export type I18nKey =
   | 'secKind' | 'secRect' | 'secRound' | 'dia' | 'wall' | 'wallHint'
   | 'secSolid' | 'secHollow' | 'secArea' | 'secInertia' | 'secMass'
   | 'secRoundWarn' | 'secHollowWarn' | 'secTip'
+  | 'secFig' | 'secChamNote' | 'secChamNone'
   | 'batchUse' | 'batchTip' | 'batchOn' | 'batchHint' | 'spread' | 'spreadTip'
   | 'sbMeas' | 'sbUse' | 'sbNote' | 'sbCircular' | 'sbSpreadTip'
   | 'sbTrend' | 'sbTrendTip'

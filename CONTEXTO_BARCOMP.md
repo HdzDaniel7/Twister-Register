@@ -624,7 +624,7 @@ punteada. Deja ver de un vistazo cuál doblez está fuera. Es clicable.
     ni FIS-08 ni FIS-10 se enteran de que existe. Lo que el hueco cambia es lo que pesa y lo
     que resiste. Y **una redonda no tiene rodado útil**: `Iz = Iy`, así que `rot` sigue
     diciendo hacia dónde se dobla pero ya no cambia con qué resiste, y el retorcido no se
-    puede observar. Eso se avisa en su ventana. Lo que NO choca con nada es la guarda del eje
+    puede observar. Eso se avisa en su pestaña, al lado del dibujo de la cara. Lo que NO choca con nada es la guarda del eje
     no observable (C1+A4): medido el 2026-09-18, esa guarda mide el PLANO del doblez, y el
     plano se lee de la línea media, que una sección redonda no borra. Lo que una redonda borra
     es el retorcido y el par T/W — ver la trampa 27 y SEC-05.
@@ -651,7 +651,7 @@ cd web && npm run check            # typecheck -> pruebas -> build -> banco, de 
 cd web && npm run typecheck        # tsc --noEmit, con strict
 cd web && node test_motor.js       # 568 pruebas; todas deben pasar
 cd web && node build.mjs           # regenera index.html y barcomp_viewer.html
-cd web && node tools/ui_test.mjs   # 272 pasos de interfaz en Edge headless
+cd web && node tools/ui_test.mjs   # 276 pasos de interfaz en Edge headless
 cd web && node tools/demo_carga.mjs # κ contra una solución exacta, y el codo del hueco
 ```
 

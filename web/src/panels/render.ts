@@ -7,6 +7,7 @@ import { ST } from '../state.ts';
 import { $, TABS_OF } from './fmt.ts';
 import { saveFocus, restoreFocus, commitFocusIn } from './focus.ts';
 import { paneModel } from './model.ts';
+import { paneSection } from './section.ts';
 import { panePoints } from './points.ts';
 import { paneFixture } from './fixture.ts';
 import { paneLims } from './lims.ts';
@@ -72,9 +73,11 @@ export function renderRight(): void {
      'meas', o en 'comp' mientras se modela, cae en la primera del modo */
   const tabs = TABS_OF[ST.mode];
   if (!tabs.includes(ST.tab)) ST.tab = tabs[0];
-  const pane = { model: paneModel, points: panePoints, fixture: paneFixture,
-                 pins: panePins, lims: paneLims, mach: paneMach, comp: paneComp
-               }[ST.tab as 'model' | 'points' | 'fixture' | 'pins' | 'lims' | 'mach' | 'comp'];
+  const pane = { model: paneModel, section: paneSection, points: panePoints,
+                 fixture: paneFixture, pins: panePins, lims: paneLims,
+                 mach: paneMach, comp: paneComp
+               }[ST.tab as 'model' | 'section' | 'points' | 'fixture' | 'pins'
+                 | 'lims' | 'mach' | 'comp'];
   $('#panes')!.innerHTML = pane(M!);
   if (host) host.scrollTop = keep;
   restoreFocus(f);

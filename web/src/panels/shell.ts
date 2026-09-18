@@ -17,7 +17,7 @@ import type { Mode } from '../types.ts';
    columna fija de 250 px se pagaba siempre, y casi todo lo que había ahí
    —capas, colocación, extremo fijo— se toca una vez y se olvida. */
 const MENUS: [string, I18nKey][] = [
-  ['file', 'mnFile'], ['models', 'mnModel'], ['section', 'section'],
+  ['file', 'mnFile'], ['models', 'mnModel'],
   ['view', 'mnView'], ['pieces', 'mnPieces'],
 ];
 

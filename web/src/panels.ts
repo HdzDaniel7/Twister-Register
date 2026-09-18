@@ -26,5 +26,6 @@ export { paneFixture } from './panels/fixture.ts';
 export { paneLims } from './panels/lims.ts';
 export { paneMach } from './panels/mach.ts';
 export { panePins } from './panels/pins.ts';
+export { paneSection, sectionFigure } from './panels/section.ts';
 export { renderSide, renderRight, renderPanels } from './panels/render.ts';
 export { renderStatus } from './panels/status.ts';

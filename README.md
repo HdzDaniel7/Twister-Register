@@ -269,7 +269,8 @@ web/
     scene/stage.ts · geometry.ts · layers.ts · build.ts · view.ts
   src/panels.ts     la interfaz, barril de panels/ (cadenas de plantilla)
     panels/{fmt,shell,left,focus,model,points,meas,comp,status,render}.ts
-    panels/{fixture,pins,lims,mach}.ts   las cuatro pestañas de Modelar
+    panels/{fixture,pins,lims,mach,section}.ts   las cinco pestañas de Modelar
+                                        section.ts dibuja la cara de la barra
   src/state.ts      ST: modelos, referencia, anclaje, capas, piezas medidas
   src/ribbon.ts     la cinta inferior (canvas 2D)
   src/report.ts     reporte imprimible · src/io.ts  archivos locales
@@ -308,7 +309,7 @@ npm run check        # typecheck -> pruebas -> build -> banco de interfaz
 npm run typecheck    # tsc --noEmit, con strict
 npm test             # 568 pruebas del motor y del i18n
 npm run build        # regenera index.html (y web/barcomp_viewer.html en local)
-npm run test:ui      # 272 pasos de interfaz en Edge headless, por CDP
+npm run test:ui      # 276 pasos de interfaz en Edge headless, por CDP
 npm run demo:amarre  # cinco escenarios del amarre, con las cifras a la vista
 npm run demo:carga   # el muelle de contacto contra una solución exacta, y el codo
                      # del hueco que impide cerrar FIS-10b

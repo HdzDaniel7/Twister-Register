@@ -428,7 +428,8 @@ una ventana que escribe un campo que nadie lee es exactamente lo que fue `LOOP_M
 |---|---|---|
 | SEC-01 | `engine/section.ts`: las seis cuentas que la forma cambia, en un solo sitio. Refactor puro, superficie del motor 165 → 168 exports y ni una cifra movida | `e5f0798` |
 | SEC-02 | Las cuatro formas —rectangular y redonda, macizas y huecas—, `barcomp/2.4`, el 3D barriendo el contorno de verdad y la ventana de la sección | `4da0a64` |
-| SEC-04 | Medido: la guarda del eje mide el PLANO del doblez, y una redonda no borra el plano. Lo que borra es el retorcido, y ahí sí había un doble conteo — ver Fase 6.1 | `(esta pasada)` |
+| SEC-04 | Medido: la guarda del eje mide el PLANO del doblez, y una redonda no borra el plano. Lo que borra es el retorcido, y ahí sí había un doble conteo — ver Fase 6.1 | `f784446` |
+| SEC-06 | La sección deja de ser un cajón y pasa a ser PESTAÑA, con el dibujo de la cara a escala y las cotas encima. Devuelto por el taller: la barra de menús se corta cuando la ventana no es ancha y el botón del cajón podía no verse. De paso, las medidas dejan de estar en dos sitios | `(esta pasada)` |
 
 Abierto, y con su motivo:
 
@@ -436,7 +437,7 @@ Abierto, y con su motivo:
       mínimo que admite un tubo lo mandan la relación diámetro/pared y la ovalización al
       doblarlo, no el material. `engine/lims.ts` sigue juzgando con los de una barra maciza,
       así que **en pantalla un tubo se dobla más fácil de lo que se dobla en la máquina**. Hoy
-      se avisa con palabras en la ventana de la sección; cerrarlo pide un criterio, y un
+      se avisa con palabras en la pestaña de la sección; cerrarlo pide un criterio, y un
       criterio pide o una norma que el taller acepte o piezas dobladas de las que aprenderlo.
       Mientras no haya una cosa ni la otra, **el aviso es la respuesta honesta**: inventar un
       umbral sería darle cara de dato a una opinión. · M
@@ -463,7 +464,7 @@ porque `demoModel()` trae todas las torsiones a cero, así que la prueba que dec
 Y la cifra que explica por qué la torsión se arrastra y no se lee: 12° de torsión en la
 estación *i* y 12° menos de rodado en la *i+1* dan los mismos PI **hasta 1.5e-13 mm**. De
 unos puntos sueltos no se puede sacar cuál de las dos fue. De la PIEZA sí, si la sección no
-es redonda — que es justo lo que dice el aviso de la ventana de la sección.
+es redonda — que es justo lo que dice el aviso de la pestaña de la sección.
 
 ## Fase 5.8 · El id repetido de un modelo — CERRADA 2026-09-17
 

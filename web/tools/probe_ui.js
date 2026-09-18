@@ -846,6 +846,8 @@ step('una clave que nadie declaró no entra en las tolerancias', () => {
   if ('noExiste' in base.tol) throw new Error('se escribió una clave inventada');
 });
 step('y un texto que no es número no mete un NaN en la geometría', () => {
+  /* el ancho se mudó a su pestaña el 2026-09-18; el guardia es el mismo */
+  click('#tabs [data-t="section"]');
   const el = q('#panes input[data-s="width"]');
   const antes = S().model.section.width;
   /* el campo es de tipo number y el navegador ya filtra ahí; se pasa a texto
@@ -856,6 +858,7 @@ step('y un texto que no es número no mete un NaN en la geometría', () => {
   el.type = 'number';
   if (!isFinite(S().model.section.width)) throw new Error('entró un NaN');
   if (S().model.section.width !== antes) throw new Error('cambió el ancho: ' + S().model.section.width);
+  click('#tabs [data-t="model"]');
 });
 
 /* ------------------------------------------------------- compensación --- */
@@ -2996,73 +2999,129 @@ step('duplicar despues de cargar y deshacer no repite el id del modelo', () => {
    del suyo, y estos son siete. */
 const B = window.BARCOMP;
 
+/* La sección vive en su PESTAÑA desde el 2026-09-18: era un cajón del menú de
+   arriba y el taller lo devolvió porque la barra de menús se corta cuando la
+   ventana no es ancha, así que el botón podía no verse. */
+function pestSeccion() {
+  click('[data-md="model"]');
+  click('#tabs [data-t="section"]');
+}
 /* Deshacer por la PUERTA, no escribiendo en el estado: la sección efectiva se
    recalcula en `syncModel()`, así que dejar `base.section` a mano y repintar
    deja `ST.model` con la forma anterior y el paso siguiente mide otra pieza.
    Esto pasa por los mismos controles que usa quien está delante. */
 function ponSeccion(sec) {
-  drawer('section');
-  click(`#lf [data-sk="${sec.kind}"]`);
+  pestSeccion();
+  click(`#panes [data-sk="${sec.kind}"]`);
   for (const k of ['width', 'thickness', 'wall', 'chamfer', 'endLen']) {
-    drawer('section');
-    const el = document.querySelector(`#lf input[data-s="${k}"]`);
+    pestSeccion();
+    const el = document.querySelector(`#panes input[data-s="${k}"]`);
     if (!el) continue;                       // el espesor no sale en una redonda
     el.value = String(sec[k]);
     el.dispatchEvent(new Event('change', { bubbles: true }));
   }
 }
-/* La ventana de la sección: elegir forma, medidas y pared. Va al final del
-   banco a propósito, como el paso del id repetido: cambiar la barra a redonda
-   mueve el peso, las inercias y la silueta, y no tiene sentido que los pasos
-   de después midan una pieza distinta de la que midieron los de antes. Cada
-   paso deja la sección como la encontró. */
-step('la ventana de la sección se abre y trae la forma puesta', () => {
-  drawer('section');
-  const botones = [...document.querySelectorAll('#lf [data-sk]')].map(b => b.dataset.sk);
+/* La pestaña de la sección: elegir forma, medidas y pared, con el dibujo de la
+   cara al lado. Va al final del banco a propósito, como el paso del id
+   repetido: cambiar la barra a redonda mueve el peso, las inercias y la
+   silueta, y no tiene sentido que los pasos de después midan una pieza
+   distinta de la que midieron los de antes. Cada paso la deja como la
+   encontró. */
+step('la sección es una pestaña, no un cajón que la barra de menús pueda cortar', () => {
+  if (document.querySelector('#hd .menubar [data-dr="section"]')) {
+    throw new Error('sigue el botón del cajón');
+  }
+  const t = [...document.querySelectorAll('#tabs [data-t]')].map(b => b.dataset.t);
+  if (!t.includes('section')) throw new Error('no está la pestaña: ' + t.join(','));
+});
+step('la pestaña de la sección se abre y trae la forma puesta', () => {
+  pestSeccion();
+  const botones = [...document.querySelectorAll('#panes [data-sk]')].map(b => b.dataset.sk);
   if (botones.join(',') !== 'rect,round') throw new Error('formas: ' + botones.join(','));
-  const on = document.querySelector('#lf [data-sk].on');
+  const on = document.querySelector('#panes [data-sk].on');
   if (!on || on.dataset.sk !== S().model.section.kind) throw new Error('no marca la forma actual');
 });
-step('las cifras de la ventana son las del motor, no un texto suelto', () => {
-  drawer('section');
+/* EL DIBUJO. Lo que se comprueba no es que haya un SVG: es que lo que se ve
+   sea la pieza. El contorno sale de `sectionOutline()`, el mismo que barre el
+   3D, así que la caja que lo envuelve tiene que medir ancho por espesor. */
+step('el dibujo de la cara mide lo que mide la barra', () => {
+  pestSeccion();
+  const poly = q('#panes .secsvg .secout');
+  const pts = poly.getAttribute('points').trim().split(/\s+/)
+    .map(p => p.split(',').map(Number));
+  const xs = pts.map(p => p[0]), ys = pts.map(p => p[1]);
+  const anchoDib = Math.max(...xs) - Math.min(...xs);
+  const grueso = Math.max(...ys) - Math.min(...ys);
+  const sec = S().model.section;
+  if (Math.abs(anchoDib - sec.width) > 1e-6) {
+    throw new Error('el dibujo mide ' + anchoDib + ' de ancho y la barra ' + sec.width);
+  }
+  if (Math.abs(grueso - sec.thickness) > 1e-6) {
+    throw new Error('el dibujo mide ' + grueso + ' de alto y la barra ' + sec.thickness);
+  }
+  /* y las cotas llevan el número, no un rótulo suelto */
+  const cotas = [...document.querySelectorAll('#panes .secdim text')].map(t => t.textContent);
+  if (!cotas.includes(sec.width.toFixed(1))) throw new Error('cotas: ' + cotas.join(' '));
+});
+step('teclear una medida redibuja la cara', () => {
+  const antes = { ...S().model.section };
+  try {
+    pestSeccion();
+    const vb0 = q('#panes .secsvg').getAttribute('viewBox');
+    setval('#panes input[data-s="width"]', '60');
+    const vb1 = q('#panes .secsvg').getAttribute('viewBox');
+    if (vb0 === vb1) throw new Error('el dibujo no se movió: ' + vb1);
+    const poly = q('#panes .secsvg .secout').getAttribute('points').trim().split(/\s+/)
+      .map(p => Number(p.split(',')[0]));
+    if (Math.abs((Math.max(...poly) - Math.min(...poly)) - 60) > 1e-6) {
+      throw new Error('el contorno no siguió al campo');
+    }
+  } finally {
+    ponSeccion(antes);
+  }
+});
+step('las cifras de la pestaña son las del motor, no un texto suelto', () => {
+  pestSeccion();
   const sec = S().model.section;
   const I = B.E.sectionI(sec);
-  const txt = document.querySelector('#lf .grp .body').textContent.replace(/\s+/g, ' ');
+  const txt = document.querySelector('#panes .grp .body').textContent.replace(/\s+/g, ' ');
   for (const n of [B.E.sectionArea(sec), I.Iz, I.Iy]) {
     /* se buscan con separador de millares, que es como las pinta fx() */
-    const como = Math.round(n).toLocaleString('es-ES').replace(/ /g, ' ');
+    const como = Math.round(n).toLocaleString('es-ES').replace(/ /g, ' ');
     const suelto = String(Math.round(n));
     if (!txt.includes(como) && !txt.includes(suelto)) {
       throw new Error('no está ' + suelto + ' en: ' + txt.slice(0, 200));
     }
   }
 });
-step('poner la barra redonda cambia el peso y las dos inercias se igualan', () => {
-  drawer('section');
+step('poner la barra redonda cambia el peso, iguala las inercias y redondea el dibujo', () => {
   const antes = { ...S().model.section };
   const pesaAntes = B.E.sectionArea(antes);
   try {
-    click('#lf [data-sk="round"]');
+    pestSeccion();
+    click('#panes [data-sk="round"]');
     const sec = S().model.section;
     if (sec.kind !== 'round') throw new Error('sigue en ' + sec.kind);
     const I = B.E.sectionI(sec);
     if (I.Iz !== I.Iy) throw new Error('las inercias no se igualaron');
     if (B.E.sectionArea(sec) === pesaAntes) throw new Error('el área no cambió');
+    /* el dibujo deja de ser cuatro esquinas y la cota pasa a ser un diámetro */
+    const n = q('#panes .secsvg .secout').getAttribute('points').trim().split(/\s+/).length;
+    if (n < 24) throw new Error('el contorno sigue teniendo ' + n + ' puntos');
+    const cotas = [...document.querySelectorAll('#panes .secdim text')].map(t => t.textContent);
+    if (!cotas.some(c => c.startsWith('Ø'))) throw new Error('sin diámetro: ' + cotas.join(' '));
     /* y el aviso de que el rodado deja de significar lo que significaba */
-    drawer('section');
-    const aviso = [...document.querySelectorAll('#lf .warnbox')].map(w => w.textContent).join(' ');
+    const aviso = [...document.querySelectorAll('#panes .warnbox')].map(w => w.textContent).join(' ');
     if (!/RODADO|ROLL|DREHUNG/.test(aviso)) throw new Error('sin aviso de la redonda: ' + aviso.slice(0, 120));
   } finally {
     ponSeccion(antes);
   }
 });
-step('en redonda la pestaña pide DIÁMETRO y no enseña un espesor que no usa', () => {
+step('en redonda no se enseña un espesor que no usa', () => {
   const antes = { ...S().model.section };
   try {
-    drawer('section');
-    click('#lf [data-sk="round"]');
-    click('[data-md="model"]');
-    click('#tabs [data-t="model"]');
+    pestSeccion();
+    click('#panes [data-sk="round"]');
     if (document.querySelector('#panes input[data-s="thickness"]')) {
       throw new Error('sigue el campo de espesor');
     }
@@ -3071,11 +3130,21 @@ step('en redonda la pestaña pide DIÁMETRO y no enseña un espesor que no usa',
     ponSeccion(antes);
   }
 });
+step('la pestaña Modelo resume la sección y ya no la edita dos veces', () => {
+  click('#tabs [data-t="model"]');
+  if (document.querySelector('#panes input[data-s]')) {
+    throw new Error('la pestaña Modelo sigue editando la sección');
+  }
+  const txt = q('#panes .mhead').textContent.replace(/\s+/g, ' ');
+  if (!txt.includes(String(S().model.section.width.toFixed(1)))) {
+    throw new Error('no resume el ancho: ' + txt.slice(0, 160));
+  }
+});
 step('una pared imposible sale topada, no con área negativa', () => {
   const antes = { ...S().model.section };
   try {
-    drawer('section');
-    setval('#lf input[data-s="wall"]', '99');
+    pestSeccion();
+    setval('#panes input[data-s="wall"]', '99');
     const sec = S().model.section;
     if (!(B.E.sectionArea(sec) > 0)) throw new Error('área ' + B.E.sectionArea(sec));
     if (sec.wall > Math.min(sec.width, sec.thickness) / 2 + 1e-9) throw new Error('pared ' + sec.wall);
@@ -3083,17 +3152,18 @@ step('una pared imposible sale topada, no con área negativa', () => {
     ponSeccion(antes);
   }
 });
-step('un tubo pesa menos y lo dice el aviso de los umbrales', () => {
+step('un tubo pesa menos, se le ve el hueco y lo dice el aviso de los umbrales', () => {
   const antes = { ...S().model.section };
   const macizo = B.E.sectionArea(antes);
   try {
-    drawer('section');
-    setval('#lf input[data-s="wall"]', '2');
+    pestSeccion();
+    if (document.querySelector('#panes .sechole')) throw new Error('una maciza no tiene hueco');
+    setval('#panes input[data-s="wall"]', '2');
     const sec = S().model.section;
     if (!(B.E.sectionArea(sec) < macizo)) throw new Error('no adelgazó');
     if (!B.E.isHollow(sec)) throw new Error('no salió hueca');
-    drawer('section');
-    const aviso = [...document.querySelectorAll('#lf .warnbox')].map(w => w.textContent).join(' ');
+    if (!document.querySelector('#panes .sechole')) throw new Error('el hueco no se dibujó');
+    const aviso = [...document.querySelectorAll('#panes .warnbox')].map(w => w.textContent).join(' ');
     if (!/MACIZA|SOLID|MASSIVE/.test(aviso)) throw new Error('sin aviso del radio mínimo');
   } finally {
     ponSeccion(antes);
@@ -3102,9 +3172,9 @@ step('un tubo pesa menos y lo dice el aviso de los umbrales', () => {
 step('la forma viaja en el archivo y vuelve', () => {
   const antes = { ...S().model.section };
   try {
-    drawer('section');
-    click('#lf [data-sk="round"]');
-    setval('#lf input[data-s="wall"]', '2');
+    pestSeccion();
+    click('#panes [data-sk="round"]');
+    setval('#panes input[data-s="wall"]', '2');
     const doc = JSON.parse(JSON.stringify(B.E.toDoc(S().model, S().command,
       S().comp, S().proc, [])));
     if (doc.schema !== 'barcomp/2.4') throw new Error('esquema ' + doc.schema);

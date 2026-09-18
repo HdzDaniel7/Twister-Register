@@ -3142,7 +3142,6 @@ console.log('\n— atributos de los paneles —');
     cell: 'celda derivada: nadie la despacha, focus.ts solo la busca para reescribirla',
     c: 'ST.comp: las guardas del lazo se editan desde Umbrales con el mismo manejador que en Compensar',
     t: 'pestañas (click, solo dentro de #tabs) y tolerancias (change, solo type=number): ni el evento ni el elemento coinciden',
-    s: 'la sección: la ventana la edita entera y la pestaña Modelo deja a mano las medidas del día a día. Mismo manejador y MISMO dato —v.base.section—, así que son dos vistas de uno, no dos copias',
   };
   const dir = new URL('./src/panels/', import.meta.url);
   const quien = {};

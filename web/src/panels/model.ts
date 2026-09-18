@@ -98,17 +98,19 @@ export function paneModel(M: Model): string {
     <div class="mcol nm"><div class="eyebrow">${T('model')}</div>
       <input type="text" data-m="name" value="${esc(M.name)}"></div>
     <div class="mcol"><div class="eyebrow">${T('section')}</div>
-      ${/* En una redonda el espesor no lo mira ninguna cuenta (ver
-           engine/section.ts), así que tampoco se enseña: un campo que se puede
-           escribir y no cambia nada es peor que no tenerlo. La FORMA y la
-           PARED se eligen en su ventana, que es donde se ven las consecuencias;
-           aquí siguen las medidas que se teclean a diario. */''}
-      <div class="fgrid pair"><label>${T(M.section.kind === 'round' ? 'dia' : 'width')} (mm)</label>${
-        nfield('.1', 'data-s="width"', M.section.width)}
+      ${/* Las medidas de la sección ya NO están aquí: viven en su pestaña, al
+           lado del dibujo de la cara, y ahí se ven las consecuencias de cada
+           una. Estuvieron en los dos sitios hasta el 2026-09-18, con el mismo
+           `data-s` y el mismo dato detrás —dos vistas de uno, no dos copias—,
+           pero obligaban a mirar en dos lados para entender una sección. Lo
+           que sí se queda es el resumen y la cola, que es de la pieza y no de
+           la sección. */''}
+      <div class="fgrid pair"><label>${T('secKind')}</label>
+      <b>${T(M.section.kind === 'round' ? 'secRound' : 'secRect')}</b>
+      <label>${T(M.section.kind === 'round' ? 'dia' : 'width')} (mm)</label>
+      <b>${fx(M.section.width, 1)}</b>
       ${M.section.kind === 'round' ? ''
-        : `<label>${T('thick')} (mm)</label>${nfield('.1', 'data-s="thickness"', M.section.thickness)}`}
-      <label>${T('chamfer')} (mm)</label>${nfield('.1', 'data-s="chamfer"', M.section.chamfer)}
-      <label>${T('endlen')} (mm)</label>${nfield('.5', 'data-s="endLen"', M.section.endLen)}
+        : `<label>${T('thick')} (mm)</label><b>${fx(M.section.thickness, 1)}</b>`}
       <label>${T('tail')} (mm)</label>${nfield('.5', 'data-m="tail"', v.base.tail)}</div></div>
     <div class="mcol"><div class="eyebrow">${T('tol')}</div>
       <div class="fgrid pair"><label>${T('tolA')} (°)</label>${nfield('.05', 'data-t="angle"', M.tol.angle)}
