@@ -282,7 +282,7 @@ web/
   src/app.css       tokens de diseño y layout; la paleta de los DOS temas
   src/shell.html    esqueleto con los marcadores del build
   build.mjs         esbuild: src/ + three  ->  index.html
-  test_motor.js     596 pruebas del motor y del i18n, en Node y sin navegador
+  test_motor.js     599 pruebas del motor y del i18n, en Node y sin navegador
   tools/            banco de interfaz por CDP y las sondas de medición
 index.html          SALIDA GENERADA — no se edita a mano
 ```
@@ -307,12 +307,13 @@ cd web
 npm install          # una sola vez: three + esbuild
 npm run check        # typecheck -> pruebas -> build -> banco de interfaz
 npm run typecheck    # tsc --noEmit, con strict
-npm test             # 596 pruebas del motor y del i18n
+npm test             # 599 pruebas del motor y del i18n
 npm run build        # regenera index.html (y web/barcomp_viewer.html en local)
 npm run test:ui      # 283 pasos de interfaz en Edge headless, por CDP
 npm run demo:amarre  # cinco escenarios del amarre, con las cifras a la vista
 npm run demo:carga   # el muelle de contacto contra una solución exacta, y el codo
                      # del hueco que impide cerrar FIS-10b
+npm run demo:escala  # cuántos dobleces aguanta el solver de la carga
 npm run demo:archivos # regenera ejemplos/amarre-{libre,sujeta}.json
 ```
 

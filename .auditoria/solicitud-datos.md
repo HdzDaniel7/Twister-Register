@@ -303,9 +303,24 @@ El modelo usa una rigidez a torsión de **0.5** donde la sección da **1.22**. C
 laterales esa diferencia **triplica** lo que se mueve la punta. No hay que elegir a ojo: se
 contesta escaneando una pieza montada en el fixture, que es el mismo dato que ya pide A.5.
 
-## C.6 🟡 Cuántos dobleces tiene la pieza más grande que pasa de verdad
+## C.6 🔴 Cuántos dobleces tiene la pieza más grande que pasa de verdad
 
-Si no pasa de ~30, una tarea de rendimiento se cierra sin tocar código.
+Era 🟡 hasta el 2026-09-19. Subía a 🔴 al medirlo, porque lo que hay al otro lado no es
+«va un poco lento»: en una barra de ~1.8 m, asentar la pieza con la carga puesta cuesta
+**49 ms con 15 dobleces, 134 con 30, 954 con 34 y 16 segundos con 60**, contra un
+presupuesto de 250 ms. Por encima de ~34 el solver además deja de converger, y entonces el
+visor lo dice en vez de dar una cifra —que es lo correcto, pero no es una respuesta.
+
+Dos precisiones que hacen la pregunta contestable con la pieza delante:
+
+- **No es la pieza más LARGA, es la que más dobleces tiene.** Medido: con 30 dobleces fijos
+  y la barra estirada de 1.0 a 4.6 m, el coste no se mueve (141–222 ms).
+- **No importa lo juntos que vayan.** Misma medida.
+
+Basta un número aproximado y el peor caso que se recuerde. Está en
+`tools/demo_escala.mjs` con las tablas enteras.
+
+Desbloquea: PERF-01, que hasta ese día era un código sin hallazgo detrás.
 
 ## C.7 🟡 Compensar, ¿debe ver y poder apagar el amarre y la carga?
 
@@ -348,6 +363,7 @@ se acepta o se rechaza la pieza.**
 | C.2 qué cunas hay montadas | Cerrar el desajuste cuna-barra | Se modela una cuna que nadie tiene |
 | C.3 nominal libre o montado | Qué forma persigue el lazo con el amarre puesto | Se corrige hacia una forma que la barra sujeta no puede tomar |
 | C.4 certificado del material | Que los MPa sean de este aluminio | La forma vale, la magnitud lleva un material de manual |
+| C.6 cuántos dobleces, la pieza peor | PERF-01: saber si hay que optimizar el solver | A 34 dobleces el visor con carga tarda 954 ms; a 60, 16 s |
 | C.8 radio mínimo del tubo | SEC-03 | En pantalla un tubo se dobla más fácil que en la máquina |
 
 ---

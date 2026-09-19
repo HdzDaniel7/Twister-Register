@@ -680,10 +680,11 @@ punteada. Deja ver de un vistazo cuál doblez está fuera. Es clicable.
 ```bash
 cd web && npm run check            # typecheck -> pruebas -> build -> banco, de una
 cd web && npm run typecheck        # tsc --noEmit, con strict
-cd web && node test_motor.js       # 596 pruebas; todas deben pasar
+cd web && node test_motor.js       # 599 pruebas; todas deben pasar
 cd web && node build.mjs           # regenera index.html y barcomp_viewer.html
 cd web && node tools/ui_test.mjs   # 283 pasos de interfaz en Edge headless
 cd web && node tools/demo_carga.mjs # κ contra una solución exacta, y el codo del hueco
+cd web && node tools/demo_escala.mjs # dónde el solver de la carga deja de caber
 ```
 
 Dos herramientas más, que no son pruebas sino evidencia:
@@ -814,6 +815,9 @@ Ninguna de estas se vuelve a sacar leyendo el código.
 | Qué | Cuánto | Dónde se midió |
 |---|---|---|
 | Camino crítico con la pieza real | **14.3 ms** contra 250 ms de presupuesto | auditoría 09-10 |
+| … pero eso mide la ESCENA: el amarre y la carga llegaron después | ver las dos filas de abajo | 09-19 |
+| `settle()` con la carga puesta, 15 dobleces / 30 / 34 / 60 | **49 / 134 / 954 / 16 083 ms** | `demo_escala` |
+| … y es el NÚMERO de dobleces, no lo juntos que vayan | 30 fijos, avance de 35 a 150 mm: **141–222 ms** | `demo_escala` |
 | Arranque en frío, peor caso (Edge headless sin GPU) | **234 ms** | auditoría 09-10 |
 | `rebuildScene()` con 13 piezas medidas visibles | **~18 ms**, 270 objetos | A8, medido y descartado |
 | `rebuildScene()` con 15 dobleces / con 60 | **2.8 ms / 9.6 ms** | `tools/probe_perf.js` |
@@ -990,6 +994,43 @@ Dos cosas más, medidas:
 Efecto lateral que hay que saber: el barrido de 135 casos de FIS-08 pasa de 3 piezas que no
 caben a **4**. No es un fallo nuevo — la pieza sujeta se posa unas micras distinta y una que
 estaba justo en el borde cruzó. Las 4 se avisan.
+
+**Hasta dónde llega el solver de la carga (2026-09-19) — y qué era PERF-01.** El plan
+esperaba desde el 09-10 una respuesta del taller —«¿cuántos dobleces tiene la pieza más
+grande? si no pasa de ~30, PERF-01 se cierra sin tocar código»— para cerrar un hallazgo que
+**no está escrito en ninguna parte**. PERF-01 nace colgando en `8759820`: se cita en las
+preguntas abiertas y no hay hallazgo con ese código, ni en ese informe ni en el del 09-07.
+Nueve días esperando una respuesta para cerrar algo que nadie podía leer. Medido ahora, en
+`tools/demo_escala.mjs`, lo que debería haber sido su cuerpo:
+
+| Dobleces en una barra de ~1.8 m | `buildPath` | Amarre | Carga | Vueltas |
+|---|---|---|---|---|
+| 15 — la del demo | 0.02 ms | 0.12 ms | **49 ms** | 4 |
+| 22 | 0.05 | 0.21 | 95 | 4 |
+| 30 | 0.04 | 0.20 | **134 ms** — el borde | 3 |
+| 34 | 0.04 | 0.25 | **954 ms**, 3.8 × el presupuesto | 17 |
+| 45 | 0.06 | 0.31 | 1 647 ms | 17 |
+| 60 | 0.08 | 136 | **16 083 ms** | 100 |
+
+Lo que se dispara es el solver de la carga y nada más: la escena y el amarre no se enteran
+—`buildPath` sigue en centésimas de milisegundo a 60 dobleces— y el presupuesto de la casa
+son 250 ms. Y no se dispara el TAMAÑO del problema sino la CONVERGENCIA: de 3–4 vueltas a
+17 y luego a 100, porque los contactos se encienden y se apagan durante la búsqueda y con
+muchas estaciones eso deja de asentarse. Por encima de ~34 aparecen además casos con
+`ok = false`, o sea que el visor lo dice en vez de enseñar una cifra inventada.
+
+**La explicación cómoda es falsa, y por eso se midió el control.** «Los dobleces juntos son
+caros» suena bien y no se sostiene: con el NÚMERO quieto en 30 y el avance medio de 35 a
+150 mm —la barra pasa de 1.0 a 4.6 m— el coste se mueve entre 141 y 222 ms, o sea nada. Y
+al revés: 45 dobleces con los avances del demo, en una barra de 5.3 m, siguen costando
+551 ms. **Manda el número de dobleces, no lo apretados que vayan.**
+
+Lo que esto cambia fuera del motor: la pregunta al taller deja de ser cuánto mide la pieza
+más grande y pasa a ser cuántos dobleces tiene (C.6 en `.auditoria/solicitud-datos.md`), y
+sube a 🔴, porque si la respuesta pasa de 30 el visor con la carga puesta no es lento: es
+inusable. El ~30 que alguien escribió a ojo el 09-10 estaba bien puesto, por un motivo que
+entonces nadie había medido.
+
 
 ### Decisiones que siguen gobernando el código
 

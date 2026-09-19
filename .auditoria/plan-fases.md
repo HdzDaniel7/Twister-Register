@@ -68,6 +68,21 @@ Detalle en `CONTEXTO_BARCOMP.md`, «La carga».
       el mismo correo que el escaneo. Preguntado en **C.1**, y la pregunta está escrita para que
       «se ponen a ojo» cuente como respuesta válida.
 
+- [ ] **[PERF-01] Cuántos dobleces aguanta el solver de la carga · [O]** — el hallazgo
+      **nunca se escribió**: nace colgando en `8759820`, citado en las preguntas abiertas
+      del informe del 09-10 y sin texto detrás, y con él se quedó esperando nueve días una
+      respuesta de taller para cerrar algo ilegible. Medido el 2026-09-19 en
+      `tools/demo_escala.mjs`: en una barra de ~1.8 m, `settle()` cuesta **49 ms con 15
+      dobleces, 134 con 30, 954 con 34 y 16 s con 60**, contra un presupuesto de 250 ms. Lo
+      que se dispara es la CONVERGENCIA —de 3–4 vueltas a 17 y a 100— y por encima de ~34
+      aparecen casos con `ok = false`, que el visor sí dice. La escena y el amarre no se
+      enteran: `buildPath` sigue en centésimas de milisegundo a 60 dobleces. Y no es por
+      juntar los dobleces: con el número quieto en 30 y el avance de 35 a 150 mm el coste se
+      mueve entre 141 y 222 ms. **Manda el número de dobleces.** Tres pruebas de motor lo
+      clavan en VUELTAS y no en milisegundos, que no dependen de la máquina. ⛔ Optimizarlo
+      —y cómo— depende de la respuesta a **C.6**, que por esto sube a 🔴: si una pieza real
+      pasa de 30 dobleces, el visor con la carga puesta no es lento, es inusable.
+
 - [ ] **Quitar el punto ciego de los tramos rectos · [—]** — hoy las incógnitas
       son los codos de las ESTACIONES, así que una recta no se cuelga por el
       medio y esa parte la da `engine/sag.ts` aparte. Cerrarlo pide incógnitas
@@ -137,7 +152,10 @@ Aquí se quedan con el número que citan los mensajes de commit.
 1. ~~**¿El fixture real tiene mordaza en el primer extremo?**~~
    **Contestada el 2026-09-15: sí.** X-04 cerrado con eso.
 2. **¿Cuántos dobleces tiene la pieza más grande que pasa de verdad?** Si no supera ~30,
-   PERF-01 se cierra sin tocar código. · **C.6**
+   PERF-01 se cierra sin tocar código. **Y desde el 2026-09-19 se sabe qué hay al otro
+   lado**, que hasta entonces no: a 34 dobleces asentar la pieza cuesta 954 ms contra 250 de
+   presupuesto, y a 60, 16 segundos. No es la pieza más LARGA, es la que más dobleces
+   tiene. · **C.6**
 3. ~~**¿`tol.point` = 1 mm es la tolerancia para decidir si un pedestal apoya?**~~
    **Contestada el 2026-09-15: de momento basta.** Si algún día hace falta una holgura
    propia, se cambia en un solo sitio: `bears()`.
@@ -231,7 +249,10 @@ Recortado a propósito. Cuesta mucho, aporta poco **a esta versión**:
 - **Migrar `test_motor.js` a otro runner.** Funciona y las pruebas son honestas.
 - **`noUncheckedIndexedAccess`.** El `tsconfig.json` ya explica por qué está apagada y el
   argumento sigue en pie.
-- **Optimizar el rendimiento del 3D.** Medido: 14.3 ms de camino crítico con la pieza real
+- **Optimizar el rendimiento del 3D.** Sigue fuera de alcance, pero **solo el 3D**: esta
+  entrada se leyó durante nueve días como si cubriera el rendimiento entero, y el solver de
+  la carga llegó después de la medida que la justifica —ver PERF-01, arriba—. Medido:
+  14.3 ms de camino crítico con la pieza real
   contra 250 ms de presupuesto, arranque en frío de 234 ms en el peor caso (Edge headless sin
   GPU), sin fugas de three.js. El 71.5 % del bundle es three.js sin grasa, y los tres idiomas
   no se pueden separar sin romper la regla del archivo único.

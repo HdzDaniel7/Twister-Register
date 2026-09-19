@@ -3255,6 +3255,62 @@ console.log('\n— la carga: el peso propio y el empuje (engine/load.ts) —');
        + `${corre(peds).weight.toFixed(1)} N`);
   }
 
+
+  /* HASTA DÓNDE LLEGA EL SOLVER DE LA CARGA, medido el 2026-09-19.
+
+     El plan arrastraba desde el 09-10 una pregunta al taller —«¿cuántos
+     dobleces tiene la pieza más grande? si no pasa de ~30, PERF-01 se cierra
+     sin tocar código»— y PERF-01 no está escrito en ningún sitio: nace colgando
+     en `8759820`, citado en las preguntas abiertas y sin hallazgo detrás. Esto
+     es la medida que debería haber sido su cuerpo.
+
+     Lo que manda es el NÚMERO de dobleces y no lo juntos que vayan: con 15 el
+     solver cierra en cuatro vueltas, con 34 en la misma barra necesita 17 y
+     tarda casi un segundo —3.8 veces el presupuesto de 250 ms—, y con 45 deja
+     de converger. En cambio, con los dobleces quietos en 30 y la barra estirada
+     cuatro veces, el coste no se mueve. Las tablas están en
+     `tools/demo_escala.mjs`; aquí se clava lo que no depende del reloj de la
+     máquina, que son las VUELTAS.
+
+     No se mide en milisegundos a propósito: un banco que falla según lo ocupado
+     que esté el PC no es una prueba, es una moneda al aire. */
+  {
+    const D = E.demoModel();
+    const CARGA = { ...E.LOAD_DEFAULT, on: true };
+    const ON = { ...E.RESTRAINT_DEFAULT, on: true };
+    /* el patrón del demo repetido; `k` reparte los avances, así que `k` ajustado
+       mantiene el largo de la barra y `k = 1` la deja crecer */
+    const pieza = (n, k) => E.normalizeModel({
+      ...D, tail: D.tail * k,
+      bends: Array.from({ length: n }, (_, i) =>
+        ({ ...E.bendFrom(D.bends[i % D.bends.length]), feed: D.bends[i % D.bends.length].feed * k })),
+    });
+    const igualLargo = (n) => {
+      const obj = D.bends.reduce((a, b) => a + b.feed, 0) + D.tail;
+      const c = pieza(n, 1);
+      return obj / (c.bends.reduce((a, b) => a + b.feed, 0) + c.tail);
+    };
+    const asienta = (n, k) => {
+      const M = pieza(n, k);
+      const P = E.buildPath(M).samples;
+      const pins = E.seedPins(P, M.section, 4).map((q, i) => ({ ...q, id: `pn${i}`, name: `A${i}` }));
+      const peds = E.seedPedestals(P, M.section, 7).map((q, i) => ({ ...q, id: `pd${i}`, name: `P${i}` }));
+      return E.settle(M, pins, peds, M.section, ON, mat, CARGA);
+    };
+    const s15 = asienta(15, igualLargo(15));
+    const s34 = asienta(34, igualLargo(34));
+    ok('la pieza del demo se asienta en pocas vueltas',
+       s15.ok && s15.iters <= 6, `${s15.iters} vueltas, ok=${s15.ok}`);
+    ok('  y con 34 dobleces en la MISMA barra el solver necesita muchas más',
+       s34.iters >= 3 * s15.iters, `${s34.iters} contra ${s15.iters}`);
+    /* El control. Sin esto, lo de arriba se leería como «los dobleces juntos son
+       caros», que es la explicación cómoda y es falsa. */
+    const apretada = asienta(30, 0.30), suelta = asienta(30, 1.30);
+    ok('  pero con el NÚMERO quieto, juntar los dobleces cuatro veces no lo dispara',
+       Math.max(apretada.iters, suelta.iters) <= 2 * s15.iters,
+       `${apretada.iters} vueltas con avance de 35 mm, ${suelta.iters} con 150`);
+  }
+
   /* LO MISMO CON LOS PINES (FIS-10c), cerrado el 2026-09-19. Quedaba abierto
      desde FIS-10a a propósito: `seedPins()` redondeaba `x` e `y` a centésimas
      por el mismo motivo por el que el fixture redondeaba el alto, y mover el

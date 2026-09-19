@@ -5,13 +5,13 @@ porqué de cada punto con las cifras medidas; esto es lo que hay que preguntar.*
 
 ---
 
-**Asunto: cuatro cosas del fixture que el programa no puede adivinar**
+**Asunto: cinco cosas del fixture que el programa no puede adivinar**
 
 Hola:
 
 El programa ya monta la barra sobre el fixture, la deja caer con su propio peso y dice
 cuánto se mueve la punta, qué apoyo trabaja y dónde se concentra el esfuerzo. Para que esos
-números signifiquen algo de vuestro fixture y no de uno inventado, necesito cuatro cosas.
+números signifiquen algo de vuestro fixture y no de uno inventado, necesito cinco cosas.
 Ninguna lleva trabajo de oficina: se contestan mirando la máquina.
 
 ## 1. Los altos de los pedestales: ¿cómo se ponen y con qué se comprueban?
@@ -69,12 +69,25 @@ los apoyos puestos, la barra no puede tomar esa forma.
 fixture?** Las dos respuestas son razonables según cómo se acepte la pieza; solo hay que
 saber cuál es la vuestra.
 
+## 5. ¿Cuántos dobleces tiene la pieza con más dobleces que pasa de verdad?
+
+Un número aproximado vale. No es curiosidad: el cálculo que asienta la barra sobre el
+fixture se encarece muy deprisa con el número de dobleces. Con 15 tarda 0.05 segundos; con
+30, 0.13; con 34, casi un segundo; con 60, **dieciséis segundos**. Si las piezas de verdad
+se quedan por debajo de 30, no hay nada que hacer. Si las pasan, hay trabajo, y conviene
+saberlo antes de que alguien abra esa pieza y crea que el programa se ha colgado.
+
+Dos cosas medidas que hacen la pregunta fácil de contestar:
+
+- **No es la pieza más larga**, es la que más dobleces tiene. Una barra de 4.6 m con 30
+  dobleces cuesta lo mismo que una de 1 m con 30.
+- **Da igual lo juntos que vayan** los dobleces.
+
+O sea: mirad la pieza con más dobleces que pase por la máquina y contadlos.
+
 ---
 
-## Si hay tiempo, tres más
-
-**5. ¿Cuántos dobleces tiene la pieza más grande que pasa de verdad?** Si no pasa de 30, hay
-una tarea de rendimiento que se cierra sin tocar nada.
+## Si hay tiempo, dos más
 
 **6. En la pantalla de compensar, ¿conviene ver y poder apagar el amarre y la carga?** Es la
 pantalla donde se decide sobre material, y hoy esos dos interruptores están en otra. Dejarlos
