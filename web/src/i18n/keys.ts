@@ -61,7 +61,7 @@ export type I18nKey =
   | 'lim_axisMinTip' | 'lim_piMinTip' | 'lim_scaleMinTip' | 'lim_straightMinTip' | 'lim_tubeRfac' | 'lim_tubeRfacTip'
   | 'lim_dead' | 'lim_deadFeed' | 'lim_maxStep' | 'lim_maxStepFeed'
   | 'lim_deadTip' | 'lim_deadFeedTip' | 'lim_maxStepTip' | 'lim_maxStepFeedTip'
-  | 'compSim' | 'compShort' | 'rowNoMeas' | 'compFewN'
+  | 'compSim' | 'compHeld' | 'compShort' | 'rowNoMeas' | 'compFewN'
   | 'secKind' | 'secRect' | 'secRound' | 'dia' | 'wall' | 'wallHint'
   | 'secSolid' | 'secHollow' | 'secArea' | 'secInertia' | 'secMass'
   | 'secRoundWarn' | 'secHollowWarn' | 'secHollowJudged' | 'secTip'

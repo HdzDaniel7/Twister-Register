@@ -267,6 +267,7 @@ export const de: Record<I18nKey, string> = {
  fileUnread: 'Datei vom System nicht lesbar (verschoben, oder von einem anderen Programm geöffnet?)',
  csvShort: 'Diese Teile enthalten WENIGER Punkte als das Modell. Die fehlenden Biegungen bleiben UNGEMESSEN und werden nicht kompensiert:',
  compSim: 'ACHTUNG: {n} der Teile in dieser Rechnung sind SIMULIERT, nicht gemessen. Das Ergebnis beschreibt keine reale Stange.',
+ compHeld: 'Spannung oder Last sind eingeschaltet, die 3D-Ansicht zeigt also möglicherweise das ABGELEGTE Teil. Diese Korrekturen nicht: sie werden gegen das freie Teil gerechnet, das die Tabelle beschreibt. Wer die Form mit aufgesetzter Vorrichtung will: dagegen wird noch nicht korrigiert.',
  compShort: 'Nur {a} von {b} Biegungen sind gemessen. Die übrigen sind mit — markiert und werden NICHT kompensiert.',
  rowNoMeas: 'Diese Biegung ist nicht gemessen: das Teil hatte weniger Punkte als das Modell. Der Befehl bleibt unverändert.',
  compFewN: 'Der Regelkreis liest {a} Teil(e), nötig sind {n}. Mit weniger verfolgt der Befehl die Streuung dieses Teils und das nächste kann schlechter ausfallen.',

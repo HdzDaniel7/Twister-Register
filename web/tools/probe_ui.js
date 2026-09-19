@@ -3464,4 +3464,49 @@ step('el umbral de tubo se teclea, muerde, y cambia lo que dice la pestaña Secc
   }
 });
 
+
+/* --- Compensar con el fixture puesto, 2026-09-19 --------------------------
+   El chip de estado ya decía desde X-09 QUÉ interruptor está puesto, y desde
+   Compensar lleva a Amarre. Lo que no decía nadie es la consecuencia: el lazo
+   recibe `M.bends` —el nominal LIBRE— y ni siquiera mira los interruptores, así
+   que el 3D puede estar enseñando la pieza asentada mientras las correcciones
+   se calculan contra otra. Y Compensar es el único modo donde se decide sobre
+   material.
+
+   Esto NO decide cuál de las dos formas debe mandar: esa pregunta sigue abierta
+   en C.3 y la contesta el taller. Dice lo que el programa hace hoy. */
+step('Compensar avisa de que corrige contra la pieza LIBRE aunque el 3D enseñe la sujeta', () => {
+  const txt = B.I18N[B.LANG.cur];
+  /* Sin la clave no hay aviso posible, y decirlo así vale más que un fallo de
+     `undefined` tres líneas más abajo. */
+  if (!txt.compHeld) throw new Error('el diccionario no trae compHeld: Compensar no puede avisar');
+  const avisos = () => [...document.querySelectorAll('#panes .warnbox')]
+    .map(x => x.textContent.trim());
+  try {
+    click('[data-md="model"]');
+    click('#tabs [data-t="pins"]');
+    check('#panes [data-ld="on"]', false);
+    if (S().load.on || S().restraint.on) throw new Error('algún interruptor nació puesto');
+    /* hace falta una pieza medida o Compensar no pinta la tabla */
+    if (!S().datasets.length) { drawer('pieces'); click('[data-a="sim"]'); }
+
+    click('[data-md="comp"]');
+    if (avisos().includes(txt.compHeld.trim())) {
+      throw new Error('avisa del fixture con los dos interruptores apagados');
+    }
+    click('[data-md="model"]');
+    click('#tabs [data-t="pins"]');
+    check('#panes [data-ld="on"]', true);
+    click('[data-md="comp"]');
+    if (!avisos().includes(txt.compHeld.trim())) {
+      throw new Error('con la carga puesta, Compensar no dice contra qué corrige: '
+                      + (avisos().join(' | ') || 'ningún aviso'));
+    }
+  } finally {
+    click('[data-md="model"]');
+    click('#tabs [data-t="pins"]');
+    if (S().load.on) check('#panes [data-ld="on"]', false);
+  }
+});
+
 return log.join('\n');

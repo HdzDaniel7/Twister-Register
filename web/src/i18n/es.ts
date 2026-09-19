@@ -262,6 +262,7 @@ export const es: Record<I18nKey, string> = {
  fileUnread: 'el sistema no dejó leer el archivo (¿se movió, o lo tiene abierto otro programa?)',
  csvShort: 'Estas piezas traen MENOS puntos que el modelo. Los dobleces que faltan quedan SIN MEDIR y no se compensan:',
  compSim: 'CUIDADO: {n} de las piezas que alimentan este cálculo son SIMULADAS, no medidas. Lo que salga de aquí no describe ninguna barra real.',
+ compHeld: 'El amarre o la carga están puestos, así que el 3D puede estar enseñando la pieza ASENTADA. Estas correcciones NO: se calculan contra la pieza libre, que es la que describe la tabla. Si lo que se quiere es la forma con el fixture puesto, todavía no se corrige contra eso.',
  compShort: 'Solo {a} de {b} dobleces están medidos. Los que faltan salen marcados con — y NO se compensan.',
  rowNoMeas: 'Este doblez no está medido: la pieza traía menos puntos que el modelo. El comando se deja como está.',
  compFewN: 'El lazo lee {a} pieza(s) y hacen falta {n}. Con menos, el comando persigue la dispersión de esa pieza y la siguiente puede salir peor.',

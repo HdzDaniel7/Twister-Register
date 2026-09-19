@@ -259,6 +259,7 @@ export const en: Record<I18nKey, string> = {
  fileUnread: 'the system would not read the file (was it moved, or is another program holding it open?)',
  csvShort: 'These parts carry FEWER points than the model. The missing bends stay UNMEASURED and are not compensated:',
  compSim: 'WARNING: {n} of the parts feeding this calculation are SIMULATED, not measured. What comes out of here does not describe any real bar.',
+ compHeld: 'The clamping or the load is on, so the 3D view may be showing the SETTLED part. These corrections are not: they are worked out against the free part, the one the table describes. If what you want is the shape with the fixture on, that is not what is being corrected towards yet.',
  compShort: 'Only {a} of {b} bends are measured. The rest are marked with — and are NOT compensated.',
  rowNoMeas: 'This bend is not measured: the part carried fewer points than the model. The command is left as is.',
  compFewN: 'The loop reads {a} part(s) and {n} are needed. With fewer, the command chases that part’s scatter and the next one can come out worse.',

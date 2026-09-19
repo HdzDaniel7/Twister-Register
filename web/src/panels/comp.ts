@@ -9,7 +9,7 @@
 import * as E from '../engine.ts';
 import { T } from '../i18n.ts';
 import type { Model } from '../types.ts';
-import { ST, activeDataset, syncTweak, loopPieces, loopMeasured } from '../state.ts';
+import { ST, activeDataset, syncTweak, loopPieces, loopMeasured, heldOn } from '../state.ts';
 import { fx, cls, esc, nfield, oriTag, sgn, srcTag } from './fmt.ts';
 import type { I18nKey } from './fmt.ts';
 
@@ -69,6 +69,14 @@ export function paneComp(M: Model): string {
   const vis = ST.datasets.filter(d => d.visible);
   const meas = loopMeasured() || D.model.bends;
   const calc = E.compensate(cmd, M.bends, meas, C, ori);
+  /* Con el amarre o la carga puestos, el 3D puede estar enseñando la pieza
+     ASENTADA mientras el lazo corrige contra la LIBRE: `compensate()` recibe
+     `M.bends`, que es el nominal sin fixture, y ni siquiera mira los
+     interruptores. Hasta el 2026-09-19 eso no se decía en esta pantalla, que es
+     justo donde se decide sobre material. No es una opinión sobre cuál de las
+     dos debe mandar —esa pregunta sigue abierta en C.3—: es lo que el programa
+     hace HOY, dicho donde se nota. */
+  const sujeta = heldOn();
   const pred = ST.pred;
   const n = Math.min(M.bends.length, calc.length, cmd.length);
 
@@ -102,6 +110,8 @@ export function paneComp(M: Model): string {
     : srcTag(D.src);
   const avisoSim = simuladas.length
     ? `<div role="alert" class="warnbox mb6">${T('compSim').replace('{n}', String(simuladas.length))}</div>` : '';
+  const avisoSujeta = sujeta
+    ? `<div role="alert" class="warnbox mb6">${T('compHeld')}</div>` : '';
   /* Y cuántos dobleces sostienen de verdad la cuenta. */
   const avisoCorto = medidos < M.bends.length
     ? `<div role="alert" class="warnbox mb6">${T('compShort')
@@ -167,7 +177,7 @@ export function paneComp(M: Model): string {
       <button class="btn" data-a="resetcmd">${T('reset')}</button></div>
   </div></div>
   <div class="grp"><div class="eyebrow">${T('cmdTbl')} ${fuente}</div><div class="body">
-    ${avisoSim}${avisoCorto}
+    ${avisoSujeta}${avisoSim}${avisoCorto}
     ${cols.length ? `<div class="tw"><table class="cmd"
       style="min-width:${106 + cols.length * 174}px"><thead><tr>
       <th scope="col">${T('nBend')}</th><th scope="col">${T('ori')}</th>${head}</tr></thead>

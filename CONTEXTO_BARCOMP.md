@@ -682,7 +682,7 @@ cd web && npm run check            # typecheck -> pruebas -> build -> banco, de 
 cd web && npm run typecheck        # tsc --noEmit, con strict
 cd web && node test_motor.js       # 605 pruebas; todas deben pasar
 cd web && node build.mjs           # regenera index.html y barcomp_viewer.html
-cd web && node tools/ui_test.mjs   # 285 pasos de interfaz en Edge headless
+cd web && node tools/ui_test.mjs   # 286 pasos de interfaz en Edge headless
 cd web && node tools/demo_carga.mjs # κ contra una solución exacta, y el codo del hueco
 cd web && node tools/demo_escala.mjs # dónde el solver de la carga deja de caber
 ```
@@ -1052,6 +1052,14 @@ Tres decisiones que hacen que eso no sea una trampa, y las tres están en prueba
   es lo que decía hasta hoy y sería mentira con un umbral tecleado.
 
 El esquema NO sube: un `lims` sin el campo abre con 0, o sea con la conducta de siempre.
+
+**Compensar dice contra qué corrige (2026-09-19).** El chip de estado ya decía desde X-09
+QUÉ interruptor está puesto y llevaba a Amarre. Lo que no decía nadie es la consecuencia:
+`compensate()` recibe `M.bends`, el nominal LIBRE, y **ni siquiera mira los interruptores**,
+así que el 3D puede estar enseñando la pieza asentada mientras las correcciones se calculan
+contra otra forma. Y Compensar es el único modo donde se decide sobre material. Ahora lo
+avisa. No decide cuál de las dos formas debe mandar —esa pregunta es C.3 y la contesta el
+taller—: dice lo que el programa hace hoy, en el sitio donde se nota.
 
 ### Decisiones que siguen gobernando el código
 

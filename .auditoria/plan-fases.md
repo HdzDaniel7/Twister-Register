@@ -165,6 +165,9 @@ Aquí se quedan con el número que citan los mensajes de commit.
 4. **Con la carga puesta, ¿la desviación se compara contra la forma libre o contra la
    asentada?** Hoy siempre contra la libre, mientras el 3D puede estar enseñando la
    asentada. Segunda cara de la pregunta que sigue abierta desde el 09-09. · **C.3**
+   **Desde el 2026-09-19 al menos se dice:** con un interruptor puesto, Compensar avisa de
+   que corrige contra la LIBRE. No contesta la pregunta —la contesta el taller—, pero deja
+   de ser una trampa silenciosa en el único modo donde se decide sobre material.
 5. **¿Cuánto cede el rodado de verdad con los pines puestos?** El modelo usa 0.5 donde la
    torsión de la sección da 1.22, y con pines laterales eso triplica lo que se mueve la
    punta (FIS-07). Se contesta con el escaneo de una pieza montada en el fixture: no hay
