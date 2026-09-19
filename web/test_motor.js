@@ -3206,6 +3206,42 @@ console.log('\n— la carga: el peso propio y el empuje (engine/load.ts) —');
        Math.abs(ra.carried - r.carried) < 0.5,
        `${ra.carried.toFixed(2)} N redondeado vs ${r.carried.toFixed(2)} N sin redondear`);
   }
+
+  /* LO MISMO CON LOS PINES (FIS-10c), cerrado el 2026-09-19. Quedaba abierto
+     desde FIS-10a a propósito: `seedPins()` redondeaba `x` e `y` a centésimas
+     por el mismo motivo por el que el fixture redondeaba el alto, y mover el
+     sembrado de pines cambia las cifras del amarre, así que era una medición
+     aparte y no un arreglo de paso.
+
+     Sin carga no se nota —`restrain()` resuelve geometría, no fuerzas— y con
+     carga sí: κ vale 6.16 N por micra y redondear deja hasta ±5 µm. */
+  {
+    const M = E.demoModel();
+    const p0 = E.buildPath(M).samples;
+    const pins = E.seedPins(p0, M.section, 4)
+      .map((q, i) => ({ ...q, id: `pn${i + 1}`, name: `Pin ${i + 1}` }));
+    const huecoDe = (l) => Math.max(...l.map(q => Math.abs(E.pinFit(p0, M.section, q).gap)));
+    ok('un pin sembrado nace TOCANDO la barra, no a micras de ella',
+       huecoDe(pins) < 1e-9, `peor hueco ${huecoDe(pins).toExponential(2)} mm`);
+    const ON = { ...E.RESTRAINT_DEFAULT, on: true };
+    const CARGA = { ...E.LOAD_DEFAULT, on: true };
+    const sinPeso = E.settle(M, pins, [], M.section, ON, mat, { ...CARGA, g: 0 });
+    ok('  y sin peso encima no empuja: sembrar pines tampoco mete fuerza',
+       Math.max(0, ...sinPeso.pinN) === 0,
+       `pinN ${sinPeso.pinN.map(v => v.toFixed(3)).join(' ')}`);
+    /* Y QUE LA CIFRA IMPORTE. Sin esto la prueba de arriba pasaría igual con el
+       redondeo puesto en otro sitio: se siembra, se redondea A MANO como se
+       hacía hasta ayer, y se mide cuánto cambia el reparto. Medido en la demo:
+       el primer pin pasa de 6.25 N a 8.83, o sea 2.58 N —el 41 %— puestos por
+       el redondeo y no por la pieza. */
+    const ayer = pins.map(q => ({ ...q, x: +q.x.toFixed(2), y: +q.y.toFixed(2) }));
+    const fino = E.settle(M, pins, [], M.section, ON, mat, CARGA);
+    const gordo = E.settle(M, ayer, [], M.section, ON, mat, CARGA);
+    const dif = Math.max(...fino.pinN.map((v, i) => Math.abs(v - gordo.pinN[i])));
+    ok('  y redondear su sitio a centésimas SÍ movía el reparto, más de un newton',
+       huecoDe(ayer) > 1e-3 && dif > 1,
+       `${huecoDe(ayer).toExponential(2)} mm de interferencia · ${dif.toFixed(2)} N`);
+  }
 }
 
 /* ======================================================================== */
@@ -3316,10 +3352,13 @@ console.log('\n— el fixture sujeta a todos los modelos —');
     /* LO QUE SE PROMETE NO ES «TODOS CABEN», y esa distinción es de FIS-08: hay
        piezas que NO caben en un fixture, y eso es una respuesta y no un fallo.
        Lo que no puede pasar es que una que no cabe se dibuje como si cupiera.
-       De los 135 casos, 3 no caben —el peor se mete 82 mm en un pedestal— y los
-       3 salen en la lista de choques. Hasta el 2026-09-18 no salían: `gap` se
-       topa cuando la barra se mete más que el radio de su sección, 21 mm en
-       esta, y por encima de eso el aviso era mudo (ver `PedFit.deep`). */
+       De los 135 casos, 4 no caben —el peor se mete 82 mm en un pedestal— y los
+       4 salen en la lista de choques. Eran 3 hasta el 2026-09-19: el cuarto
+       aparece porque los pines sembrados dejaron de redondear su sitio
+       (FIS-10c) y la pieza sujeta se posa unas micras distinta.
+       Hasta el 2026-09-18 no salía ninguno: `gap` se topa cuando la barra se
+       mete más que el radio de su sección, 21 mm en esta, y por encima de eso
+       el aviso era mudo (ver `PedFit.deep`). */
     ok('ningún modelo atraviesa el fixture sin que se diga',
        mudos === 0,
        `${casos} casos · ${avisados} no caben y lo dicen · ${mudos} mudos · `

@@ -2298,6 +2298,29 @@ step('con la pieza en su sitio los pines no piden nada', () => {
     (m, p, i) => Math.max(m, p.distanceTo(B.E.fk(S().model).pis[i])), 0);
   if (d > 1) throw new Error('la forma se movió sin motivo: ' + d.toFixed(2));
 });
+/* FIS-10c. El hermano del hallazgo FIS-10, cerrado el 2026-09-19: `seedPins()`
+   redondeaba a centésimas el sitio del poste en planta, y con la carga encendida
+   eso son micras de interferencia sembrada por un muelle que vale 6.16 N/µm. En
+   la demo el primer pin nacía llevando 8.83 N donde la pieza pide 6.25. */
+step('los pines sembrados nacen tocando, sin micras de interferencia dentro', () => {
+  const B = window.BARCOMP;
+  const sec = S().model.section;
+  const peor = Math.max(...S().pins.map(p =>
+    Math.abs(B.E.pinFit(B.placedPath(), sec, p).gap)));
+  if (peor > 1e-6) {
+    throw new Error('lo sembrado nace con ' + (peor * 1000).toFixed(1) + ' µm de interferencia');
+  }
+  /* Y con el peso puesto pero sin gravedad, ningún pin empuja: sembrar no mete
+     fuerza, ni en el fixture ni en el amarre. */
+  const antes = S().load.on, g = S().load.g;
+  S().load.on = true; S().load.g = 0;
+  B.renderAll();
+  const R = B.heldResult();
+  const empuja = Math.max(0, ...(R.pinN || []));
+  if (empuja !== 0) throw new Error('sin peso un pin empuja ' + empuja.toFixed(3) + ' N');
+  S().load.on = antes; S().load.g = g;
+  B.renderAll();
+});
 step('mover un ángulo con la barra sujeta la DEFORMA en vez de moverla libre', () => {
   const B = window.BARCOMP;
   const libreAntes = B.E.fk(S().model).pis;

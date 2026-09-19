@@ -662,6 +662,16 @@ punteada. Deja ver de un vistazo cuál doblez está fuera. Es clicable.
     llevaba **0.01 N** de una pieza de 23.7. Si alguna vez hace falta bajar la resolución del
     solver por tiempo, no se hace con un número suelto en su llamada: se hace sabiendo que
     quien siembre contra otra tiene que sembrar contra la misma.
+29. **Lo que se siembra no se redondea, y una vuelta de corrección no basta.** Vale para el
+    alto de un pedestal (FIS-10a) y para el sitio en planta de un poste (FIS-10c): dos
+    decimales parecen una cifra de taller y son una precarga, porque el muelle de contacto
+    vale **6.16 N por micra** y el redondeo deja hasta ±5 µm. Con la carga apagada no se nota
+    nada —`restrain()` resuelve geometría— y con ella encendida el primer pin de la demo
+    llevaba 8.83 N donde la pieza pide 6.25. Lo que sí se redondea es lo que está medido que
+    no mueve el hueco: la inclinación de una cuna y el alto de un poste, porque los dos tocan
+    por donde no cambia. Y la corrección contra la polilínea se ITERA: mover un pin una micra
+    en planta no cierra una micra de hueco —lo cierra en la dirección en la que se tocan, y
+    además cambia el punto más cercano—, así que una sola pasada dejaba 4.5 µm.
 
 ---
 
@@ -670,9 +680,9 @@ punteada. Deja ver de un vistazo cuál doblez está fuera. Es clicable.
 ```bash
 cd web && npm run check            # typecheck -> pruebas -> build -> banco, de una
 cd web && npm run typecheck        # tsc --noEmit, con strict
-cd web && node test_motor.js       # 590 pruebas; todas deben pasar
+cd web && node test_motor.js       # 593 pruebas; todas deben pasar
 cd web && node build.mjs           # regenera index.html y barcomp_viewer.html
-cd web && node tools/ui_test.mjs   # 281 pasos de interfaz en Edge headless
+cd web && node tools/ui_test.mjs   # 282 pasos de interfaz en Edge headless
 cd web && node tools/demo_carga.mjs # κ contra una solución exacta, y el codo del hueco
 ```
 
@@ -895,7 +905,7 @@ su rumbo y su inclinación— y el hueco es la distancia con signo de la secció
 | La demo sembrada, con el peso puesto | 9.78 N apoyos + 13.89 mordaza, `ok=false` | **26.84 + −3.17**, `ok=true` en 4 vueltas |
 | Afinar el paso de perturbación `H` | 1e-4° metía la barra dentro: 60.29 / −36.62 N | 0.02° → 25.83/−2.15 sin converger; **2e-4° → 26.84/−3.17 y converge**; de 2e-4 a 2e-5 no se mueve |
 | Redondear el alto sembrado a centésimas | decidía la respuesta: 47.4 N sobre 23.7 | mueve **0.33 N** (27.17 contra 26.84) |
-| Barrido de 135 casos contra el fixture | 149 de 270 atravesaban, el peor 82 mm, sin decirlo | 3 no caben, el peor 82.3 mm, **y los 3 lo dicen** |
+| Barrido de 135 casos contra el fixture | 149 de 270 atravesaban, el peor 82 mm, sin decirlo | 4 no caben, el peor 82.3 mm, **y los 4 lo dicen** |
 | Amarre de 6 modelos sujetos | 55 ms | **98 ms**, sobre un presupuesto de 250 |
 
 Lo que costó, y hay que saberlo antes de tocarlo:
@@ -928,6 +938,37 @@ peso encima da 0.00 N, y hay prueba— sino el reparto de una barra empotrada en
 posada sobre siete apoyos, que es hiperestática. La pregunta «¿cuánto lleva cada apoyo?» no
 la puede contestar un fixture medido con flexómetro: 6.16 N por micra de alto. La que sí se
 puede contestar, y es la del taller, es cuánto llevan los apoyos EN TOTAL y cuánto la mordaza.
+
+**El poste sembrado dejó de redondear su sitio (2026-09-19) — FIS-10c.** Era el hermano del
+hallazgo FIS-10 y quedó abierto a propósito dos días: `seedPins()` redondeaba `x` e `y` a
+centésimas por el mismo motivo por el que el fixture redondeaba el alto, y mover el sembrado
+de pines cambia las cifras del amarre, así que era una medición aparte y no un arreglo de
+paso. Sin carga no se nota —`restrain()` resuelve geometría, no fuerzas—; con carga, κ vale
+6.16 N por micra y el redondeo deja hasta ±5 µm.
+
+| Qué | Con el redondeo | Sin él |
+|---|---|---|
+| Peor hueco de un pin recién sembrado, demo de 4 pines | 4.50 µm | **3.9e-14 mm** |
+| Lo que lleva el primer pin con el peso puesto | 8.83 N | **6.25 N** — 2.58 N, el 41 %, los ponía el redondeo |
+| Los mismos pines con los 7 pedestales debajo | 4.60 N | **0.62 N** |
+| Amarre de 7 modelos sujetos | 125–133 ms | 123–147 ms: dentro del ruido, presupuesto 250 |
+
+Dos cosas más, medidas:
+
+- **El alto del poste SÍ se sigue redondeando**, y no es una inconsistencia: un pin a plomo
+  toca la barra por su CUERPO, así que correr su punta cinco micras a lo largo de su propio
+  eje no mueve el hueco ni un bit —1e-14 mm con el alto redondeado y sin redondear, en los
+  tres pines de la demo—. Un alto con dos decimales es lo que se corta en el taller; una
+  coordenada con doce es lo que se mete en el CAM.
+- **Una vuelta de corrección no basta**, y por eso quedaban 4.5 µm. Mover el pin una micra en
+  planta no cierra una micra de hueco: lo cierra en la dirección en la que se tocan, que solo
+  es la normal en planta con la barra tendida, y al moverlo cambia además el punto de la
+  polilínea que le queda más cerca. Iterando, los tres pines bajan a 1e-13 mm en **dos**
+  vueltas.
+
+Efecto lateral que hay que saber: el barrido de 135 casos de FIS-08 pasa de 3 piezas que no
+caben a **4**. No es un fallo nuevo — la pieza sujeta se posa unas micras distinta y una que
+estaba justo en el borde cruzó. Las 4 se avisan.
 
 ### Decisiones que siguen gobernando el código
 

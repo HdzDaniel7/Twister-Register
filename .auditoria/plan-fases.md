@@ -31,33 +31,6 @@ regenerar el fixture a propósito.
 
 # ABIERTO
 
-## Fase 5.5 · El solver con apoyos a micras
-
-Abierta el 2026-09-15, encontrada al cerrar X-04.
-
-- [x] **[FIS-10b] La búsqueda se rinde porque el hueco de un apoyo se dobla · [O]** — **cerrado
-      el 2026-09-18**, junto con «El apoyo del pedestal solo mira de abajo arriba», que era el
-      mismo trabajo. El diagnóstico del 09-17 era el bueno: `pedestalFit()` buscaba el punto de
-      la barra más cercano al pedestal **en planta** y medía ahí la cara de abajo; con un tramo
-      casi a plomo esa proyección es casi un punto, el mínimo está mal condicionado y el hueco
-      dejaba de ser liso —13.27 mm/grado junto al contacto y 27.23 a una milésima—. Ahora un
-      apoyo es una **cara**: el rectángulo de la cuna, con su rumbo y su inclinación, y el
-      hueco es la distancia con signo de la sección a esa cara (`nearestToBox`, `overBox`,
-      `throughBox`). El hueco sale liso por los dos lados —−8.09 contra −8.09— y la demo
-      sembrada con el peso puesto resuelve **26.84 N en los apoyos y −3.17 en la mordaza con
-      `ok=true` en cuatro vueltas**, contra 9.78/13.89 y `ok=false`. La prueba de que se
-      arregló y no se tapó: afinar el paso de perturbación ya MEJORA la respuesta en vez de
-      romperla, así que `H` baja de 0.02° a 2e-4° y de ahí a 2e-5 no se mueve ni una centésima.
-      Cifras, lo que costó y lo que sigue abierto, en `CONTEXTO_BARCOMP.md` §11 y trampa 28.
-
-- [ ] **[FIS-10c] Los pines sembrados siguen redondeando su posición · [O]** — abierto el
-      2026-09-16 al cerrar FIS-10a. `seedPins()` redondea `x`, `y` y `h` a centésimas por el
-      mismo motivo por el que lo hacía el fixture, y con el amarre Y la carga encendidos a la
-      vez esas micras vuelven a ser newton. No se tocó en la misma pasada a propósito: mover
-      el sembrado de pines cambia las cifras de `demo:amarre` y las pruebas de FIS-08, y eso
-      es una medición aparte. Sin carga no afecta a nada: `restrain()` resuelve geometría, no
-      fuerzas. · S
-
 ## El amarre por pines laterales — lo que queda
 
 Detalle del mecanismo en `CONTEXTO_BARCOMP.md`, «El amarre: la barra sujeta por pines».
@@ -445,12 +418,11 @@ Reportado desde el taller, no salido de una auditoría.
 |---|---|---|
 | VAR-01 | `newVid()` sale del mayor id que hay, no de cuántas variantes son, y salta cualquier id ocupado. Dos modelos podían nacer como `v3` y la referencia dejaba de poder elegirse: las dos tarjetas con la chapa y ninguna con el botón | `266bce0` |
 
-## Fase 5.5 · El solver con apoyos a micras — CERRADA EN PARTE
-
-Sigue abierto FIS-10c (el sembrado de pines).
+## Fase 5.5 · El solver con apoyos a micras — CERRADA 2026-09-19
 
 | ID | Qué se hizo | Commit |
 |---|---|---|
 | Pregunta 7 | κ contrastado contra una solución exacta: la penetración residual es `R/κ`, no un artefacto. `tools/demo_carga.mjs` | `132e512` |
 | FIS-10a | Los 47 N eran el redondeo del alto sembrado a centésimas: 6.16 N por micra. Y el paso de banco que pasaba con 0.02 N | `6a19200` |
-| FIS-10b + FIS-08 | Un apoyo es una CARA, no una sombra en planta. El hueco sale liso, la carga converge —26.84 N apoyos y −3.17 mordaza, `ok=true` en 4 vueltas— y el paso de perturbación baja de 0.02° a 2e-4° porque ahora afinarlo mejora en vez de romper | *(este)* |
+| FIS-10b + FIS-08 | Un apoyo es una CARA, no una sombra en planta. El hueco sale liso, la carga converge —26.84 N apoyos y −3.17 mordaza, `ok=true` en 4 vueltas— y el paso de perturbación baja de 0.02° a 2e-4° porque ahora afinarlo mejora en vez de romper | `1aad68c` |
+| FIS-10c | El sitio del poste sembrado deja de redondearse y la corrección se itera: el primer pin pasa de 8.83 N a 6.25 con el peso puesto | *(este)* |

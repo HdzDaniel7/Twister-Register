@@ -726,8 +726,21 @@ export function seedPins(samples: PathSample[], sec: Section, n = 4,
     const side = k % 2 ? -1 : 1;
     const d = dia / 2 + planHalfWidth(q, sec, nrm);
     const cand = {
-      x: +(q.p.x + nrm.x * d * side).toFixed(2),
-      y: +(q.p.y + nrm.y * d * side).toFixed(2),
+      /* EL SITIO EN PLANTA NO SE REDONDEA, desde el 2026-09-19 (FIS-10c), por el
+         mismo motivo por el que no se redondea el alto de un pedestal: con la
+         carga encendida el muelle de contacto vale κ ≈ 6.16 N por MICRA, y
+         redondear a centésimas deja hasta ±5 µm de interferencia sembrada.
+         Medido sobre la demo con cuatro pines y el peso puesto: el primer pin
+         pasa de 8.83 N a 6.25 N, o sea que 2.58 N de los 8.83 —el 41 %— los
+         ponía el redondeo y no la pieza.
+         EL ALTO SÍ SE REDONDEA, y está medido: un pin a plomo toca a la barra
+         por su CUERPO, así que mover su punta cinco micras a lo largo de su
+         propio eje no mueve el hueco ni un bit (1e-14 mm con el alto redondeado
+         y sin redondear, en los tres pines de la demo). Un alto con dos
+         decimales es lo que se corta en el taller; una coordenada con doce es
+         lo que hay que meter en el CAM. */
+      x: q.p.x + nrm.x * d * side,
+      y: q.p.y + nrm.y * d * side,
       /* La punta queda POR ENCIMA del eje de la barra, no a su altura: el
          contacto se resuelve entre segmentos, y un poste que termina justo
          donde pasa la barra la toca por su punta —que no sujeta de lado— en vez
@@ -739,21 +752,35 @@ export function seedPins(samples: PathSample[], sec: Section, n = 4,
          hay— y no algo que el programa deba adivinar. */
       dia, visible: true, hold: true, side, tilt: 0, yaw: 0, z: 0,
     };
-    /* Un paso de corrección contra la barra de verdad, por el mismo motivo que
-       en `seedPedestals()`: el pin se coloca a partir de una MUESTRA y el
-       contacto se mide contra la polilínea, que en mitad de un arco pasa por
-       dentro. Sin esto un pin sembrado nace con unas décimas de hueco y no
-       sujeta hasta que alguien lo corrige a mano. */
-    const fit = pinFit(samples, sec, { id: '', name: '', ...cand });
-    /* La corrección solo vale si el contacto sigue siendo el que se buscaba: si
-       el punto más cercano se ha ido a otro tramo de la barra —pasa cuando la
-       pieza dobla sobre sí misma— corregir por ese hueco mandaría el pin lejos
-       en vez de acercarlo. */
-    if (fit && Math.abs(fit.s - q.s) < 50) {
-      cand.x = +(cand.x - nrm.x * fit.gap * side).toFixed(2);
-      cand.y = +(cand.y - nrm.y * fit.gap * side).toFixed(2);
+    /* Corrección contra la barra de verdad, por el mismo motivo que en
+       `seedPedestals()`: el pin se coloca a partir de una MUESTRA y el contacto
+       se mide contra la polilínea, que en mitad de un arco pasa por dentro. Sin
+       esto un pin sembrado nace con unas décimas de hueco y no sujeta hasta que
+       alguien lo corrige a mano.
+
+       Y NO BASTA UNA VUELTA. Mover el pin una micra en planta no cierra una
+       micra de hueco: lo cierra en la dirección en la que se tocan, que no es
+       la normal en planta salvo con la barra tendida, y además al moverlo
+       cambia el punto de la polilínea que le queda más cerca. Con una sola
+       pasada quedaban 4.5 µm en la demo; iterando, los tres pines bajan a 1e-13
+       mm en DOS vueltas. El tope de 12 está para que un caso raro no se quede
+       dando vueltas, y se guarda el mejor por si alguna se pasa de largo. */
+    let mejor = { ...cand };
+    let peor = Infinity;
+    for (let it = 0; it < 12; it++) {
+      const fit = pinFit(samples, sec, { id: '', name: '', ...cand });
+      /* La corrección solo vale si el contacto sigue siendo el que se buscaba:
+         si el punto más cercano se ha ido a otro tramo de la barra —pasa cuando
+         la pieza dobla sobre sí misma— corregir por ese hueco mandaría el pin
+         lejos en vez de acercarlo. */
+      if (!fit || Math.abs(fit.s - q.s) >= 50) break;
+      const g = Math.abs(fit.gap);
+      if (g < peor) { peor = g; mejor = { ...cand }; }
+      if (g < 1e-12) break;
+      cand.x -= nrm.x * fit.gap * side;
+      cand.y -= nrm.y * fit.gap * side;
     }
-    out.push(cand);
+    out.push({ ...cand, x: mejor.x, y: mejor.y });
   }
   return out;
 }
