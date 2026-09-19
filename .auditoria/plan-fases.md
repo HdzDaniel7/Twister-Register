@@ -79,7 +79,10 @@ Detalle en `CONTEXTO_BARCOMP.md`, «La carga».
       enteran: `buildPath` sigue en centésimas de milisegundo a 60 dobleces. Y no es por
       juntar los dobleces: con el número quieto en 30 y el avance de 35 a 150 mm el coste se
       mueve entre 141 y 222 ms. **Manda el número de dobleces.** Tres pruebas de motor lo
-      clavan en VUELTAS y no en milisegundos, que no dependen de la máquina. ⛔ Optimizarlo
+      clavan en VUELTAS y no en milisegundos, que no dependen de la máquina.
+      **La mitad que no dependía del taller está hecha (2026-09-19):** por encima de
+      `LOAD_SLOW_BENDS = 30` la pestaña Amarre avisa de lo que va a costar, con el
+      interruptor apagado, que es cuando sirve para decidir. ⛔ Optimizarlo
       —y cómo— depende de la respuesta a **C.6**, que por esto sube a 🔴: si una pieza real
       pasa de 30 dobleces, el visor con la carga puesta no es lento, es inusable.
 

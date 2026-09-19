@@ -680,9 +680,9 @@ punteada. Deja ver de un vistazo cuál doblez está fuera. Es clicable.
 ```bash
 cd web && npm run check            # typecheck -> pruebas -> build -> banco, de una
 cd web && npm run typecheck        # tsc --noEmit, con strict
-cd web && node test_motor.js       # 599 pruebas; todas deben pasar
+cd web && node test_motor.js       # 600 pruebas; todas deben pasar
 cd web && node build.mjs           # regenera index.html y barcomp_viewer.html
-cd web && node tools/ui_test.mjs   # 283 pasos de interfaz en Edge headless
+cd web && node tools/ui_test.mjs   # 284 pasos de interfaz en Edge headless
 cd web && node tools/demo_carga.mjs # κ contra una solución exacta, y el codo del hueco
 cd web && node tools/demo_escala.mjs # dónde el solver de la carga deja de caber
 ```
@@ -1028,7 +1028,10 @@ al revés: 45 dobleces con los avances del demo, en una barra de 5.3 m, siguen c
 Lo que esto cambia fuera del motor: la pregunta al taller deja de ser cuánto mide la pieza
 más grande y pasa a ser cuántos dobleces tiene (C.6 en `.auditoria/solicitud-datos.md`), y
 sube a 🔴, porque si la respuesta pasa de 30 el visor con la carga puesta no es lento: es
-inusable. El ~30 que alguien escribió a ojo el 09-10 estaba bien puesto, por un motivo que
+inusable. Y lo que sí se puede hacer sin esperar al taller ya está hecho: por encima de
+`LOAD_SLOW_BENDS = 30` la pestaña Amarre lo avisa con el interruptor **apagado**, que es
+cuando sirve. No es un límite —el resultado por encima es igual de bueno—: es que una pieza
+grande con la carga puesta se veía igual que un programa colgado. El ~30 que alguien escribió a ojo el 09-10 estaba bien puesto, por un motivo que
 entonces nadie había medido.
 
 

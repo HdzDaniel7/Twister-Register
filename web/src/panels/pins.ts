@@ -168,6 +168,13 @@ function carga(M: Model): string {
      hoy salía como una cifra negativa sin una palabra. El 1 % es para no avisar
      del ruido de un reparto que cuadra. */
   const tira = resuelto && !rendido && R.root < -0.01 * R.weight;
+  /* Y lo que cuesta CALCULARLO, que hasta el 2026-09-19 no se decía en ninguna
+     parte: por encima de unos treinta dobleces asentar la pieza deja de ser
+     instantáneo y a sesenta son dieciséis segundos. El aviso sale con el
+     interruptor APAGADO también —sobre todo apagado—, porque sirve para antes de
+     encenderlo y no para explicar una espera que ya se sufrió. Ver
+     `LOAD_SLOW_BENDS`. */
+  const lento = M.bends.length > E.LOAD_SLOW_BENDS;
   return `<div class="grp">
     <div class="eyebrow">${T('load')}</div><div class="body">
     <div class="row">
@@ -175,6 +182,9 @@ function carga(M: Model): string {
         <input type="checkbox" data-ld="on" ${on ? 'checked' : ''}>
         <span class="nm"><b>${T('loadOn')}</b></span></label>
     </div>
+    ${lento ? `<div role="alert" class="warnbox mt6">${T('loadSlow')
+      .replace('{n}', String(M.bends.length))
+      .replace('{lim}', String(E.LOAD_SLOW_BENDS))}</div>` : ''}
     ${on ? `<div class="fgrid pair mt6">
       <label title="${esc(T('loadGTip'))}">${rot.g}</label>${num('g', '.25')}
       <label title="${esc(T('loadTipTip'))}">${rot.tip}</label>${num('tip', '5')}

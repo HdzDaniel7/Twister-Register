@@ -144,6 +144,7 @@ export const en: Record<I18nKey, string> = {
  load: 'The load',
  loadOn: 'The part has weight',
  loadOnTip: 'With this on the bar stops staying where the table leaves it: it falls the way the load pulls, rests on the pedestals and presses against whatever pins are in its way. A support PUSHES but never PULLS, so if a bend takes the part away from a pin, away it goes; and if gravity brings it back, back it comes.',
+ loadSlow: 'This part has {n} bends. Past {lim}, working out how it settles stops being instant: at 34 it takes about a second, at 60 more than fifteen. It is not a limit and the answer is just as good — this is here so it does not look as if the program froze. What drives it is the NUMBER of bends: neither the length of the bar nor how close together they are changes anything.',
  loadG: 'Gravity (×g)',
  loadGTip: 'Multiple of the self weight. 1 is the real weight; 0 removes it and leaves only the tip push; 2 shows what would move if the part were twice as heavy.',
  loadDir: 'Direction',

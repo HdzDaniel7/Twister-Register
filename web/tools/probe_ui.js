@@ -3370,4 +3370,48 @@ step('la forma viaja en el archivo y vuelve', () => {
   }
 });
 
+
+/* --- el aviso de pieza grande, 2026-09-19 ---------------------------------
+   Medido en `tools/demo_escala.mjs`: asentar la pieza cuesta 49 ms con 15
+   dobleces, 134 con 30, 954 con 34 y 16 s con 60, contra los 250 ms de
+   presupuesto de la casa. Hasta hoy eso no se decía en ninguna parte, así que
+   una pieza grande con la carga puesta se veía igual que un programa colgado.
+
+   El aviso tiene que salir con el interruptor APAGADO, que es lo que este paso
+   comprueba: sirve para decidir antes de encenderlo, no para explicar una
+   espera que ya se sufrió. */
+step('con muchos dobleces, la carga avisa de lo que va a costar antes de encenderla', () => {
+  const lim = B.E.LOAD_SLOW_BENDS;
+  /* Sin la constante no hay nada que comprobar, y callarlo dejaría el paso en
+     verde por no haber podido mirar. */
+  if (!Number.isFinite(lim)) throw new Error('el motor no publica LOAD_SLOW_BENDS');
+  const avisos = () => [...document.querySelectorAll('#panes .warnbox')]
+    .map(x => x.textContent.trim());
+  try {
+    click('[data-md="model"]');
+    click('#tabs [data-t="pins"]');
+    check('#panes [data-ld="on"]', false);
+    const antes = avisos();
+    if (S().model.bends.length > lim) throw new Error('la demo ya viene con más de ' + lim);
+
+    click('#tabs [data-t="model"]');
+    let guarda = 0;
+    while (S().model.bends.length <= lim) {
+      click('#panes [data-a="addb"]');
+      if (++guarda > 80) throw new Error('no se pudo llegar a ' + lim + ' dobleces');
+    }
+    const n = S().model.bends.length;
+
+    click('#tabs [data-t="pins"]');
+    if (S().load.on) throw new Error('la carga se encendió sola: el aviso no valdría de nada');
+    const nuevo = avisos().filter(t => !antes.includes(t));
+    if (!nuevo.some(t => t.includes(String(n)) && t.includes(String(lim)))) {
+      throw new Error(`con ${n} dobleces y la carga apagada, nada avisa de lo que cuesta: `
+                      + (nuevo.join(' | ') || 'ningún aviso nuevo'));
+    }
+  } finally {
+    drawer('file'); click('[data-a="new"]'); click('[data-a="demo"]');
+  }
+});
+
 return log.join('\n');

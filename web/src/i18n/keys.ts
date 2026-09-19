@@ -41,6 +41,7 @@ export type I18nKey =
   | 'matE' | 'matYield' | 'matTip' | 'matProv' | 'matRho' | 'matRhoTip'
   | 'sag' | 'sagTip' | 'sagNote' | 'sagBad' | 'sagNoMat' | 'sagNoMatTip'
   | 'load' | 'loadOn' | 'loadOnTip' | 'loadG' | 'loadGTip' | 'loadDir' | 'loadDirTip'
+  | 'loadSlow'
   | 'loadTipF' | 'loadTipTip' | 'loadWeight' | 'loadWeightTip'
   | 'loadCarried' | 'loadCarriedTip' | 'loadRoot' | 'loadRootTip'
   | 'loadDrop' | 'loadDropTip' | 'loadPene' | 'loadPeneTip'

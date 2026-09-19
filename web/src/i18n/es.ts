@@ -146,6 +146,7 @@ export const es: Record<I18nKey, string> = {
  load: 'La carga',
  loadOn: 'La pieza pesa',
  loadOnTip: 'Con esto puesto la barra deja de quedarse donde la deja la tabla: se cae hacia donde tira la carga, se apoya en los pedestales y aprieta contra los pines que le queden en el camino. Un apoyo EMPUJA pero no TIRA, así que si un doblez separa la pieza de un pin, se separa; y si la gravedad la devuelve a él, vuelve.',
+ loadSlow: 'Esta pieza tiene {n} dobleces. Por encima de {lim}, calcular cómo se asienta deja de ser instantáneo: con 34 tarda cerca de un segundo y con 60 pasa de los quince. No es un límite y el resultado es igual de bueno —se dice para que no parezca que el programa se coló—. Lo que manda es el NÚMERO de dobleces: ni el largo de la barra ni lo juntos que vayan cambian nada.',
  loadG: 'Gravedad (×g)',
  loadGTip: 'Múltiplo del peso propio. 1 es el peso de verdad; 0 lo quita y deja solo el empuje de la punta; 2 sirve para ver qué se movería si la pieza pesara el doble.',
  loadDir: 'Dirección',

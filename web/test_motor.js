@@ -3309,6 +3309,13 @@ console.log('\n— la carga: el peso propio y el empuje (engine/load.ts) —');
     ok('  pero con el NÚMERO quieto, juntar los dobleces cuatro veces no lo dispara',
        Math.max(apretada.iters, suelta.iters) <= 2 * s15.iters,
        `${apretada.iters} vueltas con avance de 35 mm, ${suelta.iters} con 150`);
+    /* Y el umbral del aviso cae donde lo dejó la medida: 30 es la última cifra
+       DENTRO del presupuesto y 34 la primera fuera, así que el aviso sale antes
+       de que se note y no cuando ya se notó. Si alguien mueve la constante sin
+       volver a medir, esto se entera. */
+    ok('  y el umbral del aviso cae entre lo que cabe en el presupuesto y lo que no',
+       E.LOAD_SLOW_BENDS >= 30 && E.LOAD_SLOW_BENDS < 34,
+       `LOAD_SLOW_BENDS = ${E.LOAD_SLOW_BENDS}`);
   }
 
   /* LO MISMO CON LOS PINES (FIS-10c), cerrado el 2026-09-19. Quedaba abierto

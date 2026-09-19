@@ -102,6 +102,25 @@ export const CONTACT_K = 1e5;
  *  y el número no se puede defender de todos modos. */
 export const REACH = 20;
 
+/** A partir de cuántos dobleces asentar la pieza deja de ser instantáneo.
+ *
+ *  No es un límite: el solver sigue resolviendo por encima de esto y la cifra
+ *  que da es igual de buena. Es lo que hay que DECIR antes de que alguien crea
+ *  que el programa se coló. Medido el 2026-09-19 en `tools/demo_escala.mjs`,
+ *  sobre una barra de ~1.8 m y contra el presupuesto de 250 ms de la casa:
+ *
+ *      15 dobleces → 49 ms      30 → 134 ms      34 → 954 ms      60 → 16 s
+ *
+ *  Lo que se dispara es la CONVERGENCIA —de 3–4 vueltas a 17 y a 100— porque los
+ *  contactos se encienden y se apagan durante la búsqueda. Y manda el NÚMERO de
+ *  dobleces, no lo juntos que vayan: con 30 fijos y la barra estirada de 1.0 a
+ *  4.6 m, el coste se queda entre 141 y 222 ms. Por eso el umbral cuenta
+ *  estaciones y no mira ni el largo ni el avance.
+ *
+ *  30 y no 34 porque 30 es la última cifra medida DENTRO del presupuesto: el
+ *  aviso tiene que salir antes de que se note, no cuando ya se notó. */
+export const LOAD_SLOW_BENDS = 30;
+
 /** Cuánto tiene que bajar el gradiente para dar la búsqueda por terminada.
  *
  *  RELATIVO al del primer paso, y ahí está todo el asunto: el gradiente viaja

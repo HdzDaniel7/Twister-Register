@@ -152,6 +152,7 @@ export const de: Record<I18nKey, string> = {
  load: 'Die Last',
  loadOn: 'Das Teil hat Gewicht',
  loadOnTip: 'Damit bleibt die Stange nicht mehr dort, wo die Tabelle sie lässt: sie fällt dorthin, wohin die Last zieht, legt sich auf die Böcke und drückt gegen die Stifte, die ihr im Weg stehen. Eine Auflage DRÜCKT, aber sie ZIEHT nicht: nimmt eine Biegung das Teil von einem Stift weg, dann geht es weg; und holt die Schwerkraft es zurück, dann kommt es zurück.',
+ loadSlow: 'Dieses Teil hat {n} Biegungen. Über {lim} hinaus ist die Berechnung der Auflage nicht mehr sofort da: bei 34 dauert sie knapp eine Sekunde, bei 60 mehr als fünfzehn. Das ist keine Grenze und das Ergebnis ist genauso gut — es steht hier, damit es nicht so aussieht, als hänge das Programm. Maßgebend ist die ANZAHL der Biegungen: weder die Länge der Stange noch ihr Abstand ändern etwas.',
  loadG: 'Schwerkraft (×g)',
  loadGTip: 'Vielfaches des Eigengewichts. 1 ist das echte Gewicht; 0 nimmt es weg und lässt nur den Druck an der Spitze; 2 zeigt, was sich bewegen würde, wäre das Teil doppelt so schwer.',
  loadDir: 'Richtung',
