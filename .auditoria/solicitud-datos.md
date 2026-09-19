@@ -339,6 +339,11 @@ lo avisa con palabras en vez de dar un número.
 piezas ya dobladas de las que sacarla? Inventar el umbral sería darle cara de dato a una
 opinión.
 
+Desde el 2026-09-19 hay dónde meterla: la pestaña **Límites** tiene el campo «radio
+mínimo de tubo» en diámetros exteriores —con 1.5, un Ø40 no baja de R60—, vacío de fábrica.
+En cuanto llegue la cifra, se teclea y el programa empieza a juzgar; no hace falta tocar
+código.
+
 Desbloquea: SEC-03.
 
 ## C.9 🟢 Cuando el ángulo de la fila y la desviación no dicen lo mismo, ¿cuál manda?

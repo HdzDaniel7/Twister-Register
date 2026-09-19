@@ -31,6 +31,8 @@ export type Feasibility = {
   overBent: number[];
   /** la recta de SALIDA tampoco llega */
   tailShort: boolean;
+  /** tubo redondo: dobleces con menos radio del que el taller admite */
+  tightTube: number[];
   /** ¿hay algo que impida fabricar la pieza tal como está? */
   ok: boolean;
 };
@@ -54,8 +56,17 @@ export function feasibility(model: Model, lims: Lims = LIMS_DEFAULT): Feasibilit
   });
   const over = overBent(model);
   const tailShort = tailStraight(model) < lims.straightMin;
+  /* El radio mínimo de un TUBO. Tres condiciones, y las tres importan:
+     redondo, con pared, y con una cifra tecleada. Con `tubeRfac` en 0 —que es
+     como nace— esto no mira nada y la pestaña Sección sigue avisando con
+     palabras de que el programa no lo juzga. Ver `LIMS_DEFAULT`. */
+  const sec = model.section;
+  const tightTube = lims.tubeRfac > 0 && sec.kind === 'round' && sec.wall > 0
+    ? model.bends.reduce<number[]>((out, b, i) =>
+        (b.radius < lims.tubeRfac * sec.width - 1e-9 ? (out.push(i), out) : out), [])
+    : [];
   return {
-    short, negative, overBent: over, tailShort,
-    ok: !short.length && !over.length && !tailShort,
+    short, negative, overBent: over, tailShort, tightTube,
+    ok: !short.length && !over.length && !tailShort && !tightTube.length,
   };
 }

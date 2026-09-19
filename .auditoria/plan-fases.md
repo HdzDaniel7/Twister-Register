@@ -218,6 +218,7 @@ juzgó esa pieza.
 | `STRAIGHT_MIN_MM = 25` | `engine/lims.ts` | B.2 — es una cota de la MÁQUINA (mordaza + carrera) |
 | `E`, `ρ`, `yield` del material | `engine/pins.ts` (`MAT_DEFAULT`) | el certificado; hoy son de catálogo |
 | rigidez a torsión `0.5` | `engine/load.ts` | pregunta 5; la sección da 1.22 |
+| `tubeRfac = 0` (no vigilar) | `engine/lims.ts` | C.8 — la norma de radio mínimo de tubo del taller |
 
 ---
 
@@ -439,7 +440,13 @@ Abierto, y con su motivo:
       se avisa con palabras en la pestaña de la sección; cerrarlo pide un criterio, y un
       criterio pide o una norma que el taller acepte o piezas dobladas de las que aprenderlo.
       Mientras no haya una cosa ni la otra, **el aviso es la respuesta honesta**: inventar un
-      umbral sería darle cara de dato a una opinión. Preguntado en **C.8**. · M
+      umbral sería darle cara de dato a una opinión. Preguntado en **C.8**.
+      **Lo que no dependía de la respuesta está hecho (2026-09-19):** `lims.tubeRfac`, el
+      radio mínimo en diámetros exteriores, se teclea en la pestaña Límites y viaja en el
+      JSON, así que un archivo dice con qué umbral se juzgó esa pieza. **Nace en 0 —no
+      vigilar—** y solo mira tubo REDONDO. Con 0 la pestaña Sección sigue avisando con
+      palabras de que el programa no lo juzga; con una cifra, lo dice y marca los dobleces
+      cortos. Sigue abierto porque **la cifra la tiene que traer el taller**. · M
 
 ## Fase 6.1 · La torsión contada dos veces — CERRADA 2026-09-18
 

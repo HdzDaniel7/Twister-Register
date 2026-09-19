@@ -1819,12 +1819,13 @@ step('coste de reconstruir la escena con 13 piezas medidas', () => {
    Los umbrales que juzgan un dato. Lo que hay que vigilar aquí no es que la
    tabla se pinte: es que un número tecleado LLEGUE al motor y que uno absurdo
    se recorte en vez de apagar la guarda. */
-step('la pestaña Límites existe en Modelar y trae los ocho números', () => {
+step('la pestaña Límites existe en Modelar y trae los nueve números', () => {
   click('[data-md="model"]');
   click('#tabs [data-t="lims"]');
   if (S().tab !== 'lims') throw new Error('no cambió de pestaña');
   const campos = document.querySelectorAll('#panes [data-lm], #panes [data-c]').length;
-  if (campos !== 8) throw new Error(campos + ' campos');
+  /* Nueve desde el 2026-09-19: el radio mínimo de tubo (SEC-03). */
+  if (campos !== 9) throw new Error(campos + ' campos');
 });
 step('Límites NO aparece en Compensar: le comería una fila a la tabla', () => {
   click('[data-md="comp"]');
@@ -3411,6 +3412,55 @@ step('con muchos dobleces, la carga avisa de lo que va a costar antes de encende
     }
   } finally {
     drawer('file'); click('[data-a="new"]'); click('[data-a="demo"]');
+  }
+});
+
+
+/* --- SEC-03: el sitio donde se teclea el radio mínimo de un tubo, 2026-09-19
+   El criterio sigue sin existir —lo pide C.8 al taller— y por eso el umbral
+   nace en 0, que significa no vigilar nada. Lo que este paso exige es que, en
+   cuanto alguien teclee el suyo, sea un campo de VERDAD y no un adorno: que
+   muerda en el aviso de fabricabilidad con la cifra dentro, y que la pestaña
+   Sección deje de decir que el programa no lo juzga, porque con la cifra
+   puesta sí lo juzga. */
+step('el umbral de tubo se teclea, muerde, y cambia lo que dice la pestaña Sección', () => {
+  const antes = { ...S().model.section };
+  const txt = B.I18N[B.LANG.cur];
+  try {
+    ponSeccion({ ...antes, kind: 'round', width: 40, wall: 2 });
+    /* En una redonda hay DOS avisos en la pestaña —el de las inercias iguales y
+       este—, así que se busca por texto y no por ser el primero. */
+    const avisos = () => [...document.querySelectorAll('#panes .warnbox')]
+      .map(x => x.textContent.trim());
+    if (!avisos().includes(txt.secHollowWarn.trim())) {
+      throw new Error('el tubo sin umbral no avisa con palabras: ' + avisos().join(' | '));
+    }
+
+    click('#tabs [data-t="lims"]');
+    setval('#panes [data-lm="tubeRfac"]', '3');
+    if (S().lims.tubeRfac !== 3) throw new Error('ST.lims dice ' + S().lims.tubeRfac);
+
+    /* 3 diámetros sobre un Ø40 son R120, y la demo dobla a R30 y R45. */
+    click('#tabs [data-t="model"]');
+    const av = document.querySelector('#fabnote .warnbox');
+    if (!av) throw new Error('con R30 y un mínimo de 3 × Ø40 = R120, nada avisa');
+    if (!av.textContent.includes('120')) {
+      throw new Error('el aviso no dice el radio que hace falta: ' + av.textContent);
+    }
+
+    pestSeccion();
+    const ahora = avisos();
+    if (ahora.includes(txt.secHollowWarn.trim())) {
+      throw new Error('con el umbral puesto sigue diciendo que no lo juzga');
+    }
+    const conCifra = txt.secHollowJudged.replace('{n}', '3').trim();
+    if (!ahora.includes(conCifra)) {
+      throw new Error('no dice con qué cifra juzga: ' + ahora.join(' | '));
+    }
+  } finally {
+    click('#tabs [data-t="lims"]');
+    setval('#panes [data-lm="tubeRfac"]', '0');
+    ponSeccion(antes);
   }
 });
 

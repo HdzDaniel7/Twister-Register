@@ -173,6 +173,11 @@ export function paneSection(M: Model): string {
       </div>
     </div>
     ${redonda ? `<div role="alert" class="warnbox mt6">${T('secRoundWarn')}</div>` : ''}
-    ${E.isHollow(sec) ? `<div role="alert" class="warnbox mt6">${T('secHollowWarn')}</div>` : ''}
+    ${E.isHollow(sec) ? `<div role="alert" class="warnbox mt6">${
+      /* Con una cifra tecleada en Límites el programa SÍ juzga el radio, y
+         seguir diciendo que no lo juzga sería mentir. Ver `LIMS_DEFAULT`. */
+      ST.lims.tubeRfac > 0 && sec.kind === 'round'
+        ? T('secHollowJudged').replace('{n}', String(ST.lims.tubeRfac))
+        : T('secHollowWarn')}</div>` : ''}
   </div></div></div>`;
 }

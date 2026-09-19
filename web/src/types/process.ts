@@ -72,6 +72,8 @@ export type Lims = {
   scaleMin: number;
   /** recta mínima (mm) entre tangencias para que quepan los herramentales */
   straightMin: number;
+  /** radio mínimo de un TUBO, en diámetros exteriores; 0 = no vigiles esto */
+  tubeRfac: number;
 };
 
 /** EL MATERIAL de la barra. Solo hace falta para pasar de deformación a

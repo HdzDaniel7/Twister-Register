@@ -49,19 +49,33 @@ import type { Lims } from '../types.ts';
  *    más carrera del cabezal— y está pedida en el punto B.2. Sigue siendo
  *    provisional, pero lo despierta otra respuesta y otra persona.
  *    Una recta NEGATIVA no es cuestión de umbral y se lista aparte pase lo que
- *    pase: son dos herramentales en el mismo sitio. */
+ *    pase: son dos herramentales en el mismo sitio.
+ *
+ *  · `tubeRfac` — radio mínimo que admite un TUBO, en diámetros exteriores: con
+ *    1.5 aquí, un tubo de Ø40 no se dobla por debajo de R60. **Nace en 0, que
+ *    aquí significa no vigiles esto**, y no por descuido: en un tubo el radio
+ *    que aguanta lo mandan la relación diámetro/pared y la ovalización al
+ *    doblarlo, no el material, y este programa no tiene con qué deducirlo.
+ *    Poner una cifra de fábrica sería darle cara de dato a una opinión. Lo que
+ *    hace falta es una norma que el taller acepte o piezas dobladas de las que
+ *    sacarla —pedido en C.8—, y mientras tanto el campo está ahí para que quien
+ *    la tenga la teclee. Con 0 el aviso de la pestaña Sección sigue diciendo,
+ *    con palabras, que el programa NO lo juzga. Solo mira tubo REDONDO: la
+ *    regla del diámetro no significa nada en un rectangular hueco.
+ */
 export const LIMS_DEFAULT: Lims = {
   axisMin: 1.0,
   piMin: 1.0,
   scaleMin: 0.25,
   straightMin: 25,
+  tubeRfac: 0,
 };
 
 /** Qué se sigue esperando para dejar de llamar provisional a cada uno. Lo
  *  consume la pantalla: un umbral tecleado a ojo y uno medido se ven igual, y
  *  la diferencia importa cuando alguien discute un rechazo. */
 export const LIMS_PENDING: Record<keyof Lims, string> = {
-  axisMin: 'A.6', piMin: 'A.6', scaleMin: '', straightMin: 'B.2',
+  axisMin: 'A.6', piMin: 'A.6', scaleMin: '', straightMin: 'B.2', tubeRfac: 'C.8',
 };
 
 /** El rango admisible de cada uno: `[min, max]`, ambos incluidos.
@@ -78,13 +92,14 @@ export const LIMS_RANGE: Record<keyof Lims, [number, number]> = {
   piMin: [0, 50],
   scaleMin: [0, 1],
   straightMin: [0, 500],
+  tubeRfac: [0, 20],
 };
 
 export const LIMS_KEYS = Object.keys(LIMS_DEFAULT) as (keyof Lims)[];
 
 /** Cuántos decimales tiene sentido teclear en cada uno. */
 export const LIMS_STEP: Record<keyof Lims, number> = {
-  axisMin: 2, piMin: 2, scaleMin: 2, straightMin: 1,
+  axisMin: 2, piMin: 2, scaleMin: 2, straightMin: 1, tubeRfac: 2,
 };
 
 /** Un valor suelto, dejado dentro de su rango. `NaN`, `Infinity` y lo que no

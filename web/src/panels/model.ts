@@ -37,6 +37,13 @@ export function feasNote(M: Model): string {
     partes.push(T('fabOver').replace('{b}', bs(f.overBent))
                             .replace('{n}', String(E.BEND_MAX_DEG)));
   }
+  /* El radio mínimo del tubo solo llega hasta aquí si alguien tecléó la cifra en
+     Límites: sin ella `tightTube` sale vacío a propósito. Ver `LIMS_DEFAULT`. */
+  if (f.tightTube.length) {
+    partes.push(T('fabTube').replace('{b}', bs(f.tightTube))
+                            .replace('{n}', String(ST.lims.tubeRfac))
+                            .replace('{r}', (ST.lims.tubeRfac * M.section.width).toFixed(1)));
+  }
   return `<div role="alert" class="warnbox mb6">${T('fabHead')} ${partes.join(' ')}</div>`;
 }
 

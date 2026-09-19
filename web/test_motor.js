@@ -2316,6 +2316,51 @@ console.log('\n— los umbrales configurables (engine/lims.ts) —');
   ok('bajándolo a 0 no queda ninguna corta',
      E.feasibility(sano, E.normLims({ straightMin: 0 })).short.length === 0);
 
+  /* tubeRfac: el umbral de radio mínimo de un TUBO, añadido el 2026-09-19.
+
+     SEC-03 llevaba abierto desde el 09-17 esperando un criterio que no es de
+     software: en un tubo el radio que aguanta lo mandan la relación
+     diámetro/pared y la ovalización al doblarlo, y aquí no hay con qué
+     deducirlo. Lo que sí se puede hacer sin inventar nada es poner el sitio
+     donde se teclea, y dejarlo APAGADO de fábrica. Estas pruebas atan las tres
+     cosas que hacen que eso no sea una trampa: que en 0 no juzgue nada, que con
+     una cifra muerda, y que no muerda donde la regla no significa nada. */
+  {
+    const tubo = E.normalizeModel({
+      name: 'TUBO', tail: 300,
+      section: { kind: 'round', width: 40, thickness: 40, wall: 2, chamfer: 0, endLen: 0 },
+      bends: [E.newBend({ feed: 300, rot: 0, angle: 45, radius: 30 }),
+              E.newBend({ feed: 300, rot: 0, angle: 45, radius: 80 })],
+    });
+    ok('tubeRfac: de fábrica está en 0, o sea que no juzga ningún radio de tubo',
+       E.LIMS_DEFAULT.tubeRfac === 0
+       && E.feasibility(tubo, E.LIMS_DEFAULT).tightTube.length === 0);
+    /* 1.5 diámetros sobre un Ø40 son R60: el primer doblez (R30) no llega y el
+       segundo (R80) sí. Si marcara los dos, o ninguno, el campo sería adorno. */
+    const j = E.feasibility(tubo, E.normLims({ tubeRfac: 1.5 }));
+    ok('  y con 1.5 diámetros tecleados marca el radio corto y solo ese',
+       !j.ok && j.tightTube.length === 1 && j.tightTube[0] === 0,
+       `marcados [${j.tightTube.join(',')}] de 2 dobleces, R30 y R80 sobre Ø40`);
+    /* Y NO muerde donde la regla del diámetro no significa nada. Sin esto el
+       umbral rechazaría barras macizas por una norma que no es suya. */
+    const macizo = E.normalizeModel({
+      ...tubo, section: { ...tubo.section, wall: 0 },
+    });
+    ok('  pero en una redonda MACIZA no dice nada: la regla es del tubo',
+       E.feasibility(macizo, E.normLims({ tubeRfac: 1.5 })).tightTube.length === 0);
+    const rect = E.normalizeModel({
+      ...tubo, section: { ...tubo.section, kind: 'rect', thickness: 20 },
+    });
+    ok('  ni en un rectangular hueco, donde un diámetro no es una medida',
+       E.feasibility(rect, E.normLims({ tubeRfac: 1.5 })).tightTube.length === 0);
+    /* Y viaja en el archivo, que es media razón para que el campo exista: un
+       JSON guardado dice con qué umbral se juzgó esa pieza. */
+    const vuelta = E.normLims(JSON.parse(JSON.stringify(E.normLims({ tubeRfac: 1.5 }))));
+    ok('  y el umbral viaja en el archivo con el resto de los límites',
+       vuelta.tubeRfac === 1.5);
+  }
+
+
   /* piMin: el mismo archivo, aceptado o rechazado segun el umbral. */
   const linea2 = pts => 'x,y,z\n' + pts.map(q => q.join(',')).join('\n');
   const csv = linea2([[0, 0, 0], [100, 0, 0], [102, 0, 0], [300, 60, 0]]);

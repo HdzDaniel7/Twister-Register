@@ -680,9 +680,9 @@ punteada. Deja ver de un vistazo cuál doblez está fuera. Es clicable.
 ```bash
 cd web && npm run check            # typecheck -> pruebas -> build -> banco, de una
 cd web && npm run typecheck        # tsc --noEmit, con strict
-cd web && node test_motor.js       # 600 pruebas; todas deben pasar
+cd web && node test_motor.js       # 605 pruebas; todas deben pasar
 cd web && node build.mjs           # regenera index.html y barcomp_viewer.html
-cd web && node tools/ui_test.mjs   # 284 pasos de interfaz en Edge headless
+cd web && node tools/ui_test.mjs   # 285 pasos de interfaz en Edge headless
 cd web && node tools/demo_carga.mjs # κ contra una solución exacta, y el codo del hueco
 cd web && node tools/demo_escala.mjs # dónde el solver de la carga deja de caber
 ```
@@ -1034,6 +1034,24 @@ cuando sirve. No es un límite —el resultado por encima es igual de bueno—: 
 grande con la carga puesta se veía igual que un programa colgado. El ~30 que alguien escribió a ojo el 09-10 estaba bien puesto, por un motivo que
 entonces nadie había medido.
 
+
+**El radio mínimo de un tubo tiene dónde escribirse (2026-09-19) — SEC-03 a medias.** El
+criterio sigue sin existir y no lo puede inventar el programa: en un tubo el radio que
+aguanta lo mandan la relación diámetro/pared y la ovalización al doblarlo, no el material.
+Lo que sí se podía hacer sin inventar nada es el sitio donde se teclea, y está hecho:
+`lims.tubeRfac`, radio mínimo en DIÁMETROS exteriores, en la pestaña Límites y viajando en
+el JSON como el resto.
+
+Tres decisiones que hacen que eso no sea una trampa, y las tres están en pruebas:
+
+- **Nace en 0, que aquí significa no vigilar.** Un valor de fábrica sería una opinión con
+  cara de dato, y un archivo viejo abre comportándose exactamente igual que antes.
+- **Solo mira tubo REDONDO.** En una redonda maciza y en un rectangular hueco no dice nada:
+  la regla del diámetro no significa nada ahí.
+- **Con la cifra puesta, la pestaña Sección deja de decir que el programa no lo juzga**, que
+  es lo que decía hasta hoy y sería mentira con un umbral tecleado.
+
+El esquema NO sube: un `lims` sin el campo abre con 0, o sea con la conducta de siempre.
 
 ### Decisiones que siguen gobernando el código
 

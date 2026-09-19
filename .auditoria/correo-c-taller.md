@@ -97,7 +97,8 @@ puestos sin querer cambia los números.
 mínimo? En un tubo eso lo manda la relación entre diámetro y pared, no el material, y el
 programa hoy lo juzga como si fuera barra maciza — por eso avisa con palabras en vez de dar
 un número. Con vuestra tabla, o con piezas ya dobladas de las que sacarla, deja de avisar y
-empieza a decidir.
+empieza a decidir: el campo donde se teclea ya está puesto, vacío, en la pantalla de
+límites. Si vuestra regla es «nunca por debajo de dos diámetros», con eso basta.
 
 ---
 

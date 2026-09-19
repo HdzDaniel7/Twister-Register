@@ -36,7 +36,7 @@ type Row = {
 };
 
 const UNIT: Record<keyof Lims, string> = {
-  axisMin: '°', piMin: 'mm', scaleMin: '×', straightMin: 'mm',
+  axisMin: '°', piMin: 'mm', scaleMin: '×', straightMin: 'mm', tubeRfac: '× Ø',
 };
 
 const limRows = (): Row[] => E.LIMS_KEYS.map(k => ({
