@@ -40,12 +40,12 @@ Detalle del mecanismo en `CONTEXTO_BARCOMP.md`, «El amarre: la barra sujeta por
       material. Sin eso, el modelo dice DÓNDE se concentra el esfuerzo y cuánto
       se mueve la punta, pero la magnitud en MPa lleva un material de manual.
       Es el mismo dato que espera M6 (la flecha por gravedad), así que van en el
-      mismo correo.
+      mismo correo. El material se pide en **C.4**.
 - [ ] **Decidir qué es el nominal con la barra sujeta · [—]** — ⛔ pregunta de
       taller, no de software: el lazo compara hoy contra la pieza LIBRE, y con
       el amarre puesto eso corrige hacia una forma que la barra sujeta no puede
       tomar. Hay dos respuestas posibles —la forma que se quiere AL SOLTARLA o la
-      que se quiere MONTADA— y cada una cambia el código.
+      que se quiere MONTADA— y cada una cambia el código. Preguntado en **C.3**.
 
 ## La carga — lo que queda
 
@@ -65,7 +65,8 @@ Detalle en `CONTEXTO_BARCOMP.md`, «La carga».
       flexómetro es el peso y si toca o no. Está en `tools/demo_carga.mjs` §6, en tres
       pruebas de motor y en el tooltip de la columna Reacción. ⛔ Para dar reacciones de
       verdad hace falta un fixture medido en MICRAS, que es otra petición al taller y va en
-      el mismo correo que el escaneo.
+      el mismo correo que el escaneo. Preguntado en **C.1**, y la pregunta está escrita para que
+      «se ponen a ojo» cuente como respuesta válida.
 
 - [ ] **Quitar el punto ciego de los tramos rectos · [—]** — hoy las incógnitas
       son los codos de las ESTACIONES, así que una recta no se cuelga por el
@@ -94,15 +95,19 @@ Detalle en `CONTEXTO_BARCOMP.md`, «La carga».
       la demo eso deja Δ por debajo de 0.004°. **Se decidió avisar y no modelar más**: las
       otras dos salidas son cunas más cortas donde la barra se curva —`pad` ya es un campo
       por pedestal, así que no cuesta código— o una cuna en V o basculante, que es modelo
-      nuevo y campo nuevo en el esquema. ⛔ Es una pregunta de taller: qué cunas hay montadas.
+      nuevo y campo nuevo en el esquema. ⛔ Es una pregunta de taller: qué cunas hay montadas,
+      y va preguntada en **C.2**.
 
 
 ## Aplazado a futuras actualizaciones (decisión 2026-09-08)
 
 Lo que depende de los modelos CAD y de los archivos de inspección. **No está
 descartado: está esperando.** Cada punto dice qué respuesta lo despierta. Las peticiones
-están en [`solicitud-datos.md`](solicitud-datos.md) y en los dos correos listos para
-enviar; **es el único trabajo que desbloquea todo esto, y no es trabajo de software.**
+están en [`solicitud-datos.md`](solicitud-datos.md) y en los **tres** correos listos para
+enviar — [metrología](correo-a-metrologia.md), [máquina](correo-b-maquina.md) y, desde el
+2026-09-19, [taller](correo-c-taller.md), que es el que lleva el fixture, el material y los
+criterios de aceptación; **es el único trabajo que desbloquea todo esto, y no es trabajo de
+software.**
 
 - **[C2 completo] Mapeo de columnas por cabecera** — necesita **A.1**, un export
   real. Leer el encabezado, mapear por nombre, y un diálogo que muestre las
@@ -125,23 +130,27 @@ enviar; **es el único trabajo que desbloquea todo esto, y no es trabajo de soft
 
 ## Preguntas para el taller (bloquean o cierran tareas de arriba)
 
+Desde el 2026-09-19 las que siguen abiertas viajan escritas en
+[`correo-c-taller.md`](correo-c-taller.md), con la cifra que hace falta para entenderlas.
+Aquí se quedan con el número que citan los mensajes de commit.
+
 1. ~~**¿El fixture real tiene mordaza en el primer extremo?**~~
    **Contestada el 2026-09-15: sí.** X-04 cerrado con eso.
 2. **¿Cuántos dobleces tiene la pieza más grande que pasa de verdad?** Si no supera ~30,
-   PERF-01 se cierra sin tocar código.
+   PERF-01 se cierra sin tocar código. · **C.6**
 3. ~~**¿`tol.point` = 1 mm es la tolerancia para decidir si un pedestal apoya?**~~
    **Contestada el 2026-09-15: de momento basta.** Si algún día hace falta una holgura
    propia, se cambia en un solo sitio: `bears()`.
 4. **Con la carga puesta, ¿la desviación se compara contra la forma libre o contra la
    asentada?** Hoy siempre contra la libre, mientras el 3D puede estar enseñando la
-   asentada. Segunda cara de la pregunta que sigue abierta desde el 09-09.
+   asentada. Segunda cara de la pregunta que sigue abierta desde el 09-09. · **C.3**
 5. **¿Cuánto cede el rodado de verdad con los pines puestos?** El modelo usa 0.5 donde la
    torsión de la sección da 1.22, y con pines laterales eso triplica lo que se mueve la
    punta (FIS-07). Se contesta con el escaneo de una pieza montada en el fixture: no hay
-   que elegir a ojo.
+   que elegir a ojo. · **C.5**
 6. **¿Compensar debe poder ver y apagar el amarre y la carga**, o dejarlos puestos ahí es
    un error que conviene bloquear? Compensar es el modo taller y es el único donde se
-   decide sobre material.
+   decide sobre material. · **C.7**
 7. ~~**¿`CONTACT_K = 1e5` se validó contra una solución exacta** —viga con muelle rígido— o
    solo se contrasta consigo mismo vía `pene`?~~
    **Contestada el 2026-09-16: es una cifra, no un artefacto.** `npm run demo:carga` monta
@@ -156,7 +165,7 @@ enviar; **es el único trabajo que desbloquea todo esto, y no es trabajo de soft
    y en el banco.
 8. **Cuando `dev.theta` y la desviación por fila discrepan, ¿cuál manda?** La rama se
    arregló (C1 + A4, `alignBranch`) y `theta` está visible, que era la disyuntiva D1 del
-   informe del 09-07; lo que no se decidió nunca es el criterio de aceptación.
+   informe del 09-07; lo que no se decidió nunca es el criterio de aceptación. · **C.9**
 
 ## Puesta en marcha con material
 
@@ -395,7 +404,7 @@ una ventana que escribe un campo que nadie lee es exactamente lo que fue `LOOP_M
 | SEC-02 | Las cuatro formas —rectangular y redonda, macizas y huecas—, `barcomp/2.4`, el 3D barriendo el contorno de verdad y la ventana de la sección | `4da0a64` |
 | SEC-04 | Medido: la guarda del eje mide el PLANO del doblez, y una redonda no borra el plano. Lo que borra es el retorcido, y ahí sí había un doble conteo — ver Fase 6.1 | `f784446` |
 | SEC-06 | La sección deja de ser un cajón y pasa a ser PESTAÑA, con el dibujo de la cara a escala y las cotas encima. Devuelto por el taller: la barra de menús se corta cuando la ventana no es ancha y el botón del cajón podía no verse. De paso, las medidas dejan de estar en dos sitios | `1143361` |
-| SEC-05 | En una redonda `orientations()` sale toda igual, así que el motor lee UNA constante y no dos. Repartir por una cara que `Iz = Iy` ya no distingue movía los dobleces hasta **4.10°** sobre el demo con `sbT=2` y `sbW=6`. La tabla pinta `Ø` en vez de `W`/`T`, y Medir y Compensar enseñan un campo en lugar de dos | `(esta pasada)` |
+| SEC-05 | En una redonda `orientations()` sale toda igual, así que el motor lee UNA constante y no dos. Repartir por una cara que `Iz = Iy` ya no distingue movía los dobleces hasta **4.10°** sobre el demo con `sbT=2` y `sbW=6`. La tabla pinta `Ø` en vez de `W`/`T`, y Medir y Compensar enseñan un campo en lugar de dos | `1140d01` |
 
 Abierto, y con su motivo:
 
@@ -406,7 +415,7 @@ Abierto, y con su motivo:
       se avisa con palabras en la pestaña de la sección; cerrarlo pide un criterio, y un
       criterio pide o una norma que el taller acepte o piezas dobladas de las que aprenderlo.
       Mientras no haya una cosa ni la otra, **el aviso es la respuesta honesta**: inventar un
-      umbral sería darle cara de dato a una opinión. · M
+      umbral sería darle cara de dato a una opinión. Preguntado en **C.8**. · M
 
 ## Fase 6.1 · La torsión contada dos veces — CERRADA 2026-09-18
 
@@ -416,7 +425,7 @@ porque `demoModel()` trae todas las torsiones a cero, así que la prueba que dec
 
 | ID | Qué se hizo | Commit |
 |---|---|---|
-| TW-01 | `ik()` recibe las torsiones que ya se saben y aplica la misma `Rx` que `fk()`. Antes leía el rodado con el marco sin rodar, se tragaba la torsión dentro del rodado, y `measuredModel()`/`migrateModel()` le pegaban encima la del nominal. 137.8 mm de separación en el motor, 63.7 al abrir un `barcomp/1.0` torcido, 129.4 en el visor al reescribir un PI con su propio valor | `(esta pasada)` |
+| TW-01 | `ik()` recibe las torsiones que ya se saben y aplica la misma `Rx` que `fk()`. Antes leía el rodado con el marco sin rodar, se tragaba la torsión dentro del rodado, y `measuredModel()`/`migrateModel()` le pegaban encima la del nominal. 137.8 mm de separación en el motor, 63.7 al abrir un `barcomp/1.0` torcido, 129.4 en el visor al reescribir un PI con su propio valor | `f784446` |
 
 Y la cifra que explica por qué la torsión se arrastra y no se lee: 12° de torsión en la
 estación *i* y 12° menos de rodado en la *i+1* dan los mismos PI **hasta 1.5e-13 mm**. De
@@ -438,4 +447,4 @@ Reportado desde el taller, no salido de una auditoría.
 | Pregunta 7 | κ contrastado contra una solución exacta: la penetración residual es `R/κ`, no un artefacto. `tools/demo_carga.mjs` | `132e512` |
 | FIS-10a | Los 47 N eran el redondeo del alto sembrado a centésimas: 6.16 N por micra. Y el paso de banco que pasaba con 0.02 N | `6a19200` |
 | FIS-10b + FIS-08 | Un apoyo es una CARA, no una sombra en planta. El hueco sale liso, la carga converge —26.84 N apoyos y −3.17 mordaza, `ok=true` en 4 vueltas— y el paso de perturbación baja de 0.02° a 2e-4° porque ahora afinarlo mejora en vez de romper | `1aad68c` |
-| FIS-10c | El sitio del poste sembrado deja de redondearse y la corrección se itera: el primer pin pasa de 8.83 N a 6.25 con el peso puesto | *(este)* |
+| FIS-10c | El sitio del poste sembrado deja de redondearse y la corrección se itera: el primer pin pasa de 8.83 N a 6.25 con el peso puesto | `ccf5cfa` |

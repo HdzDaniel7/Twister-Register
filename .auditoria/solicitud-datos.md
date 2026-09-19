@@ -1,9 +1,10 @@
 # Qué necesito para cerrar el camino ZEISS → BARCOMP → máquina
 
-Documento de trabajo. Dos destinatarios distintos:
+Documento de trabajo. Tres destinatarios distintos:
 
 - **Parte A** — para quien programa el plan de inspección en ZEISS / GOM Inspect.
 - **Parte B** — para quien programa o integra la dobladora.
+- **Parte C** — para el taller: el fixture, el material y los criterios de aceptación.
 
 No hace falta responderlo entero de una vez. Cada bloque dice **qué desbloquea**, para
 que se pueda ir por partes. Lo marcado con 🔴 es lo que bloquea la beta 1.0; lo demás
@@ -220,6 +221,118 @@ qué se le puede prometer al cliente.**
 
 ---
 
+# Parte C · El taller y el fixture
+
+Añadida el 2026-09-19. Las partes A y B se escribieron el 09-08, antes de que existieran
+el amarre por pines y la carga. Desde entonces el programa **calcula newton**, y medir
+obliga a preguntar cosas que antes no hacían falta. Todo lo de aquí bloquea una tarea
+concreta del plan; cada bloque dice cuál.
+
+Contexto en una frase para quien lea esto sin conocer el programa: el visor monta la barra
+sobre el fixture —pedestales con su cuna, pines laterales, mordaza en un extremo—, la deja
+caer bajo su propio peso y dice cuánto se mueve la punta, dónde se concentra el esfuerzo y
+qué apoyo trabaja. Lo hace con los números que le den de ese fixture.
+
+## C.1 🔴 Los altos de los pedestales, medidos en micras
+
+**La medida que más cambia lo que el programa puede prometer.** El 2026-09-19 se midió
+esto sobre el caso de demostración, y el resultado manda sobre toda la pestaña Fixture:
+
+- Junto a la mordaza la barra es mucho más rígida que el contacto, así que subir un
+  pedestal **una micra** mete **6.16 N** en la pieza. No es un error numérico: la barra no
+  tiene a dónde ceder y ese recorrido entra entero en el contacto.
+- Con **0.05 mm** —lo que da un flexómetro— en UN solo apoyo, lo que llevan los apoyos
+  pasa de 26.8 N a **333.5 N**, sobre una pieza que pesa 23.7 N.
+- Lejos de la mordaza el mismo error mueve 0.5 N, porque ahí cede antes la barra.
+
+O sea que **la reacción de un apoyo, y también su suma, no son propiedades de la pieza**:
+son la pieza más lo que el fixture le esté metiendo. Lo que sí sobrevive a una medida
+basta es el peso de la pieza y si el apoyo toca o no.
+
+Lo que hace falta para pasar de «toca / no toca» a newton:
+
+1. **¿Los pedestales son de altura fija, regulables o calzados con suplementos?**
+2. **¿Con qué se ajustan y con qué se comprueban** —reloj comparador, calibre de alturas,
+   solo la escala del husillo—, y **qué tolerancia real tiene ese ajuste.**
+3. **Una medida de los altos montados**, del orden de la micra, de un fixture concreto.
+
+Desbloquea: «Lo que la reacción de un apoyo puede prometer». Si la respuesta es que los
+altos se ponen a ojo, también es una respuesta buena: entonces la columna Reacción se
+queda como está —un indicador de qué apoyo trabaja— y no se promete más.
+
+## C.2 🔴 Qué cunas hay montadas
+
+La cuna se modela hoy como una **chapa recta** de largo `pad` × 44 mm, y no bascula. Sobre
+una pieza curvada, la recta que mejor casa con lo que la cuna cubre depende de su largo:
+sobre un codo del caso de demostración, pasar de 20 a 200 mm de cuna mueve la inclinación
+que la barra pide de **−48.7° a −63.4°**.
+
+- **¿Qué largo tienen las cunas que hay montadas de verdad?** Si son varias medidas, cuáles.
+- **¿Son chapa recta, en V, o basculan?**
+
+Desbloquea: «La cuna no bascula y no siempre puede casar con la barra». Con cunas cortas
+no hay nada que escribir —el largo ya es un campo por pedestal—; una cuna en V o
+basculante es modelo nuevo y campo nuevo en el archivo, y no se escribe a ciegas.
+
+## C.3 🔴 Con la barra sujeta, ¿contra qué forma se corrige?
+
+El lazo de compensación compara hoy contra la pieza **libre**. Con el amarre puesto, eso
+corrige hacia una forma que la barra sujeta no puede tomar.
+
+**¿La forma que se quiere es la que tiene la pieza AL SOLTARLA, o la que tiene MONTADA en
+el fixture?** Son dos respuestas legítimas y cada una cambia el código.
+
+Desbloquea: «Decidir qué es el nominal con la barra sujeta», y la pregunta hermana de la
+pestaña de desviación (qué se compara cuando la carga está puesta).
+
+## C.4 🔴 El certificado del material
+
+El programa da **MPa** y compara contra el límite elástico. Hoy `E`, densidad y límite son
+valores de catálogo. La forma que sale —cuánto se mueve la punta, dónde está el codo peor—
+es geometría y aguanta; la **magnitud en MPa lleva un material de manual.**
+
+Basta el certificado de colada de las barras que se van a doblar: aleación, estado, `E`,
+densidad y límite elástico.
+
+Desbloquea: contrastar el amarre y la carga contra una pieza real, y poder decir «21 % del
+límite» sin una nota al pie.
+
+## C.5 🟡 Cuánto cede el rodado con los pines puestos
+
+El modelo usa una rigidez a torsión de **0.5** donde la sección da **1.22**. Con pines
+laterales esa diferencia **triplica** lo que se mueve la punta. No hay que elegir a ojo: se
+contesta escaneando una pieza montada en el fixture, que es el mismo dato que ya pide A.5.
+
+## C.6 🟡 Cuántos dobleces tiene la pieza más grande que pasa de verdad
+
+Si no pasa de ~30, una tarea de rendimiento se cierra sin tocar código.
+
+## C.7 🟡 Compensar, ¿debe ver y poder apagar el amarre y la carga?
+
+Compensar es el modo de taller y es el único donde se decide sobre material. Hoy los dos
+interruptores están fuera de esa pantalla. **¿Conviene que se vean y se puedan apagar
+desde ahí, o dejarlos puestos sin querer es un error que hay que bloquear?**
+
+## C.8 🟡 Los tubos: qué radio mínimo se acepta
+
+En un tubo el radio mínimo lo mandan la relación diámetro/pared y la ovalización al
+doblarlo, no el material. El programa juzga hoy con los umbrales de una barra maciza, así
+que **en pantalla un tubo se dobla más fácil de lo que se dobla en la máquina**, y por eso
+lo avisa con palabras en vez de dar un número.
+
+**¿Hay una norma o una tabla de taller que se acepte** —la típica es en función de D/t—, o
+piezas ya dobladas de las que sacarla? Inventar el umbral sería darle cara de dato a una
+opinión.
+
+Desbloquea: SEC-03.
+
+## C.9 🟢 Cuando el ángulo de la fila y la desviación no dicen lo mismo, ¿cuál manda?
+
+Las dos cifras están a la vista y pueden discrepar. Lo que nunca se decidió es **con cuál
+se acepta o se rechaza la pieza.**
+
+---
+
 # Resumen: lo que desbloquea cada cosa
 
 | Necesito | Desbloquea | Sin eso |
@@ -231,6 +344,11 @@ qué se le puede prometer al cliente.**
 | B.1 + B.2 formato y convención | Exportación a máquina | Los números se copian a mano |
 | B.3 qué corrige la máquina | Qué se puede prometer | Se promete una precisión que el proceso no da |
 | A.5 fixture y flecha | Corregir un sesgo de ~1 mm | El lazo persigue algo que no puede corregir |
+| C.1 altos del fixture en micras | Dar reacciones en newton, no solo «toca / no toca» | A 6.16 N por micra, la suma de los apoyos no significa nada |
+| C.2 qué cunas hay montadas | Cerrar el desajuste cuna-barra | Se modela una cuna que nadie tiene |
+| C.3 nominal libre o montado | Qué forma persigue el lazo con el amarre puesto | Se corrige hacia una forma que la barra sujeta no puede tomar |
+| C.4 certificado del material | Que los MPa sean de este aluminio | La forma vale, la magnitud lleva un material de manual |
+| C.8 radio mínimo del tubo | SEC-03 | En pantalla un tubo se dobla más fácil que en la máquina |
 
 ---
 
@@ -238,7 +356,9 @@ qué se le puede prometer al cliente.**
 
 Cualquier forma sirve. Lo más cómodo: una carpeta con los archivos crudos —el export de
 inspección, el programa de máquina, fotos del fixture— y las respuestas escritas donde sea,
-aunque sea en un correo. **No hace falta que esté ordenado ni completo**: cada bloque que
+aunque sea en un correo. Del taller, lo que más vale es una foto del fixture con una cinta
+al lado y la respuesta a C.1 y C.2, aunque sea «los altos se ponen a ojo» y «las cunas son
+de 60». **No hace falta que esté ordenado ni completo**: cada bloque que
 llegue desbloquea su parte del plan por separado.
 
 Si de todo esto solo se puede conseguir una cosa, que sea **A.1: un archivo de exportación

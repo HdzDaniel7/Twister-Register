@@ -955,7 +955,10 @@ que un δ de más no la dobla —no hay a dónde ceder— y entra ENTERO en el m
 la mordaza cede antes la barra y el mismo δ casi no se nota. O sea que el total no es una
 propiedad de la pieza: es la pieza más lo que el fixture le esté metiendo. Lo que sí sobrevive
 a un flexómetro es el PESO —geometría y densidad— y si el fixture toca o no, que es geometría
-y no fuerza. Está dicho donde lo lee el taller: el tooltip de la columna Reacción.
+y no fuerza. Está dicho donde lo lee el taller: el tooltip de la columna Reacción. Y lo que
+hace falta para poder dar newton de verdad —cómo se ponen y con qué se comprueban los altos—
+está pedido desde el 2026-09-19 en `.auditoria/correo-c-taller.md`, punto 1, redactado para
+que «se ponen a ojo» cuente como respuesta válida.
 
 **El poste sembrado dejó de redondear su sitio (2026-09-19) — FIS-10c.** Era el hermano del
 hallazgo FIS-10 y quedó abierto a propósito dos días: `seedPins()` redondeaba `x` e `y` a
