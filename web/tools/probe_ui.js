@@ -2885,6 +2885,30 @@ step('un apoyo que el modelo no puede juzgar dice n/d, no 0.0', () => {
   if (!nd) throw new Error('la casilla de la reacción no se marcó como indeterminable');
   if (/^\s*0/.test(nd.textContent)) throw new Error('la casilla sigue diciendo cero');
 });
+/* LO QUE LA COLUMNA REACCIÓN NO PUEDE PROMETER, dicho en su propio tooltip
+   desde el 2026-09-19. Medido en `npm run demo:carga`, escenario 6: subir UN
+   pedestal 0.05 mm —un flexómetro— lleva el total de los apoyos de 26.8 N a
+   333.5 sobre una pieza de 23.7, porque junto a la mordaza la barra no cede y
+   ese medio pelo entra entero en el muelle de contacto, a 6.16 N por micra. La
+   pantalla enseña los newton porque sirven para ver QUÉ APOYO TRABAJA; lo que
+   no puede es dejar creer que son una lectura de célula de carga. */
+step('la columna Reacción avisa de lo que un alto medido a ojo se lleva por delante', () => {
+  const B = window.BARCOMP;
+  click('#tabs [data-t="fixture"]');
+  const txt = B.I18N[B.LANG.cur];
+  const th = [...document.querySelectorAll('#panes table.marks th')]
+    .findIndex(c => c.textContent.trim().startsWith(txt.loadN));
+  if (th < 0) throw new Error('la tabla del fixture no tiene columna de reacción');
+  const fila = document.querySelector('#panes table.marks tbody tr');
+  const celda = fila && fila.children[th];
+  if (!celda || celda.title !== txt.loadNTip) {
+    throw new Error('la casilla de la reacción no lleva su explicación');
+  }
+  if (!/micra|µm|micron|Mikrometer/i.test(celda.title)) {
+    throw new Error('el tooltip de la reacción no dice lo que vale una micra de alto');
+  }
+});
+
 step('apagar la carga devuelve la pieza libre', () => {
   const B = window.BARCOMP;
   click('#tabs [data-t="pins"]');

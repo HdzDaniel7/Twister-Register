@@ -162,7 +162,7 @@ export const en: Record<I18nKey, string> = {
  loadPene: 'Sinks in',
  loadPeneTip: 'How far a support sinks into the bar. Contact is modelled with a very stiff spring, so this should come out in microns; if it reaches the tolerance, the spring was too soft and the reactions next to it deserve suspicion.',
  loadN: 'Reaction',
- loadNTip: 'How hard that support is pushing, in newton. A dash means the part is not touching it, which is an answer and not a failure. "n/a" means something quite different: that the model cannot say anything there.',
+ loadNTip: 'How hard that support is pushing, in newton. A dash means the part is not touching it, which is an answer and not a failure. "n/a" means something quite different: that the model cannot say anything there. And this figure is worth what the MEASURED height is worth: one micron too much on a support puts several newton into the part, and next to the clamp it puts all of them in, because the bar cannot give there. Use it to see which support is working and which is not; it is not a load-cell reading.',
  loadNd: 'n/a',
  glLost: 'The graphics card dropped the 3D view (sleep, display change or driver). Data and tables are fine. The 3D view comes back on its own if the browser recovers it; if it does not, save your work and reload the page.',
  faultMsg: 'Something went wrong ({e}). What is on screen may be out of date: save your work and reload the page.',

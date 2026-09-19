@@ -170,7 +170,7 @@ export const de: Record<I18nKey, string> = {
  loadPene: 'Dringt ein',
  loadPeneTip: 'Wie tief eine Auflage in die Stange eindringt. Der Kontakt wird mit einer sehr steifen Feder abgebildet, das sollte also im Mikrometerbereich herauskommen; erreicht es die Toleranz, war die Feder zu weich und den Reaktionen daneben ist zu misstrauen.',
  loadN: 'Reaktion',
- loadNTip: 'Mit welcher Kraft diese Auflage drückt, in Newton. Ein Strich heißt, dass das Teil sie nicht berührt; eine Antwort, kein Fehler. „k. A." heißt etwas ganz anderes: dass das Modell dort nichts sagen kann.',
+ loadNTip: 'Mit welcher Kraft diese Auflage drückt, in Newton. Ein Strich heißt, dass das Teil sie nicht berührt; eine Antwort, kein Fehler. „k. A." heißt etwas ganz anderes: dass das Modell dort nichts sagen kann. Und dieser Wert taugt nur so viel wie die GEMESSENE Höhe: ein Mikrometer zu viel an einer Auflage bringt mehrere Newton in das Teil, und neben der Klemmung alle davon, weil der Stab dort nicht nachgeben kann. Er zeigt, welche Auflage trägt und welche nicht; er ist keine Kraftmessdose.',
  loadNd: 'k. A.',
  glLost: 'Die Grafikkarte hat die 3D-Ansicht verloren (Standby, Bildschirmwechsel oder Treiber). Daten und Tabellen sind in Ordnung. Die 3D-Ansicht kommt von selbst zurück, wenn der Browser sie wiederherstellt; falls nicht, Arbeit speichern und die Seite neu laden.',
  faultMsg: 'Etwas ist schiefgelaufen ({e}). Die Anzeige ist möglicherweise nicht aktuell: Arbeit speichern und die Seite neu laden.',

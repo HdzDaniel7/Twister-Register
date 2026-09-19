@@ -282,7 +282,7 @@ web/
   src/app.css       tokens de diseño y layout; la paleta de los DOS temas
   src/shell.html    esqueleto con los marcadores del build
   build.mjs         esbuild: src/ + three  ->  index.html
-  test_motor.js     593 pruebas del motor y del i18n, en Node y sin navegador
+  test_motor.js     596 pruebas del motor y del i18n, en Node y sin navegador
   tools/            banco de interfaz por CDP y las sondas de medición
 index.html          SALIDA GENERADA — no se edita a mano
 ```
@@ -307,9 +307,9 @@ cd web
 npm install          # una sola vez: three + esbuild
 npm run check        # typecheck -> pruebas -> build -> banco de interfaz
 npm run typecheck    # tsc --noEmit, con strict
-npm test             # 593 pruebas del motor y del i18n
+npm test             # 596 pruebas del motor y del i18n
 npm run build        # regenera index.html (y web/barcomp_viewer.html en local)
-npm run test:ui      # 282 pasos de interfaz en Edge headless, por CDP
+npm run test:ui      # 283 pasos de interfaz en Edge headless, por CDP
 npm run demo:amarre  # cinco escenarios del amarre, con las cifras a la vista
 npm run demo:carga   # el muelle de contacto contra una solución exacta, y el codo
                      # del hueco que impide cerrar FIS-10b
@@ -558,8 +558,12 @@ un apoyo se modela como un muelle que vale unos 6 000 N/mm sobre esta pieza: cad
 alto a centésimas sembraba hasta ±5 µm de precarga, o sea ±31 N que nadie puso, y
 de ahí salían siete apoyos sumando 47 N sobre una pieza de 23.7 N. La otra cara
 de la misma cifra: **la reacción de un pedestal suelto no es un número que un
-fixture medido con flexómetro pueda dar**. Lo que sí contesta la pregunta del
-taller es cuánto peso llevan los apoyos EN TOTAL y cuánto se queda la mordaza.
+fixture medido con flexómetro pueda dar** — y tampoco su suma, que es lo que este
+párrafo decía hasta el 2026-09-19 antes de medirlo: subir UN pedestal 0.05 mm
+junto a la mordaza lleva el total de los apoyos de 26.8 N a 333.5, porque ahí la
+barra no puede ceder y ese medio pelo entra entero en el muelle. Lo que sí
+sobrevive a un flexómetro es el **peso** de la pieza y **si el fixture la toca o
+no**, que es geometría y no fuerza. `npm run demo:carga`, escenario 6.
 
 La mesa está en `z = TABLE_Z` (−260 mm), fija por ahora: mientras no haya un fixture
 real medido, una mesa configurable es un campo más que nadie puede rellenar con un

@@ -164,7 +164,7 @@ export const es: Record<I18nKey, string> = {
  loadPene: 'Se hunde',
  loadPeneTip: 'Cuánto se mete un apoyo dentro de la barra. El contacto se modela con un muelle muy duro, así que esto tiene que salir en micras; si llega a la tolerancia, el muelle se quedó corto y las reacciones de al lado hay que mirarlas con recelo.',
  loadN: 'Reacción',
- loadNTip: 'Con cuánta fuerza empuja ese apoyo, en newton. Un guion quiere decir que la pieza no lo está tocando, que es una respuesta y no un fallo. «n/d» quiere decir otra cosa muy distinta: que ahí el modelo no puede decir nada.',
+ loadNTip: 'Con cuánta fuerza empuja ese apoyo, en newton. Un guion quiere decir que la pieza no lo está tocando, que es una respuesta y no un fallo. «n/d» quiere decir otra cosa muy distinta: que ahí el modelo no puede decir nada. Y esta cifra vale lo que valga el alto MEDIDO: una micra de más en un apoyo mete varios newton en la pieza, y junto a la mordaza los mete enteros porque ahí la barra no puede ceder. Sirve para ver qué apoyo trabaja y cuál no; no es la lectura de una célula de carga.',
  loadNd: 'n/d',
  glLost: 'La tarjeta gráfica ha soltado el 3D (suspensión, cambio de pantalla o controlador). Los datos y las tablas siguen bien. El 3D vuelve solo si el navegador lo recupera; si no vuelve, guarda el trabajo y recarga la página.',
  faultMsg: 'Algo ha fallado ({e}). Lo que hay en pantalla puede no estar al día: guarda el trabajo y recarga la página.',

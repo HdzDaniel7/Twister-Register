@@ -294,10 +294,10 @@ tit('4 · La demo con siete pedestales: de dónde salían los 47 N');
   console.log('  el paso ocho veces no baja la energía, y la pantalla lo avisa con');
   console.log('  `loadStuck`. Eso es otra cosa y sigue abierto en .auditoria/plan-fases.md.');
   console.log('\n  Y la lectura que uno se lleva de aquí: con este modelo la reacción de UN');
-  console.log(`  pedestal cambia ${f(kap / 1000, 1)} N por cada micra de alto. Un fixture medido con`);
-  console.log('  flexómetro no puede dar reacciones apoyo por apoyo — lo que sí da, y es');
-  console.log('  la pregunta del taller, es cuánto peso llevan los apoyos EN TOTAL y');
-  console.log('  cuánto se queda la mordaza.');
+  console.log(`  pedestal cambia ${f(kap / 1000, 1)} N por cada micra de alto. Hasta el`);
+  console.log('  2026-09-19 esto se cerraba diciendo «lo que sí da es cuánto llevan los');
+  console.log('  apoyos EN TOTAL». Es falso, y lo mide el escenario 6: el total tampoco');
+  console.log('  aguanta un flexómetro.');
 }
 
 /* ══════════════════════════════════════════════════════════════════════════
@@ -388,6 +388,94 @@ tit('5 · El codo del hueco: cómo se cerró FIS-10b');
   console.log('     distintas. 25 µm de diferencia, que a 6.16 N/µm son 150 N. Ahora hay');
   console.log('     un solo `PATH_SEG`.');
 }
+
+/* ══════════════════════════════════════════════════════════════════════════
+   6 · LO QUE UN FLEXÓMETRO NO PUEDE CONTESTAR.
+
+   Escrito el 2026-09-19 para CORREGIR lo que este mismo banco decía el día
+   anterior. El escenario 4 se cerraba con «la reacción apoyo por apoyo no la
+   puede dar un fixture medido con flexómetro, pero lo que SÍ da es cuánto
+   llevan los apoyos EN TOTAL». Lo segundo no se había medido nunca. Es falso.
+
+   La cuenta que lo explica: junto a la mordaza la barra es mucho más rígida que
+   el muelle de contacto, así que subir ahí un pedestal δ no la dobla —no hay a
+   dónde ceder— y ese δ entra ENTERO en el muelle. La reacción sube κ·δ, o sea
+   6.16 N por micra, y la mordaza tira hacia abajo otro tanto para equilibrar.
+   Lejos de la mordaza pasa lo contrario: la barra cede antes que el muelle y el
+   mismo δ casi no se nota.
+
+   O sea que el total no es una cifra robusta: es el peso de la pieza MÁS lo que
+   el fixture le esté metiendo, y lo segundo lo fija la precisión con la que
+   estén medidos los altos. Lo que sí sobrevive a un flexómetro, y conviene
+   decirlo porque es lo que el taller usa: el PESO de la pieza —geometría y
+   densidad— y si el fixture la toca o no, que es geometría y no fuerza.      */
+tit('6 · Lo que un flexómetro no puede contestar');
+{
+  const M = E.demoModel();
+  const p0 = E.buildPath(M).samples;
+  const L = p0[p0.length - 1].s;
+  const kap = E.CONTACT_K * MAT.E * E.sectionI(M.section).Iz / L ** 3;
+  const peds = E.seedPedestals(p0, M.section, 7)
+    .map((p, i) => ({ ...p, id: `pd${i + 1}`, name: `P${i + 1}` }));
+  const corre = (l) => E.settle(M, [], l, M.section, OFF, MAT, CARGA);
+  const S0 = corre(peds);
+  console.log(`  la demo sembrada exacta: apoyos ${f(S0.carried, 2)} N · mordaza ${f(S0.root, 2)} N`
+            + ` · pieza ${f(S0.weight, 2)} N`);
+  console.log(`  κ = ${f(kap, 0)} N/mm, o sea ${f(kap / 1000, 2)} N por micra\n`);
+
+  /* UN solo pedestal subido δ y los otros seis exactos. La ley va dicha antes:
+     junto a la mordaza, Δ = κ·δ; en la punta, casi nada. */
+  console.log('  subiendo UN pedestal δ y dejando los otros seis exactos,');
+  console.log('  lo que llevan los apoyos EN TOTAL, N:');
+  const fila = (etq, l) => console.log(`   ${etq}  ${l.join('  ')}`);
+  fila('        ', peds.map((p, i) => `P${i + 1}`.padStart(7)));
+  const sub = (i, d) => corre(peds.map((p, j) => (j === i ? { ...p, h: p.h + d } : p)));
+  let pegaLey = true, peorLey = 0, lejos = 0;
+  for (const d of [0.001, 0.005, 0.01, 0.05]) {
+    fila(`+${f(d, 3)} mm`, peds.map((_, i) => f(sub(i, d).carried, 1).padStart(7)));
+    const dCerca = sub(0, d).carried - S0.carried;
+    const err = rel(dCerca, kap * d);
+    peorLey = Math.max(peorLey, err);
+    if (err > 0.05) pegaLey = false;
+    lejos = Math.max(lejos, Math.abs(sub(6, d).carried - S0.carried));
+  }
+  ok(pegaLey,
+     'junto a la mordaza, subir un apoyo δ mete κ·δ en la pieza: no cede la barra, cede el muelle',
+     `error ${f(peorLey * 100, 2)} % sobre cuatro δ`);
+  ok(lejos < 1,
+     'y en la punta el mismo δ casi no se nota: ahí cede la barra antes que el muelle',
+     `${f(lejos, 2)} N con δ hasta 0.05 mm`);
+
+  /* Y EL FIXTURE ENTERO MEDIDO CON ERROR. Sorteo reproducible —misma semilla
+     siempre— para que la cifra se pueda discutir dos veces y dé lo mismo. */
+  let rng = 12345;
+  const rnd = () => { rng = (rng * 1103515245 + 12345) & 0x7fffffff; return rng / 0x7fffffff * 2 - 1; };
+  console.log('\n  y midiendo los SIETE altos con un error de ±ε, 20 fixtures sorteados:');
+  let todasCierran = true, anchoFino = 0;
+  for (const eps of [0.05, 0.01, 0.001]) {
+    let lo = Infinity, hi = -Infinity;
+    for (let k = 0; k < 20; k++) {
+      const S = corre(peds.map(p => ({ ...p, h: p.h + rnd() * eps })));
+      lo = Math.min(lo, S.carried); hi = Math.max(hi, S.carried);
+      if (Math.abs(S.carried + S.root - S.weight) > 1e-6) todasCierran = false;
+    }
+    if (eps === 0.001) anchoFino = hi - lo;
+    console.log(`   ±${f(eps, 3)} mm → apoyos entre ${f(lo, 1)} y ${f(hi, 1)} N`
+              + `   (la pieza pesa ${f(S0.weight, 1)})`);
+  }
+  ok(todasCierran,
+     'en todos los sorteos las fuerzas cierran: apoyos + mordaza = pieza',
+     '20 × 3 sorteos');
+  ok(anchoFino > 5,
+     'y ni midiendo a la MICRA sale un total estable: no es ruido del solver, es el problema',
+     `${f(anchoFino, 1)} N de horquilla con ±0.001 mm`);
+
+  console.log('\n  LO QUE ESTO OBLIGA A DECIR, y está dicho en la columna Reacción de la');
+  console.log('  pestaña Fixture: los newton de un apoyo —y su suma— valen lo que valga la');
+  console.log(`  medida de los altos. A ${f(kap / 1000, 2)} N por micra, un fixture medido con`);
+  console.log('  flexómetro no da reacciones: da un sí o un no a si la pieza toca.');
+}
+
 
 console.log(`\n${malas ? `${malas} COMPROBACIÓN(ES) EN ROJO` : 'todo lo que se dijo, se cumplió'}\n`);
 console.log('Esto valida el MUELLE: κ = 1e5 deja una penetración predecible y el sesgo');

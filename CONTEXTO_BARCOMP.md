@@ -680,9 +680,9 @@ punteada. Deja ver de un vistazo cuál doblez está fuera. Es clicable.
 ```bash
 cd web && npm run check            # typecheck -> pruebas -> build -> banco, de una
 cd web && npm run typecheck        # tsc --noEmit, con strict
-cd web && node test_motor.js       # 593 pruebas; todas deben pasar
+cd web && node test_motor.js       # 596 pruebas; todas deben pasar
 cd web && node build.mjs           # regenera index.html y barcomp_viewer.html
-cd web && node tools/ui_test.mjs   # 282 pasos de interfaz en Edge headless
+cd web && node tools/ui_test.mjs   # 283 pasos de interfaz en Edge headless
 cd web && node tools/demo_carga.mjs # κ contra una solución exacta, y el codo del hueco
 ```
 
@@ -936,8 +936,26 @@ Lo que costó, y hay que saberlo antes de tocarlo:
 pieza de 23.7, con la mordaza tirando hacia abajo 3.2. Eso no es una precarga —sembrar sin
 peso encima da 0.00 N, y hay prueba— sino el reparto de una barra empotrada en la mordaza y
 posada sobre siete apoyos, que es hiperestática. La pregunta «¿cuánto lleva cada apoyo?» no
-la puede contestar un fixture medido con flexómetro: 6.16 N por micra de alto. La que sí se
-puede contestar, y es la del taller, es cuánto llevan los apoyos EN TOTAL y cuánto la mordaza.
+la puede contestar un fixture medido con flexómetro: 6.16 N por micra de alto.
+
+**Y el TOTAL tampoco (2026-09-19).** Este párrafo decía, hasta ese día, que «la que sí se
+puede contestar es cuánto llevan los apoyos EN TOTAL». Se dijo sin medirlo y es falso.
+Medido en `tools/demo_carga.mjs` §6 y clavado en tres pruebas de motor:
+
+| Qué se hace | Qué llevan los apoyos EN TOTAL |
+|---|---|
+| nada: los siete altos exactos | 26.8 N (la pieza pesa 23.7) |
+| subir **un** pedestal 0.01 mm junto a la mordaza | 87.1 N |
+| subir ese mismo 0.05 mm —un flexómetro— | **333.5 N**, con la mordaza tirando −310 |
+| subir 0.05 mm el de la punta | 27.4 N |
+| medir los siete altos a ±0.001 mm, 20 sorteos | entre 3.5 y 32.3 N |
+
+La ley detrás: junto a la mordaza la barra es mucho más rígida que el muelle de contacto, así
+que un δ de más no la dobla —no hay a dónde ceder— y entra ENTERO en el muelle, κ·δ. Lejos de
+la mordaza cede antes la barra y el mismo δ casi no se nota. O sea que el total no es una
+propiedad de la pieza: es la pieza más lo que el fixture le esté metiendo. Lo que sí sobrevive
+a un flexómetro es el PESO —geometría y densidad— y si el fixture toca o no, que es geometría
+y no fuerza. Está dicho donde lo lee el taller: el tooltip de la columna Reacción.
 
 **El poste sembrado dejó de redondear su sitio (2026-09-19) — FIS-10c.** Era el hermano del
 hallazgo FIS-10 y quedó abierto a propósito dos días: `seedPins()` redondeaba `x` e `y` a
@@ -1040,8 +1058,9 @@ estaba justo en el borde cruzó. Las 4 se avisan.
   de 23.7 N de FIS-10. Sin el redondeo, 9.8 N. La inclinación sí se redondea: está medido que
   no mueve el hueco ni una micra. Y la consecuencia que hay que decir en voz alta: con esta
   sensibilidad, **la reacción de un pedestal suelto no se puede leer de un fixture medido a
-  mano**; lo que sí se puede leer, y es la pregunta del taller, es cuánto llevan los apoyos
-  en total y cuánto se queda la mordaza.
+  mano** — y desde el 2026-09-19, medido, tampoco su SUMA: subir un solo pedestal 0.05 mm
+  junto a la mordaza lleva el total de 26.8 N a 333.5. Lo que sobrevive a un flexómetro es el
+  peso de la pieza y si el fixture la toca o no. Ver «Y el TOTAL tampoco» más abajo.
 - **Un solo predicado de «apoya»**, `bears(f, tol, carrying?)` en `engine/fixture.ts`. Por
   geometría: le pasa por encima y la cuna la toca dentro de `tol.point`. Con la carga
   resuelta manda la reacción: apoya el que lleva peso, y un apoyo ciego cae a la geometría

@@ -55,6 +55,18 @@ Detalle en `CONTEXTO_BARCOMP.md`, «La carga».
       amarre y que espera M6: un escaneo con el fixture puesto. Va en el mismo
       correo. Lo que se puede contrastar hoy es la coherencia interna (estática,
       invariantes, orden de magnitud), no la pieza.
+- [ ] **Lo que la reacción de un apoyo puede prometer · [—]** — medido el 2026-09-19, no es
+      una tarea: es un límite que hay que citar antes de discutir cualquier newton de esta
+      pantalla. Junto a la mordaza la barra es más rígida que el muelle de contacto, así que
+      subir un pedestal δ mete κ·δ en la pieza —**6.16 N por micra**— y con 0.05 mm en UN
+      apoyo el total pasa de 26.8 N a **333.5** sobre una pieza de 23.7. Lejos de la mordaza
+      el mismo δ mueve 0.5 N. O sea que ni la reacción suelta ni su SUMA son propiedades de
+      la pieza: son la pieza más lo que el fixture le esté metiendo. Lo que sí sobrevive a un
+      flexómetro es el peso y si toca o no. Está en `tools/demo_carga.mjs` §6, en tres
+      pruebas de motor y en el tooltip de la columna Reacción. ⛔ Para dar reacciones de
+      verdad hace falta un fixture medido en MICRAS, que es otra petición al taller y va en
+      el mismo correo que el escaneo.
+
 - [ ] **Quitar el punto ciego de los tramos rectos · [—]** — hoy las incógnitas
       son los codos de las ESTACIONES, así que una recta no se cuelga por el
       medio y esa parte la da `engine/sag.ts` aparte. Cerrarlo pide incógnitas
@@ -69,8 +81,9 @@ Detalle en `CONTEXTO_BARCOMP.md`, «La carga».
       empezar a medias: `bears()`, la columna «Hueco», el brazo de la palanca, el aviso de
       choque, el dibujo 3D de la cuna —que se dibujaba con el seno cambiado de signo y bajo un
       tramo empinado apuntaba a 79° de donde la física la ponía—, la siembra de pedestales y
-      el barrido de casos. Del barrido: **3 de 135 no caben, el peor se mete 82.3 mm, y los 3
-      lo dicen**; antes de `PedFit.deep` ese aviso era mudo por encima del radio de la sección.
+      el barrido de casos. Del barrido: **4 de 135 no caben, el peor se mete 82.3 mm, y las 4
+      lo dicen** (eran 3 hasta FIS-10c, que movió unas micras dónde se posa la pieza sujeta);
+      antes de `PedFit.deep` ese aviso era mudo por encima del radio de la sección.
 
 - [ ] **La cuna no bascula y no siempre puede casar con la barra · [—]** — abierto al cerrar
       FIS-08 el 2026-09-18. La cuna es una chapa recta de `pad` × 44, y sobre una pieza

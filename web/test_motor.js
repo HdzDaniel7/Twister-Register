@@ -3207,6 +3207,54 @@ console.log('\n— la carga: el peso propio y el empuje (engine/load.ts) —');
        `${ra.carried.toFixed(2)} N redondeado vs ${r.carried.toFixed(2)} N sin redondear`);
   }
 
+  /* LO QUE LA REACCIÓN DE UN APOYO PUEDE PROMETER, medido el 2026-09-19.
+
+     Este bloque existe porque el banco de la carga decía, hasta ese día, que
+     «lo que sí se puede contestar es cuánto llevan los apoyos EN TOTAL». No es
+     verdad, y no se había medido. La ley que sale en su lugar:
+
+     junto a la mordaza la barra es mucho más rígida que el muelle de contacto,
+     así que subir ahí un pedestal δ no la doblega —no hay a dónde ceder— y ese
+     δ entra ENTERO en el muelle: la reacción sube κ·δ, o sea 6.16 N por micra.
+     Lejos de la mordaza cede antes la barra y el mismo δ casi no se nota.
+
+     De ahí que el TOTAL tampoco sea robusto: es el peso de la pieza más lo que
+     el fixture le esté metiendo. Medido en `tools/demo_carga.mjs` §6: con los
+     siete altos medidos a ±0.05 mm, el total de los apoyos sale entre 23.1 y
+     333.8 N sobre una pieza de 23.7. Y está dicho donde lo lee el taller, en el
+     tooltip de la columna Reacción. */
+  {
+    const M = E.demoModel();
+    const p0 = E.buildPath(M).samples;
+    const L = p0[p0.length - 1].s;
+    const kap = E.CONTACT_K * mat.E * E.sectionI(M.section).Iz / L ** 3;
+    const peds = E.seedPedestals(p0, M.section, 7)
+      .map((q, i) => ({ ...q, id: `pd${i + 1}`, name: `P${i + 1}` }));
+    const OFF = { ...E.RESTRAINT_DEFAULT, on: false };
+    const CARGA = { ...E.LOAD_DEFAULT, on: true };
+    const corre = (l) => E.settle(M, [], l, M.section, OFF, mat, CARGA);
+    const base = corre(peds).carried;
+    const sub = (i, d) => corre(peds.map((q, j) => (j === i ? { ...q, h: q.h + d } : q))).carried;
+    let peor = 0, lejos = 0;
+    for (const d of [0.001, 0.005, 0.01, 0.05]) {
+      peor = Math.max(peor, Math.abs((sub(0, d) - base) - kap * d) / (kap * d));
+      lejos = Math.max(lejos, Math.abs(sub(6, d) - base));
+    }
+    ok('junto a la mordaza, subir un apoyo δ mete κ·δ en la pieza: cede el muelle, no la barra',
+       peor < 0.05, `error ${(peor * 100).toFixed(2)} % sobre cuatro δ`);
+    ok('  y en la punta el mismo δ casi no se nota: ahí cede la barra antes',
+       lejos < 1, `${lejos.toFixed(2)} N con δ hasta 0.05 mm`);
+    /* Y LA CONSECUENCIA, que es la que hay que poder citar: el total tampoco
+       aguanta un alto medido a ojo. Sin esto las dos de arriba se leen como una
+       curiosidad del solver en vez de como un límite de lo que se puede
+       prometer. */
+    const flexo = sub(0, 0.05);
+    ok('  así que el TOTAL de los apoyos tampoco es una cifra robusta',
+       flexo > 10 * corre(peds).weight,
+       `${flexo.toFixed(1)} N con UN apoyo 0.05 mm alto, sobre una pieza de `
+       + `${corre(peds).weight.toFixed(1)} N`);
+  }
+
   /* LO MISMO CON LOS PINES (FIS-10c), cerrado el 2026-09-19. Quedaba abierto
      desde FIS-10a a propósito: `seedPins()` redondeaba `x` e `y` a centésimas
      por el mismo motivo por el que el fixture redondeaba el alto, y mover el
