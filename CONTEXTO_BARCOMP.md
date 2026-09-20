@@ -76,7 +76,7 @@ la razón de media docena de decisiones de abajo.
 - Ningún archivo de `panels/` ni de `scene/` importa de `app/`. Los paneles están por DEBAJO;
   donde hacía falta encontrarse, el sitio es `ST` (así viven los contadores en `ST.hist`).
 - `tools/` está versionado. `demo_amarre.mjs` es el banco del amarre con las cifras a la
-  vista; `strip_diff.mjs`, `export_surface.mjs`, `probe_perf.js` y `bundle_report.mjs` son
+  vista; `strip_diff.mjs`, `export_surface.mjs`, `probe_perf.js`, `probe_comp.js` y `bundle_report.mjs` son
   **evidencia, no pruebas**.
 
 ### Por qué esbuild, y un detalle de three.js
@@ -693,6 +693,7 @@ Dos herramientas más, que no son pruebas sino evidencia:
 node tools/strip_diff.mjs src/x.ts   # ¿el puerto a TS fue SOLO anotaciones?
 node tools/export_surface.mjs        # los 165 exports del motor, con tipo y aridad
 node tools/ui_test.mjs <pág> tools/probe_perf.js   # coste de la escena
+node tools/ui_test.mjs <pág> tools/probe_comp.js   # coste de una celda de Compensar
 node tools/bundle_report.mjs         # de qué está hecho el bundle
 ```
 
@@ -821,6 +822,7 @@ Ninguna de estas se vuelve a sacar leyendo el código.
 | Arranque en frío, peor caso (Edge headless sin GPU) | **234 ms** | auditoría 09-10 |
 | `rebuildScene()` con 13 piezas medidas visibles | **~18 ms**, 270 objetos | A8, medido y descartado |
 | `rebuildScene()` con 15 dobleces / con 60 | **2.8 ms / 9.6 ms** | `tools/probe_perf.js` |
+| Confirmar una celda Δ en Compensar, 15 dobleces / 60 con las TRES correcciones | **1.6 ms / 8.7 ms** | `tools/probe_comp.js` |
 | Un paso de deshacer | **6 µs, 5.3 KB** | `tools/probe_perf.js` |
 | Clave de `heldCache` | **0.006 ms** contra 14–100 ms del solver | PERF, 09-10 |
 | Solver del amarre, una pieza | **3–26 ms** | banco del amarre |
@@ -1060,6 +1062,38 @@ así que el 3D puede estar enseñando la pieza asentada mientras las correccione
 contra otra forma. Y Compensar es el único modo donde se decide sobre material. Ahora lo
 avisa. No decide cuál de las dos formas debe mandar —esa pregunta es C.3 y la contesta el
 taller—: dice lo que el programa hace hoy, en el sitio donde se nota.
+
+**Lo que costaba reconstruir la tabla de Compensar (2026-09-19) — M11 medido.** El
+aplazamiento decía, desde el 09-08, «es rendimiento percibido; **no hay medición que lo
+respalde**»: la misma forma que tenía PERF-01, una decisión apoyada en una impresión. Medido
+ahora en `tools/probe_comp.js`, por el camino de verdad —escribir en una celda Δ y confirmar,
+que dispara `editTweak()`, `compensate()` y `renderRight()`, y `renderRight()` rehace
+`#panes` entero:
+
+| Dobleces · correcciones encendidas | Celdas Δ | `#panes` | Confirmar una celda |
+|---|---|---|---|
+| 15 · solo el ángulo (de fábrica) | 15 | 8.6 KB | **1.6 ms** |
+| 30 · solo el ángulo | 30 | 13.9 KB | 2.1 ms |
+| 60 · solo el ángulo | 60 | 24.6 KB | 4.2 ms |
+| 15 · las TRES | 45 | 17.3 KB | 2.5 ms |
+| 60 · las TRES — el peor caso que se puede armar | 180 | 52.9 KB | **8.7 ms** |
+
+El presupuesto de la casa son 250 ms, así que el peor caso que se puede construir a
+propósito cabe **veintinueve veces**, y eso en Edge headless sobre SwiftShader, que es un
+techo pesimista y no la máquina del taller. **Se aplaza confirmado, ya no por impresión.**
+
+Dos cosas que la medición dice y la impresión no decía:
+
+- **El coste es del DOM, no del motor.** `compensate()` —la cuenta que `editTweak()` hace y
+  `paneComp()` vuelve a hacer— tarda **0.01 ms**, o sea el 0.1 % del total. La ruta dirigida
+  que se aplazó habría atacado los 8.7 ms de armar 52.9 KB de HTML; el cálculo repetido, que
+  es lo que parecía caro, no se nota.
+- **Da igual en qué celda se escriba**, la primera o la última (4.20 contra 4.65 ms con 60
+  dobleces, que es ruido). O sea que «reconstruye la tabla entera por celda» es literalmente
+  cierto — y da lo mismo.
+
+Y la fila de 60 dobleces es un peor caso de laboratorio por otro motivo: con 60 dobleces la
+carga tarda 16 s (PERF-01), así que esa pieza no es lenta en Compensar, es inusable antes.
 
 ### Decisiones que siguen gobernando el código
 

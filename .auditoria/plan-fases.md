@@ -237,7 +237,13 @@ Recortado a propósito. Cuesta mucho, aporta poco **a esta versión**:
   recorrido por teclado, `scope` y `role="alert"` están hechos (Fase 4 y UX-07). Lo que queda
   es revisar la interfaz con alguien que use un lector a diario, que es otra clase de trabajo.
 - **La ruta dirigida de `paneComp`** (M11): Compensar reconstruye la tabla entera por celda.
-  Es rendimiento percibido; no hay medición que lo respalde.
+  Era «rendimiento percibido, sin medición que lo respalde» — la misma forma que tenía
+  PERF-01. **Medido el 2026-09-19** en `tools/probe_comp.js`: confirmar una celda Δ cuesta
+  **1.6 ms con 15 dobleces** y **8.7 ms en el peor caso que se puede armar** —60 dobleces con
+  las tres correcciones encendidas, 180 celdas y 52.9 KB de `#panes`—, contra un presupuesto
+  de 250 ms. Y el coste es del DOM: `compensate()`, que `editTweak()` hace y `paneComp()`
+  repite, tarda **0.01 ms**, el 0.1 % del total, así que la ruta dirigida no atacaría lo que
+  parecía caro. Da igual en qué celda se escriba. **Se aplaza confirmado, con cifra.**
 - **`InstancedMesh` para los PI.** Optimizar contra una carga imaginaria. Primero medir con
   el número real de piezas.
 - **Pruebas de `state.ts`.** `history.ts` sí, porque ahí se pierden datos; `state.ts` es
