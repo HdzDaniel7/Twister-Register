@@ -172,6 +172,9 @@ Aquí se quedan con el número que citan los mensajes de commit.
    torsión de la sección da 1.22, y con pines laterales eso triplica lo que se mueve la
    punta (FIS-07). Se contesta con el escaneo de una pieza montada en el fixture: no hay
    que elegir a ojo. · **C.5**
+   **Cuando llegue la respuesta, es un solo número:** `ROT_STIFF_FAC` en `engine/pins.ts`,
+   que el amarre y la carga importan los dos. Hasta el 2026-09-19 estaba tecleado en cada
+   archivo por separado, así que contestar bien y aplicarlo mal era el resultado probable.
 6. **¿Compensar debe poder ver y apagar el amarre y la carga**, o dejarlos puestos ahí es
    un error que conviene bloquear? Compensar es el modo taller y es el único donde se
    decide sobre material. · **C.7**
@@ -209,9 +212,12 @@ mezclar la dispersión del proceso con la del resorte.
 
 ## Valores PROVISIONALES en circulación
 
-Cada uno en un solo sitio y con la respuesta que espera anotada. Desde la Fase 4 se teclean
-en la pestaña **Límites** y viajan en el JSON, así que un archivo dice con qué umbrales se
-juzgó esa pieza.
+Cada uno en un solo sitio y con la respuesta que espera anotada. Los **umbrales** —los que
+deciden qué se rechaza y de qué dato se desconfía— se teclean desde la Fase 4 en la pestaña
+**Límites** y viajan en el JSON, así que un archivo dice con qué umbrales se juzgó esa pieza.
+Los dos últimos NO: mueven la forma, no la juzgan. El material se teclea en su pestaña y
+viaja en el archivo; la rigidez de rodado es una constante del motor, y tocarla es cambiar
+el modelo, no ajustar una tolerancia.
 
 | Valor | Sitio | Espera |
 |---|---|---|
@@ -220,7 +226,7 @@ juzgó esa pieza.
 | `PI_MIN_MM = 1.0` | `engine/lims.ts` | A.6 — es `5σ` |
 | `STRAIGHT_MIN_MM = 25` | `engine/lims.ts` | B.2 — es una cota de la MÁQUINA (mordaza + carrera) |
 | `E`, `ρ`, `yield` del material | `engine/pins.ts` (`MAT_DEFAULT`) | el certificado; hoy son de catálogo |
-| rigidez a torsión `0.5` | `engine/load.ts` | pregunta 5; la sección da 1.22 |
+| rigidez de rodado `ROT_STIFF_FAC = 0.5` | `engine/pins.ts` | C.5; la sección da 1.22. Estuvo tecleado a mano en `pins.ts` **y** en `load.ts`, que es donde el cambio se iba a quedar a medias: desde el 2026-09-19 es un solo número y hay prueba que lo clava |
 | `tubeRfac = 0` (no vigilar) | `engine/lims.ts` | C.8 — la norma de radio mínimo de tubo del taller |
 
 ---

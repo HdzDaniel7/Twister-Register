@@ -3594,5 +3594,35 @@ console.log('\n— atributos de los paneles —');
      sobran.join(' '));
 }
 
+/* ======================================================================== */
+console.log('\n— la rigidez de rodado, un solo número —');
+/* El amarre (`restrain()`, engine/pins.ts) y la carga (`settle()`,
+   engine/load.ts) reparten la corrección entre ángulo y rodado, y el rodado
+   cede más que el ángulo por un factor. Ese factor tiene que ser EL MISMO en
+   los dos: si no, las dos pantallas describen dos barras distintas y ninguna lo
+   dice. Estuvo tecleado a mano en cada archivo, con un comentario en cada uno
+   prometiendo que el otro usaba lo mismo. La respuesta de C.5 va a cambiarlo, y
+   ese es justo el día en que se toca un archivo y se olvida el otro.
+
+   Esto NO clava la física —el valor es un factor de juicio y puede cambiar—:
+   clava que haya un solo sitio donde cambiarlo. */
+{
+  ok('ROT_STIFF_FAC existe y hoy vale 0.5, el factor de juicio en circulación',
+     E.ROT_STIFF_FAC === 0.5, `vale ${E.ROT_STIFF_FAC}`);
+  ok('  y es un muelle de verdad: positivo y no más rígido que el del ángulo',
+     E.ROT_STIFF_FAC > 0 && E.ROT_STIFF_FAC <= 1);
+  for (const f of ['pins.ts', 'load.ts']) {
+    /* sin comentarios: los dos archivos NOMBRAN el factor para explicarlo */
+    const src = readFileSync(new URL('./src/engine/' + f, import.meta.url), 'utf8')
+      .replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+    const lineas = src.split('\n').filter(l => l.includes('if (doRot)'));
+    ok(`  ${f} reparte el rodado en una sola línea`, lineas.length === 1,
+       `${lineas.length} líneas con if (doRot)`);
+    ok(`  y la escribe con ROT_STIFF_FAC, no con un número suelto`,
+       lineas.length === 1 && lineas[0].includes('ROT_STIFF_FAC'),
+       (lineas[0] || '').trim());
+  }
+}
+
 console.log(`\n${fails ? fails + ' PRUEBA(S) FALLARON' : 'todas las pruebas pasaron'}\n`);
 process.exit(fails ? 1 : 0);

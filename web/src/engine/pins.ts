@@ -135,6 +135,41 @@ export const RESTRAINT_DEFAULT: Readonly<Restraint> = Object.freeze({
   refHeld: true,
 });
 
+/** Cuánto MÁS BLANDO es el rodado que el ángulo al repartir la corrección
+ *  elástica. Lo usan los dos solvers: `restrain()` aquí abajo y la `K` de
+ *  `settle()` en engine/load.ts.
+ *
+ *  Vive en un solo sitio porque los dos TIENEN que usar el mismo número: si el
+ *  amarre repartiera con 0.5 y la carga con otro, las dos pantallas estarían
+ *  describiendo dos barras distintas y ninguna de las dos lo diría. Hasta hoy
+ *  era un `0.5` tecleado en cada archivo, cada uno con un comentario diciendo
+ *  que el otro usaba lo mismo — o sea una promesa a mano. La respuesta de C.5
+ *  va a cambiar este número, y ese día se cambia aquí.
+ *
+ *  **Es un factor de juicio, no la torsión de la sección.** La idea es que
+ *  girar el eje mueve la sección de lado, que es donde la barra cede cuando la
+ *  sujeta un pin lateral. La torsión de verdad sería `GJ/L`: para 40×12 da
+ *  `GJ/EIz = 1.22` (J = 18 684 mm⁴ por la serie exacta del rectángulo,
+ *  Iz = 5 760 mm⁴, ν = 0.33), o sea un muelle unas 2.4 veces MÁS rígido que
+ *  este.
+ *
+ *  Cuánto se aparta, medido:
+ *    · 2026-09-10, barra de 15 dobleces con solo la carga: la caída va de
+ *      0.0117 a 0.0207 mm y el reparto de reacciones se mueve menos de un 5 %;
+ *    · 2026-09-15, la demo con sus pedestales sembrados y tres pines: con solo
+ *      los pines la punta sujeta se mueve 15.3 mm con 0.5 y 4.8 mm con 1.22, y
+ *      el esfuerzo baja del 16 % al 5 % del límite.
+ *
+ *  O sea: con peso y apoyos casi no se nota, y con pines laterales manda. Se
+ *  queda en 0.5 porque cambiarlo mueve formas sujetas sin una pieza medida que
+ *  diga cuál acierta. **PROVISIONAL**, pedido en C.5, y es lo primero que hay
+ *  que contrastar cuando llegue el escaneo con el fixture puesto.
+ *
+ *  NO se teclea en «Límites» y NO viaja en el JSON, a propósito: los umbrales
+ *  de ahí no mueven un PI ni un ángulo, y este sí mueve la forma sujeta.
+ *  Tocarlo es cambiar el modelo, no ajustar una tolerancia. */
+export const ROT_STIFF_FAC = 0.5;
+
 /** Lo que se deduce de un pin contra la barra. No se guarda: sale del modelo
  *  cada vez que se repinta, igual que `PedFit`. */
 export type PinFit = {
@@ -594,19 +629,15 @@ export function restrain(model: Model, pins: Pin[], sec: Section,
   const nb = model.bends.length;
   const nu = doRot ? 2 * nb : nb;
   /* Rigidez de cada incógnita: EI/L, con EI constante y por tanto irrelevante
-     para el reparto (ver la cabecera). El rodado se toma la mitad de rígido que
-     el ángulo, con la idea de que girar el eje mueve la sección de lado, que es
-     donde la barra cede cuando la sujeta un pin lateral. Eso es un factor de
-     juicio y no la torsión de la sección: con `GJ/L` saldría 1.22 veces el del
-     ángulo para 40×12, unas 2.4 veces más rígido que 0.5. Y aquí NO es un
-     detalle: con la demo y tres pines sembrados la punta sujeta se mueve
-     15.3 mm con 0.5 y 4.8 mm con 1.22. Las cuentas, y por qué se queda, junto a
-     `K` en engine/load.ts, que usa el mismo factor. */
+     para el reparto (ver la cabecera). El rodado cede más que el ángulo por
+     `ROT_STIFF_FAC`, que es el mismo número que usa la `K` de `settle()` en
+     engine/load.ts; el porqué, las cifras y qué respuesta lo va a cambiar están
+     junto a la constante. */
   const span = stationSpans(model);
   const stiff: number[] = [];
   for (let i = 0; i < nb; i++) {
     stiff.push(1 / span[i]);
-    if (doRot) stiff.push(0.5 / span[i]);
+    if (doRot) stiff.push(ROT_STIFF_FAC / span[i]);
   }
 
   const resid = (m: Model): number[] => {
