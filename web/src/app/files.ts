@@ -13,7 +13,7 @@ import { T, LANG, setLang } from '../i18n.ts';
 import { ST, addDataset, commandModel } from '../state.ts';
 import { rebuildScene, fitView } from '../scene.ts';
 import { drawRibbon } from '../ribbon.ts';
-import { renderPanels } from '../panels.ts';
+import { renderPanels, buildTag } from '../panels.ts';
 import { download, pickFile, pickFiles, safeName } from '../io.ts';
 import { renderAll } from './render.ts';
 import { useTheme } from './theme.ts';
@@ -200,4 +200,27 @@ export function exportPoints(): void {
 export function exportCommand(): void {
   download('comando_' + safeName(ST.model!.name) + '.csv',
            E.machineCsv(commandModel(), ST.mach), 'text/csv');
+}
+
+/** El EJE NOMINAL como STEP, para CAD.
+ *
+ *  Sale `ST.model` y no `commandModel()`, al reves que el CSV de maquina, y es
+ *  deliberado: el comando es lo que hay que MANDAR a la dobladora para que la
+ *  pieza salga bien, y el CAD quiere la pieza que tiene que salir. Exportar el
+ *  comando como geometria seria entregar la forma pre-deformada.
+ *
+ *  La fecha se inyecta aqui y no dentro del motor para que `stepText()` no
+ *  toque el reloj: asi es una funcion pura y la prueba puede fijar el archivo
+ *  entero. El sello de compilacion viaja dentro del .stp — dos exportaciones
+ *  de la misma pieza hechas con versiones distintas del visor dejan de ser
+ *  indistinguibles, que es el mismo motivo por el que la barra de estado lo
+ *  ensena. */
+export function exportStep(): void {
+  const m = ST.model!;
+  download(safeName(m.name) + '.stp',
+           E.stepText(m, {
+             name: m.name,
+             build: buildTag(),
+             date: new Date().toISOString().slice(0, 19),
+           }), 'model/step');
 }

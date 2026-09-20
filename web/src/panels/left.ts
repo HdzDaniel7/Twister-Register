@@ -126,6 +126,10 @@ const DRAWERS: Record<string, () => string> = {
             CUALQUIER modo, y Compensar no tiene pestañas. -->
        <button class="btn sm" data-a="expcmd" title="${esc(T('machNote'))}">${T('machExport')}</button>
      </div>
+     <div class="eyebrow" style="padding-left:0;margin-top:8px">CAD</div>
+     <div class="col">
+       <button class="btn sm" data-a="expstp" title="${esc(T('expStepTip'))}">${T('expStep')}</button>
+     </div>
    </div></div>`,
 
   models: () => `

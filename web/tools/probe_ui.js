@@ -1963,6 +1963,32 @@ step('exportar el comando no revienta y el botón está en el cajón de archivo'
   click('#lf [data-a="expcmd"]');
 });
 
+/* El .stp es el unico archivo que sale de aqui con geometria dentro. El motor
+   ya lo tiene clavado en test_motor.js; lo que se comprueba AQUI es lo que el
+   motor no puede ver: que el boton exista, que este donde se dijo, y que lo que
+   sale del bundle empotrado sea lo mismo que sale del fuente. Un exportador
+   perfecto detras de un boton que no se pinta no exporta nada. */
+step('el eje sale a STEP desde el cajón de archivo', () => {
+  drawer('file');
+  click('#lf [data-a="expstp"]');
+});
+step('y el .stp es un archivo bien formado, con arcos y no con una malla', () => {
+  const B = window.BARCOMP;
+  const m = S().model;
+  const txt = B.E.stepText(m, { name: m.name, build: 'banco', date: '2026-01-01T00:00:00' });
+  if (!txt.startsWith('ISO-10303-21;')) throw new Error('no empieza como un STEP');
+  if (!txt.trimEnd().endsWith('END-ISO-10303-21;')) throw new Error('no cierra');
+  const def = new Set([...txt.matchAll(/^#(\d+)=/gm)].map(x => +x[1]));
+  const usadas = new Set([...txt.slice(txt.indexOf('\nDATA;')).matchAll(/#(\d+)/g)]
+    .map(x => +x[1]));
+  const cuelgan = [...usadas].filter(n => !def.has(n));
+  if (cuelgan.length) throw new Error(cuelgan.length + ' referencias sin definir');
+  /* sin un solo CIRCLE esto seria una polilinea, o sea la malla otra vez, o sea
+     los 0.32 mm de error de cuerda que el archivo existe para no tener */
+  if (!/CIRCLE\(/.test(txt)) throw new Error('salió sin arcos');
+  if (!txt.includes('SI_UNIT(.MILLI.,.METRE.)')) throw new Error('sin unidades');
+});
+
 /* -------------------------------------------------------- ACCESIBILIDAD ---
    Lo que se mide aquí es lo que un lector de pantalla o un ratón impreciso
    encuentran, y son cosas que no se ven mirando la pantalla: el tamaño real

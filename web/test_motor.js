@@ -3624,5 +3624,164 @@ console.log('\n— la rigidez de rodado, un solo número —');
   }
 }
 
+/* ======================================================================== */
+console.log('\n— el eje a STEP —');
+/* El .stp es el ÚNICO archivo que sale de aquí con geometría dentro, y sale con
+   curvas exactas: `LINE` y `CIRCLE` recortadas, no la malla del 3D. La malla
+   viene de `buildPath()`, que parte cada arco en PATH_SEG = 12 tramos; un arco
+   de 90° con R = 150 mm da 0.32 mm de flecha por tramo, o sea un tercio de la
+   tolerancia de punto regalado antes de medir nada.
+
+   Hay que sujetar dos cosas distintas:
+
+   1) que `centreSegments()` describa LA MISMA barra que `buildPath()`. Son dos
+      recorridos del modelo y tienen que coincidir; el día que alguien toque uno
+      y no el otro, esto falla aquí y no en el taller.
+   2) que el texto sea un archivo STEP y no una cadena con pinta de serlo: toda
+      referencia `#n` resuelta, ids sin hueco ni repetido, unidades declaradas,
+      y el bloque de comentario cerrado una sola vez. */
+{
+  const dist2 = (a, b) => a.distanceTo(b);
+  /* Distancia de un punto al tramo, con el arco en la MISMA parametrización que
+     se escribe en el archivo: si `arcPointAt()` mintiera, mentiría aquí. */
+  const alTramo = (s, p) => {
+    if (s.kind === 'line') {
+      const d = s.p1.clone().sub(s.p0);
+      const L2 = d.lengthSq();
+      if (!(L2 > 0)) return dist2(p, s.p0);
+      let t = p.clone().sub(s.p0).dot(d) / L2;
+      t = t < 0 ? 0 : t > 1 ? 1 : t;
+      return dist2(p, s.p0.clone().addScaledVector(d, t));
+    }
+    if (!(s.radius > 0) || !(s.theta > 0)) return dist2(p, s.p0);
+    const bi = s.z.clone().cross(s.ref);
+    const v = p.clone().sub(s.ctr);
+    let t = Math.atan2(v.dot(bi), v.dot(s.ref));
+    if (t < 0) t += 2 * Math.PI;
+    if (t > s.theta) t = (t - s.theta < 2 * Math.PI - t) ? s.theta : 0;
+    return dist2(p, E.arcPointAt(s, t));
+  };
+
+  /* Una pieza que toca todo lo que el archivo tiene que saber escribir: rodado,
+     torsión, y un doblez de radio cero (un pliegue), que es geometría que NO
+     puede salir —un `CIRCLE` de radio 0 no es válido— y tiene que contarse. */
+  const duro = E.normalizeModel({
+    name: "Soporte nº3 'A'",
+    section: { kind: 'rect', width: 40, thickness: 12 },
+    tail: 180,
+    bends: [
+      { feed: 220, rot: 0, angle: 35, radius: 40, twist: 6, twistLen: 60 },
+      { feed: 260, rot: 90, angle: 62, radius: 40, twist: 0, twistLen: 0 },
+      { feed: 180, rot: -35, angle: 28, radius: 0, twist: 0, twistLen: 0 },
+      { feed: 240, rot: 0, angle: 95, radius: 55, twist: 0, twistLen: 0 },
+    ],
+  });
+
+  for (const [nombre, mod] of [['demo', E.demoModel()], ['dura', duro]]) {
+    const segs = E.centreSegments(mod);
+    const path = E.buildPath(mod);
+
+    ok(`${nombre}: un tramo por recta y por arco, más la cola`,
+       segs.length === mod.bends.length * 2 + 1, `${segs.length} tramos`);
+
+    /* (1) el acuerdo con buildPath: toda muestra cae sobre algún tramo */
+    let peor = 0;
+    for (const q of path.samples) {
+      let d = Infinity;
+      for (const s of segs) d = Math.min(d, alTramo(s, q.p));
+      peor = Math.max(peor, d);
+    }
+    ok('  toda muestra de buildPath() cae sobre un tramo exacto',
+       peor < 1e-6, `peor ${peor.toExponential(2)} mm`);
+
+    const largo = segs.reduce((a, s) =>
+      a + (s.kind === 'line' ? s.len : s.radius * s.theta), 0);
+    ok('  y las longitudes suman la longitud desarrollada',
+       Math.abs(largo - E.developedLength(mod)) < 1e-9,
+       `${largo.toFixed(6)} vs ${E.developedLength(mod).toFixed(6)} mm`);
+
+    /* (2) el sentido del recorte: .T. barre de 0 a θ alrededor de +z desde
+       `ref`. Si el extremo no cayera en p1, el CAD dibujaría el arco
+       COMPLEMENTARIO —el de 360−θ— y la pieza saldría del revés sin que nadie
+       lo notase mirando la pantalla de aquí, que está bien. */
+    let ext = 0;
+    for (const s of segs) {
+      if (s.kind !== 'arc' || !(s.radius > 0)) continue;
+      ext = Math.max(ext, dist2(E.arcPointAt(s, 0), s.p0),
+                          dist2(E.arcPointAt(s, s.theta), s.p1));
+    }
+    ok('  el arco recortado de 0 a θ empieza en p0 y acaba en p1',
+       ext < 1e-9, `peor extremo ${ext.toExponential(2)} mm`);
+  }
+
+  /* ---------------------------------------------------- el texto del .stp */
+  const meta = { name: duro.name, build: 'abc1234', date: '2026-09-20T10:00:00' };
+  const txt = E.stepText(duro, meta);
+
+  ok('el archivo abre y cierra como un ISO-10303-21',
+     txt.startsWith('ISO-10303-21;\nHEADER;')
+     && txt.trimEnd().endsWith('END-ISO-10303-21;'));
+  ok('  lleva las dos secciones, HEADER y DATA',
+     /\nDATA;\n/.test(txt) && (txt.match(/\nENDSEC;\n/g) || []).length === 2);
+
+  /* ids: definidos una vez, sin huecos, y toda referencia resuelta */
+  const def = [...txt.matchAll(/^#(\d+)=/gm)].map(m => +m[1]);
+  const set = new Set(def);
+  ok('  cada entidad se define una sola vez y los ids van de 1 a N sin hueco',
+     set.size === def.length && Math.min(...def) === 1 && Math.max(...def) === def.length,
+     `${def.length} entidades`);
+  const cuerpo = txt.slice(txt.indexOf('\nDATA;'));
+  const huerfanas = [...new Set([...cuerpo.matchAll(/#(\d+)/g)].map(m => +m[1]))]
+    .filter(n => !set.has(n));
+  ok('  no queda ninguna referencia colgando', huerfanas.length === 0,
+     huerfanas.slice(0, 5).map(n => '#' + n).join(' '));
+
+  /* las unidades: lo que un STL no puede decir, y por eso llega a media escala */
+  ok('  declara milímetros y radianes DENTRO del archivo',
+     txt.includes('SI_UNIT(.MILLI.,.METRE.)') && txt.includes('SI_UNIT($,.RADIAN.)'));
+  ok('  y lleva el sello de compilación, que distingue dos copias iguales',
+     txt.includes("'BARCOMP abc1234'"));
+
+  /* los grupos con nombre: son LAS REFERENCIAS que se piden al abrirlo en CAD */
+  for (const g of ['eje', 'PI', 'perfil']) {
+    ok(`  el grupo «${g}» sale con nombre`, txt.includes(`GEOMETRIC_CURVE_SET('${g}'`));
+  }
+  for (const n of ['recta 1', 'arco 1', 'cola', 'PI 2']) {
+    ok(`  el tramo «${n}» va rotulado`, txt.includes(`'${n}'`));
+  }
+
+  /* el nombre de la pieza lleva una comilla y una «º»: sin escapar, el archivo
+     se parte por la mitad y el fallo aparece en el CAD del taller, no aquí */
+  ok('  la comilla del nombre va doblada y la «º» en \\X2\\',
+     txt.includes("Soporte n\\X2\\00BA\\X0\\3 ''A''"));
+
+  /* el comentario con la tabla: se cierra UNA vez, antes de la primera entidad */
+  const cierre = txt.indexOf('*/');
+  ok('  el bloque de comentario cierra una sola vez y antes de los datos',
+     cierre > 0 && cierre < txt.indexOf('\n#1=')
+     && (txt.match(/\*\//g) || []).length === 1);
+  ok('  y lleva la tabla de dobleces, que es la información que el CAD no guarda',
+     txt.includes('twistLen(mm)') && txt.includes('longitud desarrollada'));
+
+  /* el pliegue de radio cero: fuera del archivo y CONTADO, no escondido */
+  ok('  el doblez de radio cero no sale como CIRCLE inválido',
+     !/CIRCLE\('',#\d+,0\.0\)/.test(txt));
+  ok('  y el archivo dice cuántos tramos se quedaron fuera',
+     txt.includes('1 tramo(s) degenerado(s) omitido(s)'));
+
+  /* la torsión NO viaja: barrer el perfil daría la pieza sin retorcer, y el
+     archivo tiene que decirlo él, porque quien lo abra no va a preguntar */
+  ok('  con torsión, el encabezado avisa de que el barrido saldría sin retorcer',
+     txt.includes('ATENCION: la pieza lleva torsion'));
+  const liso = E.normalizeModel({ ...duro, bends: duro.bends.map(b => ({ ...b, twist: 0 })) });
+  ok('  y sin torsión dice que el barrido sí reproduce la pieza',
+     E.stepText(liso, meta).includes('sin torsion: barrer el perfil'));
+
+  /* reproducible: el reloj se inyecta, no se lee. Dos exportaciones del mismo
+     modelo tienen que dar el MISMO archivo o no se pueden comparar */
+  ok('  el mismo modelo da el mismo archivo byte a byte',
+     E.stepText(duro, meta) === txt, `${(txt.length / 1024).toFixed(1)} KB`);
+}
+
 console.log(`\n${fails ? fails + ' PRUEBA(S) FALLARON' : 'todas las pruebas pasaron'}\n`);
 process.exit(fails ? 1 : 0);

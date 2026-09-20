@@ -73,6 +73,12 @@ la razón de media docena de decisiones de abajo.
   de ellas eran la misma cuenta escrita tres veces, con tres nombres, hasta el 2026-09-17.
 - `barGeometry()` vive en `scene/geometry.ts` y **no** en el motor: devuelve una
   `BufferGeometry`, así que depende de three.
+- `engine/step.ts` es **el eje exacto**, y es el único sitio del programa que describe la
+  pieza con arcos en vez de con muestras. `centreSegments()` recorre el modelo en
+  paralelo a `buildPath()` y tiene que coincidir con él; lo que lo sujeta es una prueba de
+  motor que exige que TODA muestra de `buildPath()` caiga sobre alguno de sus tramos
+  (hoy, peor caso **1.3e-13 mm**). No se comparte el recorrido porque `buildPath()`
+  arrastra marcos y torsión, y el eje no necesita ni una cosa ni la otra.
 - Ningún archivo de `panels/` ni de `scene/` importa de `app/`. Los paneles están por DEBAJO;
   donde hacía falta encontrarse, el sitio es `ST` (así viven los contadores en `ST.hist`).
 - `tools/` está versionado. `demo_amarre.mjs` es el banco del amarre con las cifras a la
@@ -1136,6 +1142,21 @@ lo único que ese contador puede decir, y un aviso de no meter nada entre `f0` y
 `setTimeout`. **El render bajo demanda nunca dibujó de balde: sigue en 0 cuadros.**
 
 ### Decisiones que siguen gobernando el código
+
+- **Lo que sale a CAD son CURVAS, no la malla del 3D** (2026-09-20). La malla viene de
+  `buildPath()`, que parte cada arco en `PATH_SEG = 12` tramos, y eso es error de cuerda:
+  `R(1−cos(θ/24))` da **0.32 mm** en un arco de 90° con R = 150 mm, o sea **un tercio de
+  `tol.point` (1.0 mm)** regalado antes de que nadie mida nada. `engine/step.ts` emite
+  `LINE` y `CIRCLE` recortadas y no aproxima nada. Corolario que vale para cualquier
+  formato futuro —DXF, IGES— : **la malla es un dibujo, no una definición**, y lo exacto
+  que este programa ya tiene es la tabla LRA más los PI de `fk()`.
+- **Un archivo de geometría suelta no vale, y por eso el .stp lleva su procedencia.** El
+  sello de compilación va en `originating_system`, las unidades van DECLARADAS dentro
+  (`SI_UNIT(.MILLI.,.METRE.)` — un STL no puede decir en qué unidad está y por eso llega a
+  media escala), y la tabla de dobleces entera va como COMENTARIO de STEP: ningún CAD lo
+  lee, así que no puede romper una importación, y quien abra el archivo con un editor lo
+  ve todo. Lo que el archivo NO lleva lo dice él mismo en su encabezado: la torsión no
+  viaja, así que barrer el perfil por el eje da la pieza sin retorcer.
 
 - **La corrección se busca en el ESPACIO DE PARÁMETROS**, no desplazando puntos: así lo que
   sale es una pieza que la cinemática puede describir, no una nube que ya no corresponde a

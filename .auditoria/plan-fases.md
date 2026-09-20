@@ -142,7 +142,11 @@ software.**
   de inspección puede dar los puntos de intersección directamente. Si puede, no
   se escribe nunca. Sigue siendo la pregunta que más trabajo ahorra.
 - **[A.7] Cotejar el nominal contra el CAD** — necesita el STEP/IGES o la tabla
-  de dobleces con la que se generó.
+  de dobleces con la que se generó. **Sigue bloqueado: el dato va del taller hacia aquí.**
+  Lo que existe desde el 2026-09-20 va en el otro sentido —«Eje a STEP», `engine/step.ts`,
+  el eje nominal con arcos exactos, los PI y el perfil— y no sustituye nada de esto; lo
+  que hace es que quien tenga el CAD pueda superponer los dos sin que nadie teclee una
+  tabla a mano.
 - **[A.5] El escaneo de la barra recta certificada en el fixture** — convierte en
   medida la flecha estimada (M6), el amarre y la carga. Los tres esperan el mismo dato.
 

@@ -303,6 +303,8 @@ export const de: Record<I18nKey, string> = {
  soloTip: 'Tabelle und Seitenleiste einklappen, um das ganze Teil zu sehen (Taste F). '
    + 'Beim Zurückkommen steht die Tabelle, wo sie war.',
  expPts: 'Punkte exportieren',
+ expStep: 'Achse als STEP (.stp)',
+ expStepTip: 'Die Sollachse als EXAKTE Kurven —Geraden und Bögen, kein Netz—, mit den PI und dem Profil in benannten Gruppen und den Einheiten im Datei deklariert. Es ist die Sollform, nicht der Maschinenbefehl. Die Torsion ist NICHT enthalten: wo es sie gibt, ergibt ein Sweep des Profils entlang der Achse das Teil ohne Verdrehung.',
  modeModel: 'Modellieren', modeMeas: 'Messen', modeComp: 'Kompensieren',
  modeModelTip: 'Das Teil eingeben: die ganze Tabelle rechts und das Modell daneben.',
  modeMeasTip: 'Das gemessene Teil ansehen: großes Modell, hohes Band und die Statistik.',

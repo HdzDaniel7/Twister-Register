@@ -25,7 +25,7 @@ import { makeReport } from '../report.ts';
 import { renderAll, refresh, refreshTable, toggleSolo, setMode } from './render.ts';
 import { undo, redo } from './history.ts';
 import {
-  saveJson, openJson, importPieces, exportPoints, exportCommand,
+  saveJson, openJson, importPieces, exportPoints, exportCommand, exportStep,
 } from './files.ts';
 
 const clamp = E.clamp;
@@ -348,6 +348,7 @@ export function action(a: string): void {
       }
       return;
     case 'expcmd': return exportCommand();
+    case 'expstp': return exportStep();
     case 'machdef':
       ST.mach = { ...E.MACHINE_DEFAULT, cols: [...E.MACHINE_DEFAULT.cols] };
       return refresh();

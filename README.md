@@ -260,6 +260,7 @@ web/
     engine/pins.ts        EL AMARRE: la forma que toma la barra sujeta y lo que le cuesta
     engine/load.ts        la carga: el peso propio contra apoyos que empujan pero no tiran
     engine/sag.ts         la flecha por gravedad entre apoyos
+    engine/step.ts        el eje a STEP para CAD: rectas y ARCOS exactos, no la malla
     engine/path.ts        mirar la barra donde NO hay muestra: sampleAt, nearestOnPath
     engine/contact.ts     distancia entre segmentos
   src/app.ts        arranque y cableado; el resto en app/
@@ -282,7 +283,7 @@ web/
   src/app.css       tokens de diseño y layout; la paleta de los DOS temas
   src/shell.html    esqueleto con los marcadores del build
   build.mjs         esbuild: src/ + three  ->  index.html
-  test_motor.js     605 pruebas del motor y del i18n, en Node y sin navegador
+  test_motor.js     640 pruebas del motor y del i18n, en Node y sin navegador
   tools/            banco de interfaz por CDP y las sondas de medición
 index.html          SALIDA GENERADA — no se edita a mano
 ```

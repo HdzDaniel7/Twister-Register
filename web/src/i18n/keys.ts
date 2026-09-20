@@ -6,7 +6,7 @@
    ========================================================================= */
 export type Lang = 'es' | 'en' | 'de';
 
-/** Las 448 claves que deben existir en LOS TRES diccionarios. */
+/** Las 450 claves que deben existir en LOS TRES diccionarios. */
 export type I18nKey =
   | 'sub' | 'bNew' | 'bOpen' | 'bSave' | 'bRep' | 'bDemo' | 'layers' | 'datasets'
   | 'model' | 'meas' | 'thSys' | 'thLight' | 'thDark' | 'comp' | 'points' | 'lNom'
@@ -72,7 +72,7 @@ export type I18nKey =
   | 'sbTrend' | 'sbTrendTip'
   | 'modeModel' | 'modeMeas' | 'modeComp'
   | 'modeModelTip' | 'modeMeasTip' | 'modeCompTip'
-  | 'mnFile' | 'mnModel' | 'mnView' | 'mnPieces' | 'expPts'
+  | 'mnFile' | 'mnModel' | 'mnView' | 'mnPieces' | 'expPts' | 'expStep' | 'expStepTip'
   | 'soloOn' | 'soloOff' | 'soloTip' | 'rotAxisTip' | 'rotHeadTip'
   | 'history' | 'undo' | 'redo' | 'histNote'
   | 'srcSimTip' | 'srcVerifyTip' | 'srcMeasTip' | 'srcUnkTip'
