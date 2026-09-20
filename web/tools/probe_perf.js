@@ -103,12 +103,18 @@ say(`  geometrías vivas al final ${B.renderer.info.memory.geometries}`);
 say('');
 
 /* ¿El bucle dibuja de balde? El render es bajo demanda: sin tocar nada, el
-   contador de cuadros de three no debería moverse. */
+   contador de cuadros de three no debería moverse.
+
+   NO SE METE NADA entre `f0` y el setTimeout. La ventana de reposo empieza en
+   `f0`, así que cualquier código puesto ahí en medio se cuenta como si la
+   aplicación hubiera dibujado sola. El 2026-09-19 un bloque insertado justo
+   ahí hizo que esta medición diera 7 cuadros en vez de 0, tres veces de tres,
+   y pareció una regresión del render bajo demanda: eran los suyos —seis
+   `await frame()` en tres vueltas más la reconstrucción final—. */
 ST.view.exag = 1;
 B.rebuildScene();
 await frame();
 const f0 = B.renderer.info.render.frame;
-const c0 = B.renderer.info.render.calls;
 await new Promise(res => setTimeout(() => {
   const df = B.renderer.info.render.frame - f0;
   say('== el paso de deshacer ==');
@@ -121,7 +127,10 @@ await new Promise(res => setTimeout(() => {
   say('');
   say('== bucle de animación en reposo, 2 s sin tocar nada ==');
   say(`  cuadros dibujados ${df}   ${df <= 1 ? '(render bajo demanda: no gasta)' : '(GASTA cuadros de balde)'}`);
-  say(`  llamadas de dibujo por cuadro ${((B.renderer.info.render.calls - c0) / Math.max(1, df)).toFixed(0)}`);
+  /* `render.calls` lo pone three a cero en CADA render, así que no es un
+     acumulado y restarle un valor de antes no significa nada: es el número de
+     llamadas del ÚLTIMO cuadro que se dibujó, sea de cuándo sea. Se dice así. */
+  say(`  llamadas de dibujo del último cuadro dibujado ${B.renderer.info.render.calls}`);
   say('');
   say('== memoria de la GPU al terminar ==');
   say(`  geometrías ${B.renderer.info.memory.geometries} · texturas ${B.renderer.info.memory.textures} · programas ${B.renderer.info.programs.length}`);
@@ -136,14 +145,15 @@ await new Promise(res => setTimeout(() => {
    número no lo sabe este repositorio — pero la CURVA sí se puede dar, para que
    la respuesta del taller se lea directamente de ella.
 
-   Va EL ÚLTIMO a propósito. Puesto antes de la medición de reposo, esa
-   medición pasaba de 0 a 7 cuadros en 2 s con CERO llamadas de dibujo, y no se
-   reprodujo con los ingredientes por separado —ni abriendo el cajón, ni
-   simulando diez piezas, ni con setBends, ni con el arrastre de exag, ni
-   dejando asentar 300 ms antes de contar—. Sin causa no se toca la aplicación:
-   se mueve la medición NUEVA al final, donde no puede ensuciar una cifra que
-   lleva tiempo siendo fiable. Queda escrito porque es un cabo suelto, no
-   porque esté resuelto. */
+   Va EL ÚLTIMO, y ahora se sabe por qué. Al escribirlo quedó empalmado entre
+   `const f0 = …` y el setTimeout de la medición de reposo, o sea DENTRO de la
+   ventana ya abierta, y esa medición pasó de 0 a 7 cuadros. Pareció una
+   regresión del render bajo demanda y no lo era: los 7 son los suyos —dos
+   `await frame()` por cada una de las tres vueltas, más la reconstrucción que
+   deja la escena limpia—, y las «cero llamadas de dibujo» eran la resta de un
+   contador que three pone a cero en cada render. Reproducido 3 de 3 el
+   2026-09-19 reinsertándolo ahí, y 0 de 8 con el bloque entero antes de `f0`.
+   La aplicación no dibujó de balde en ningún momento. */
 setBends(15);
 ST.datasets.length = 0;
 say('');

@@ -825,6 +825,7 @@ Ninguna de estas se vuelve a sacar leyendo el código.
 | Confirmar una celda Δ en Compensar, 15 dobleces / 60 con las TRES correcciones | **1.6 ms / 8.7 ms** | `tools/probe_comp.js` |
 | `rebuildScene()` con 1 pieza medida en pantalla / con 10 | **3.9 ms / 14.0 ms** | `tools/probe_perf.js` |
 | Un paso de deshacer | **6 µs, 5.3 KB** | `tools/probe_perf.js` |
+| Bucle de animación en reposo, 2 s sin tocar nada | **0 cuadros** (render bajo demanda) | `tools/probe_perf.js` |
 | Clave de `heldCache` | **0.006 ms** contra 14–100 ms del solver | PERF, 09-10 |
 | Solver del amarre, una pieza | **3–26 ms** | banco del amarre |
 | Amarre con 6 modelos, antes → después de PERF-02 | Node **73 → 51 ms**; Edge **82 → 55 ms**; repintado **122 → 86 ms** | PERF-02 |
@@ -1115,13 +1116,24 @@ en un cuadro de 60 Hz y están diecisiete veces por debajo del presupuesto de 25
 aplaza confirmado.** Si algún día el taller dice un número mayor, la fila que falta se
 interpola de esta tabla en vez de discutirse.
 
-Y un cabo suelto que se deja escrito porque no se resolvió: puesto ANTES de la medición de
-reposo, este bloque la hacía pasar de **0 a 7 cuadros en 2 s con CERO llamadas de dibujo**.
-No se reprodujo con los ingredientes por separado —ni abriendo el cajón de piezas, ni
-simulando diez, ni con `setBends`, ni con el arrastre de exageración, ni dejando asentar
-300 ms antes de contar—. Sin causa no se toca la aplicación: la medición nueva se movió al
-final, donde no puede ensuciar una cifra que lleva tiempo siendo fiable, y el porqué está en
-el comentario del bloque.
+El cabo suelto que quedó escrito ese mismo día —la medición de reposo pasando de **0 a 7
+cuadros en 2 s con CERO llamadas de dibujo**— **está cerrado, y no era de la aplicación.**
+Lo que falló fue dónde se empalmó el bloque nuevo: no antes de la medición de reposo, sino
+entre `const f0 = …` y su `setTimeout`, o sea DENTRO de una ventana ya abierta. Los 7 son
+suyos y la cuenta cuadra exacta: dos `await frame()` por cada una de las tres vueltas, más
+la reconstrucción que deja la escena limpia. Y las «cero llamadas de dibujo» no eran cero:
+la línea restaba `render.calls` contra un valor anterior, y three pone ese contador a cero
+en CADA render, así que la resta no significaba nada. Reproducido **3 de 3** reinsertándolo
+en ese punto, y **0 de 8** con el bloque entero delante de `f0`.
+
+Por qué costó encontrarlo: la bisección probó los ingredientes —cajón, diez piezas,
+`setBends`, el arrastre, 300 ms de asiento— y ninguno era el ingrediente. Lo que lo delató
+fue comparar los NÚMEROS VECINOS de la misma salida: en la corrida mala el documento pesaba
+5.9 KB y quedaban 20 geometrías; en la réplica, 33.6 KB y 200. Esa diferencia dijo que el
+bloque limpiaba detrás de sí, y de ahí salió el punto de empalme. Quedan dos cosas en
+`tools/probe_perf.js`: la línea de llamadas ahora dice «del último cuadro dibujado», que es
+lo único que ese contador puede decir, y un aviso de no meter nada entre `f0` y el
+`setTimeout`. **El render bajo demanda nunca dibujó de balde: sigue en 0 cuadros.**
 
 ### Decisiones que siguen gobernando el código
 
