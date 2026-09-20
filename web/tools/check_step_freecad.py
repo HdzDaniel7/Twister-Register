@@ -20,28 +20,43 @@ se va lo que colgaba de `SHAPE_DEFINITION_REPRESENTATION`, y lo que se pierde es
 el archivo entero. Ninguna comprobación de texto lo ve — hace falta un lector de
 STEP de verdad, y el que importa es el que va a usar el taller.
 
-Qué dice que está bien. Las dos primeras son que el archivo LLEGA; las tres
-últimas son que además SIRVE, que no es lo mismo y también se descubrió abriendo
-el archivo y no leyéndolo:
+Qué comprueba:
   · que entre ALGO (si no, es el fallo de arriba otra vez);
-  · que los arcos entren como `Circle` y no como polilínea, que es el motivo de
-    escribir STEP en vez de mandar la malla del 3D;
-  · que NO venga todo en un solo objeto: con una sola raíz STEP el eje, el
-    perfil y los PI llegan mezclados en un compuesto, y entonces el diálogo de
-    barrido de FreeCAD no tiene ningún «perfil» que ofrecer;
-  · que el eje sea UN hilo. Suelto en tramos, la trayectoria del barrido hay que
-    clicarla arista por arista — 31 veces en la demo;
-  · que el perfil sea un hilo CERRADO. Abierto no se puede barrer para sacar un
-    sólido, y se abre con una facilidad ridícula: una costura que no cierre por
-    7e-07 mm basta.
+  · que haya un SÓLIDO, que es lo único que importa cualquier CAD. Si el archivo
+    dice en su encabezado por qué no lo lleva, no se exige;
+  · que el sólido sea válido y CERRADO;
+  · que su volumen sea el de Pappus. El archivo trae escrito, en su comentario,
+    el volumen que le toca —`área × longitud desarrollada`, las dos cuentas del
+    motor—, así que este banco lo lee de ahí y lo contrasta con lo que mide el
+    núcleo geométrico. Es la comprobación que de verdad dice si la topología
+    está bien: una cara del revés, un parche complementario o un casco abierto
+    mueven el volumen y no mueven nada más;
+  · que los arcos entren como geometría exacta y no como polilínea.
+
+Lo que cazó cuando se escribió: cuatro caras interiores de los codos de un tubo
+redondo cubrían el 95 % del toro entero, porque se invirtió la normal sin
+invertir el sentido del lazo. El sólido salía válido, cerrado y con buena pinta,
+y daba 802868 mm³ donde tocaban 120681.
 """
+import io
+import re
 import sys
 
 import FreeCAD
 import Part
 
 
+def leer_encabezado(ruta):
+    """El volumen que el archivo dice que le toca, y el motivo de no llevar
+    sólido si es que no lo lleva. Los dos van escritos dentro del .stp."""
+    txt = io.open(ruta, encoding="utf-8", errors="replace").read(200000)
+    vol = re.search(r"volumen esperado \(Pappus\) = ([0-9.]+) mm3", txt)
+    sin = re.search(r"SIN SOLIDO \(([^)]*)\)", txt)
+    return (float(vol.group(1)) if vol else None), (sin.group(1) if sin else None)
+
+
 def main(ruta):
+    esperado, sin_solido = leer_encabezado(ruta)
     doc = FreeCAD.newDocument("chk")
     try:
         Part.insert(ruta, doc.Name)
@@ -52,6 +67,7 @@ def main(ruta):
     aristas = vertices = circulos = rectas = 0
     objetos = 0
     cerrados = 0
+    solidos = []
     # Todo objeto QUE TENGA aristas tiene que ser exactamente un hilo con todas
     # ellas. Vale igual para el eje (abierto) y para el perfil (cerrado), y no
     # hay que adivinar cuál es cuál.
@@ -63,6 +79,17 @@ def main(ruta):
         objetos += 1
         aristas += len(sh.Edges)
         vertices += len(sh.Vertexes)
+        if sh.Solids:
+            solidos.append(sh)
+            print("  objeto %r  SOLIDO  caras %d  valido %s  cerrado %s  vol %.6f mm3"
+                  % (obj.Label, len(sh.Faces), sh.isValid(), sh.isClosed(), sh.Volume))
+            tipos = {}
+            for f in sh.Faces:
+                n = type(f.Surface).__name__
+                tipos[n] = tipos.get(n, 0) + 1
+            print("      caras por tipo: %s"
+                  % ", ".join("%s x%d" % kv for kv in sorted(tipos.items())))
+            continue
         for e in sh.Edges:
             nombre = type(e.Curve).__name__
             if nombre == "Circle":
@@ -91,18 +118,43 @@ def main(ruta):
         print("       una polilínea, o sea el error de cuerda que existe para evitar")
         fallos += 1
     if objetos < 2:
-        print("FALLA  todo vino en UN objeto: eje, perfil y PI mezclados. Así no hay")
-        print("       perfil que darle al barrido — mira si hay una raíz por grupo")
+        print("FALLA  todo vino en UN objeto: mira si hay una raíz por grupo")
         fallos += 1
     if sueltos:
         print("FALLA  con aristas sueltas y no en un hilo: %s" % ", ".join(sueltos))
-        print("       la trayectoria habría que clicarla arista por arista — mira el")
-        print("       COMPOSITE_CURVE y si los tramos comparten el punto de unión")
+        print("       mira el COMPOSITE_CURVE y si los tramos comparten el punto")
+        print("       de unión")
         fallos += 1
-    if not cerrados:
-        print("FALLA  ningún hilo cerrado: sin perfil cerrado no se puede barrer un")
-        print("       sólido. Suele ser una costura que no cierra por menos de un micrón")
-        fallos += 1
+
+    # --- el sólido, que es lo que se lleva el CAD ---
+    if not solidos:
+        if sin_solido:
+            print("sin sólido, y el archivo dice por qué: %s" % sin_solido)
+        else:
+            print("FALLA  ni un sólido, y el archivo no dice por qué no lo lleva.")
+            print("       Un STEP de alambre no lo importa SolidWorks")
+            fallos += 1
+    else:
+        for sh in solidos:
+            if not sh.isValid():
+                print("FALLA  el sólido no es válido")
+                fallos += 1
+            if not sh.isClosed():
+                print("FALLA  el sólido no cierra: no encierra volumen")
+                fallos += 1
+            if esperado is None:
+                print("FALLA  el archivo no trae el volumen de Pappus; sin él, esto")
+                print("       no puede decir si la topología está bien")
+                fallos += 1
+            else:
+                err = abs(sh.Volume - esperado) / esperado if esperado else 1
+                print("  volumen %.6f  esperado %.6f  error relativo %.2e"
+                      % (sh.Volume, esperado, err))
+                if err > 1e-7:
+                    print("FALLA  el volumen no es el de Pappus. Una cara del revés, un")
+                    print("       parche complementario o un casco abierto lo mueven")
+                    fallos += 1
+
     print("sin problemas" if not fallos else "%d PROBLEMA(S)" % fallos)
     return 1 if fallos else 0
 

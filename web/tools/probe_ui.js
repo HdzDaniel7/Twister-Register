@@ -1988,6 +1988,34 @@ step('y el .stp es un archivo bien formado, con arcos y no con una malla', () =>
   if (!/CIRCLE\(/.test(txt)) throw new Error('salió sin arcos');
   if (!txt.includes('SI_UNIT(.MILLI.,.METRE.)')) throw new Error('sin unidades');
 });
+step('y la demo sale como SOLIDO, que es lo unico que importa todo CAD', () => {
+  const B = window.BARCOMP;
+  const m = S().model;
+  /* la demo es rectangular, sin torsion y sin pliegues: tiene que haber solido */
+  const motivo = B.E.solidBlocker(m);
+  if (motivo) throw new Error('se bloqueo el solido: ' + motivo);
+  const txt = B.E.stepText(m, { name: m.name, build: 'banco', date: '2026-01-01T00:00:00' });
+  if (!txt.includes('ADVANCED_BREP_SHAPE_REPRESENTATION(')) {
+    throw new Error('salio sin solido');
+  }
+  if (!txt.includes('MANIFOLD_SOLID_BREP(') || !txt.includes('CLOSED_SHELL(')) {
+    throw new Error('el solido no cierra ningun casco');
+  }
+  /* cuatro caras por tramo del eje mas las dos tapas: si falta una, el casco
+     no es un solido, y eso el texto SI lo puede contar */
+  const shell = txt.match(/CLOSED_SHELL\('',\(([^)]*)\)\)/);
+  const nseg = B.E.centreSegments(m).length;
+  if (!shell || shell[1].split(',').length !== nseg * 4 + 2) {
+    throw new Error('caras: ' + (shell ? shell[1].split(',').length : 0)
+      + ' para ' + nseg + ' tramos');
+  }
+  /* el volumen que le toca por Pappus va escrito en el archivo: es con lo que
+     tools/check_step_freecad.py contrasta lo que mide el nucleo geometrico */
+  const esperado = (B.E.sectionArea(m.section) * B.E.developedLength(m)).toFixed(6);
+  if (!txt.includes('volumen esperado (Pappus) = ' + esperado)) {
+    throw new Error('sin el volumen de Pappus dentro del archivo');
+  }
+});
 
 /* -------------------------------------------------------- ACCESIBILIDAD ---
    Lo que se mide aquí es lo que un lector de pantalla o un ratón impreciso

@@ -1,11 +1,16 @@
 /* =========================================================================
    STEP — el eje de la pieza como geometría de referencia, para CAD.
 
-   Lo que sale es un AP214 `geometric_curve_set`: puntos, rectas y ARCOS DE
-   VERDAD. No es un sólido, y no puede serlo — un `manifold_solid_brep` con una
-   cara tórica por doblez es trabajo de un núcleo geométrico, y aquí no hay
-   núcleo ni lo va a haber bajo `file://`. Lo que sí es, y es lo que importa:
-   **exacto**.
+   Lo que sale es, por este orden: **el SÓLIDO de la pieza** —ver
+   `engine/brep.ts`— y, detrás, el eje y los PI como geometría de referencia.
+
+   El sólido primero porque es lo único que importa cualquier CAD. Un
+   `geometric_curve_set` solo lo abre FreeCAD y lo IGNORA SolidWorks, así que un
+   archivo de alambre es mirable y poco más. Aquí se dijo el 2026-09-20 que un
+   sólido «es trabajo de un núcleo geométrico y aquí no hay núcleo»: era falso, y
+   la corrección está en `brep.ts`. Lo que sí sigue siendo verdad es que la
+   geometría es **exacta** — planos, cilindros, toros, rectas y arcos, nada
+   mallado.
 
    Por qué no se exporta la malla del 3D. `barGeometry()` dibuja barriendo las
    muestras de `buildPath()`, y `buildPath()` parte cada arco en `PATH_SEG = 12`
@@ -43,7 +48,8 @@ import { D2R, eye, posOf, rotAxis, rotX, trans } from './math.ts';
 import {
   axisAngles, bendDecomp, developedLength, fk, rowLengths, tailStraight,
 } from './kinematics.ts';
-import { sectionOutline } from './section.ts';
+import { sectionArea, sectionOutline } from './section.ts';
+import { solidBlocker, solidBrep } from './brep.ts';
 
 /* ------------------------------------------------------- el eje, exacto ---
    Una recta o un arco por tramo, con todo lo que hace falta para escribirlo en
@@ -144,7 +150,11 @@ export function arcPointAt(a: Extract<CentreSeg, { kind: 'arc' }>, t: number): V
 
 /** Un REAL de STEP lleva punto decimal SIEMPRE: `100` es un entero, y un lector
  *  estricto lo rechaza donde espera un real. */
-function NUM(v: number, dec = 6): string {
+/* Nueve decimales y no seis. Con seis, una coordenada llega redondeada a 5e-07
+   mm y el volumen del solido se aparta de Pappus en area x ese error: 0.027 mm3
+   sobre la demo, 3.1e-08 relativo. No es un fallo de geometria —es el papel— y
+   con nueve baja tres ordenes de magnitud. El archivo crece y da igual. */
+function NUM(v: number, dec = 9): string {
   let x = isFinite(v) ? v : 0;
   if (Object.is(x, -0)) x = 0;
   let s = x.toFixed(dec);
@@ -332,6 +342,22 @@ export function stepText(model: Model, meta: StepMeta): string {
     perfilItems.push(put(`COMPOSITE_CURVE('perfil',(${segs.map(i => '#' + i).join(',')}),.U.)`));
   }
 
+  /* --- EL SOLIDO ---
+
+     Es lo que de verdad se lleva el CAD. Va primero y va aparte: un
+     `ADVANCED_BREP_SHAPE_REPRESENTATION` con su propia raiz, porque un solido y
+     una geometria de referencia no son la misma clase de cosa y mezclarlos en
+     una representacion no lo entiende todo el mundo.
+
+     No siempre se puede: `solidBlocker()` dice por que cuando no, y el motivo
+     acaba en el encabezado del archivo. Ademas hace falta que el eje sea UNA
+     cadena — con un hueco en medio el casco no cerraria. */
+  const bloqueo = solidBlocker(model)
+    || (cadenas.length === 1 && vivos.length ? null : 'el eje quedo partido en trozos');
+  const solido = bloqueo ? 0 : solidBrep(model, vivos, {
+    put, pt, dir, num: NUM,
+  });
+
   /* --- productos y formas: UNO POR GRUPO ---
 
      Tres raíces y no una. Con una sola, OCCT entrega un ÚNICO compuesto con
@@ -345,9 +371,12 @@ export function stepText(model: Model, meta: StepMeta): string {
      hacen falta: son tres cosas sueltas en el mismo archivo, que es justo lo que
      son. El orden importa poco salvo que el perfil va antes que los PI, porque
      es el que hay que encontrar para barrer. */
+  /* Con solido, el perfil suelto sobra: existia para que alguien lo barriera a
+     mano, y ya no hay nada que barrer. El eje y los PI se quedan — son las
+     REFERENCIAS, y sirven para medir contra ellas aunque haya un solido. */
   const grupos: { nombre: string; items: number[] }[] = [
     { nombre: 'eje', items: ejeItems },
-    { nombre: 'perfil', items: perfilItems },
+    { nombre: 'perfil', items: solido ? [] : perfilItems },
     { nombre: 'PI', items: piItems },
   ].filter(g => g.items.length);
 
@@ -362,14 +391,27 @@ export function stepText(model: Model, meta: StepMeta): string {
      salió va en la descripción, en el encabezado y en el comentario. */
   const proc = STR(meta.name + ' - BARCOMP ' + meta.build);
 
-  for (const g of grupos) {
-    const gn = STR(g.nombre);
-    const gcs = put(`GEOMETRIC_CURVE_SET(${gn},(${g.items.map(i => '#' + i).join(',')}))`);
+  /** Una raiz del archivo: producto, definicion y representacion. Las dos
+   *  clases —el solido y cada grupo de curvas— solo se diferencian en la
+   *  representacion, asi que el papeleo se escribe una vez. */
+  const raiz = (nombre: string, repBody: (gn: string) => number): void => {
+    const gn = STR(nombre);
     const prod = put(`PRODUCT(${gn},${gn},${proc},(#${pctx}))`);
     put(`PRODUCT_RELATED_PRODUCT_CATEGORY('part','',(#${prod}))`);
     const pdf = put(`PRODUCT_DEFINITION_FORMATION('','',#${prod})`);
     const pd = put(`PRODUCT_DEFINITION('design','',#${pdf},#${pdc})`);
     const pds = put(`PRODUCT_DEFINITION_SHAPE('','',#${pd})`);
+    put(`SHAPE_DEFINITION_REPRESENTATION(#${pds},#${repBody(gn)})`);
+  };
+
+  if (solido) {
+    raiz(model.name, gn =>
+      put(`ADVANCED_BREP_SHAPE_REPRESENTATION(${gn},(#${solido}),#${ctx})`));
+  }
+
+  for (const g of grupos) {
+    const gn = STR(g.nombre);
+    const gcs = put(`GEOMETRIC_CURVE_SET(${gn},(${g.items.map(i => '#' + i).join(',')}))`);
     /* `GEOMETRICALLY_BOUNDED_WIREFRAME_SHAPE_REPRESENTATION`, con `SHAPE_` en
        medio. Es el nombre de la entidad en AP203 y AP214, y el 2026-09-20 salió
        sin él: el archivo era sintácticamente perfecto —toda referencia resuelta,
@@ -377,13 +419,17 @@ export function stepText(model: Model, meta: StepMeta): string {
        found in file». OCCT no reconoce la representación, y entonces no hay nada
        colgando de `SHAPE_DEFINITION_REPRESENTATION`: se descarta el archivo
        ENTERO, geometría incluida, sin una sola queja de sintaxis. */
-    const rep = put(`GEOMETRICALLY_BOUNDED_WIREFRAME_SHAPE_REPRESENTATION(${gn},`
-      + `(#${gcs}),#${ctx})`);
-    put(`SHAPE_DEFINITION_REPRESENTATION(#${pds},#${rep})`);
+    raiz(g.nombre, () =>
+      put(`GEOMETRICALLY_BOUNDED_WIREFRAME_SHAPE_REPRESENTATION(${gn},`
+        + `(#${gcs}),#${ctx})`));
   }
 
   /* --- el encabezado --- */
   const desc = [
+    solido
+      ? `SOLIDO de ${B.length} dobleces, caras exactas (planos, cilindros, toros), mm.`
+        + ' Sin chaflan ni tocho de cabo: los cabos salen cortados rectos'
+      : `SIN SOLIDO (${bloqueo}). Sale solo el eje nominal como curvas exactas`,
     `eje nominal de ${B.length} dobleces, curvas exactas (LINE + CIRCLE), mm`,
     retorcido
       ? 'ATENCION: la pieza lleva torsion. El perfil sale colocado en el arranque,'
@@ -410,6 +456,16 @@ export function stepText(model: Model, meta: StepMeta): string {
       + (sec.wall ? `, pared ${sec.wall} mm` : ', maciza')),
     ASC(`   longitud desarrollada ${developedLength(model).toFixed(3)} mm`
       + `, cola ${model.tail} mm`),
+    /* El volumen que TIENE que tener el solido, por Pappus: el centroide de la
+       seccion va sobre el eje, asi que es area x longitud desarrollada, exacto.
+       Va escrito en el archivo para que se pueda contrastar contra lo que mida
+       el CAD sin tener el modelo delante — es lo que hace
+       `tools/check_step_freecad.py`. Las dos cuentas salen del motor y no de
+       aqui, asi que comparar contra ellas no es una tautologia. */
+    solido
+      ? ASC(`   volumen esperado (Pappus) = `
+        + `${(sectionArea(model.section) * developedLength(model)).toFixed(6)} mm3`)
+      : '',
     ASC(`   tolerancias: angulo ${model.tol.angle} deg, rodado ${model.tol.rot} deg,`
       + ` avance ${model.tol.feed} mm, punto ${model.tol.point} mm`),
     fuera ? ASC(`   ${fuera} tramo(s) degenerado(s) omitido(s): longitud o radio nulos`) : '',

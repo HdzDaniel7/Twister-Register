@@ -294,8 +294,8 @@ export const en: Record<I18nKey, string> = {
  soloTip: 'Fold the table and the sidebar away to see the whole part (F key). '
    + 'On the way back, the table is where you left it.',
  expPts: 'Export points',
- expStep: 'Centreline to STEP (.stp)',
- expStepTip: 'The nominal centreline as EXACT curves —lines and arcs, not a mesh—, with the PIs and the profile in named groups and the units declared inside the file. This is the nominal, not the machine command. It does NOT carry the twist: where there is any, sweeping the profile along the centreline gives the part untwisted.',
+ expStep: 'Part to STEP (.stp)',
+ expStepTip: 'The part as a SOLID, with exact faces —planes, cylinders and tori, no mesh— plus the centreline and the PIs as reference. Any CAD opens it without rebuilding anything. This is the nominal, not the machine command. It does NOT carry the chamfer or the machined end. With twist and a non-round section there is no solid: only the reference geometry comes out, and the file says why.',
  modeModel: 'Model', modeMeas: 'Measure', modeComp: 'Compensate',
  modeModelTip: 'Type the part: the whole table on the right and the model beside it.',
  modeMeasTip: 'Look at the measured part: big model, tall ribbon and the statistics.',

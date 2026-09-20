@@ -73,6 +73,11 @@ la razón de media docena de decisiones de abajo.
   de ellas eran la misma cuenta escrita tres veces, con tres nombres, hasta el 2026-09-17.
 - `barGeometry()` vive en `scene/geometry.ts` y **no** en el motor: devuelve una
   `BufferGeometry`, así que depende de three.
+- `engine/brep.ts` es **la pieza como sólido**: el `manifold_solid_brep` que se lleva el
+  CAD, escrito a mano y sin núcleo geométrico. Cuatro caras por tramo del eje —una por
+  lado de la sección—, cada una con un lazo de cuatro aristas, que es el truco que evita
+  las costuras de las superficies periódicas. `solidBlocker()` dice cuándo NO se puede y
+  por qué, y el motivo acaba escrito en el propio `.stp`.
 - `engine/step.ts` es **el eje exacto**, y es el único sitio del programa que describe la
   pieza con arcos en vez de con muestras. `centreSegments()` recorre el modelo en
   paralelo a `buildPath()` y tiene que coincidir con él; lo que lo sujeta es una prueba de
@@ -1148,7 +1153,26 @@ lo único que ese contador puede decir, y un aviso de no meter nada entre `f0` y
 
 ### Decisiones que siguen gobernando el código
 
-- **Lo que sale a CAD son CURVAS, no la malla del 3D** (2026-09-20). La malla viene de
+- **Lo que sale a CAD es un SÓLIDO, y se puede escribir a mano** (2026-09-20, tarde).
+  Corrige lo que se decidió esa misma mañana. Un `geometric_curve_set` es mala mercancía:
+  FreeCAD lo abre pero no lo deja barrer, y **SolidWorks ignora la geometría de curvas al
+  importar STEP**. Y el motivo por el que no se había hecho un sólido —«pide un núcleo
+  geométrico»— era falso: una barra doblada son PLANOS, CILINDROS y TOROS, todos
+  analíticos. Lo caro no son las superficies, es la topología, y esa se evita partiendo
+  cada tramo en **una cara por lado de la sección**, con lazos de cuatro aristas: así no
+  hay superficie periódica cerrada sobre sí misma y por tanto no hay costura ni curvas
+  paramétricas, que es donde se atasca todo el que escribe un B-rep a mano.
+- **La prueba del sólido es PAPPUS.** El volumen de un barrido cuyo centroide va sobre la
+  directriz es exactamente `sectionArea() × developedLength()`, dos cuentas que ya viven
+  en el motor y no saben nada del exportador. El `.stp` lleva ese número escrito en su
+  comentario y `tools/check_step_freecad.py` lo contrasta con lo que mide OpenCASCADE.
+  Ocho casos —recta, un codo a 0°/90°/35° de rodado, redonda, tubo redondo, tubo
+  rectangular y la demo de 15 dobleces— dan **error relativo ≤ 1e-10**. Es la única
+  comprobación que ve una cara del revés: el tubo redondo daba **802868 mm³ donde tocaban
+  120681** porque las caras interiores llevaban la normal invertida y el lazo NO, y salía
+  válido y cerrado igual. De paso: las coordenadas se escriben con **9 decimales** y no
+  con 6, porque a 6 el redondeo del papel movía el volumen 0.027 mm³ en la demo.
+- **Lo que sale a CAD es EXACTO, nunca la malla del 3D** (2026-09-20). La malla viene de
   `buildPath()`, que parte cada arco en `PATH_SEG = 12` tramos, y eso es error de cuerda:
   `R(1−cos(θ/24))` da **0.32 mm** en un arco de 90° con R = 150 mm, o sea **un tercio de
   `tol.point` (1.0 mm)** regalado antes de que nadie mida nada. `engine/step.ts` emite

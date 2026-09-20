@@ -303,8 +303,8 @@ export const de: Record<I18nKey, string> = {
  soloTip: 'Tabelle und Seitenleiste einklappen, um das ganze Teil zu sehen (Taste F). '
    + 'Beim Zurückkommen steht die Tabelle, wo sie war.',
  expPts: 'Punkte exportieren',
- expStep: 'Achse als STEP (.stp)',
- expStepTip: 'Die Sollachse als EXAKTE Kurven —Geraden und Bögen, kein Netz—, mit den PI und dem Profil in benannten Gruppen und den Einheiten im Datei deklariert. Es ist die Sollform, nicht der Maschinenbefehl. Die Torsion ist NICHT enthalten: wo es sie gibt, ergibt ein Sweep des Profils entlang der Achse das Teil ohne Verdrehung.',
+ expStep: 'Teil als STEP (.stp)',
+ expStepTip: 'Das Teil als VOLUMENKÖRPER, mit exakten Flächen —Ebenen, Zylinder und Tori, kein Netz— sowie Achse und PI als Referenz. Jedes CAD öffnet es, ohne etwas nachzubauen. Es ist die Sollform, nicht der Maschinenbefehl. Fase und Endstück sind NICHT enthalten. Bei Torsion und nicht runder Querschnittsform gibt es keinen Volumenkörper: dann kommt nur die Referenzgeometrie, und die Datei sagt warum.',
  modeModel: 'Modellieren', modeMeas: 'Messen', modeComp: 'Kompensieren',
  modeModelTip: 'Das Teil eingeben: die ganze Tabelle rechts und das Modell daneben.',
  modeMeasTip: 'Das gemessene Teil ansehen: großes Modell, hohes Band und die Statistik.',

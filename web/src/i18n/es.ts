@@ -308,8 +308,8 @@ export const es: Record<I18nKey, string> = {
  soloTip: 'Plegar la tabla y el lateral para ver la pieza entera (tecla F). '
    + 'Al volver, la tabla sigue donde estaba.',
  expPts: 'Exportar puntos',
- expStep: 'Eje a STEP (.stp)',
- expStepTip: 'El eje nominal como curvas EXACTAS —rectas y arcos, no una malla—, con los PI y el perfil en grupos con nombre y las unidades declaradas dentro del archivo. Sale el nominal, no el comando. NO lleva la torsión: donde la haya, barrer el perfil por el eje da la pieza sin retorcer.',
+ expStep: 'Pieza a STEP (.stp)',
+ expStepTip: 'La pieza como SÓLIDO, con caras exactas —planos, cilindros y toros, sin mallado— más el eje y los PI como referencia. Lo abre cualquier CAD sin reconstruir nada. Sale el nominal, no el comando. NO lleva el chaflán ni el tocho de los cabos. Con torsión y sección no redonda no hay sólido: sale solo la geometría de referencia, y el archivo dice por qué.',
  modeModel: 'Modelar', modeMeas: 'Medir', modeComp: 'Compensar',
  modeModelTip: 'Teclear la pieza: la tabla entera a la derecha y el modelo al lado.',
  modeMeasTip: 'Mirar la pieza medida: el modelo grande, la cinta alta y las estadísticas.',

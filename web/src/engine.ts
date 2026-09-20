@@ -31,3 +31,4 @@ export * from './engine/pins.ts';
 export * from './engine/sag.ts';
 export * from './engine/load.ts';
 export * from './engine/step.ts';
+export * from './engine/brep.ts';

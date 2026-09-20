@@ -3714,8 +3714,82 @@ console.log('\n— el eje a STEP —');
        ext < 1e-9, `peor extremo ${ext.toExponential(2)} mm`);
   }
 
-  /* ---------------------------------------------------- el texto del .stp */
   const meta = { name: duro.name, build: 'abc1234', date: '2026-09-20T10:00:00' };
+
+  /* ------------------------------------------------------------ el SOLIDO
+     Lo que de verdad se lleva un CAD. Un STEP de alambre lo abre FreeCAD y lo
+     IGNORA SolidWorks, asi que la geometria de referencia sola no vale como
+     entrega. Aqui solo se puede comprobar la estructura del texto; que el
+     solido cierre y encierre el volumen que toca lo comprueba
+     `tools/check_step_freecad.py` con un nucleo geometrico de verdad.
+
+     La cuenta de caras no es decorativa: es CUATRO por tramo del eje —un lado
+     de la seccion cada una— por cada casco, mas las dos tapas. Si alguna vez
+     sale otra cosa, o falta una cara o sobra, y un casco al que le falta una
+     cara no es un solido. */
+  {
+    const llana = E.normalizeModel({
+      name: 'llana', section: { kind: 'rect', width: 40, thickness: 12 }, tail: 200,
+      bends: [{ feed: 300, rot: 0, angle: 90, radius: 60, twist: 0, twistLen: 0 }],
+    });
+    ok('una pieza normal sale con solido', E.solidBlocker(llana) === null,
+       String(E.solidBlocker(llana)));
+    const t = E.stepText(llana, meta);
+    ok('  y el archivo lo declara como ADVANCED_BREP_SHAPE_REPRESENTATION',
+       t.includes('ADVANCED_BREP_SHAPE_REPRESENTATION('));
+    ok('  con un MANIFOLD_SOLID_BREP sobre un CLOSED_SHELL',
+       /MANIFOLD_SOLID_BREP\('barra',#\d+\)/.test(t) && t.includes('CLOSED_SHELL('));
+    const shell = t.match(/CLOSED_SHELL\('',\(([^)]*)\)\)/);
+    const nseg = E.centreSegments(llana).length;
+    ok('  y cuatro caras por tramo mas las dos tapas',
+       !!shell && shell[1].split(',').length === nseg * 4 + 2,
+       shell ? `${shell[1].split(',').length} caras para ${nseg} tramos` : '');
+    ok('  el archivo dice el volumen que le toca, para poder contrastarlo',
+       t.includes('volumen esperado (Pappus) = '
+         + (E.sectionArea(llana.section) * E.developedLength(llana)).toFixed(6)));
+
+    /* hueca: el mismo casco otra vez por dentro, y las tapas siguen siendo dos */
+    const tubo = E.normalizeModel({ ...llana, name: 'tubo',
+      section: { kind: 'round', width: 30, thickness: 30, wall: 3 } });
+    const tt = E.stepText(tubo, meta);
+    const sh2 = tt.match(/CLOSED_SHELL\('',\(([^)]*)\)\)/);
+    ok('  un tubo lleva los dos cascos, el de fuera y el del hueco',
+       !!sh2 && sh2[1].split(',').length === nseg * 8 + 2,
+       sh2 ? `${sh2[1].split(',').length} caras` : '');
+    ok('  y sus codos son TOROS de verdad, no una malla',
+       tt.includes('TOROIDAL_SURFACE('));
+    ok('  mientras que en rectangular los codos son cilindros y planos',
+       t.includes('CYLINDRICAL_SURFACE(') && !t.includes('TOROIDAL_SURFACE('));
+
+    /* ---- cuando NO se puede, se dice por que y se manda la referencia ---- */
+    const casos = [
+      ['con torsion y seccion no redonda',
+       { ...llana, bends: [{ ...llana.bends[0], twist: 5 }] }, 'torsion'],
+      ['con un doblez de radio cero, que es un pliegue',
+       { ...llana, bends: [{ ...llana.bends[0], radius: 0 }] }, 'radio cero'],
+      ['con una recta negativa, que es un avance corto',
+       { ...llana, bends: [{ ...llana.bends[0], feed: 10 }] }, 'longitud cero o negativa'],
+    ];
+    for (const [que, raw, motivo] of casos) {
+      const m = E.normalizeModel(raw);
+      const b = E.solidBlocker(m);
+      ok(`  ${que}: no hay solido, y se dice por que`,
+         !!b && b.includes(motivo), String(b));
+      const x = E.stepText(m, meta);
+      ok('    el archivo no finge llevarlo',
+         !x.includes('ADVANCED_BREP_SHAPE_REPRESENTATION('));
+      ok('    y el motivo va en el encabezado, no solo en el codigo',
+         x.includes('SIN SOLIDO (') && x.includes(motivo));
+      ok('    pero el perfil vuelve: sin solido, hay algo que barrer',
+         x.includes("GEOMETRIC_CURVE_SET('perfil'"));
+    }
+    ok('  con solido el perfil suelto NO sale: no hay nada que barrer',
+       !t.includes("GEOMETRIC_CURVE_SET('perfil'"));
+    ok('  pero el eje y los PI se quedan, que son las referencias',
+       t.includes("GEOMETRIC_CURVE_SET('eje'") && t.includes("GEOMETRIC_CURVE_SET('PI'"));
+  }
+
+  /* ---------------------------------------------------- el texto del .stp */
   const txt = E.stepText(duro, meta);
 
   ok('el archivo abre y cierra como un ISO-10303-21',
