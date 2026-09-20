@@ -244,8 +244,13 @@ Recortado a propósito. Cuesta mucho, aporta poco **a esta versión**:
   de 250 ms. Y el coste es del DOM: `compensate()`, que `editTweak()` hace y `paneComp()`
   repite, tarda **0.01 ms**, el 0.1 % del total, así que la ruta dirigida no atacaría lo que
   parecía caro. Da igual en qué celda se escriba. **Se aplaza confirmado, con cifra.**
-- **`InstancedMesh` para los PI.** Optimizar contra una carga imaginaria. Primero medir con
-  el número real de piezas.
+- **`InstancedMesh` para los PI.** Era «optimizar contra una carga imaginaria; primero medir
+  con el número real de piezas». El número real sigue siendo del taller, pero **la curva está
+  medida (2026-09-19)** en `tools/probe_perf.js`, con 15 dobleces: **1 pieza visible 3.9 ms ·
+  3 piezas 6.5 ms · 10 piezas 14.0 ms**, o sea ~1.1 ms por pieza añadida y 187 mallas de PI
+  con diez. Diez piezas a la vez —más de las que va a ver la beta entera, que son 13 barras—
+  caben en un cuadro de 60 Hz y están diecisiete veces por debajo del presupuesto de 250 ms.
+  **Se aplaza confirmado**, y si el taller dice un número mayor se interpola de esa tabla.
 - **Pruebas de `state.ts`.** `history.ts` sí, porque ahí se pierden datos; `state.ts` es
   mayormente cableado.
 - **Extractor de nube en Python (RANSAC).** ⛔ No escribir una línea hasta responder **A.3**.

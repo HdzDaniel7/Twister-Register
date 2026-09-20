@@ -35,6 +35,7 @@ const timeIt = (fn, n, rep = 1) => {
 };
 /* espera a que el bucle de animación pinte de verdad un cuadro */
 const frame = () => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+const pisVivos = () => B.groups.pts.children.length;
 
 /* Pone la variante activa a `n` dobleces repitiendo el patrón del demo. Hace a
    mano lo que hace syncModel(), que no está expuesto. */
@@ -108,7 +109,7 @@ B.rebuildScene();
 await frame();
 const f0 = B.renderer.info.render.frame;
 const c0 = B.renderer.info.render.calls;
-return await new Promise(res => setTimeout(() => {
+await new Promise(res => setTimeout(() => {
   const df = B.renderer.info.render.frame - f0;
   say('== el paso de deshacer ==');
   const snap = () => JSON.stringify(E.toDoc(ST.model, ST.command, ST.comp, ST.proc,
@@ -124,6 +125,45 @@ return await new Promise(res => setTimeout(() => {
   say('');
   say('== memoria de la GPU al terminar ==');
   say(`  geometrías ${B.renderer.info.memory.geometries} · texturas ${B.renderer.info.memory.textures} · programas ${B.renderer.info.programs.length}`);
-  res(out.join('\n'));
+  res(null);
 }, 2000));
+
+/* --- coste por PIEZA MEDIDA en pantalla ---------------------------------
+   Es la otra mitad del aplazamiento de `InstancedMesh`: los PI se dibujan con
+   un Mesh y una esfera CLONADA por punto y por pieza visible (`layers.ts`,
+   layerPts), así que el número de mallas es (dobleces+2) × piezas. El
+   aplazamiento decía «primero medir con el número real de piezas», y ese
+   número no lo sabe este repositorio — pero la CURVA sí se puede dar, para que
+   la respuesta del taller se lea directamente de ella.
+
+   Va EL ÚLTIMO a propósito. Puesto antes de la medición de reposo, esa
+   medición pasaba de 0 a 7 cuadros en 2 s con CERO llamadas de dibujo, y no se
+   reprodujo con los ingredientes por separado —ni abriendo el cajón, ni
+   simulando diez piezas, ni con setBends, ni con el arrastre de exag, ni
+   dejando asentar 300 ms antes de contar—. Sin causa no se toca la aplicación:
+   se mueve la medición NUEVA al final, donde no puede ensuciar una cifra que
+   lleva tiempo siendo fiable. Queda escrito porque es un cabo suelto, no
+   porque esté resuelto. */
+setBends(15);
+ST.datasets.length = 0;
+say('');
+say('== coste por pieza medida en pantalla, 15 dobleces ==');
+say('');
+const dr = (sel) => { const e = document.querySelector(sel); if (!e) throw new Error('no existe ' + sel); e.click(); };
+if (ST.drawer !== 'pieces') dr('[data-dr="pieces"]');
+for (const piezas of [1, 3, 10]) {
+  while (ST.datasets.length < piezas) dr('[data-a="sim"]');
+  for (const d of ST.datasets) d.visible = true;
+  B.rebuildScene();
+  timeIt(() => B.rebuildScene(), 5);
+  await frame();
+  const t = timeIt(() => B.rebuildScene(), 20);
+  await frame();
+  const r = B.renderer.info;
+  say(`  ${String(piezas).padStart(2)} piezas · ${String(pisVivos()).padStart(4)} mallas de PI`);
+  say(`    rebuildScene()     ${ms(med(t))}`);
+  say(`    geometrías en GPU  ${String(r.memory.geometries).padStart(6)} · llamadas de dibujo ${r.render.calls}`);
+}
+say('');
+return out.join('\n');
 })();

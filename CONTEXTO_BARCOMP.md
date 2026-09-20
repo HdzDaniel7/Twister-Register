@@ -823,6 +823,7 @@ Ninguna de estas se vuelve a sacar leyendo el código.
 | `rebuildScene()` con 13 piezas medidas visibles | **~18 ms**, 270 objetos | A8, medido y descartado |
 | `rebuildScene()` con 15 dobleces / con 60 | **2.8 ms / 9.6 ms** | `tools/probe_perf.js` |
 | Confirmar una celda Δ en Compensar, 15 dobleces / 60 con las TRES correcciones | **1.6 ms / 8.7 ms** | `tools/probe_comp.js` |
+| `rebuildScene()` con 1 pieza medida en pantalla / con 10 | **3.9 ms / 14.0 ms** | `tools/probe_perf.js` |
 | Un paso de deshacer | **6 µs, 5.3 KB** | `tools/probe_perf.js` |
 | Clave de `heldCache` | **0.006 ms** contra 14–100 ms del solver | PERF, 09-10 |
 | Solver del amarre, una pieza | **3–26 ms** | banco del amarre |
@@ -1094,6 +1095,33 @@ Dos cosas que la medición dice y la impresión no decía:
 
 Y la fila de 60 dobleces es un peor caso de laboratorio por otro motivo: con 60 dobleces la
 carga tarda 16 s (PERF-01), así que esa pieza no es lenta en Compensar, es inusable antes.
+
+**Lo que cuesta cada pieza medida en pantalla (2026-09-19) — `InstancedMesh` medido.** El
+otro aplazamiento que se sostenía sin cifra: «Optimizar contra una carga imaginaria. Primero
+medir con el número real de piezas.» El número real sigue sin saberse —lo tiene el taller—,
+pero la CURVA sí se podía dar, y entonces la respuesta se lee directamente de ella. Medido
+en `tools/probe_perf.js`, con 15 dobleces:
+
+| Piezas medidas visibles | Mallas de PI | `rebuildScene()` | Llamadas de dibujo |
+|---|---|---|---|
+| 1 | 34 | 3.9 ms | 38 |
+| 3 | 68 | 6.5 ms | 74 |
+| 10 | 187 | **14.0 ms** | 200 |
+
+Cada PI es un `Mesh` con su esfera CLONADA y su material, en `scene/layers.ts`, así que las
+mallas son (dobleces+2) × piezas y la cuenta crece recta: **~1.1 ms por pieza añadida**. Diez
+piezas a la vez —más de las que va a ver la beta entera, que son 13 barras en total— caben
+en un cuadro de 60 Hz y están diecisiete veces por debajo del presupuesto de 250 ms. **Se
+aplaza confirmado.** Si algún día el taller dice un número mayor, la fila que falta se
+interpola de esta tabla en vez de discutirse.
+
+Y un cabo suelto que se deja escrito porque no se resolvió: puesto ANTES de la medición de
+reposo, este bloque la hacía pasar de **0 a 7 cuadros en 2 s con CERO llamadas de dibujo**.
+No se reprodujo con los ingredientes por separado —ni abriendo el cajón de piezas, ni
+simulando diez, ni con `setBends`, ni con el arrastre de exageración, ni dejando asentar
+300 ms antes de contar—. Sin causa no se toca la aplicación: la medición nueva se movió al
+final, donde no puede ensuciar una cifra que lleva tiempo siendo fiable, y el porqué está en
+el comentario del bloque.
 
 ### Decisiones que siguen gobernando el código
 
