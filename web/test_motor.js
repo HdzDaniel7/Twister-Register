@@ -3737,6 +3737,25 @@ console.log('\n— el eje a STEP —');
      huerfanas.slice(0, 5).map(n => '#' + n).join(' '));
 
   /* las unidades: lo que un STL no puede decir, y por eso llega a media escala */
+  /* El nombre de la entidad de representación, entero y con `SHAPE_` en medio.
+     No es puntillismo de norma: el 2026-09-20 salió como
+     `GEOMETRICALLY_BOUNDED_WIREFRAME_REPRESENTATION`, que no existe en AP214, y
+     el archivo pasaba TODAS las comprobaciones de esta tanda —sintaxis, ids,
+     referencias— mientras FreeCAD 1.1 contestaba «No shapes found in file». Un
+     nombre que el lector no reconoce no es un error de sintaxis: es una entidad
+     que se ignora, y con ella se va lo que colgaba de `SHAPE_DEFINITION_
+     REPRESENTATION`, o sea el archivo entero. Lo caro de ese fallo es que se ve
+     en el CAD del taller y no aquí. */
+  ok('  la representación es GEOMETRICALLY_BOUNDED_WIREFRAME_SHAPE_REPRESENTATION',
+     txt.includes('GEOMETRICALLY_BOUNDED_WIREFRAME_SHAPE_REPRESENTATION('));
+  ok('  y cuelga de un SHAPE_DEFINITION_REPRESENTATION, o no la lee nadie',
+     /SHAPE_DEFINITION_REPRESENTATION\(#\d+,#\d+\)/.test(txt));
+  /* Un BOM delante de `ISO-10303-21;` rompe el analizador de OCCT por la línea 2
+     («unexpected QUID»). El texto sale por Blob y no lleva BOM; esto es para que
+     nadie se lo ponga guardándolo desde otro sitio. */
+  ok('  el archivo empieza por I, sin BOM delante',
+     txt.charCodeAt(0) === 73);
+
   ok('  declara milímetros y radianes DENTRO del archivo',
      txt.includes('SI_UNIT(.MILLI.,.METRE.)') && txt.includes('SI_UNIT($,.RADIAN.)'));
   ok('  y lleva el sello de compilación, que distingue dos copias iguales',

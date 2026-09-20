@@ -274,7 +274,15 @@ export function stepText(model: Model, meta: StepMeta): string {
   const pdc = put(`PRODUCT_DEFINITION_CONTEXT('part definition',#${app},'design')`);
   const pd = put(`PRODUCT_DEFINITION('design','',#${pdf},#${pdc})`);
   const pds = put(`PRODUCT_DEFINITION_SHAPE('','',#${pd})`);
-  const rep = put(`GEOMETRICALLY_BOUNDED_WIREFRAME_REPRESENTATION(${nom},`
+  /* `GEOMETRICALLY_BOUNDED_WIREFRAME_SHAPE_REPRESENTATION`, con `SHAPE_` en
+     medio. Es el nombre de la entidad en AP203 y AP214, y el 2026-09-20 salió
+     sin él: el archivo era sintácticamente perfecto —toda referencia resuelta,
+     ids sin hueco, las pruebas en verde— y FreeCAD 1.1 contestaba «No shapes
+     found in file». OCCT no reconoce la representación, y entonces no hay nada
+     colgando de `SHAPE_DEFINITION_REPRESENTATION`: se descarta el archivo
+     ENTERO, geometría incluida, sin una sola queja de sintaxis. Con el nombre
+     bueno entran 32 aristas y 80 vértices de la demo. */
+  const rep = put(`GEOMETRICALLY_BOUNDED_WIREFRAME_SHAPE_REPRESENTATION(${nom},`
     + `(${grupos.map(i => '#' + i).join(',')}),#${ctx})`);
   put(`SHAPE_DEFINITION_REPRESENTATION(#${pds},#${rep})`);
 

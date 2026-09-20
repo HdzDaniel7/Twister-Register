@@ -283,7 +283,7 @@ web/
   src/app.css       tokens de diseño y layout; la paleta de los DOS temas
   src/shell.html    esqueleto con los marcadores del build
   build.mjs         esbuild: src/ + three  ->  index.html
-  test_motor.js     640 pruebas del motor y del i18n, en Node y sin navegador
+  test_motor.js     643 pruebas del motor y del i18n, en Node y sin navegador
   tools/            banco de interfaz por CDP y las sondas de medición
 index.html          SALIDA GENERADA — no se edita a mano
 ```

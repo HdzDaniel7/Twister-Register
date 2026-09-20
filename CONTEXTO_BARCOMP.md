@@ -82,8 +82,13 @@ la razón de media docena de decisiones de abajo.
 - Ningún archivo de `panels/` ni de `scene/` importa de `app/`. Los paneles están por DEBAJO;
   donde hacía falta encontrarse, el sitio es `ST` (así viven los contadores en `ST.hist`).
 - `tools/` está versionado. `demo_amarre.mjs` es el banco del amarre con las cifras a la
-  vista; `strip_diff.mjs`, `export_surface.mjs`, `probe_perf.js`, `probe_comp.js` y `bundle_report.mjs` son
-  **evidencia, no pruebas**.
+  vista; `strip_diff.mjs`, `export_surface.mjs`, `probe_perf.js`, `probe_comp.js`,
+  `check_step_freecad.py` y `bundle_report.mjs` son **evidencia, no pruebas**.
+- `tools/check_step_freecad.py` abre un `.stp` con el lector de OpenCASCADE, que es el que
+  usa FreeCAD, y cuenta qué entró. Pide FreeCAD instalado, así que no está en `npm test`.
+  Es la única cosa del repositorio que comprueba el archivo con un lector de STEP de
+  verdad, y existe por lo que cuenta §11: el texto puede estar perfecto y el archivo
+  llegar vacío al CAD.
 
 ### Por qué esbuild, y un detalle de three.js
 
@@ -1150,6 +1155,19 @@ lo único que ese contador puede decir, y un aviso de no meter nada entre `f0` y
   `LINE` y `CIRCLE` recortadas y no aproxima nada. Corolario que vale para cualquier
   formato futuro —DXF, IGES— : **la malla es un dibujo, no una definición**, y lo exacto
   que este programa ya tiene es la tabla LRA más los PI de `fk()`.
+- **Un archivo STEP puede ser perfecto y llegar VACÍO al CAD** (2026-09-20, el mismo día).
+  El primer `.stp` que salió tenía toda referencia resuelta, ids sin hueco ni repetido,
+  unidades declaradas y 29 pruebas de motor en verde — y FreeCAD 1.1 contestaba **«No
+  shapes found in file»**. La representación se llamaba
+  `GEOMETRICALLY_BOUNDED_WIREFRAME_REPRESENTATION` y la entidad de AP214 lleva `SHAPE_` en
+  medio. **Un nombre de entidad que el lector no conoce no es un error de sintaxis**: la
+  entidad se ignora en silencio, con ella se va todo lo que colgaba de
+  `SHAPE_DEFINITION_REPRESENTATION`, y lo que se pierde es el archivo entero. Con el
+  nombre bueno entran **32 aristas y 80 vértices** de la demo (16 rectas, 15 arcos y el
+  perfil cerrado, más los 17 PI como vértices) y **9 aristas con 3 arcos** de una pieza
+  con torsión y un pliegue de radio cero, que es exactamente lo que se escribió. La
+  lección general: **ninguna comprobación de TEXTO ve esta clase de fallo**, hace falta un
+  lector de STEP, y por eso existe `tools/check_step_freecad.py` con su control negativo.
 - **Un archivo de geometría suelta no vale, y por eso el .stp lleva su procedencia.** El
   sello de compilación va en `originating_system`, las unidades van DECLARADAS dentro
   (`SI_UNIT(.MILLI.,.METRE.)` — un STL no puede decir en qué unidad está y por eso llega a
