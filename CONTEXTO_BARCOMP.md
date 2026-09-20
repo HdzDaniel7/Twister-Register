@@ -1168,6 +1168,23 @@ lo único que ese contador puede decir, y un aviso de no meter nada entre `f0` y
   con torsión y un pliegue de radio cero, que es exactamente lo que se escribió. La
   lección general: **ninguna comprobación de TEXTO ve esta clase de fallo**, hace falta un
   lector de STEP, y por eso existe `tools/check_step_freecad.py` con su control negativo.
+- **Que el archivo LLEGUE y que SIRVA son dos cosas distintas** (2026-09-20). Después de
+  arreglar el nombre de la entidad, el `.stp` entraba en FreeCAD y no se podía usar para
+  nada: el diálogo de barrido no ofrecía ningún perfil que seleccionar. Tres causas, las
+  tres invisibles leyendo el texto y las tres encontradas abriendo el archivo:
+  **(1)** con una sola raíz STEP, OCCT entrega un ÚNICO compuesto con el eje, el perfil y
+  los PI mezclados — hoy va un `PRODUCT` + `SHAPE_DEFINITION_REPRESENTATION` por grupo y
+  salen tres objetos; **(2)** con los tramos como curvas recortadas sueltas, la
+  trayectoria del barrido hay que clicarla arista por arista, 31 veces en la demo — hoy
+  van en un `COMPOSITE_CURVE` y entran como **un hilo de 31 aristas y 1861.867 mm**, que
+  es exactamente `developedLength()`; **(3)** con `.PARAMETER.` como representación
+  maestra el lector calcula los extremos (`punto + u·dirección`) en vez de usar el
+  `CARTESIAN_POINT` que los tramos vecinos comparten, y el redondeo apartaba la costura
+  del perfil redondo **6.87e-07 mm**: hilo abierto, 25 vértices para 24 aristas, imposible
+  de barrer. Hoy es `.CARTESIAN.` y la incertidumbre declarada pasó de 1.E-07 a **1.E-06
+  mm** — un micrón, mil veces más fino que `tol.point`. Con las tres: tres objetos, hilo
+  abierto de 31 aristas, perfil cerrado de 4 (rectangular) o 24 (redondo).
+  `tools/check_step_freecad.py` comprueba las cinco condiciones y tiene control negativo.
 - **Un archivo de geometría suelta no vale, y por eso el .stp lleva su procedencia.** El
   sello de compilación va en `originating_system`, las unidades van DECLARADAS dentro
   (`SI_UNIT(.MILLI.,.METRE.)` — un STL no puede decir en qué unidad está y por eso llega a

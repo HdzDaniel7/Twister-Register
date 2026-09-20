@@ -20,10 +20,20 @@ se va lo que colgaba de `SHAPE_DEFINITION_REPRESENTATION`, y lo que se pierde es
 el archivo entero. Ninguna comprobación de texto lo ve — hace falta un lector de
 STEP de verdad, y el que importa es el que va a usar el taller.
 
-Qué dice que está bien:
+Qué dice que está bien. Las dos primeras son que el archivo LLEGA; las tres
+últimas son que además SIRVE, que no es lo mismo y también se descubrió abriendo
+el archivo y no leyéndolo:
   · que entre ALGO (si no, es el fallo de arriba otra vez);
   · que los arcos entren como `Circle` y no como polilínea, que es el motivo de
-    escribir STEP en vez de mandar la malla del 3D.
+    escribir STEP en vez de mandar la malla del 3D;
+  · que NO venga todo en un solo objeto: con una sola raíz STEP el eje, el
+    perfil y los PI llegan mezclados en un compuesto, y entonces el diálogo de
+    barrido de FreeCAD no tiene ningún «perfil» que ofrecer;
+  · que el eje sea UN hilo. Suelto en tramos, la trayectoria del barrido hay que
+    clicarla arista por arista — 31 veces en la demo;
+  · que el perfil sea un hilo CERRADO. Abierto no se puede barrer para sacar un
+    sólido, y se abre con una facilidad ridícula: una costura que no cierre por
+    7e-07 mm basta.
 """
 import sys
 
@@ -40,10 +50,17 @@ def main(ruta):
         return 1
 
     aristas = vertices = circulos = rectas = 0
+    objetos = 0
+    cerrados = 0
+    # Todo objeto QUE TENGA aristas tiene que ser exactamente un hilo con todas
+    # ellas. Vale igual para el eje (abierto) y para el perfil (cerrado), y no
+    # hay que adivinar cuál es cuál.
+    sueltos = []
     for obj in doc.Objects:
         sh = getattr(obj, "Shape", None)
         if sh is None:
             continue
+        objetos += 1
         aristas += len(sh.Edges)
         vertices += len(sh.Vertexes)
         for e in sh.Edges:
@@ -52,11 +69,18 @@ def main(ruta):
                 circulos += 1
             elif nombre == "Line":
                 rectas += 1
-        print("  objeto %r  %s  aristas %d  vertices %d"
-              % (obj.Label, sh.ShapeType, len(sh.Edges), len(sh.Vertexes)))
+        print("  objeto %r  aristas %d  vertices %d  hilos %d"
+              % (obj.Label, len(sh.Edges), len(sh.Vertexes), len(sh.Wires)))
+        for w in sh.Wires:
+            print("      hilo de %d aristas, %s, %.3f mm"
+                  % (len(w.Edges), "CERRADO" if w.isClosed() else "abierto", w.Length))
+            if w.isClosed():
+                cerrados += 1
+        if sh.Edges and (len(sh.Wires) != 1 or len(sh.Wires[0].Edges) != len(sh.Edges)):
+            sueltos.append(obj.Label)
 
-    print("TOTAL  aristas %d  vertices %d  (rectas %d, arcos %d)"
-          % (aristas, vertices, rectas, circulos))
+    print("TOTAL  objetos %d  aristas %d  vertices %d  (rectas %d, arcos %d)"
+          % (objetos, aristas, vertices, rectas, circulos))
 
     fallos = 0
     if not aristas and not vertices:
@@ -65,6 +89,19 @@ def main(ruta):
     if not circulos:
         print("FALLA  ni un solo arco entró como Circle: el archivo está mandando")
         print("       una polilínea, o sea el error de cuerda que existe para evitar")
+        fallos += 1
+    if objetos < 2:
+        print("FALLA  todo vino en UN objeto: eje, perfil y PI mezclados. Así no hay")
+        print("       perfil que darle al barrido — mira si hay una raíz por grupo")
+        fallos += 1
+    if sueltos:
+        print("FALLA  con aristas sueltas y no en un hilo: %s" % ", ".join(sueltos))
+        print("       la trayectoria habría que clicarla arista por arista — mira el")
+        print("       COMPOSITE_CURVE y si los tramos comparten el punto de unión")
+        fallos += 1
+    if not cerrados:
+        print("FALLA  ningún hilo cerrado: sin perfil cerrado no se puede barrer un")
+        print("       sólido. Suele ser una costura que no cierra por menos de un micrón")
         fallos += 1
     print("sin problemas" if not fallos else "%d PROBLEMA(S)" % fallos)
     return 1 if fallos else 0

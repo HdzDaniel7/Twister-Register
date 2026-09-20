@@ -17,8 +17,10 @@
    recortadas, que no aproximan nada.
 
    Qué lleva de información, porque un archivo de geometría suelta no vale:
-     · el eje en tres grupos con nombre (eje, PI, perfil) que el CAD enseña como
-       tales — son las referencias;
+     · tres grupos con nombre —eje, perfil, PI—, cada uno su propia RAÍZ del
+       archivo, así que el CAD los abre como tres objetos y no como un compuesto
+       con todo mezclado. El eje es un hilo único y el perfil un hilo cerrado:
+       eso es lo que hace que se puedan barrer en vez de solo mirar;
      · `PRODUCT` con el nombre de la pieza y el sello de compilación en
        `originating_system`: dos copias del mismo archivo hechas con versiones
        distintas del visor dejan de ser indistinguibles;
@@ -131,6 +133,15 @@ export function arcPointAt(a: Extract<CentreSeg, { kind: 'arc' }>, t: number): V
 
 /* ---------------------------------------------------------- texto STEP ---- */
 
+/* Los recortes se declaran con `.CARTESIAN.` como representación MAESTRA aunque
+   lleven también el parámetro. Con `.PARAMETER.`, que era lo natural, el lector
+   calcula el extremo como `punto + u·dirección` en vez de usar el
+   `CARTESIAN_POINT` que los dos tramos vecinos COMPARTEN, y el redondeo de la
+   dirección y del parámetro lo aparta del punto: 6.87e-07 mm en la costura del
+   perfil redondo, suficiente para que OCCT deje el hilo abierto y FreeCAD no
+   pueda barrerlo. Con `.CARTESIAN.` los extremos son los puntos, y dos tramos
+   que comparten entidad comparten vértice exacto. */
+
 /** Un REAL de STEP lleva punto decimal SIEMPRE: `100` es un entero, y un lector
  *  estricto lo rechaza donde espera un real. */
 function NUM(v: number, dec = 6): string {
@@ -210,34 +221,77 @@ export function stepText(model: Model, meta: StepMeta): string {
   const uLen = put('( LENGTH_UNIT() NAMED_UNIT(*) SI_UNIT(.MILLI.,.METRE.) )');
   const uAng = put('( NAMED_UNIT(*) PLANE_ANGLE_UNIT() SI_UNIT($,.RADIAN.) )');
   const uSol = put('( NAMED_UNIT(*) SI_UNIT($,.STERADIAN.) SOLID_ANGLE_UNIT() )');
-  const unc = put(`UNCERTAINTY_MEASURE_WITH_UNIT(LENGTH_MEASURE(1.E-07),#${uLen},`
+  /* La incertidumbre con la que el lector decide si dos extremos son el MISMO
+     punto. Estuvo en 1.E-07 mm —una décima de nanómetro— hasta que el perfil
+     redondo salió ABIERTO por 6.87e-07 mm en la costura: por debajo de eso no
+     hay nada que medir en una barra de aluminio, y por encima de la
+     incertidumbre declarada OCCT no cose. Un micrómetro sigue siendo mil veces
+     más fino que `tol.point`, y no tapa ningún error que importe. */
+  const unc = put(`UNCERTAINTY_MEASURE_WITH_UNIT(LENGTH_MEASURE(1.E-06),#${uLen},`
     + "'distance_accuracy_value','confusion accuracy')");
   const ctx = put('( GEOMETRIC_REPRESENTATION_CONTEXT(3)'
     + ` GLOBAL_UNCERTAINTY_ASSIGNED_CONTEXT((#${unc}))`
     + ` GLOBAL_UNIT_ASSIGNED_CONTEXT((#${uLen},#${uAng},#${uSol}))`
     + " REPRESENTATION_CONTEXT('','3D') )");
 
-  /* --- el eje: una LINE o un CIRCLE recortados por tramo --- */
-  const ejeItems: number[] = [];
+  /* --- el eje: una LINE o un CIRCLE recortados por tramo, ENCADENADOS ---
+
+     Dos cosas que no son adorno, las dos aprendidas abriendo el archivo:
+
+     · los tramos consecutivos COMPARTEN el punto de unión — el final de uno es
+       la MISMA entidad `CARTESIAN_POINT` que el principio del siguiente, no otra
+       con las mismas cifras. Así la continuidad es exacta y el lector no tiene
+       que coserla por tolerancia;
+
+     · la cadena sale como un `COMPOSITE_CURVE` y no como treinta y una curvas
+       sueltas. Sueltas, OCCT entrega un compuesto de 31 aristas, y entonces en
+       FreeCAD la trayectoria de un barrido hay que ir clicándola arista por
+       arista. Con el hilo único es un clic.
+
+     Si un tramo degenerado partiera la cadena —hoy no puede: un tramo de
+     longitud o radio nulo tiene `p0 === p1`, así que al quitarlo los vecinos
+     siguen tocándose— salen varios hilos en vez de uno, que es lo honesto: un
+     `COMPOSITE_CURVE` con un hueco dentro no es una curva. */
+  const cadenas: number[][] = [];
+  let cadena: number[] = [];
+  let finId = -1;
+  let finPt: Vector3 | null = null;
+
   for (const s of vivos) {
+    const sigue = finPt !== null && s.p0.distanceTo(finPt) < 1e-9;
+    if (!sigue && cadena.length) { cadenas.push(cadena); cadena = []; }
+    const i0 = sigue ? finId : pt(s.p0);
+    const i1 = pt(s.p1);
     const nb = s.bend + 1;
-    const i0 = pt(s.p0), i1 = pt(s.p1);
     if (s.kind === 'line') {
       const nom = s.bend >= B.length ? 'cola' : `recta ${nb}`;
       const d = s.p1.clone().sub(s.p0).normalize();
       const vec = put(`VECTOR('',#${dir(d)},1.0)`);
       const ln = put(`LINE('',#${i0},#${vec})`);
-      ejeItems.push(put(`TRIMMED_CURVE(${STR(nom)},#${ln},`
+      cadena.push(put(`TRIMMED_CURVE(${STR(nom)},#${ln},`
         + `(#${i0},PARAMETER_VALUE(0.0)),(#${i1},PARAMETER_VALUE(${NUM(s.len)})),`
-        + '.T.,.PARAMETER.)'));
+        + '.T.,.CARTESIAN.)'));
     } else {
       const pl = put(`AXIS2_PLACEMENT_3D('',#${pt(s.ctr)},#${dir(s.z)},#${dir(s.ref)})`);
       const ci = put(`CIRCLE('',#${pl},${NUM(s.radius)})`);
-      ejeItems.push(put(`TRIMMED_CURVE(${STR('arco ' + nb)},#${ci},`
+      cadena.push(put(`TRIMMED_CURVE(${STR('arco ' + nb)},#${ci},`
         + `(#${i0},PARAMETER_VALUE(0.0)),(#${i1},PARAMETER_VALUE(${NUM(s.theta, 9)})),`
-        + '.T.,.PARAMETER.)'));
+        + '.T.,.CARTESIAN.)'));
     }
+    finId = i1; finPt = s.p1;
   }
+  if (cadena.length) cadenas.push(cadena);
+
+  /* Un `COMPOSITE_CURVE` abierto declara `.DISCONTINUOUS.` en su ÚLTIMO tramo y
+     `.CONTINUOUS.` en los demás. No se usa `.CONT_SAME_GRADIENT.`, que sería más
+     preciso donde recta y arco se tocan por tangencia, porque un pliegue de
+     radio cero sí rompe la pendiente y entonces la declaración sería falsa. */
+  const ejeItems = cadenas.map(c => {
+    if (c.length === 1) return c[0];
+    const segs = c.map((id, k) => put('COMPOSITE_CURVE_SEGMENT('
+      + (k === c.length - 1 ? '.DISCONTINUOUS.' : '.CONTINUOUS.') + `,.T.,#${id})`));
+    return put(`COMPOSITE_CURVE('eje',(${segs.map(i => '#' + i).join(',')}),.U.)`);
+  });
 
   /* --- los PI: de lo que hablan la tabla y el CSV de puntos --- */
   const pis = fk(model).pis;
@@ -245,46 +299,88 @@ export function stepText(model: Model, meta: StepMeta): string {
     pt(p, i === 0 ? 'inicio' : i === pis.length - 1 ? 'fin' : `PI ${i}`));
 
   /* --- el perfil, colocado en el arranque de la barra. El marco de arranque es
-         la identidad: `y` es el espesor y `z` el ancho, igual que en el 3D. --- */
-  const perfil = sectionOutline(model.section)
-    .map(([a, b]) => pt(new Vector3(0, a, b)));
-  const perfilItems = perfil.length
-    ? [put(`POLYLINE('perfil',(${perfil.map(i => '#' + i).join(',')},#${perfil[0]}))`)]
-    : [];
+         la identidad: `y` es el espesor y `z` el ancho, igual que en el 3D.
 
-  const set = (name: string, items: number[]): number[] =>
-    items.length
-      ? [put(`GEOMETRIC_CURVE_SET(${STR(name)},(${items.map(i => '#' + i).join(',')}))`)]
-      : [];
-  const grupos = [
-    ...set('eje', ejeItems),
-    ...set('PI', piItems),
-    ...set('perfil', perfilItems),
-  ];
+     Sale como CADENA CERRADA de rectas y no como `POLYLINE`, que es lo que
+     parecía natural. Motivo, medido: OCCT lee una `POLYLINE` como UNA arista
+     suelta y no construye hilo con ella, y el diálogo de barrido de FreeCAD solo
+     ofrece como perfil los objetos que TIENEN hilo. O sea que el perfil estaba
+     ahí, se veía en pantalla, y no se podía seleccionar para nada. Con la cadena
+     cerrada entra como hilo cerrado y aparece en la lista.
 
-  /* --- producto y forma --- */
+     Un `composite_curve` es cerrado justamente cuando su último tramo NO es
+     `.DISCONTINUOUS.`, así que aquí van todos `.CONTINUOUS.` — al revés que el
+     eje, que es abierto. --- */
+  const cara = sectionOutline(model.section).map(([a, b]) => new Vector3(0, a, b));
+  const perfilItems: number[] = [];
+  /* Una sección degenerada daría tramos de longitud cero, que no son una recta.
+     Antes que escribir geometría inválida, el perfil no sale: los grupos vacíos
+     se caen solos más abajo y el archivo sigue siendo válido. */
+  const caraOk = cara.length >= 3 && cara.every((p, i) =>
+    p.distanceTo(cara[(i + 1) % cara.length]) > 1e-9);
+  if (caraOk) {
+    const ids = cara.map(p => pt(p));
+    const segs = cara.map((p, i) => {
+      const j = (i + 1) % cara.length;
+      const d = cara[j].clone().sub(p);
+      const vec = put(`VECTOR('',#${dir(d.clone().normalize())},1.0)`);
+      const ln = put(`LINE('',#${ids[i]},#${vec})`);
+      const tc = put(`TRIMMED_CURVE('',#${ln},(#${ids[i]},PARAMETER_VALUE(0.0)),`
+        + `(#${ids[j]},PARAMETER_VALUE(${NUM(d.length())})),.T.,.CARTESIAN.)`);
+      return put(`COMPOSITE_CURVE_SEGMENT(.CONTINUOUS.,.T.,#${tc})`);
+    });
+    perfilItems.push(put(`COMPOSITE_CURVE('perfil',(${segs.map(i => '#' + i).join(',')}),.U.)`));
+  }
+
+  /* --- productos y formas: UNO POR GRUPO ---
+
+     Tres raíces y no una. Con una sola, OCCT entrega un ÚNICO compuesto con
+     todo mezclado dentro, y eso deja el archivo mirable pero inservible: en
+     FreeCAD no hay un objeto «perfil» que ofrecerle al diálogo de barrido ni una
+     trayectoria que seleccionar. Es lo que pasó el 2026-09-20, y no se ve
+     leyendo el texto — el archivo era correcto.
+
+     Cada grupo con su `PRODUCT` y su `SHAPE_DEFINITION_REPRESENTATION` llega
+     como un objeto aparte y con su nombre. No hay relaciones de ensamblaje, y no
+     hacen falta: son tres cosas sueltas en el mismo archivo, que es justo lo que
+     son. El orden importa poco salvo que el perfil va antes que los PI, porque
+     es el que hay que encontrar para barrer. */
+  const grupos: { nombre: string; items: number[] }[] = [
+    { nombre: 'eje', items: ejeItems },
+    { nombre: 'perfil', items: perfilItems },
+    { nombre: 'PI', items: piItems },
+  ].filter(g => g.items.length);
+
   const app = put("APPLICATION_CONTEXT('automotive design')");
   put(`APPLICATION_PROTOCOL_DEFINITION('international standard','automotive_design',2000,#${app})`);
   const pctx = put(`PRODUCT_CONTEXT('',#${app},'mechanical')`);
+  const pdc = put(`PRODUCT_DEFINITION_CONTEXT('part definition',#${app},'design')`);
   const nom = STR(meta.name);
   const sello = STR('BARCOMP ' + meta.build);
-  const prod = put(`PRODUCT(${nom},${nom},${sello},(#${pctx}))`);
-  put(`PRODUCT_RELATED_PRODUCT_CATEGORY('part','',(#${prod}))`);
-  const pdf = put(`PRODUCT_DEFINITION_FORMATION('','',#${prod})`);
-  const pdc = put(`PRODUCT_DEFINITION_CONTEXT('part definition',#${app},'design')`);
-  const pd = put(`PRODUCT_DEFINITION('design','',#${pdf},#${pdc})`);
-  const pds = put(`PRODUCT_DEFINITION_SHAPE('','',#${pd})`);
-  /* `GEOMETRICALLY_BOUNDED_WIREFRAME_SHAPE_REPRESENTATION`, con `SHAPE_` en
-     medio. Es el nombre de la entidad en AP203 y AP214, y el 2026-09-20 salió
-     sin él: el archivo era sintácticamente perfecto —toda referencia resuelta,
-     ids sin hueco, las pruebas en verde— y FreeCAD 1.1 contestaba «No shapes
-     found in file». OCCT no reconoce la representación, y entonces no hay nada
-     colgando de `SHAPE_DEFINITION_REPRESENTATION`: se descarta el archivo
-     ENTERO, geometría incluida, sin una sola queja de sintaxis. Con el nombre
-     bueno entran 32 aristas y 80 vértices de la demo. */
-  const rep = put(`GEOMETRICALLY_BOUNDED_WIREFRAME_SHAPE_REPRESENTATION(${nom},`
-    + `(${grupos.map(i => '#' + i).join(',')}),#${ctx})`);
-  put(`SHAPE_DEFINITION_REPRESENTATION(#${pds},#${rep})`);
+  /* El nombre del PRODUCT es el del grupo, porque es lo que se lee en el árbol
+     del CAD a la hora de elegir qué barrer. De qué pieza y de qué compilación
+     salió va en la descripción, en el encabezado y en el comentario. */
+  const proc = STR(meta.name + ' - BARCOMP ' + meta.build);
+
+  for (const g of grupos) {
+    const gn = STR(g.nombre);
+    const gcs = put(`GEOMETRIC_CURVE_SET(${gn},(${g.items.map(i => '#' + i).join(',')}))`);
+    const prod = put(`PRODUCT(${gn},${gn},${proc},(#${pctx}))`);
+    put(`PRODUCT_RELATED_PRODUCT_CATEGORY('part','',(#${prod}))`);
+    const pdf = put(`PRODUCT_DEFINITION_FORMATION('','',#${prod})`);
+    const pd = put(`PRODUCT_DEFINITION('design','',#${pdf},#${pdc})`);
+    const pds = put(`PRODUCT_DEFINITION_SHAPE('','',#${pd})`);
+    /* `GEOMETRICALLY_BOUNDED_WIREFRAME_SHAPE_REPRESENTATION`, con `SHAPE_` en
+       medio. Es el nombre de la entidad en AP203 y AP214, y el 2026-09-20 salió
+       sin él: el archivo era sintácticamente perfecto —toda referencia resuelta,
+       ids sin hueco, las pruebas en verde— y FreeCAD 1.1 contestaba «No shapes
+       found in file». OCCT no reconoce la representación, y entonces no hay nada
+       colgando de `SHAPE_DEFINITION_REPRESENTATION`: se descarta el archivo
+       ENTERO, geometría incluida, sin una sola queja de sintaxis. */
+    const rep = put(`GEOMETRICALLY_BOUNDED_WIREFRAME_SHAPE_REPRESENTATION(${gn},`
+      + `(#${gcs}),#${ctx})`);
+    put(`SHAPE_DEFINITION_REPRESENTATION(#${pds},#${rep})`);
+  }
 
   /* --- el encabezado --- */
   const desc = [

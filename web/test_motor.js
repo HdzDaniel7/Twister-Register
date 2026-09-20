@@ -3769,6 +3769,58 @@ console.log('\n— el eje a STEP —');
     ok(`  el tramo «${n}» va rotulado`, txt.includes(`'${n}'`));
   }
 
+  /* --------------------------------------------------- utilizable, no solo
+     mirable. Las tres cosas de aquí abajo no cambian una cifra de la geometría
+     y deciden si el archivo SIRVE. Salieron de abrirlo en FreeCAD 1.1, no de
+     leer la norma, y ninguna se ve en el texto:
+
+     · con UNA sola raíz, OCCT entrega un compuesto con el eje, el perfil y los
+       PI mezclados: no hay objeto «perfil» que darle al diálogo de barrido;
+     · con los tramos sueltos, la trayectoria hay que clicarla arista por arista
+       —31 en la demo— en vez de una vez;
+     · con `.PARAMETER.` como representación maestra, el lector calcula los
+       extremos en vez de usar los puntos compartidos, y el perfil redondo salía
+       ABIERTO por 6.87e-07 mm: un hilo abierto no se puede barrer. */
+  const raices = (txt.match(/SHAPE_DEFINITION_REPRESENTATION\(/g) || []).length;
+  ok('  sale una raíz por grupo, no todo en un compuesto mezclado',
+     raices === 3, `${raices} raíces`);
+  ok('  y cada grupo es un PRODUCT con su nombre, que es lo que se lee en el CAD',
+     ["PRODUCT('eje','eje'", "PRODUCT('perfil','perfil'", "PRODUCT('PI','PI'"]
+       .every(x => txt.includes(x)));
+
+  /* el eje, un hilo: un COMPOSITE_CURVE con todos los tramos y el último
+     `.DISCONTINUOUS.`, que es como se declara una curva ABIERTA */
+  const comp = txt.match(/COMPOSITE_CURVE\('eje',\(([^)]*)\)/);
+  ok('  el eje sale como UN hilo y no como tramos sueltos', !!comp);
+  /* nueve tramos tiene la pieza; ocho entran, porque el pliegue de radio cero
+     no es geometria y se queda fuera. El hilo sigue siendo UNO: al quitarlo, sus
+     vecinos se tocan, que es justo lo que dice `centreSegments()`. */
+  ok('    con los ocho tramos que sobreviven al pliegue de radio cero',
+     !!comp && comp[1].split(',').length === 8,
+     comp ? `${comp[1].split(',').length} tramos` : '');
+  ok('    y declarado ABIERTO: el último tramo es .DISCONTINUOUS.',
+     (txt.match(/COMPOSITE_CURVE_SEGMENT\(\.DISCONTINUOUS\./g) || []).length === 1);
+  const perfilCC = txt.match(/COMPOSITE_CURVE\('perfil',\(([^)]*)\)/);
+  ok('  y el perfil sale CERRADO —ningún tramo suyo es .DISCONTINUOUS.—,',
+     !!perfilCC && perfilCC[1].split(',').length === 4,
+     perfilCC ? `${perfilCC[1].split(',').length} lados` : 'sin perfil');
+  ok('    porque un hilo abierto no se puede barrer para sacar el sólido',
+     !!perfilCC);
+
+  /* los tramos vecinos comparten la ENTIDAD del punto de unión, no dos
+     entidades con las mismas cifras: así la continuidad es exacta */
+  const trims = [...txt.matchAll(/TRIMMED_CURVE\('(recta|arco|cola)[^']*',#\d+,\(#(\d+),[^)]*\)[^(]*\(#(\d+),/g)];
+  ok('  los tramos del eje encadenan compartiendo el punto de unión',
+     trims.length === 8 && trims.every((m, i) => i === 0 || m[2] === trims[i - 1][3]),
+     `${trims.length} tramos`);
+
+  /* la representación maestra y la incertidumbre: las dos juntas son lo que
+     hace que el lector cosa la costura en vez de dejar el hilo abierto */
+  ok('  los recortes son .CARTESIAN., no .PARAMETER.',
+     !txt.includes('.PARAMETER.)') && txt.includes('.T.,.CARTESIAN.)'));
+  ok('  y la incertidumbre declarada es 1 µm, no 0.1 nm',
+     txt.includes('LENGTH_MEASURE(1.E-06)'));
+
   /* el nombre de la pieza lleva una comilla y una «º»: sin escapar, el archivo
      se parte por la mitad y el fallo aparece en el CAD del taller, no aquí */
   ok('  la comilla del nombre va doblada y la «º» en \\X2\\',
