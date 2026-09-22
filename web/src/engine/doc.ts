@@ -32,7 +32,7 @@ import type { MachineFmt } from './machine.ts';
 import { PLACE_DEFAULT } from './fitting.ts';
 import { safeColor } from '../safe.ts';
 
-export const SCHEMA = 'barcomp/2.5';
+export const SCHEMA = 'barcomp/2.6';
 /** Esquemas anteriores, cada uno con su cinemática. Se convierten al abrirlos.
  *  · 1.0  `rot` era un doblez de canto y `angle` tenía el signo contrario
  *  · 2.0  `rot` rodaba la barra de verdad y la sección salía girada
@@ -69,7 +69,7 @@ export const SCHEMA_AMBIGUOUS: string[] = ['barcomp/2.2'];
  *  abierto por una copia anterior del programa se leería como barra maciza, con
  *  más peso y más rigidez, y no avisaría nadie. Con el número subido, esa copia
  *  se para y dice que no conoce el esquema. */
-export const SCHEMA_COMPAT: string[] = ['barcomp/2.3', 'barcomp/2.4'];
+export const SCHEMA_COMPAT: string[] = ['barcomp/2.3', 'barcomp/2.4', 'barcomp/2.5'];
 
 /* `barcomp/2.4` entra en la lista de arriba el 2026-09-21 por el mismo motivo
    que el 2.3, y conviene leerlo entero porque es el caso donde «no cambió
@@ -89,7 +89,23 @@ export const SCHEMA_COMPAT: string[] = ['barcomp/2.3', 'barcomp/2.4'];
    Y en el otro sentido, que es el que obliga a subir el número: un 2.5 con una
    cuna puesta a mano, abierto por una copia anterior, se leería con la cuna
    apuntada a la barra otra vez —o sea, apoyando— y nadie avisaría. Con el
-   número subido, esa copia se para y dice que no conoce el esquema. */
+   número subido, esa copia se para y dice que no conoce el esquema.
+
+   `barcomp/2.5` entra en la lista el 2026-09-22, y es el tercer caso de la
+   misma clase: del 2.5 al 2.6 no cambió ni un signo ni una fórmula, y ni un PI
+   se mueve. Lo que cambió es que la sección guarda DE DÓNDE SALE LA FIBRA
+   NEUTRA (`Section.kMode` y `Section.kFactor`, ver engine/fibre.ts). Un 2.5 no
+   lo trae, y se abre como `center` —la fibra en el centro, K = 0.5— que es
+   exactamente lo que ese archivo quiso decir: es lo que el programa hacía
+   cuando se guardó. Así que en ese sentido no hay nada que convertir.
+
+   El sentido que obliga a subir el número es el otro, y aquí muerde más que
+   en los dos casos anteriores porque lo que se pierde es MATERIAL: un 2.6
+   guardado con la fibra por DIN 6935, abierto por una copia anterior, se
+   leería como si la fibra estuviera en el centro y la longitud de corte
+   saldría más larga sin que nadie avisara. Sobre DEMO-1700 son 36.44 mm por
+   pieza. Con el número subido, esa copia se para y dice que no conoce el
+   esquema. */
 
 /* ---------------------------------------------------------------------- E/S */
 /** Una pieza medida, tal como la ve `toDoc()`: solo lo que hace falta para

@@ -39,6 +39,17 @@ export type Delta = Record<DeltaKey, number>;
  *  aquí daría números con la misma cara de siempre y ninguno cierto. */
 export type SecKind = 'rect' | 'round';
 
+/** De dónde sale el factor de fibra neutra K.
+ *
+ *  · `center` la fibra en el centro, K = 0.5. Es lo que este programa hizo
+ *    siempre antes del 2026-09-22 y sigue siendo el valor de partida: ningún
+ *    archivo anterior cambia un número al abrirse.
+ *  · `din`    K por DIN 6935, según el r/t de cada doblez. Varía fila a fila,
+ *    que es lo que pide una pieza con radios distintos.
+ *  · `fixed`  la K tecleada, la misma para toda la pieza. Es la casilla donde
+ *    entra lo que se MIDA en el taller. */
+export type KMode = 'center' | 'din' | 'fixed';
+
 /** Sección de la barra, mm.
  *
  *  `width` y `thickness` son las dos medidas EXTERIORES, y en una redonda
@@ -55,6 +66,10 @@ export type Section = {
   chamfer: number;
   /** longitud del tocho de extremo que se dibuja en los cabos */
   endLen: number;
+  /** de dónde sale K. Ver engine/fibre.ts */
+  kMode: KMode;
+  /** factor de fibra neutra cuando `kMode` es `fixed`. 0.5 = en el centro */
+  kFactor: number;
 };
 
 /** Tolerancias de aceptación. Ángulos en °, longitudes en mm. */

@@ -160,6 +160,66 @@ Detalle en `CONTEXTO_BARCOMP.md`, «La carga».
       recolocar avances para nada, y sale el mismo avance. Creencia vieja de cuando `rot` era
       componente de doblez; se quita en una pasada que no cambie comportamiento.
 
+- [x] **Las longitudes se cuentan sobre la FIBRA NEUTRA, no sobre el centro · [O]** —
+      **hecho el 2026-09-22**, segunda pasada del mismo día que la entrada de arriba. `L`,
+      `Σ L`, la longitud del pie y las columnas `arc`/`cum` del CSV de máquina dejan de
+      contarse sobre el centro de la sección —el CLR con el que se calan las matrices— y
+      pasan a contarse sobre la fibra neutra: al doblar la cara de fuera se estira y la de
+      dentro se recalca, y la fibra que ni una cosa ni la otra se corre HACIA DENTRO del
+      doblez, así que cortar por el centro es cortar de más. Hasta ahora el programa
+      trabajaba con K = 0.5 clavado, sin decirlo. La cuenta: `R_fibra(i) = R_int(i) +
+      K·t_ef(i) = radius(i) − (0.5 − K)·t_ef(i)`, `arco(i) = R_fibra(i) · θ(i)`, con `t_ef`
+      lo que mide la sección EN EL PLANO del doblez —de plano el espesor, de canto el
+      ancho—, que contesta `sectionDepth()`, la séptima pregunta de `engine/section.ts`. `K`
+      la guarda la sección en `kMode`/`kFactor`: `center` (K = 0.5 fijo, el valor de
+      partida, así que ningún archivo anterior mueve un número al abrirse), `din` (DIN 6935
+      fila a fila: `k = 0.65 + 0.5·log₁₀(r/t)` topado en [0.65, 1], K = k/2 — pide una pieza
+      con radios distintos) y `fixed` (la K tecleada, la misma para toda la pieza: la
+      casilla para lo que se MIDA en el taller). Sobre DEMO-1700 (15 dobleces, 40×12, radios
+      30 de plano y 45 de canto): centro **1861.867 mm**, K=0.45 → 1849.894 (−11.97 mm),
+      K=0.40 → 1837.921 (−23.95 mm), fibra por DIN 6935 → **1825.431** (−36.44 mm, −1.96 %).
+      De esos 36 mm, **29 los ponen las cuatro estaciones de canto**, que caen fuera del
+      rango donde la DIN vale (r/t = 0.63, por debajo del 0.65 donde acaba la norma) y salen
+      avisadas con un cuadro rojo que dice cuántas filas son. Dos avisos que quedan escritos:
+      la DIN 6935 es de **chapa en plegadora**, no de curvado por estirado —una primera
+      aproximación, algo mejor que suponer K = 0.5, no el número de esta máquina, por eso
+      existe `fixed`—; y la longitud de corte no es la longitud de una curva, es
+      **conservación de material** —la fórmula de la fibra neutra es el ajuste empírico con
+      el que la industria la aproxima, y K es donde entra lo que no se sabe—. Sube el
+      esquema a `barcomp/2.6`; `barcomp/2.5` entra en `SCHEMA_COMPAT` y se abre como
+      `center`, sin mover un número — el sentido que obliga a subir es el otro: un 2.6
+      guardado con la fibra por DIN, abierto por una copia anterior, se leería con la fibra
+      en el centro y la barra saldría 36.44 mm más larga sin avisar. Lo que NO se tocó: ni
+      un PI —`fk()`, `ik()` y `compensate()` no se enteran de que la fibra existe—; las
+      RECTAS, que dan el mismo número en las dos cuentas; la **cola**, que no lleva arco; el
+      `trim`, que sigue siendo la tangente del CENTRO porque dónde empieza el arco lo manda
+      el herramental; y la cinta de abajo, los pedestales, las marcas, los tramos del STEP y
+      el volumen que se escribe en el STEP, que siguen midiendo por el centro porque miden
+      sobre la pieza ya doblada y dibujada —el volumen del STEP es Pappus sobre una sección
+      CONSTANTE, exacto, y no la barra real, que se adelgaza al doblar; poner ahí la de
+      corte haría fallar `tools/check_step_freecad.py`—. Dos pasadas: `refactor: la barra
+      que se GASTA se separa del camino que recorre el eje` —nace `engine/fibre.ts`, sin
+      mover un número— y esta. El fixture congelado pasa a
+      `web/test/fixtures/demo-2.6.json`: al regenerarlo, el `pis` salió idéntico carácter
+      por carácter. Detalle completo en `CONTEXTO_BARCOMP.md` §11.
+
+  Lo que queda abierto, y es lo que falta por contestar:
+
+  - [ ] **Despejar la K real de esta máquina · [—]** — ⛔ pide medir la longitud de corte de
+        una pieza REAL y compararla contra lo que predice cada K: es lo único que vuelve
+        cierto el número. Hoy K sale de una norma de chapa en plegadora (DIN 6935), no de
+        curvado por estirado ni de esta máquina — por eso existe `fixed`, la casilla para el
+        valor medido en el taller.
+  - [ ] **Dónde se trazan las marcas del fixture · [O]** — sin decidir: sobre la barra RECTA
+        antes de doblar (y entonces la cinta también tendría que contar en fibra, no en
+        centro) o sobre la pieza YA DOBLADA (y entonces se queda exactamente como está,
+        midiendo por el centro porque mide sobre la pieza dibujada). Mientras no se decida,
+        la cinta sigue por el centro, que es lo único que hoy se sabe cierto.
+  - [ ] **El r/t de las estaciones de canto del demo cae fuera de la DIN · [—]** — 0.63, por
+        debajo del 0.65 donde acaba la norma, y además es un doblez severo que en la máquina
+        pediría mandril. La pantalla lo avisa con un cuadro rojo; no hay norma que lo
+        sustituya sin la K medida de la tarea de arriba.
+
 - [x] **El pedestal no gira en Z, y el sembrado lo gira contra la pieza · [O]** — **hecho el
       2026-09-21.** `Pedestal.yaw`, esquema `barcomp/2.5`, y la cuna deja de apuntarse sola.
       Lo que queda de esta entrada es el porqué, que sigue valiendo — pedido por

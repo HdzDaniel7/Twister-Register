@@ -67,9 +67,9 @@ la razón de media docena de decisiones de abajo.
 - `src/safe.ts` y `src/dom.ts` son **módulos hoja, sin dependencias**, a propósito: los usan
   el motor, el 3D y los paneles sin arrastrarse entre ellos.
 - `engine/section.ts` es **lo que la sección sabe de sí misma**: área, las dos inercias,
-  cuánto asoma en una dirección, cuánto baja la cara de abajo y la fibra del esfuerzo. Las
-  cinco juntas porque son las cinco que cambian con la FORMA —tubo, redondo— y repartidas se
-  olvida la que no se tocó: la barra pesaría como un tubo y se apoyaría como un macizo. Tres
+  cuánto asoma en una dirección, cuánto baja la cara de abajo, la fibra del esfuerzo, el
+  contorno para el 3D y cuánto mide en el plano del doblez. Las siete juntas porque son las
+  siete que cambian con la FORMA —tubo, redondo— y repartidas se olvida la que no se tocó: la barra pesaría como un tubo y se apoyaría como un macizo. Tres
   de ellas eran la misma cuenta escrita tres veces, con tres nombres, hasta el 2026-09-17.
 - `barGeometry()` vive en `scene/geometry.ts` y **no** en el motor: devuelve una
   `BufferGeometry`, así que depende de three.
@@ -214,7 +214,7 @@ Todas puras y todas en `web/src/engine.ts`, que no toca el DOM.
 | `medianPart(piezas)` | → `bends[]` | la pieza mediana del lote; se detiene en la más CORTA |
 | `springback(muestras,ori)` | → `{W,T}` | `sb = 1 − medido/comandado`, con pendiente y r |
 | `evalCell(texto,c,v)` | → número \| null | la celda de compensación; parser propio, sin `eval` |
-| `toDoc` / `fromDoc` | → `doc` / estado | esquema `barcomp/2.5`; migra los anteriores al abrir |
+| `toDoc` / `fromDoc` | → `doc` / estado | esquema `barcomp/2.6`; migra los anteriores al abrir |
 
 `barGeometry(path, sec, devFn)` vive en `scene/geometry.ts`, no en el motor: devuelve una `BufferGeometry` y
 por lo tanto depende de three.
@@ -531,7 +531,7 @@ punteada. Deja ver de un vistazo cuál doblez está fuera. Es clicable.
 ## 7. Trampas conocidas
 
 0. **El eje acumula; la sección no rueda.** Es la trampa que ha costado una versión entera,
-   así que va primero. `SCHEMA` es `barcomp/2.5` y la cinemática es la de 2.2:
+   así que va primero. `SCHEMA` es `barcomp/2.6` y la cinemática es la de 2.2:
 
        2.0  Rx(rot) · Rz(-angle)              la sección salía RODADA   ← mal
        2.1  Rx(rot) · Rz(-angle) · Rx(-rot)   solo se inclina el eje    ← bien
@@ -637,9 +637,12 @@ punteada. Deja ver de un vistazo cuál doblez está fuera. Es clicable.
     con el botón de fijarla, o sea la referencia dejaba de poder elegirse— y `varDelete()`
     borrando las dos de una, que filtra por id. Arreglado el 2026-09-17; `newVid()` además
     salta cualquier id ocupado, porque la invariante es el id único y no el contador.
-26. **La forma de la sección cambia seis cuentas y ninguna más**, y están todas en
+26. **La forma de la sección cambia siete cuentas y ninguna más**, y están todas en
     `engine/section.ts`: área, las dos inercias, cuánto asoma, cuánto baja y la fibra del
-    esfuerzo, más el contorno que dibuja el 3D. Lo que hay que saber antes de tocar nada:
+    esfuerzo, el contorno que dibuja el 3D, y desde el 2026-09-22 cuánto mide la sección EN
+    EL PLANO del doblez (`sectionDepth`), que es lo que la fibra neutra necesita para saber
+    cuánto material hay entre el centro y la cara que se estira o se recalca —de plano manda
+    el espesor, de canto el ancho—. Lo que hay que saber antes de tocar nada:
     **el hueco no toca el contacto**. La función soporte mira el perfil EXTERIOR, así que un
     tubo apoya donde apoyaría el macizo del mismo tamaño —hay prueba en las 360 posiciones— y
     ni FIS-08 ni FIS-10 se enteran de que existe. Lo que el hueco cambia es lo que pesa y lo
@@ -703,7 +706,7 @@ cd web && npm run check            # typecheck -> pruebas -> build -> banco, de 
 cd web && npm run typecheck        # tsc --noEmit, con strict
 cd web && node test_motor.js       # 605 pruebas; todas deben pasar
 cd web && node build.mjs           # regenera index.html y barcomp_viewer.html
-cd web && node tools/ui_test.mjs   # 301 pasos de interfaz en Edge headless
+cd web && node tools/ui_test.mjs   # 306 pasos de interfaz en Edge headless
 cd web && node tools/demo_carga.mjs # κ contra una solución exacta, y el codo del hueco
 cd web && node tools/demo_escala.mjs # dónde el solver de la carga deja de caber
 ```
@@ -1158,6 +1161,66 @@ lo único que ese contador puede decir, y un aviso de no meter nada entre `f0` y
 
 ### Decisiones que siguen gobernando el código
 
+- **Las longitudes se cuentan sobre la FIBRA NEUTRA** (2026-09-22). `L`, `Σ L`, la
+  longitud del pie y las columnas `arc`/`cum` del CSV de máquina dejan de
+  contarse sobre el centro de la sección y pasan a contarse sobre la fibra
+  neutra. Al doblar, la cara de fuera se estira y la de dentro se recalca; la
+  fibra que ni se estira ni se recalca se corre HACIA DENTRO del doblez, así
+  que cortar por el centro —que es como se mide `radius`, el CLR con el que se
+  calan las matrices— es cortar de más. Hasta este cambio el programa trabajaba
+  con K = 0.5 clavado, sin decirlo. La cuenta: `R_fibra(i) = R_int(i) +
+  K·t_ef(i) = radius(i) − (0.5 − K)·t_ef(i)` y `arco(i) = R_fibra(i) · θ(i)`,
+  con `t_ef` lo que mide la sección EN EL PLANO en que se dobla —de plano el
+  espesor, de canto el ancho—, que contesta `sectionDepth()` (séptima pregunta
+  de `engine/section.ts`). `K` la guarda la sección, en `kMode` y `kFactor`:
+  `center` (K = 0.5 fijo, la fibra en el centro, el valor de partida —ningún
+  archivo anterior cambia un número al abrirse—), `din` (K por DIN 6935 según
+  el r/t de CADA doblez: `k = 0.65 + 0.5·log₁₀(r/t)` topado en [0.65, 1],
+  K = k/2 — cambia fila a fila, que es lo que pide una pieza con radios
+  distintos) y `fixed` (la K tecleada, la misma para toda la pieza: la casilla
+  donde entra lo que se MIDA en el taller). Sobre DEMO-1700 (15 dobleces,
+  pletina 40×12, radios 30 de plano y 45 de canto): centro **1861.867 mm**,
+  fibra con K = 0.45 → **1849.894** (−11.97), K = 0.40 → **1837.921** (−23.95),
+  fibra por DIN 6935 → **1825.431** (−36.44, −1.96 %). 36 mm de barra por
+  pieza, y las cuatro estaciones de canto aportan **29** de esos 36: son justo
+  las que caen fuera del rango donde la DIN vale (r/t = 0.63, por debajo del
+  0.65 donde acaba la norma), y la pantalla lo avisa con un cuadro rojo que
+  dice cuántas filas son. Dos avisos que quedan escritos: la **DIN 6935 es de
+  CHAPA EN PLEGADORA**, no de curvado por estirado —una primera aproximación,
+  algo mejor que suponer K = 0.5, no el número de esta máquina, por eso existe
+  `fixed`—; y **la longitud de corte no es la longitud de una curva**, es
+  conservación de material —la fórmula de la fibra neutra es el ajuste
+  empírico con el que la industria la aproxima, y K es donde entra lo que no
+  se sabe—. Lo que NO se toca: ni un PI se mueve —`fk()`, `ik()` y
+  `compensate()` no se enteran de que la fibra existe, porque cuenta barra y
+  no coloca puntos—; las RECTAS son el mismo número en las dos cuentas —sin
+  doblez no hay estiramiento y la fibra ES el centro—, y la cola tampoco
+  cambia, porque no lleva arco; el `trim` sigue siendo la tangente del
+  CENTRO, porque dónde empieza el arco lo manda el herramental y no por dónde
+  pase la fibra; y la cinta de abajo, los pedestales, las marcas y los tramos
+  del STEP siguen midiendo por el centro, porque miden sobre la pieza ya
+  doblada y dibujada —desde este cambio hay DOS longitudes en pantalla y son
+  distintas a propósito: la de la tabla es la barra que se corta y la de la
+  cinta es la abscisa sobre la pieza—. El volumen esperado que se escribe en
+  el STEP se queda en la desarrollada GEOMÉTRICA y no es un descuido: el
+  sólido barre una sección CONSTANTE a lo largo del centro, así que su volumen
+  es Pappus sobre el centro, exacto, mientras la barra de verdad se adelgaza
+  en el doblez y conserva material con la fibra neutra —las dos cuentas son
+  ciertas y miden cosas distintas; poner ahí la de corte haría fallar
+  `tools/check_step_freecad.py`—. Sube el esquema a `barcomp/2.6`, y
+  `barcomp/2.5` entra en `SCHEMA_COMPAT`: no cambia ni un signo ni una fórmula
+  y no se mueve un PI, un 2.5 se abre como `center`, que es exactamente lo que
+  ese archivo quiso decir. El sentido que obliga a subir el número es el otro,
+  y aquí muerde más que en los casos anteriores porque lo que se pierde es
+  MATERIAL: un 2.6 guardado con la fibra por DIN, abierto por una copia
+  anterior, se leería como si la fibra estuviera en el centro y la barra
+  saldría 36.44 mm más larga sin que nadie avisara. Dos pasadas: `refactor: la
+  barra que se GASTA se separa del camino que recorre el eje` —nace
+  `engine/fibre.ts` y los consumidores de MATERIAL cambian de función, sin
+  mover un número— y esta, la cuenta de verdad, los dos campos de la sección,
+  el esquema y la interfaz. El fixture congelado pasa a
+  `web/test/fixtures/demo-2.6.json`: al regenerarlo, el `pis` salió idéntico
+  carácter por carácter, o sea que la pieza no se movió.
 - **La tabla de longitudes CUADRA HACIA ABAJO** (2026-09-22). El motor nunca se equivocó
   —`developedLength()` contra el camino 3D refinado da 1861.8670 contra 1861.8670, y
   `dev − PIaPI` es exactamente `−Σ(2·trim − arco)`— pero la tabla enseñaba dos cosas que no

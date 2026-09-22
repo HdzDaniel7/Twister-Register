@@ -141,6 +141,14 @@ export function paneSection(M: Model): string {
      catálogo. Si no hay material puesto no se inventa: se deja en blanco. */
   const kgm = ST.mat.rho ? E.lineLoad(sec, ST.mat) * 1000 / 9.81 : null;
   const opciones: [string, I18nKey][] = [['rect', 'secRect'], ['round', 'secRound']];
+  const kOpciones: [string, I18nKey][] =
+    [['center', 'fibreCenter'], ['din', 'fibreDin'], ['fixed', 'fibreFixed']];
+  const ahorro = +E.fibreSaving(M).toFixed(3);
+  /* Cuántas filas caen fuera del rango donde la DIN 6935 vale. En DEMO-1700 son
+     cuatro de quince —las de canto, r/t = 0.63— y son justo las que aportan 29
+     de los 36 mm, así que callarlo sería enseñar un número sin su letra pequeña. */
+  const fueraDin = sec.kMode === 'din'
+    ? E.fibreInfo(M).filter(f => f.rt < 0.65).length : 0;
   return `<div class="pane on"><div class="grp">
     <div class="eyebrow">${T('section')}</div><div class="body">
     <div class="hintline">${T('secTip')}</div>
@@ -170,8 +178,33 @@ export function paneSection(M: Model): string {
           <label>${T('secInertia')} Iy</label><b>${fx(I.Iy, 0)} mm⁴</b>
           <label>${T('secMass')}</label><b>${kgm === null ? '—' : `${fx(kgm, 3)} kg/m`}</b>
         </div>
+        ${/* DE DÓNDE SALE LA FIBRA NEUTRA. Vive en la sección y no en la tabla
+             porque es una propiedad de la BARRA, no de un doblez: la misma
+             pletina se comporta igual en las quince estaciones. Ver
+             engine/fibre.ts, que es donde está la cuenta y los avisos. */''}
+        <div class="hintline mt6">${T('fibre')}</div>
+        <div class="seg" role="group" aria-label="${esc(T('fibre'))}"
+             title="${esc(T('fibreTip'))}">
+          ${kOpciones.map(([k, lab]) => `<button data-km="${k}"
+            class="${sec.kMode === k ? 'on' : ''}"
+            aria-pressed="${sec.kMode === k}">${T(lab)}</button>`).join('')}</div>
+        <div class="fgrid mt6">
+          ${sec.kMode === 'fixed'
+            ? `<label>${T('kFac')}</label>${nfield('.01',
+                'min="0.2" max="0.5" data-s="kFactor"', sec.kFactor)}`
+            : ''}
+          <label title="${esc(T('cutLenTip'))}">${T('cutLen')}</label>
+          <b data-cell="cutlen">${fx(E.cutLength(M), 1)} mm${
+            /* la diferencia contra el eje dibujado solo se enseña cuando la hay:
+               con la fibra en el centro es cero y una columna de ceros no dice
+               nada. Es la cifra que explica un corte que no cuadra con el de
+               antes — 36.44 mm en DEMO-1700 por DIN 6935. */
+            ahorro ? ` <span class="v-dim">(${fx(ahorro, 2)})</span>` : ''}</b>
+        </div>
       </div>
     </div>
+    ${fueraDin ? `<div role="alert" class="warnbox mt6">${
+      T('fibreRt').replace('%n', String(fueraDin))}</div>` : ''}
     ${redonda ? `<div role="alert" class="warnbox mt6">${T('secRoundWarn')}</div>` : ''}
     ${E.isHollow(sec) ? `<div role="alert" class="warnbox mt6">${
       /* Con una cifra tecleada en Límites el programa SÍ juzga el radio, y

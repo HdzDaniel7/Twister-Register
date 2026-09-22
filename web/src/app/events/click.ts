@@ -11,7 +11,7 @@ import type { ViewName } from '../../scene.ts';
 import { $ } from '../../dom.ts';
 import { refresh, renderAll, selectBend, setMode, openDrawer } from '../render.ts';
 import { setTheme } from '../theme.ts';
-import { action, variantById, varActivate, varDuplicate, varDelete, setSecKind } from '../actions.ts';
+import { action, variantById, varActivate, varDuplicate, varDelete, setSecKind, setKMode } from '../actions.ts';
 import { commit } from '../history.ts';
 
 export function bindClick(): void {
@@ -59,7 +59,7 @@ function onClick(e: MouseEvent): void {
     }
     const t = (e.target as HTMLElement).closest(
       '[data-a],[data-v],[data-dm],[data-l],[data-th],[data-md],[data-dr],[data-dx],[data-dsel],[data-cm],[data-mx],[data-px],' +
-      '[data-vsel],[data-vx],[data-vd],[data-vr],[data-r],[data-pnx],[data-hv],[data-sk]') as HTMLElement | null;
+      '[data-vsel],[data-vx],[data-vd],[data-vr],[data-r],[data-pnx],[data-hv],[data-sk],[data-km]') as HTMLElement | null;
     if (!t) return;
     const d = t.dataset;
     if (d.l !== undefined) { setLang(d.l); renderAll(); return; }
@@ -71,6 +71,7 @@ function onClick(e: MouseEvent): void {
     if (d.cm !== undefined) { ST.view.cmode = d.cm as 'solid' | 'dev'; renderShell(); rebuildScene(); return; }
     if (d.dm !== undefined) { ST.datum = d.dm as DatumMode; refresh(); return; }
     if (d.sk !== undefined) { setSecKind(d.sk); return; }
+    if (d.km !== undefined) { setKMode(d.km); return; }
     if (d.vsel !== undefined) { varActivate(d.vsel); return; }
     if (d.vd !== undefined) { varDuplicate(variantById(d.vd)); return; }
     if (d.vx !== undefined) { varDelete(d.vx); return; }

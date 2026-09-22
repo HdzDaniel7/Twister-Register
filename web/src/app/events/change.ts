@@ -33,7 +33,7 @@ import {
 const COMP_KEYS = new Set(Object.keys(E.COMP_DEFAULT));
 const PROC_KEYS = new Set(Object.keys(E.PROC_DEFAULT));
 const PLACE_KEYS = new Set(Object.keys(E.PLACE_DEFAULT));
-const SECTION_KEYS = new Set(['width', 'thickness', 'wall', 'chamfer', 'endLen']);
+const SECTION_KEYS = new Set(['width', 'thickness', 'wall', 'chamfer', 'endLen', 'kFactor']);
 const TOL_KEYS = new Set(['angle', 'rot', 'feed', 'point']);
 const DELTA_SET = new Set<string>(E.DELTA_KEYS);
 const POINT_KEYS = new Set(['x', 'y', 'z']);
@@ -164,7 +164,15 @@ function onModelField(t: HTMLInputElement, d: DOMStringMap): boolean {
     return true;
   }
   if (d.s !== undefined) {
-    if (setNum(v.base.section, SECTION_KEYS, d.s, t.value)) { syncModel(); refresh(); }
+    if (setNum(v.base.section, SECTION_KEYS, d.s, t.value)) {
+      /* `setNum` escribe el número crudo, y con la K eso no vale: por encima de
+         0.5 la fibra se saldría del centro hacia AFUERA, que no es una barra
+         rara sino un dato imposible. Se topa aquí y no al guardar, que es
+         cuando `normSection()` pasa de oficio: entre medias la pantalla
+         enseñaría una longitud de corte que la pieza no tiene. */
+      if (d.s === 'kFactor') v.base.section = E.normSection(v.base.section);
+      syncModel(); refresh();
+    }
     return true;
   }
   if (d.t !== undefined && t.type === 'number') {

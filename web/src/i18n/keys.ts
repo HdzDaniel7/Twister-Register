@@ -6,7 +6,12 @@
    ========================================================================= */
 export type Lang = 'es' | 'en' | 'de';
 
-/** Las 458 claves que deben existir en LOS TRES diccionarios. */
+/** Las 495 claves que deben existir en LOS TRES diccionarios.
+ *
+ *  El número iba a la deriva: decía 458 cuando ya eran 486, porque se suma
+ *  a mano y a veces se olvida. Lo que de verdad sujeta la paridad no es este
+ *  comentario sino el tipo —y la prueba de `test_motor.js`, que las cuenta y
+ *  escribe el total—, así que aquí va el número que esa prueba imprime. */
 export type I18nKey =
   | 'sub' | 'bNew' | 'bOpen' | 'bSave' | 'bRep' | 'bDemo' | 'layers' | 'datasets'
   | 'model' | 'meas' | 'thSys' | 'thLight' | 'thDark' | 'comp' | 'points' | 'lNom'
@@ -64,9 +69,11 @@ export type I18nKey =
   | 'lim_deadTip' | 'lim_deadFeedTip' | 'lim_maxStepTip' | 'lim_maxStepFeedTip'
   | 'compSim' | 'compHeld' | 'compShort' | 'rowNoMeas' | 'compFewN'
   | 'secKind' | 'secRect' | 'secRound' | 'dia' | 'wall' | 'wallHint'
-  | 'secSolid' | 'secHollow' | 'secArea' | 'secInertia' | 'secMass'
+  | 'secSolid' | 'secHollow' | 'secArea' | 'secInertia' | 'secMass' | 'cutLen'
   | 'secRoundWarn' | 'secHollowWarn' | 'secHollowJudged' | 'secTip'
   | 'secFig' | 'secChamNote' | 'secChamNone'
+  | 'fibre' | 'fibreCenter' | 'fibreDin' | 'fibreFixed' | 'kFac' | 'fibreTip'
+  | 'fibreRt' | 'cutLenTip'
   | 'orR' | 'gainOne' | 'sbOne' | 'secOneConst'
   | 'batchUse' | 'batchTip' | 'batchOn' | 'batchHint' | 'spread' | 'spreadTip'
   | 'sbMeas' | 'sbUse' | 'sbNote' | 'sbCircular' | 'sbSpreadTip'

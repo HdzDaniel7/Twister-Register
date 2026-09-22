@@ -164,7 +164,8 @@ export function paneModel(M: Model): string {
       <th scope="col" title="${T('rotHeadTip')}">${T('rot')}</th><th scope="col" class="dcol">${d}</th>
       <th scope="col">${T('ang')}</th><th scope="col" class="dcol">${d}</th>
       <th scope="col">${T('rad')}</th><th scope="col">${T('twist')}</th><th scope="col">${T('twlen')}</th>
-      <th scope="col">${T('arcL')}</th><th scope="col">${T('cumL')}</th>
+      <th scope="col">${T('arcL')}</th>
+      <th scope="col" title="${esc(T('cutLenTip'))}">${T('cumL')}</th>
       </tr></thead><tbody>${rows}</tbody>
       <tfoot><tr class="foot"><td>${T('tailRow')}</td><td></td>
         <td data-cell="tstr">${nfield('.5',
@@ -176,7 +177,7 @@ export function paneModel(M: Model): string {
           return `<span class="${dt ? '' : 'z'}">${fx(dt, 2)}</span>`;
         })()}</td>
         <td colspan="7"></td><td class="v-dim"></td>
-        <td data-cell="dev">${fx(E.cutLength(M), 2)}</td></tr></tfoot>
+        <td data-cell="dev" title="${esc(T('cutLenTip'))}">${fx(E.cutLength(M), 2)}</td></tr></tfoot>
       </table></div>
     <div class="row mt6"><button class="btn sm" data-a="addb">+ ${T('addBend')}</button>
       ${ST.sel >= 0 ? `<button class="btn sm" data-a="delb">✕ B${ST.sel + 1}</button>` : ''}

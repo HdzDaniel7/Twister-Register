@@ -292,7 +292,7 @@ web/
   src/app.css       tokens de diseño y layout; la paleta de los DOS temas
   src/shell.html    esqueleto con los marcadores del build
   build.mjs         esbuild: src/ + three  ->  index.html
-  test_motor.js     721 pruebas del motor y del i18n, en Node y sin navegador
+  test_motor.js     755 pruebas del motor y del i18n, en Node y sin navegador
   tools/            banco de interfaz por CDP y las sondas de medición
 index.html          SALIDA GENERADA — no se edita a mano
 ```
@@ -317,9 +317,9 @@ cd web
 npm install          # una sola vez: three + esbuild
 npm run check        # typecheck -> pruebas -> build -> banco de interfaz
 npm run typecheck    # tsc --noEmit, con strict
-npm test             # 605 pruebas del motor y del i18n
+npm test             # 755 pruebas del motor y del i18n
 npm run build        # regenera index.html (y web/barcomp_viewer.html en local)
-npm run test:ui      # 301 pasos de interfaz en Edge headless, por CDP
+npm run test:ui      # 306 pasos de interfaz en Edge headless, por CDP
 npm run demo:amarre  # cinco escenarios del amarre, con las cifras a la vista
 npm run demo:carga   # el muelle de contacto contra una solución exacta, y el codo
                      # del hueco que impide cerrar FIS-10b
@@ -450,20 +450,22 @@ Cada fila son **dos tramos**: la recta que llega al doblez, y el doblez que
 ocurre al final de esa recta. Uno sale recto y el otro sale curvo.
 
 ```
-trim(i)  = radius(i) · tan(θ(i)/2)              θ de bendDecomp()
-Recta(i) = el tramo recto, tangencia a tangencia   ← se teclea
-L(i)     = radius(i) · θ(i)                        ← el arco
-Σ L(i)   = Σ L(i−1) + Recta(i) + L(i)
-feed(i)  = Recta(i) + trim(i) + trim(i−1)          ← por debajo, no en la tabla
+trim(i)    = radius(i) · tan(θ(i)/2)              θ de bendDecomp(), sobre el CENTRO
+Recta(i)   = el tramo recto, tangencia a tangencia   ← se teclea
+R_fibra(i) = radius(i) − (0.5 − K)·t_ef(i)           el radio de la FIBRA NEUTRA
+L(i)       = R_fibra(i) · θ(i)                       ← el arco, sobre la fibra
+Σ L(i)     = Σ L(i−1) + Recta(i) + L(i)
+feed(i)    = Recta(i) + trim(i) + trim(i−1)          ← por debajo, no en la tabla
 
 Cola     = tail − trim(último)                     ← se teclea, en el pie
 Σ L final = Σ L(último) + Cola                     ← la longitud desarrollada
 ```
 
 `Recta` es el material que de verdad sale recto y es lo único que se teclea de
-las longitudes. `L` es el material que sale curvo. `Σ L` los va sumando —recta,
-arco, recta, arco— y al final, con la cola, da la longitud desarrollada: el
-trozo de barra que hay que cortar.
+las longitudes. `L` es el material que sale curvo, contado sobre la FIBRA
+NEUTRA y no sobre el centro de la sección —ver más abajo—. `Σ L` los va
+sumando —recta, arco, recta, arco— y al final, con la cola, da la longitud de
+corte: el trozo de barra que hay que cortar.
 
 El **avance** de PI a PI ya no está en la tabla. Es la geometría del CAD —donde
 se cruzarían las rectas si el doblez fuera una esquina viva— y el doblez le come
@@ -488,6 +490,75 @@ recta y se guarda un avance. Tecleando el ángulo en la **base** esto no pasa:
 `Δ` no lo hace a propósito —un `Δ` es una corrección del lazo y no puede ir
 moviendo avances que nadie pidió— así que la diferencia **se enseña** en vez de
 taparse.
+
+### `L` y `Σ L` van sobre la FIBRA NEUTRA
+
+Desde el 2026-09-22, `L` y `Σ L` —y con ellas la longitud del pie y las
+columnas `arc`/`cum` del CSV de máquina— ya no se cuentan sobre el centro de
+la sección: se cuentan sobre la fibra neutra. Al doblar, la cara de fuera se
+estira y la de dentro se recalca; la fibra que ni se estira ni se recalca se
+corre **hacia dentro** del doblez, así que cortar por el centro —que es como
+se mide `radius`, el CLR con el que se calan las matrices— es cortar de más.
+Hasta ahora el programa trabajaba con K = 0.5 clavado, sin decirlo.
+
+```
+R_fibra(i) = R_int(i) + K·t_ef(i) = radius(i) − (0.5 − K)·t_ef(i)
+arco(i)    = R_fibra(i) · θ(i)
+```
+
+`t_ef` es cuánto mide la sección **en el plano en que se dobla**: de plano
+manda el espesor, de canto el ancho. La contesta `sectionDepth()`
+(`engine/section.ts`).
+
+De dónde sale `K`: lo guarda la sección, en `kMode` y `kFactor`.
+
+| modo | `K` | para qué |
+|---|---|---|
+| `center` | 0.5, fijo | la fibra en el centro. Es el valor de partida, así que ningún archivo anterior cambia un número al abrirse |
+| `din` | DIN 6935 por fila: `k = 0.65 + 0.5·log₁₀(r/t)`, topado en [0.65, 1], `K = k/2` | cambia fila a fila, que es lo que pide una pieza con radios distintos |
+| `fixed` | la `K` tecleada, la misma para toda la pieza | la casilla donde entra lo que se MIDA en el taller |
+
+Cifras medidas sobre DEMO-1700 (15 dobleces, pletina 40×12, radios 30 de plano
+y 45 de canto):
+
+| K | Σ L final | Δ contra el centro |
+|---|---|---|
+| centro (lo de antes) | 1861.867 mm | — |
+| fibra con K = 0.45 | 1849.894 mm | −11.97 mm |
+| fibra con K = 0.40 | 1837.921 mm | −23.95 mm |
+| fibra por DIN 6935 | 1825.431 mm | −36.44 mm (−1.96 %) |
+
+36 mm de barra por pieza. Las cuatro estaciones de canto aportan 29 de esos
+36 mm, y son justo las que caen fuera del rango donde la DIN vale (r/t = 0.63,
+por debajo del 0.65 donde acaba la norma): la pantalla lo avisa con un cuadro
+rojo que dice cuántas filas son.
+
+Dos avisos que hay que tener presentes. La **DIN 6935 es de chapa en
+plegadora**, no de curvado por estirado: es una primera aproximación, algo
+mejor que suponer K = 0.5, pero no el número de esta máquina — por eso existe
+`fixed`, para meter lo que se mida en el taller. Y la **longitud de corte no
+es la longitud de una curva**: es conservación de material. La fórmula de la
+fibra neutra es el ajuste empírico con el que la industria la aproxima, y `K`
+es la casilla donde entra lo que no se sabe.
+
+**Lo que esto no toca.** Ni un PI se mueve: `fk()`, `ik()` y `compensate()` no
+se enteran de que la fibra existe, porque la fibra cuenta barra y no coloca
+puntos. Las **rectas** dan el mismo número en las dos cuentas —sin doblez no
+hay estiramiento, y ahí la fibra ES el centro— y la **cola** tampoco cambia,
+porque no lleva arco. El `trim` sigue siendo la tangente del **centro**: dónde
+empieza el arco lo manda el herramental, no por dónde pase la fibra.
+
+**Desde este cambio hay DOS longitudes en pantalla, y son distintas a
+propósito.** La cinta de abajo, los pedestales, las marcas y los tramos del
+STEP siguen midiendo por el centro, porque miden sobre la pieza ya doblada y
+dibujada: la de la tabla es la barra que se corta y la de la cinta es la
+abscisa sobre la pieza. Por el mismo motivo el volumen esperado que se escribe
+en el STEP se queda en la desarrollada **geométrica**, y no es un descuido: el
+sólido que se escribe barre una sección constante a lo largo del centro, así
+que su volumen es Pappus sobre el centro, exacto; la barra de verdad se
+adelgaza en el doblez y por eso conserva material con la fibra neutra. Las dos
+cuentas son ciertas y miden cosas distintas — poner ahí la de corte haría
+fallar `tools/check_step_freecad.py`.
 
 **El sentido de giro del ángulo:** un `angle` positivo desvía hacia **+y**. Lo
 decide una sola constante en el motor, `ANG_DIR` (`engine/kinematics.ts`), que
@@ -610,7 +681,7 @@ escaneo de una barra recta certificada montada en el fixture.
 
 ## Formato de archivo
 
-Esquema `barcomp/2.5`, un JSON con el modelo, los comandos de máquina, las
+Esquema `barcomp/2.6`, un JSON con el modelo, los comandos de máquina, las
 ganancias, los parámetros del simulador, las piezas medidas y los modelos
 comparados. Las claves `variants`, `ref`, `anchor`, `place`, `marks`, `fixture` y
 `tweak` son opcionales: los archivos viejos siguen abriendo.
@@ -634,6 +705,17 @@ otra pieza en cada uno:
 | `barcomp/2.3` | igual que 2.2, pero el ángulo y el rodado doblan al otro lado |
 | `barcomp/2.4` | lo mismo; lo que cambia es que la sección ya puede ser hueca y redonda |
 | `barcomp/2.5` | lo mismo; lo que cambia es que la cuna de un pedestal guarda su RUMBO |
+| `barcomp/2.6` | lo mismo; lo que cambia es que `L`, `Σ L` y la cola se cuentan sobre la FIBRA NEUTRA |
+
+Un `barcomp/2.6` tampoco **dice nada nuevo de la forma de la pieza**, y aquí no se
+mueve ni un signo ni una fórmula ni un PI: del 2.5 al 2.6 la sección gana dos
+campos, `kMode` y `kFactor`, y un archivo anterior se abre como `kMode: 'center'`
+—K = 0.5, la fibra en el centro—, que es exactamente lo que ese archivo quiso
+decir. El sentido que obliga a subir el número es el otro, y aquí muerde más que
+en los casos anteriores porque lo que se pierde es **material**: un 2.6 guardado
+con la fibra por DIN, abierto por una copia anterior, se leería como si la fibra
+estuviera en el centro y la barra saldría **36.44 mm** más larga sin que nadie
+avisara. `barcomp/2.5` entra en `SCHEMA_COMPAT`.
 
 Un `barcomp/2.5` **no dice nada nuevo de la forma de la pieza** tampoco: del 2.4 al
 2.5 lo único que aparece es `yaw` en cada pedestal, el rumbo en planta al que mira
@@ -671,16 +753,18 @@ cero.
 viaja en el JSON — aunque no aparezca en la tabla y sea la recta la que se
 teclea. Lo mismo con la cola: se teclea su recta y se guarda `tail`, de PI a PI.
 Y lo mismo con el `Δ` de la `Recta`: se teclea un `Δ` de recta y se guarda el `Δ`
-de `feed`, que es el que viaja en `deltas`. **Nada de esto cambió el esquema**: el
-2026-09-22 se arregló lo que se pinta y en qué unidad se teclea, no lo que se
-guarda.
+de `feed`, que es el que viaja en `deltas`. **Nada de esto cambió el esquema**: la
+primera pasada del 2026-09-22 arregló lo que se pinta y en qué unidad se teclea,
+no lo que se guarda. Lo que sí sube el esquema, en la segunda pasada del mismo
+día, es otra cosa: de dónde sale `K` para contar `L` sobre la fibra neutra. Eso
+**sí** se guarda, en `section.kMode` y `section.kFactor`.
 
 ```jsonc
 {
-  "schema": "barcomp/2.5",
+  "schema": "barcomp/2.6",
   "model": {
     "name": "...",
-    "section": { "kind": "rect", "width": 40, "thickness": 12, "wall": 0, "chamfer": 1.2, "endLen": 20 },
+    "section": { "kind": "rect", "width": 40, "thickness": 12, "wall": 0, "chamfer": 1.2, "endLen": 20, "kMode": "center", "kFactor": 0.5 },
     "tol":     { "angle": 0.3, "rot": 0.5, "feed": 0.5, "point": 1.0 },
     "tail": 160,
     "bends": [{ "feed":100, "rot":0, "angle":30, "radius":30, "twist":0, "twistLen":0 }]

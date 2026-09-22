@@ -246,6 +246,107 @@ console.log('\n— longitudes por doblez —');
        E.cutLength(vacio) === 300);
   }
 
+  /* LA FIBRA NEUTRA, DE VERDAD (2026-09-22). Al doblar, la cara de fuera se
+     estira y la de dentro se recalca; la fibra que ni se estira ni se recalca
+     se corre HACIA DENTRO. Cortar por el centro es cortar de mas. */
+  {
+    const DM = E.demoModel();
+    const con = (kMode, kFactor) => E.normalizeModel({
+      ...DM, section: { ...DM.section, kMode, kFactor: kFactor === undefined ? 0.5 : kFactor },
+    });
+
+    /* --- cuanto mide la seccion EN EL PLANO en que se dobla --- */
+    const sec = DM.section;                       // pletina 40 x 12
+    ok('de plano (eje 0) manda el ESPESOR', E.sectionDepth(sec, 0) === 12);
+    ok('de canto (eje 90) manda el ANCHO',
+       Math.abs(E.sectionDepth(sec, 90) - 40) < 1e-12);
+    ok('  y a -90 igual: el plano no tiene lado',
+       Math.abs(E.sectionDepth(sec, -90) - E.sectionDepth(sec, 90)) < 1e-12);
+    ok('en diagonal se reparten, como en sectionHalf',
+       Math.abs(E.sectionDepth(sec, 45) - (12 + 40) / Math.SQRT2) < 1e-12);
+    ok('en una redonda es el diametro, mire por donde mire',
+       E.sectionDepth({ ...sec, kind: 'round', width: 25 }, 37) === 25);
+
+    /* --- la DIN 6935, y sus tres esquinas --- */
+    ok('DIN: con r/t = 2 sale 0.400', Math.abs(E.kDin(20, 10) - 0.4) < 1e-3,
+       E.kDin(20, 10).toFixed(4));
+    /* La norma tabula k = 1 desde r/t = 5, pero la formula no llega a 1 hasta
+       r/t = 5.012 (0.65 + 0.5*log10(5) = 0.99849). La diferencia es de 8e-4 en
+       K y se queda: retocar la formula para que cuadre con la tabla seria
+       inventarse una norma. */
+    ok('  con r/t = 5 la fibra esta ya casi en el centro',
+       Math.abs(E.kDin(50, 10) - 0.5) < 1e-3, E.kDin(50, 10).toFixed(5));
+    ok('  y desde r/t = 5.012 se topa en el centro clavado',
+       E.kDin(100, 10) === 0.5);
+    ok('  por debajo de r/t = 0.65 se topa en 0.325', E.kDin(3, 10) === 0.325);
+    ok('  y un radio menor que media seccion no da NaN, da el tope',
+       E.kDin(-5, 10) === 0.325);
+    ok('  ni por arriba pasa del centro: r/t = 50 sigue en 0.5',
+       E.kDin(500, 10) === 0.5);
+
+    /* --- de donde sale K --- */
+    ok('con `center` K es 0.5 en todas las filas',
+       E.fibreInfo(con('center')).every(f => f.k === 0.5));
+    ok('con `fixed` es la tecleada, la misma para toda la pieza',
+       E.fibreInfo(con('fixed', 0.42)).every(f => f.k === 0.42));
+    {
+      const ks = E.fibreInfo(con('din')).map(f => +f.k.toFixed(3));
+      ok('con `din` cambia fila a fila: el demo tiene dos r/t distintos',
+         new Set(ks).size === 2 && ks.includes(0.4) && ks.includes(0.325),
+         [...new Set(ks)].join(' y '));
+    }
+
+    /* --- y lo que se gasta de barra --- */
+    ok('con la fibra en el centro no cambia NADA',
+       E.cutLength(con('center')) === E.developedLength(DM)
+       && E.fibreSaving(con('center')) === 0,
+       `${E.cutLength(con('center')).toFixed(3)} mm`);
+    ok('por DIN 6935 el demo se come 36.44 mm menos de barra',
+       Math.abs(E.cutLength(con('din')) - 1825.431) < 5e-4
+       && Math.abs(E.fibreSaving(con('din')) + 36.436) < 5e-4,
+       `${E.cutLength(con('din')).toFixed(3)} mm`);
+    ok('  con K fija 0.40, 23.95 menos',
+       Math.abs(E.cutLength(con('fixed', 0.40)) - 1837.921) < 5e-4,
+       `${E.cutLength(con('fixed', 0.40)).toFixed(3)} mm`);
+    ok('  y la fibra nunca gasta MAS barra que el centro',
+       E.fibreSaving(con('din')) < 0 && E.fibreSaving(con('fixed', 0.2)) < 0);
+
+    /* --- LO QUE LA FIBRA NO PUEDE TOCAR, y es la mitad del trabajo --- */
+    const Pc = E.fk(con('center')).pis, Pd = E.fk(con('din')).pis;
+    ok('la fibra NO mueve ni un PI: cuenta barra, no coloca puntos',
+       maxAbs(Pc.map((p, k) => Math.max(Math.abs(p.x - Pd[k].x),
+         Math.abs(p.y - Pd[k].y), Math.abs(p.z - Pd[k].z)))) === 0);
+    ok('  ni mueve una RECTA: sin doblez no hay estiramiento',
+       maxAbs(E.fibreLengths(con('din')).map((r, k) =>
+         r.straight - E.rowLengths(DM)[k].straight)) === 0);
+    ok('  ni la abscisa de la cinta, que mide sobre la pieza doblada',
+       maxAbs(E.bendStations(con('din')).map((x, k) => x - E.bendStations(DM)[k])) === 0);
+    ok('  ni el trim, que es la tangente del centro',
+       maxAbs(con('din').bends.map((b, k) => E.trimOf(b) - E.trimOf(DM.bends[k]))) === 0);
+    {
+      /* El acuerdo que sujeta el STEP: los tramos del eje suman la
+         GEOMETRICA, no la de corte. Con la fibra puesta son dos numeros
+         distintos, asi que ahora esta prueba distingue de verdad. */
+      const Md = con('din');
+      const suma = E.centreSegments(Md).reduce((a, t) =>
+        a + (t.kind === 'line' ? t.len : t.radius * t.theta), 0);
+      ok('los tramos del eje suman la desarrollada geometrica, no la de corte',
+         Math.abs(suma - E.developedLength(Md)) < 1e-9
+         && Math.abs(suma - E.cutLength(Md)) > 30,
+         `${(suma - E.cutLength(Md)).toFixed(3)} mm de diferencia`);
+    }
+
+    /* --- el saneado: una K imposible se topa, no entra --- */
+    ok('una K por encima del centro se topa en 0.5',
+       E.normSection({ ...sec, kMode: 'fixed', kFactor: 0.9 }).kFactor === 0.5);
+    ok('  y por debajo de cualquier valor publicado, en 0.2',
+       E.normSection({ ...sec, kMode: 'fixed', kFactor: 0.05 }).kFactor === 0.2);
+    ok('un kMode que no se entienda vuelve al centro',
+       E.normSection({ ...sec, kMode: 'mandril' }).kMode === 'center');
+    ok('y un archivo anterior, que no lo trae, tambien: es lo que quiso decir',
+       E.normSection({ width: 40, thickness: 12 }).kMode === 'center');
+  }
+
   /* un modelo sin dobleces: solo cola */
   {
     const solo = E.normalizeModel({ ...M, bends: [], tail: 250 });
@@ -1163,7 +1264,7 @@ ok('un modelo de 1 doblez funciona',
   const doc = E.toDoc(M, M.bends, { ...E.COMP_DEFAULT }, { ...E.PROC_DEFAULT }, [],
                       [V, W], 'v1', 'end', extra);
   ok('el documento lleva el esquema compartido', doc.schema === E.SCHEMA);
-  ok('y el esquema vigente es 2.5', E.SCHEMA === 'barcomp/2.5');
+  ok('y el esquema vigente es 2.6', E.SCHEMA === 'barcomp/2.6');
 
   /* MIGRACIÓN 2.1 -> 2.2. En 2.1 cada fila declaraba el eje ABSOLUTO; ahora
      declara cuánto gira. Un archivo anterior tiene que abrir con la MISMA
@@ -1296,7 +1397,13 @@ console.log('\n— idiomas —');
                       una notación que no usa nadie. */
                    'pinDia', 'pinSigma', 'pinDist', 'pedD',
                    /* «auto» se escribe igual en los tres idiomas. */
-                   'pinSideAuto'];
+                   'pinSideAuto',
+                   /* «DIN 6935» es el nombre de una norma y «K» el símbolo del
+                      factor de fibra neutra: traducirlos sería renombrar una
+                      norma alemana y cambiar la letra de una fórmula. El
+                      tooltip que los explica sí está traducido, y esa es la
+                      prueba que de verdad vigila algo aquí. */
+                   'fibreDin', 'kFac'];
   const IGUALES = {
     /* «fixture» y «pedestal» son las palabras del taller y se dicen igual en
        español que en inglés —así las escribe quien monta la pieza— pero NO en
@@ -2329,7 +2436,7 @@ console.log('\n— candado de convención (fixture congelado) —');
      compara contra PI escritos en disco: si el motor deja de producir la forma
      que produce hoy, falla aquí y no en la máquina.
      Ver test/fixtures/README.md antes de regenerar el archivo. */
-  const FX = JSON.parse(readFileSync(new URL('./test/fixtures/demo-2.5.json', import.meta.url), 'utf8'));
+  const FX = JSON.parse(readFileSync(new URL('./test/fixtures/demo-2.6.json', import.meta.url), 'utf8'));
 
   ok('el fixture es del esquema vigente', FX.schema === E.SCHEMA, `${FX.schema}`);
   ok('ANG_DIR no ha cambiado', E.ANG_DIR === FX.ANG_DIR, `${E.ANG_DIR}`);
@@ -2466,7 +2573,7 @@ console.log('\n— las formas de la sección: tubo y redondo contra la fórmula 
       section: { kind: 'round', width: 30, wall: 2, chamfer: 0, endLen: 0 } });
     const doc = JSON.parse(JSON.stringify(
       E.toDoc(M, M.bends, { ...E.COMP_DEFAULT }, { ...E.PROC_DEFAULT }, [])));
-    ok('el documento sale como 2.5', doc.schema === 'barcomp/2.5', doc.schema);
+    ok('el documento sale como 2.6', doc.schema === 'barcomp/2.6', doc.schema);
     const ida = E.fromDoc(doc).model.section;
     ok('la forma vuelve del archivo entera',
        ida.kind === 'round' && ida.width === 30 && ida.wall === 2, JSON.stringify(ida));

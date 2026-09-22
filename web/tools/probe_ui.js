@@ -993,6 +993,78 @@ step('y un texto que no es número no mete un NaN en la geometría', () => {
   click('#tabs [data-t="model"]');
 });
 
+/* LA FIBRA NEUTRA (2026-09-22). Hasta ese dia las longitudes de la tabla se
+   contaban sobre el CENTRO de la seccion, o sea con K = 0.5 clavado y sin
+   decirlo. Al doblar, la fibra que ni se estira ni se recalca se corre hacia
+   dentro: cortar por el centro es cortar de mas, y en el demo son 36.44 mm.
+   Ninguno de estos pasos puede pasar contra el HEAD anterior. */
+step('la pestana de la seccion dice de donde sale la fibra neutra', () => {
+  click('#tabs [data-t="section"]');
+  const centro = q('#panes [data-km="center"]');
+  if (!centro.classList.contains('on')) throw new Error('no arranca en el centro');
+  if (S().model.section.kMode !== 'center') throw new Error(S().model.section.kMode);
+  /* y la longitud de CORTE, que con la fibra en el centro es la de siempre */
+  const corte = parseFloat(q('#panes [data-cell="cutlen"]').textContent);
+  near(corte, Eg().developedLength(S().model), 0.06, 'longitud de corte');
+});
+
+step('  DIN 6935 acorta la barra de corte, y el campo lo dice', () => {
+  /* La cifra exacta del demo virgen —36.436 mm— vive en la prueba de motor.
+     La pieza del banco arrastra deltas de pasos anteriores, asi que aqui lo
+     que se comprueba es que el campo y el motor digan lo MISMO, y que la
+     diferencia sea de decenas de milimetros y no de decimas. */
+  const antes = parseFloat(q('#panes [data-cell="cutlen"]').textContent);
+  click('#panes [data-km="din"]');
+  if (S().model.section.kMode !== 'din') throw new Error('no cambio de modo');
+  const M = S().model, ahorro = Eg().fibreSaving(M);
+  if (!(ahorro < -30)) throw new Error('la fibra apenas se movio: ' + ahorro.toFixed(3));
+  const ahora = parseFloat(q('#panes [data-cell="cutlen"]').textContent);
+  near(ahora - antes, ahorro, 0.06, 'lo que baja el campo');
+  near(ahora, Eg().cutLength(M), 0.06, 'la longitud de corte pintada');
+});
+
+step('  y avisa de las filas donde la DIN no vale', () => {
+  /* las de canto, r/t por debajo del 0.65 donde acaba la norma, y son las que
+     mas barra se comen: sin el aviso seria un numero sin su letra pequena */
+  const fuera = Eg().fibreInfo(S().model).filter(f => f.rt < 0.65).length;
+  if (!fuera) throw new Error('el demo ya no tiene ninguna fila fuera de rango');
+  const aviso = [...document.querySelectorAll('#panes .warnbox')]
+    .find(w => /0\.65/.test(w.textContent));
+  if (!aviso) throw new Error('no avisa de que la DIN no cubre ese r/t');
+  if (!aviso.textContent.includes(' ' + fuera + ' ')) {
+    throw new Error('el aviso no dice cuantas filas son (' + fuera + '): ' + aviso.textContent);
+  }
+});
+
+step('la fibra mueve Sigma L y NO mueve la cinta de abajo', () => {
+  /* Las dos longitudes se separan aqui, y es el punto entero del cambio: la
+     tabla cuenta BARRA y la cinta mide sobre la pieza ya doblada. */
+  click('#tabs [data-t="model"]');
+  const M = S().model, n = M.bends.length - 1;
+  near(celda(n, 'cum'), Eg().fibreLengths(M)[n].cum, 0.02, 'Sigma L en barra');
+  near(+q('[data-cell="dev"]').textContent, Eg().cutLength(M), 0.02, 'el pie');
+  if (Math.abs(celda(n, 'cum') - Eg().rowLengths(M)[n].cum) < 20) {
+    throw new Error('Sigma L sigue contando por el centro');
+  }
+  /* y la cinta, que es geometria, no se ha enterado */
+  const est = Eg().bendStations(M);
+  near(est[n], Eg().rowLengths(M)[n].cum - Eg().rowLengths(M)[n].arc / 2, 1e-6, 'la cinta');
+});
+
+step('  una K fija por encima del centro se topa en 0.5', () => {
+  click('#tabs [data-t="section"]');
+  click('#panes [data-km="fixed"]');
+  setval('#panes input[data-s="kFactor"]', '0.9');
+  if (S().model.section.kFactor !== 0.5) {
+    throw new Error('entro una K de ' + S().model.section.kFactor);
+  }
+  near(Eg().fibreSaving(S().model), 0, 1e-9, 'con K 0.5 no se ahorra nada');
+  /* y se deja como estaba: el resto del banco cuenta por el centro */
+  click('#panes [data-km="center"]');
+  if (S().model.section.kMode !== 'center') throw new Error('no volvio al centro');
+  click('#tabs [data-t="model"]');
+});
+
 /* ------------------------------------------------------- compensación --- */
 step('simular desde el lateral de desviación', () => { drawer('pieces'); click('[data-a="sim"]'); });
 /* Una pieza inventada por el simulador y una medida se veían igual: el
@@ -3618,7 +3690,7 @@ step('la forma viaja en el archivo y vuelve', () => {
     setval('#panes input[data-s="wall"]', '2');
     const doc = JSON.parse(JSON.stringify(B.E.toDoc(S().model, S().command,
       S().comp, S().proc, [])));
-    if (doc.schema !== 'barcomp/2.5') throw new Error('esquema ' + doc.schema);
+    if (doc.schema !== 'barcomp/2.6') throw new Error('esquema ' + doc.schema);
     const vuelta = B.E.fromDoc(doc).model.section;
     if (vuelta.kind !== 'round' || vuelta.wall !== 2) throw new Error(JSON.stringify(vuelta));
   } finally {

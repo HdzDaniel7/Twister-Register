@@ -1,7 +1,7 @@
 /* =========================================================================
    LO QUE LA SECCIÓN SABE DE SÍ MISMA
 
-   Un solo sitio para las seis preguntas que el resto del programa le hace a la
+   Un solo sitio para las siete preguntas que el resto del programa le hace a la
    sección de la barra. Hasta el 2026-09-17 estaban escritas donde hacían falta,
    y la de «cuánto asoma» estaba TRES veces —`fixture.ts`, `contact.ts`,
    `pins.ts`— con tres nombres y tres comentarios que decían lo mismo.
@@ -12,8 +12,9 @@
      · `sectionDrop`     lo mismo en vertical: la cara de abajo pedestales
      · `sectionFibre`    la fibra más lejana, para el esfuerzo  `restrain`
      · `sectionOutline`  el contorno, para el 3D                `barGeometry`
+     · `sectionDepth`    cuánto mide en el plano del doblez    la fibra neutra
 
-   POR QUÉ JUNTAS: son exactamente las seis que cambian con la FORMA. Repartidas,
+   POR QUÉ JUNTAS: son exactamente las siete que cambian con la FORMA. Repartidas,
    una forma nueva se olvida en el sitio que no se tocó y la barra pesa como un
    tubo pero se apoya como un macizo.
 
@@ -42,7 +43,7 @@
    el contacto antes y no después. Se dibuja y ya.
    ========================================================================= */
 import type { Vector3 } from 'three';
-import type { PathSample, Section, SecKind } from '../types.ts';
+import type { PathSample, Section, SecKind, KMode } from '../types.ts';
 
 /** Las formas que este motor sabe describir, en el orden en que se enseñan. */
 export const SEC_KINDS: SecKind[] = ['rect', 'round'];
@@ -50,6 +51,9 @@ export const SEC_KINDS: SecKind[] = ['rect', 'round'];
 /** La sección de fábrica: la pletina de 40×12 con la que se montó todo. */
 export const SECTION_DEFAULT: Readonly<Section> = Object.freeze({
   kind: 'rect' as SecKind, width: 40, thickness: 12, wall: 0, chamfer: 1.2, endLen: 20,
+  /* la fibra EN EL CENTRO: es lo que este programa ha hecho siempre, así que
+     ningún archivo anterior cambia un número al abrirse. Ver engine/fibre.ts. */
+  kMode: 'center' as KMode, kFactor: 0.5,
 });
 
 /** Sanea una sección venida de un archivo o de un campo de la pantalla.
@@ -93,6 +97,12 @@ export function normSection(o: Partial<Section> | null | undefined): Section {
   };
   return {
     kind, width, thickness,
+    /* K solo puede correr la fibra HACIA DENTRO: 0.5 es el centro y no hay
+       doblez que la saque más afuera, así que un 0.6 tecleado es un error y no
+       una barra rara. El suelo, 0.2, queda por debajo de cualquier valor
+       publicado; la DIN 6935 no baja de 0.325. */
+    kMode: s.kMode === 'din' ? 'din' : s.kMode === 'fixed' ? 'fixed' : 'center',
+    kFactor: Math.min(0.5, Math.max(0.2, noNeg(s.kFactor, 0.5))),
     wall: Math.min(noNeg(s.wall, 0), menor / 2),
     chamfer: Math.min(noNeg(s.chamfer, SECTION_DEFAULT.chamfer), menor / 2),
     endLen: noNeg(s.endLen, SECTION_DEFAULT.endLen),
@@ -175,6 +185,29 @@ export const sectionDrop = (q: PathSample, sec: Section): number =>
   (sec.kind === 'round'
     ? sec.width / 2
     : Math.abs((sec.thickness / 2) * q.y.z) + Math.abs((sec.width / 2) * q.z.z));
+
+/** Cuánto mide la sección EN EL PLANO en que se dobla, mm.
+ *
+ *  La séptima pregunta, y la más nueva: la necesita la FIBRA NEUTRA para
+ *  saber cuánto se corre hacia dentro del doblez. Es la misma idea que
+ *  `sectionHalf` —la función soporte del perfil exterior— pero contra la
+ *  dirección en la que el doblez desvía la barra, y escrita sin construir el
+ *  vector porque el eje de doblado ya viene como ángulo.
+ *
+ *  Con el eje a 0 la barra se dobla de plano y lo que manda es el ESPESOR; a
+ *  ·90 se dobla de canto y manda el ANCHO. Entre medias se reparten, igual que
+ *  en `sectionHalf`, y esa es la aproximación que hay que tener presente: en un
+ *  plano diagonal la superficie neutra real no es un simple desplazamiento de
+ *  la sección entera. `sectionFibre` ya hace ese mismo reparto en versión
+ *  binaria, y `orientations()` es quien lo escribe como etiqueta W o T.
+ *
+ *  En una REDONDA es el diámetro mire uno por donde mire, como todo lo demás
+ *  aquí: una barra redonda no tiene de plano ni de canto. */
+export const sectionDepth = (sec: Section, ejeDeg: number): number => {
+  if (sec.kind === 'round') return sec.width;
+  const a = ejeDeg * Math.PI / 180;
+  return sec.thickness * Math.abs(Math.cos(a)) + sec.width * Math.abs(Math.sin(a));
+};
 
 /** La fibra más lejana del eje neutro, mm, para σ = E·c·κ.
  *

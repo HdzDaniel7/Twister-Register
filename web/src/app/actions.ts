@@ -214,6 +214,21 @@ export function setSecKind(kind: string): void {
   refresh();
 }
 
+/** De dónde sale la FIBRA NEUTRA de la barra del modelo activo.
+ *
+ *  Por `normSection()` y no escribiendo la clave a pelo, por lo mismo que
+ *  `setSecKind()`: así una K fuera de rango sale topada en vez de entrar. No
+ *  mueve ni un PI —la fibra cuenta barra, no coloca puntos— pero sí cambia la
+ *  longitud de corte, así que se repinta entero. Ver engine/fibre.ts. */
+export function setKMode(mode: string): void {
+  const v = V();
+  if (mode !== 'center' && mode !== 'din' && mode !== 'fixed') return;
+  if (v.base.section.kMode === mode) return;
+  v.base.section = E.normSection({ ...v.base.section, kMode: mode });
+  syncModel();
+  refresh();
+}
+
 /* ------------------------------------------------------------ variantes */
 export function variantById(id: string): Variant | undefined { return ST.variants.find(v => v.id === id); }
 
