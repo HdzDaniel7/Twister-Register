@@ -77,8 +77,11 @@ export function layerFixtures(ctx: SceneCtx): void {
        tres milímetros por encima del plano medido y la barra parecía flotar. */
     const CH = 6;                                    // grueso dibujado, mm
     const cuna = new Mesh(new BoxGeometry(ped.pad, E.CRADLE_W, CH), mat.clone());
-    cuna.rotation.set(0, -ped.tilt * E.D2R, (f ? f.head : 0) * E.D2R, 'ZYX');
-    const box = E.cradleBox(ped, f ? f.head : 0);
+    /* El rumbo es del PEDESTAL desde el 2026-09-21, no de la barra: antes salía
+       de `f.head` y la chapa se apuntaba sola en cada repintado, así que nunca
+       se la veía cruzada. Verla cruzada es el punto. */
+    cuna.rotation.set(0, -ped.tilt * E.D2R, ped.yaw * E.D2R, 'ZYX');
+    const box = E.cradleBox(ped);
     cuna.position.copy(box.c).addScaledVector(box.e[2], -CH / 2);
     groups.fix.add(cuna);
   }

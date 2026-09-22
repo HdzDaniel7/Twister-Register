@@ -20,7 +20,7 @@ import { esc, safeColor, COLOR_FALLBACK } from './src/safe.ts';
    banco de Edge, que corre entero o no corre. */
 import { ST, loadModel, syncModel, syncTweak, addMark, addPedestal,
          heldOfVariant, heldResult, heldSlots, heldStats, seedFixture, seedPinsFor,
-         placeMatrix, refModelFree, shownBasis } from './src/state.ts';
+         placeMatrix, refModelFree, shownBasis, setPedestals, shownPath } from './src/state.ts';
 import * as H from './src/app/history.ts';
 
 let fails = 0;
@@ -1050,7 +1050,7 @@ ok('un modelo de 1 doblez funciona',
   const doc = E.toDoc(M, M.bends, { ...E.COMP_DEFAULT }, { ...E.PROC_DEFAULT }, [],
                       [V, W], 'v1', 'end', extra);
   ok('el documento lleva el esquema compartido', doc.schema === E.SCHEMA);
-  ok('y el esquema vigente es 2.4', E.SCHEMA === 'barcomp/2.4');
+  ok('y el esquema vigente es 2.5', E.SCHEMA === 'barcomp/2.5');
 
   /* MIGRACIÓN 2.1 -> 2.2. En 2.1 cada fila declaraba el eje ABSOLUTO; ahora
      declara cuánto gira. Un archivo anterior tiene que abrir con la MISMA
@@ -1094,6 +1094,55 @@ ok('un modelo de 1 doblez funciona',
   ok('un archivo sin colocación ni cotas abre igual que siempre',
      !E.isPlaced(viejo.place) && viejo.marks.length === 0 && viejo.tweak.length === 0);
   ok('un archivo sin `ui` no dice nada del tema ni del idioma', viejo.ui === null);
+
+  /* EL RUMBO DE LA CUNA Y LOS ARCHIVOS ANTERIORES (barcomp/2.5, 2026-09-21).
+     `yaw` nace con el 2.5. Un archivo anterior NO lo trae, y antes de que
+     existiera la cuna se apuntaba sola a la barra en cada repintado: abrirlo
+     con el rumbo a cero pondría las siete chapas mirando a +x y la mitad del
+     fixture dejaría de apoyar, o sea un archivo que se abre distinto de como se
+     guardó. Por eso «no venía» y «venía a cero» tienen que poder distinguirse
+     hasta `setPedestals()`, que es quien apunta la cuna una vez. */
+  {
+    const conRumbo = E.fromDoc({ model: M, bends: [],
+      fixture: [{ name: 'A', x: 10, y: 20, h: 100, tilt: 2, yaw: 33, pad: 60 }] });
+    ok('el rumbo de una cuna va y vuelve del archivo', conRumbo.fixture[0].yaw === 33);
+    const sinRumbo = E.fromDoc({ model: M, bends: [],
+      fixture: [{ name: 'A', x: 10, y: 20, h: 100, tilt: 2, pad: 60 }] });
+    ok('un archivo anterior al rumbo NO se topa a cero: se deja sin decidir',
+       sinRumbo.fixture[0].yaw === undefined, String(sinRumbo.fixture[0].yaw));
+    const cero = E.fromDoc({ model: M, bends: [],
+      fixture: [{ name: 'A', x: 10, y: 20, h: 100, tilt: 2, yaw: 0, pad: 60 }] });
+    ok('  y un cero tecleado SÍ es un cero: son dos fixtures distintos',
+       cero.fixture[0].yaw === 0);
+    ok('el 2.4 se lee tal cual, sin convertir y sin avisar',
+       E.SCHEMA_COMPAT.includes('barcomp/2.4'));
+
+    /* Y el apuntado de una vez, que es lo que hace que el archivo se vea igual.
+       Se prueba con la demo, que es donde las cunas NO miran a +x: si no se
+       apuntaran, varias dejarían de pisar su chapa. */
+    loadModel(E.demoModel());
+    seedFixture(7);
+    const rumbos = ST.fixture.map(q => q.yaw);
+    const comoUn24 = ST.fixture.map(q => ({ ...q, yaw: undefined }));
+    setPedestals(comoUn24);
+    const dif = Math.max(...ST.fixture.map((q, i) => Math.abs(q.yaw - rumbos[i])));
+    ok('abrir un archivo sin rumbos apunta cada cuna UNA vez, contra la pieza',
+       dif < 1e-9, `peor diferencia ${dif.toExponential(1)}°`);
+    const path = shownPath();
+    ok('  así que el fixture sigue apoyando igual que cuando se guardó',
+       ST.fixture.every(q => {
+         const f = E.pedestalFit(path, ST.model.section, q);
+         return f && f.over && Math.abs(f.dYaw) < 1e-2;
+       }));
+    /* Y no se vuelve a mover: apuntar es de una vez, al abrir. */
+    ST.fixture[0].yaw = +(ST.fixture[0].yaw + 40).toFixed(2);
+    const torcido = ST.fixture[0].yaw;
+    setPedestals(ST.fixture.map(q => ({ ...q })));
+    ok('  y una cuna ya torcida se queda torcida: no se reapunta nunca más',
+       ST.fixture[0].yaw === torcido, `${ST.fixture[0].yaw} vs ${torcido}`);
+    loadModel(E.demoModel());
+    setPedestals([]);
+  }
   ok('un modelo sin twistLen se normaliza sin romperse',
      E.normalizeModel({ bends: [{ feed: 100, rot: 0, angle: 20, radius: 10 }] })
       .bends[0].twistLen === 0);
@@ -1531,7 +1580,7 @@ console.log('\n— el fixture: pedestales, apoyo y vanos —');
 {
   const M = E.demoModel();
   const path = E.buildPath(M).samples;
-  const ped = (o) => ({ id: 'pd1', name: 'Ped', visible: true, pad: 60, ...o });
+  const ped = (o) => ({ id: 'pd1', name: 'Ped', visible: true, pad: 60, yaw: 0, ...o });
 
   /* --- placePath: las direcciones no son puntos ------------------------ */
   {
@@ -1730,6 +1779,82 @@ console.log('\n— el fixture: pedestales, apoyo y vanos —');
        enOrden.filter(v => !isFinite(v)).length === 1);
   }
 
+  /* --- LA CUNA NO SE APUNTA SOLA --------------------------------------- */
+  /* Pedido por el taller el 2026-09-21: «que no se movieran para forzar que
+     coincidan girando contra mi pieza». Hasta ese día la cuna no guardaba su
+     rumbo: `pedestalFit()` lo leía de la barra en cada llamada, así que la
+     chapa se orientaba sola y era IMPOSIBLE verla cruzada. Un fixture que
+     siempre casa no sirve para entender un fixture, porque un fixture es justo
+     lo que no cede. */
+  {
+    const sec = E.SECTION_DEFAULT;
+    /* barra recta a lo largo de +x: el rumbo que pide es 0 */
+    const recta = E.normalizeModel({ name: 'r', section: sec, tail: 0,
+      bends: [{ feed: 1000, rot: 0, angle: 0, radius: 0, twist: 0, twistLen: 0 }] });
+    const pr = E.buildPath(recta).samples;
+    const base = { id: 'pd1', name: 'P', visible: true, x: 500, y: 0, h: 0, tilt: 0, pad: 60 };
+    const alto = (yaw) => {
+      /* a la altura que la barra pide, para que el hueco no enmascare el rumbo */
+      const f0 = E.pedestalFit(pr, sec, { ...base, yaw });
+      return { ...base, yaw, h: +(base.h + f0.gap).toFixed(6) };
+    };
+    const recto = E.pedestalFit(pr, sec, alto(0));
+    ok('con la cuna alineada, la barra pisa la chapa y apoya',
+       recto.over && Math.abs(recto.gap) < 1e-9 && Math.abs(recto.dYaw) < 1e-9,
+       `pisa ${recto.over} hueco ${recto.gap.toExponential(1)}`);
+
+    const cruzada = E.pedestalFit(pr, sec, alto(90));
+    ok('girada 90° la cuna SE VE cruzada: 90° de Δ de rumbo',
+       Math.abs(Math.abs(cruzada.dYaw) - 90) < 1e-9, `${cruzada.dYaw.toFixed(3)}°`);
+    ok('  y eso es lo que antes no se podía: el rumbo sale del PEDESTAL',
+       E.cradleBox({ ...base, yaw: 90 }).e[0].distanceTo(new Vector3(0, 1, 0)) < 1e-12);
+    /* la chapa mide 60 de largo por 44 de ancho: cruzada 90°, la barra se sale
+       por el costado 30 mm contra los 22 de media anchura */
+    ok('  y el desvío lateral lo dice en milímetros, no en un booleano',
+       Math.abs(cruzada.slip - 30) < 1e-9 && cruzada.slip > E.CRADLE_W / 2,
+       `${cruzada.slip.toFixed(1)} mm contra ${E.CRADLE_W / 2}`);
+
+    /* MEDIA VUELTA ES LA MISMA CHAPA. Con el envoltorio de ±180 —el normal—
+       una cuna perfecta bajo una barra que va hacia −x salía con 180° de Δ. */
+    const alReves = E.pedestalFit(pr, sec, alto(180));
+    ok('media vuelta de cuna es la misma cuna: Δ de rumbo 0, no 180',
+       Math.abs(alReves.dYaw) < 1e-9 && Math.abs(alReves.slip) < 1e-9,
+       `${alReves.dYaw.toFixed(3)}°`);
+    ok('wrapCradle lleva cualquier ángulo a (−90, 90]',
+       [[0, 0], [180, 0], [-180, 0], [90, 90], [-90, 90], [45, 45], [-45, -45],
+        [135, -45], [370, 10]].every(([a, b]) => Math.abs(E.wrapCradle(a) - b) < 1e-9));
+
+    /* Y el Δ es una LECTURA, no una corrección: la cuna no se mueve sola. */
+    const torcida = { ...alto(0), yaw: 25 };
+    const f = E.pedestalFit(pr, sec, torcida);
+    ok('teclear un rumbo lo deja donde se puso, no lo corrige',
+       torcida.yaw === 25 && Math.abs(f.dYaw - 25) < 1e-9, `${f.dYaw.toFixed(3)}°`);
+  }
+
+  /* --- sembrar SÍ apunta, porque sembrar es proponer -------------------- */
+  {
+    const D = E.demoModel();
+    const pd = E.buildPath(D).samples;
+    const sem = E.seedPedestals(pd, D.section, 7);
+    ok('el sembrado escribe el rumbo de cada cuna, no lo deja a cero',
+       sem.every(q => typeof q.yaw === 'number' && isFinite(q.yaw)) &&
+       sem.some(q => Math.abs(q.yaw) > 1),
+       sem.map(q => q.yaw.toFixed(1)).join(' '));
+    const fits = sem.map((q, i) => E.pedestalFit(pd, D.section, { id: `p${i}`, name: 'p', ...q }));
+    const peorD = Math.max(...fits.map(f => Math.abs(f.dYaw)));
+    const peorH = Math.max(...fits.map(f => Math.abs(f.gap)));
+    /* Media centesima de grado, que es el redondeo con el que se escribe —la
+       misma cifra de taller que `tilt`—. Y aqui esa centesima no cuesta nada:
+       sobre media cuna son 2.6 um de desvio LATERAL, y el costado de la chapa
+       no carga la barra. En `tilt` si costaba, porque ahi la centesima se paga
+       en hueco y el muelle de contacto vale 6 N por micra (FIS-10a). */
+    ok('  y lo apunta a la barra: los siete nacen con la cuna derecha',
+       peorD <= 5e-3 + 1e-9, `peor Δ de rumbo ${peorD.toExponential(1)}°`);
+    ok('  sin estropear el hueco, que es lo que el sembrado ya clavaba',
+       peorH < 1e-6, `peor hueco ${peorH.toExponential(1)} mm`);
+    ok('  y todos pisan su chapa', fits.every(f => f.over));
+  }
+
   /* --- la cuna que se dibuja ES la que se mide -------------------------- */
   {
     /* `scene/layers.ts` dibuja la cuna con un Euler ZYX y la física la mide con
@@ -1744,7 +1869,7 @@ console.log('\n— el fixture: pedestales, apoyo y vanos —');
     let peor = 0;
     for (const head of [0, 37, -110, 175]) {
       for (const tilt of [0, 12, -57.5, 80, -80]) {
-        const box = E.cradleBox(ped({ x: 10, y: -20, h: 100, tilt }), head);
+        const box = E.cradleBox(ped({ x: 10, y: -20, h: 100, tilt, yaw: head }));
         const m = new Matrix4().makeRotationFromEuler(
           new Euler(0, -tilt * Math.PI / 180, head * Math.PI / 180, 'ZYX'));
         [new Vector3(1, 0, 0), new Vector3(0, 1, 0), new Vector3(0, 0, 1)]
@@ -2091,7 +2216,7 @@ console.log('\n— candado de convención (fixture congelado) —');
      compara contra PI escritos en disco: si el motor deja de producir la forma
      que produce hoy, falla aquí y no en la máquina.
      Ver test/fixtures/README.md antes de regenerar el archivo. */
-  const FX = JSON.parse(readFileSync(new URL('./test/fixtures/demo-2.4.json', import.meta.url), 'utf8'));
+  const FX = JSON.parse(readFileSync(new URL('./test/fixtures/demo-2.5.json', import.meta.url), 'utf8'));
 
   ok('el fixture es del esquema vigente', FX.schema === E.SCHEMA, `${FX.schema}`);
   ok('ANG_DIR no ha cambiado', E.ANG_DIR === FX.ANG_DIR, `${E.ANG_DIR}`);
@@ -2228,7 +2353,7 @@ console.log('\n— las formas de la sección: tubo y redondo contra la fórmula 
       section: { kind: 'round', width: 30, wall: 2, chamfer: 0, endLen: 0 } });
     const doc = JSON.parse(JSON.stringify(
       E.toDoc(M, M.bends, { ...E.COMP_DEFAULT }, { ...E.PROC_DEFAULT }, [])));
-    ok('el documento sale como 2.4', doc.schema === 'barcomp/2.4', doc.schema);
+    ok('el documento sale como 2.5', doc.schema === 'barcomp/2.5', doc.schema);
     const ida = E.fromDoc(doc).model.section;
     ok('la forma vuelve del archivo entera',
        ida.kind === 'round' && ida.width === 30 && ida.wall === 2, JSON.stringify(ida));
@@ -2998,7 +3123,7 @@ console.log('\n— la flecha por gravedad (M6, engine/sag.ts) —');
      Math.abs(E.sagI(E.sampleAt(path3, 500), sec) - Icanto) < 1e-9);
   const aMano = 5 * wq * 500 ** 4 / (384 * mat.E * Icanto);
   const apoyoEn = (path, x, id) => {
-    const p = { id, name: id, visible: true, x, y: 0, h: 0, tilt: 0, pad: 60 };
+    const p = { id, name: id, visible: true, x, y: 0, h: 0, tilt: 0, yaw: 0, pad: 60 };
     /* a la altura que la barra pide: si no apoya, no cuenta como apoyo */
     const f = E.pedestalFit(path, sec, p);
     return { ...p, h: +(p.h + f.gap).toFixed(4) };
@@ -3121,7 +3246,7 @@ console.log('\n— la carga: el peso propio y el empuje (engine/load.ts) —');
      por su brazo tiene que igualar al peso del voladizo por el suyo, o sea
      R·a = w·a²/2. Sale la mitad del peso de ese voladizo y no depende de la
      rigidez, que es lo que la hace una buena prueba. */
-  const tope = { id: 'p1', name: 'P1', visible: true, x: 1000, y: 0, h: 240, tilt: 0, pad: 60 };
+  const tope = { id: 'p1', name: 'P1', visible: true, x: 1000, y: 0, h: 240, tilt: 0, yaw: 0, pad: 60 };
   const r2 = cae(VERT, mat, {}, [], [tope]);
   ok('un tope bajo la punta se lleva medio voladizo',
      Math.abs(r2.pedN[0] - w * a / 2) < 1e-3, `${r2.pedN[0].toFixed(4)} N`);

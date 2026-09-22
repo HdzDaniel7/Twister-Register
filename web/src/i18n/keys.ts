@@ -6,7 +6,7 @@
    ========================================================================= */
 export type Lang = 'es' | 'en' | 'de';
 
-/** Las 452 claves que deben existir en LOS TRES diccionarios. */
+/** Las 457 claves que deben existir en LOS TRES diccionarios. */
 export type I18nKey =
   | 'sub' | 'bNew' | 'bOpen' | 'bSave' | 'bRep' | 'bDemo' | 'layers' | 'datasets'
   | 'model' | 'meas' | 'thSys' | 'thLight' | 'thDark' | 'comp' | 'points' | 'lNom'
@@ -84,7 +84,8 @@ export type I18nKey =
   | 'jsonNotJson' | 'jsonNotDoc' | 'jsonBroken' | 'cellBad'
   | 'engine' | 'dStart' | 'dBest' | 'formula' | 'note' | 'repTitle' | 'repDate'
   | 'repPiece' | 'ok' | 'bad' | 'piece' | 'orW' | 'orT' | 'confirmNew' | 'pts'
-  | 'x' | 'y' | 'z' | 'gizmoClamp' | 'gizmoBend' | 'variants' | 'addVar' | 'dupVar' | 'setRef' | 'isRef'
+  | 'x' | 'y' | 'z' | 'gizmoClamp' | 'gizmoBend' | 'pedYaw' | 'pedYawTip'
+  | 'pedDYaw' | 'pedDYawTip' | 'pedSlipTip' | 'variants' | 'addVar' | 'dupVar' | 'setRef' | 'isRef'
   | 'anchor' | 'aStart' | 'aEnd' | 'aBest' | 'insPt' | 'delPt' | 'ptNote' | 'bake'
   | 'zeroD' | 'bakeAsk' | 'dTip' | 'dblz' | 'place' | 'pivot' | 'plX' | 'plY'
   | 'plZ' | 'plRX' | 'plRY' | 'plRZ' | 'plReset' | 'plNote' | 'lMarks' | 'marks'

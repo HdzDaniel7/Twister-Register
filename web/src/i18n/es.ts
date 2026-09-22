@@ -350,6 +350,8 @@ export const es: Record<I18nKey, string> = {
  pedH: 'Alto',
  pedPad: 'Cuna',
  pedTilt: 'Inclin.',
+ pedYaw: 'Rumbo',
+ pedDYaw: 'Δ rum.',
  pedWant: 'Pide',
  pedS: 'Toca',
  pedPlan: 'Desvío',
@@ -360,6 +362,15 @@ export const es: Record<I18nKey, string> = {
  pedOffN: '{n} sin apoyo',
  pedOffTip: 'El pie queda más lejos del eje de la barra que media cuna más medio ancho de sección: este pedestal no sostiene nada. Mueve X e Y hasta que la barra le pase por encima.',
  pedLiftTip: 'Con esta inclinación la barra se despega {v} mm en la punta de la cuna. Se compara contra la tolerancia de punto.',
+ pedYawTip: 'Hacia dónde mira el eje largo de la cuna, en planta y desde +x, en grados.'
+   + ' Es un dato del fixture, no una lectura: la cuna está donde alguien la atornilló y'
+   + ' NO se apunta sola a la pieza. Media vuelta es la misma chapa, así que 30 y 210'
+   + ' describen lo mismo.',
+ pedDYawTip: 'Lo que le sobra o le falta de rumbo a la cuna: el suyo menos el que pide la'
+   + ' barra, en grados y entre −90 y 90. Se pinta en rojo cuando la barra se sale de la'
+   + ' chapa por el costado; la ayuda de cada celda dice cuántos milímetros se desvía.',
+ pedSlipTip: 'Con este rumbo la barra se va {v} mm del eje de la cuna en su punta, sobre'
+   + ' {w} mm de media anchura de chapa.',
  addPed: '+ Pedestal',
  seedPed: 'Sembrar {n}',
  clearPed: 'Vaciar',

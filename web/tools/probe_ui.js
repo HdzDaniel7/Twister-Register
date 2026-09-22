@@ -1737,6 +1737,68 @@ step('apartarlo medio metro lo deja sin barra encima, y se dice', () => {
   }
   setval(`#panes [data-pd="${p.id}"][data-k="y"]`, antes.toFixed(1));
 });
+/* EL RUMBO DE LA CUNA. Pedido por el taller el 2026-09-21: «no se movieran
+   para forzar que coincidan girando contra mi pieza». Hasta ese dia la cuna se
+   apuntaba sola a la barra en cada repintado, asi que no habia campo que
+   teclear y era IMPOSIBLE ver una cuna cruzada. Estos pasos no pueden pasar sin
+   el arreglo: el primero porque el campo no existia, el segundo porque girar la
+   chapa no cambiaba nada. */
+step('la cuna tiene rumbo, y es un campo que se teclea', () => {
+  const p = S().fixture[2];
+  const campo = q(`#panes [data-pd="${p.id}"][data-k="yaw"]`);
+  if (!campo) throw new Error('no hay campo de rumbo en la tabla del fixture');
+  if (typeof p.yaw !== 'number' || !isFinite(p.yaw)) throw new Error('rumbo = ' + p.yaw);
+});
+step('  y sembrar lo deja apuntando a la barra, no a cero', () => {
+  const B = window.BARCOMP;
+  /* la demo va girando: si los siete rumbos fueran cero, seria que no se
+     siembra nada */
+  const yaws = S().fixture.map(f => f.yaw);
+  if (!yaws.some(v => Math.abs(v) > 1)) throw new Error('todos a cero: ' + yaws.join(' '));
+  /* El margen es de centesimas y no de cero: el rumbo se escribe redondeado a
+     dos decimales, que es una cifra de taller, igual que la inclinacion. */
+  const path = B.placedPath();
+  const peor = Math.max(...S().fixture.map(f =>
+    Math.abs(B.E.pedestalFit(path, S().model.section, f).dYaw)));
+  if (peor > 0.1) throw new Error('nacen cruzados: peor ' + peor.toFixed(3) + ' grados');
+});
+step('  girar la cuna 90 grados la deja cruzada Y SE QUEDA ASI', () => {
+  const B = window.BARCOMP;
+  const p = S().fixture[2], antes = p.yaw;
+  setval(`#panes [data-pd="${p.id}"][data-k="yaw"]`, (antes + 90).toFixed(2));
+  const ahora = S().fixture[2].yaw;
+  if (Math.abs(ahora - (antes + 90)) > 0.01) {
+    throw new Error('el rumbo tecleado no se guardo: ' + ahora);
+  }
+  /* LO QUE ESTE PASO VIGILA de verdad: que la cuna NO se haya vuelto a apuntar
+     sola a la barra, que es lo que hacia hasta el 2026-09-21. */
+  const f = B.E.pedestalFit(B.placedPath(), S().model.section, S().fixture[2]);
+  if (Math.abs(Math.abs(f.dYaw) - 90) > 0.2) {
+    throw new Error('la cuna se reapunto sola: delta de rumbo ' + f.dYaw.toFixed(3));
+  }
+  /* Y cruzada SIGUE tocando, porque una chapa de 60x44 es casi cuadrada: lo que
+     cambia es que la barra se va 30 mm del eje de la cuna sobre 22 de media
+     anchura, o sea que se sale por el costado. Eso lo dice la celda en rojo, no
+     un aviso de que no pasa por encima. */
+  const fila = q(`#panes [data-pd="${p.id}"][data-k="yaw"]`).closest('tr');
+  const roja = [...fila.querySelectorAll('td')]
+    .find(td => /v-bad/.test(td.className) && /30[.,]0/.test(td.title || ''));
+  if (!roja) {
+    throw new Error('cruzada 90 grados y ninguna celda dice que se sale: '
+      + [...fila.querySelectorAll('td')].map(td => td.title || '').join(' | ').slice(0, 300));
+  }
+  setval(`#panes [data-pd="${p.id}"][data-k="yaw"]`, antes.toFixed(2));
+});
+step('  y media vuelta es la misma chapa: no se queja de 180 grados', () => {
+  const B = window.BARCOMP;
+  const p = S().fixture[2], antes = p.yaw;
+  setval(`#panes [data-pd="${p.id}"][data-k="yaw"]`, (antes + 180).toFixed(2));
+  const f = B.E.pedestalFit(B.placedPath(), S().model.section, S().fixture[2]);
+  if (Math.abs(f.dYaw) > 0.1) throw new Error('180 grados cuentan como desvio: ' + f.dYaw.toFixed(3));
+  if (!f.over) throw new Error('media vuelta y deja de apoyar');
+  setval(`#panes [data-pd="${p.id}"][data-k="yaw"]`, antes.toFixed(2));
+});
+
 /* Subir un paso confirma y repinta el panel entero; si el foco no vuelve a la
    celda, el primer paso sube y el segundo cae sobre BODY. En la tabla del
    modelo esto nunca se vio porque sus atributos estaban en CELL_ATTRS desde el
@@ -3181,8 +3243,15 @@ step('con la mordaza tirando hacia abajo, la pantalla lo dice con la cifra', () 
   click('[data-md="model"]');
   click('#tabs [data-t="pins"]');
   const antes = { fix: S().fixture, load: S().load.on, rs: S().restraint.on };
-  S().fixture = [{ id: 'pd1', name: 'Ped 1', visible: true,
-                   x: 352.85, y: 26.99, h: 333.66, tilt: 19.98, pad: 60 }];
+  /* El RUMBO de la cuna es un dato desde el 2026-09-21 y hay que darlo: antes
+     la chapa se apuntaba sola a la barra en cada repintado, asi que un pedestal
+     escrito a mano salia siempre bien orientado. Se le pone el que la barra
+     pide ahi —que es lo que el programa hacia solo— para que este caso siga
+     midiendo la PALANCA y no un desvio de rumbo. */
+  const pd = { id: 'pd1', name: 'Ped 1', visible: true,
+               x: 352.85, y: 26.99, h: 333.66, tilt: 19.98, yaw: 0, pad: 60 };
+  pd.yaw = +B.E.pedestalFit(B.placedPath(), S().model.section, pd).head.toFixed(2);
+  S().fixture = [pd];
   S().restraint.on = false;
   S().load.on = true;
   B.renderAll();
@@ -3471,7 +3540,7 @@ step('la forma viaja en el archivo y vuelve', () => {
     setval('#panes input[data-s="wall"]', '2');
     const doc = JSON.parse(JSON.stringify(B.E.toDoc(S().model, S().command,
       S().comp, S().proc, [])));
-    if (doc.schema !== 'barcomp/2.4') throw new Error('esquema ' + doc.schema);
+    if (doc.schema !== 'barcomp/2.5') throw new Error('esquema ' + doc.schema);
     const vuelta = B.E.fromDoc(doc).model.section;
     if (vuelta.kind !== 'round' || vuelta.wall !== 2) throw new Error(JSON.stringify(vuelta));
   } finally {

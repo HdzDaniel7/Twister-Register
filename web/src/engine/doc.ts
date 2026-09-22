@@ -32,7 +32,7 @@ import type { MachineFmt } from './machine.ts';
 import { PLACE_DEFAULT } from './fitting.ts';
 import { safeColor } from '../safe.ts';
 
-export const SCHEMA = 'barcomp/2.4';
+export const SCHEMA = 'barcomp/2.5';
 /** Esquemas anteriores, cada uno con su cinemática. Se convierten al abrirlos.
  *  · 1.0  `rot` era un doblez de canto y `angle` tenía el signo contrario
  *  · 2.0  `rot` rodaba la barra de verdad y la sección salía girada
@@ -69,7 +69,27 @@ export const SCHEMA_AMBIGUOUS: string[] = ['barcomp/2.2'];
  *  abierto por una copia anterior del programa se leería como barra maciza, con
  *  más peso y más rigidez, y no avisaría nadie. Con el número subido, esa copia
  *  se para y dice que no conoce el esquema. */
-export const SCHEMA_COMPAT: string[] = ['barcomp/2.3'];
+export const SCHEMA_COMPAT: string[] = ['barcomp/2.3', 'barcomp/2.4'];
+
+/* `barcomp/2.4` entra en la lista de arriba el 2026-09-21 por el mismo motivo
+   que el 2.3, y conviene leerlo entero porque es el caso donde «no cambió
+   nada» es falso en un sentido.
+
+   Del 2.4 al 2.5 no cambió ni un signo ni una fórmula: lo que cambió es que la
+   cuna de un pedestal GUARDA SU RUMBO (`Pedestal.yaw`). Un 2.4 no lo trae, y
+   hasta el 2.5 el rumbo no existía como dato: la cuna se apuntaba a la barra en
+   cada repintado. O sea que un 2.4 abierto con `yaw = 0` enseñaría todas las
+   cunas mirando a +x y la mitad del fixture dejaría de apoyar — un archivo que
+   se abre distinto de como se guardó. Por eso, al abrirlo, **el pedestal que
+   viene sin rumbo se apunta UNA VEZ contra la barra** y a partir de ahí se
+   queda: el archivo se ve exactamente igual y el dato pasa a estar escrito.
+   Lo hace `setPedestals()` en state.ts, que es donde hay una pieza colocada
+   contra la que apuntar.
+
+   Y en el otro sentido, que es el que obliga a subir el número: un 2.5 con una
+   cuna puesta a mano, abierto por una copia anterior, se leería con la cuna
+   apuntada a la barra otra vez —o sea, apoyando— y nadie avisaría. Con el
+   número subido, esa copia se para y dice que no conoce el esquema. */
 
 /* ---------------------------------------------------------------------- E/S */
 /** Una pieza medida, tal como la ve `toDoc()`: solo lo que hace falta para
@@ -152,7 +172,7 @@ export function toDoc(
     fixture: (extra.fixture || []).map(f => ({
       name: f.name, visible: f.visible !== false,
       x: +f.x || 0, y: +f.y || 0, h: +f.h || 0,
-      tilt: +f.tilt || 0, pad: +f.pad || 0,
+      tilt: +f.tilt || 0, yaw: +f.yaw || 0, pad: +f.pad || 0,
     })),
     /* Los pines van sin `id`, igual que las cotas y los pedestales: es un
        número de orden que se reasigna al abrir. */
@@ -347,12 +367,18 @@ export function fromDoc(d: DocIn): LoadedDoc {
       visible: m.visible !== false,
       x: +m.x || 0, y: +m.y || 0, z: +m.z || 0,
     })),
+    /* El RUMBO se deja como venga y no se topa a 0: `undefined` significa «este
+       archivo es anterior al rumbo», y quien lo resuelve es `setPedestals()`,
+       apuntando la cuna una vez contra la barra. Toparlo aquí borraría la
+       diferencia entre «no lo traía» y «lo traía a cero», que son dos fixtures
+       distintos. Ver SCHEMA_COMPAT. */
     fixture: (d.fixture || []).map((f, i) => ({
       id: `pd${i + 1}`,
       name: f.name || `Ped ${i + 1}`,
       visible: f.visible !== false,
       x: +f.x || 0, y: +f.y || 0, h: +f.h || 0,
-      tilt: +f.tilt || 0, pad: +f.pad || 0,
+      tilt: +f.tilt || 0, yaw: f.yaw === undefined ? undefined : +f.yaw || 0,
+      pad: +f.pad || 0,
     })),
     pins: (d.pins || []).map((p, i) => ({
       id: `pn${i + 1}`,

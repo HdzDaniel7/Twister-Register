@@ -55,7 +55,7 @@ export const PEDESTALS_DEFAULT = 7;
  *  contrasta contra esto. Añadir un campo al tipo y olvidarse de habilitarlo
  *  deja de ser posible, porque las dos cosas salen de aquí. */
 export const PED_DEFAULT: Readonly<Omit<Pedestal, 'id' | 'name'>> = Object.freeze({
-  visible: true, x: 0, y: 0, h: 0, tilt: 0, pad: 60,
+  visible: true, x: 0, y: 0, h: 0, tilt: 0, yaw: 0, pad: 60,
 });
 
 /** Lo que se deduce de un pedestal contra la barra que tiene encima. Nada de
@@ -76,8 +76,17 @@ export type PedFit = {
   /** lo que le sobra o le falta al pedestal: `tilt - want`, ° */
   dTilt: number;
   /** rumbo de la barra en planta sobre ese punto, °. Es por donde tiene que
-   *  mirar la cuna para que la barra apoye a lo largo y no cruzada */
+   *  mirar la cuna para que la barra apoye a lo largo y no cruzada. Es a `yaw`
+   *  lo que `want` es a `tilt`: lo que la pieza PIDE, no lo que hay puesto */
   head: number;
+  /** lo que le sobra o le falta de rumbo a la cuna: `yaw - head`, ° y en
+   *  (−90, 90], porque media vuelta de chapa es la misma chapa */
+  dYaw: number;
+  /** cuánto se va la barra del eje largo de la cuna en la punta de la chapa por
+   *  culpa de `dYaw`, mm: `|sin(dYaw)| · pad/2`. Es a `dYaw` lo que `lift` es a
+   *  `dTilt`, y se compara contra media anchura de cuna (`CRADLE_W / 2`): por
+   *  encima de eso la barra se sale de la chapa por el costado */
+  slip: number;
   /** cuánto se despega la barra en la punta de la cuna por culpa de `dTilt`, mm.
    *
    *  Es lo que convierte un desajuste angular en algo comparable con una
@@ -137,11 +146,26 @@ export function placePath(M: Matrix4, samples: PathSample[]): PathSample[] {
  *  la CARA de arriba, y una cara no tiene grueso. Ver `nearestToBox()`. */
 export const CRADLE_W = 44;
 
+/** Un desajuste de rumbo de cuna, llevado a (−90, 90].
+ *
+ *  Y no a (−180, 180], que es lo que haría `wrap180()`: la cuna es una chapa
+ *  simétrica, así que girarla media vuelta la deja igual. Con el envoltorio
+ *  normal, una cuna perfectamente puesta bajo una barra que va hacia −x salía
+ *  con 180° de desajuste y la columna gritaba por una diferencia que no existe. */
+export function wrapCradle(deg: number): number {
+  let d = ((deg % 180) + 270) % 180 - 90;
+  if (d <= -90) d += 180;
+  return d;
+}
+
 /** La cuna como CAJA: centro, ejes y medias medidas.
  *
- *  `head` es el rumbo en planta al que mira la cuna. No se guarda en el
- *  pedestal —la cuna se orienta a mano hasta que la barra apoya a lo largo— así
- *  que sale de la barra; ver `pedestalFit()`.
+ *  El rumbo sale de `ped.yaw`, que es un dato del fixture. **Hasta el
+ *  2026-09-21 no se guardaba y esta función recibía el rumbo DE LA BARRA**, o
+ *  sea que la cuna se apuntaba sola en cada repintado y era imposible que
+ *  saliera cruzada. Lo reportó el taller: «que no se movieran para forzar que
+ *  coincidan girando contra mi pieza». Una cuna que siempre casa no se puede
+ *  usar para entender un fixture, porque el fixture es justo lo que no cede.
  *
  *  Los ejes salen de la MISMA rotación que usa el 3D (`ZYX`, primero el rumbo y
  *  luego la inclinación), así que la cuna que se dibuja y la que se mide son la
@@ -149,8 +173,8 @@ export const CRADLE_W = 44;
  *  de apoyo. El centro ES el punto de apoyo, (x, y, TABLE_Z + h) —el mismo
  *  contra el que se medía antes— y la media medida en `n` es CERO: lo que
  *  sostiene es la cara, y una cara no tiene grueso. */
-export function cradleBox(ped: Pedestal, head: number): OBB {
-  const ch = Math.cos(head * D2R), sh = Math.sin(head * D2R);
+export function cradleBox(ped: Pedestal): OBB {
+  const ch = Math.cos(ped.yaw * D2R), sh = Math.sin(ped.yaw * D2R);
   const ct = Math.cos(ped.tilt * D2R), st = Math.sin(ped.tilt * D2R);
   /* EL SIGNO DE `st` NO ES LIBRE, y costó encontrarlo: `tilt` es positivo si la
      cuna SUBE en el sentido de la barra, así que con `tilt = want` el eje largo
@@ -170,12 +194,13 @@ export function cradleBox(ped: Pedestal, head: number): OBB {
  *  físico y le importa dónde está la pieza de verdad, no dónde la dibujaría el
  *  modelo en el origen.
  *
- *  DOS PASADAS, y la primera no es un refinamiento: es que la cuna no guarda su
- *  rumbo. Hace falta saber por dónde va la barra para orientar la caja, y hace
- *  falta la caja para saber dónde toca la barra. Se rompe el círculo con el
- *  punto de la barra más cercano al centro de la cara de apoyo EN EL ESPACIO
- *  —que es una distancia de verdad y no se degenera con la barra a plomo— y de
- *  ahí sale el rumbo. La segunda pasada ya es la buena: la barra contra la caja.
+ *  LA CAJA SALE DEL PEDESTAL, no de la barra. Desde el 2026-09-21 la cuna
+ *  guarda su rumbo (`yaw`), así que no hay círculo que romper: la caja se
+ *  conoce antes de mirar la pieza. Lo que sigue saliendo de la barra son las
+ *  dos cifras de LECTURA —`want` y `head`, lo que la pieza pide— y para eso
+ *  hace falta un ancla que no dependa de cómo esté puesta la cuna: el punto de
+ *  la barra más cercano al centro de la cara de apoyo EN EL ESPACIO, que es una
+ *  distancia de verdad y no se degenera con la barra a plomo.
  *
  *  ANTES SE MEDÍA EN PLANTA, y eso era dos defectos con una sola causa: la
  *  proyección en planta de un tramo casi vertical es casi un punto, así que el
@@ -209,7 +234,7 @@ export function pedestalFit(samples: PathSample[], sec: Section,
   const cL = cuerda.length() || 1;
   const head = Math.atan2(cuerda.y, cuerda.x) * R2D;
   const want = Math.asin(clamp(cuerda.z / cL, -1, 1)) * R2D;
-  const box = cradleBox(ped, head);
+  const box = cradleBox(ped);
   const { s: sc, gap } = nearestToBox(samples, sec, box);
   const q = sampleAt(samples, sc);
   const low = q.p.z - sectionDrop(q, sec);
@@ -217,8 +242,9 @@ export function pedestalFit(samples: PathSample[], sec: Section,
     s: sc, plan: nearestOnPath(samples, ped.x, ped.y).d, low,
     gap,
     want, dTilt: ped.tilt - want,
-    head,
+    head, dYaw: wrapCradle(ped.yaw - head),
     lift: Math.abs(Math.tan((ped.tilt - want) / R2D)) * ped.pad / 2,
+    slip: Math.abs(Math.sin(wrapCradle(ped.yaw - head) * D2R)) * ped.pad / 2,
     /* PISA LA CUNA: una pregunta de HUELLA, no del punto de contacto. Ver
        `overBox()`: en el punto de tangencia los tres ejes se rozan y cualquier
        comparación local salía al revés por tres diezmilésimas. */
@@ -300,6 +326,11 @@ export function seedPedestals(samples: PathSample[], sec: Section,
       x: +q.p.x.toFixed(2), y: +q.p.y.toFixed(2),
       h: +(q.p.z - sectionDrop(q, sec) - TABLE_Z).toFixed(2),
       tilt: +(Math.asin(clamp(cuerda.z / (cuerda.length() || 1), -1, 1)) * R2D).toFixed(2),
+      /* El rumbo se siembra apuntando a la barra, que es lo que el sembrado
+         hacía ya —solo que sin escribirlo en ningún sitio, porque la cuna se
+         apuntaba sola en cada repintado—. La diferencia es que ahora SE QUEDA:
+         sembrar es proponer un fixture, no prometer que se adapte. */
+      yaw: +(Math.atan2(cuerda.y, cuerda.x) * R2D).toFixed(2),
       pad, visible: true,
     };
     /* Un paso de corrección contra la barra DE VERDAD, no contra la muestra.
@@ -374,13 +405,21 @@ export function seedPedestals(samples: PathSample[], sec: Section,
     };
     const mira = (): PedFit | null =>
       pedestalFit(samples, sec, { id: '', name: '', ...cand });
-    /* FASE 1: la cuna busca su inclinación y el alto la sigue. */
+    /* FASE 1: la cuna busca su inclinación Y SU RUMBO, y el alto los sigue.
+       El rumbo se persigue aquí por el mismo motivo que la inclinación y con la
+       misma condición que lo hace posible: `head` sale de la cuerda anclada en
+       el PIE, que no sabe de `yaw`, así que girar la cuna no mueve la
+       referencia contra la que se la juzga y no hay ciclo. Antes esto no hacía
+       falta porque la caja se orientaba sola; ahora que el rumbo es un dato, el
+       sembrado tiene que dejarlo puesto o nacería cruzado. */
     for (let it = 0; it < 20; it++) {
       const fit = mira();
       if (!fit) break;
       const t = +fit.want.toFixed(2);
-      const quieta = t === cand.tilt;
+      const r = +fit.head.toFixed(2);
+      const quieta = t === cand.tilt && r === cand.yaw;
       cand.tilt = t;
+      cand.yaw = r;
       cierra(t, fit);
       if (quieta && Math.abs(fit.gap) < 1e-12) break;
     }

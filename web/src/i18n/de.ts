@@ -348,6 +348,8 @@ export const de: Record<I18nKey, string> = {
  pedH: 'Höhe',
  pedPad: 'Auflage',
  pedTilt: 'Neigung',
+ pedYaw: 'Kurs',
+ pedDYaw: 'Δ Kurs',
  pedWant: 'Verlangt',
  pedS: 'Berührt',
  pedPlan: 'Versatz',
@@ -358,6 +360,15 @@ export const de: Record<I18nKey, string> = {
  pedOffN: '{n} ohne Auflage',
  pedOffTip: 'Der Fuß liegt weiter von der Stangenachse entfernt als die halbe Auflage plus die halbe Querschnittsbreite: dieser Bock trägt nichts. X und Y verschieben, bis die Stange darüber verläuft.',
  pedLiftTip: 'Bei dieser Neigung hebt die Stange am Ende der Auflage um {v} mm ab. Verglichen wird mit der Punkttoleranz.',
+ pedYawTip: 'Wohin die Längsachse der Auflage zeigt, im Grundriss ab +x, in Grad.'
+   + ' Eine Angabe des Fixtures, keine Ablesung: die Auflage sitzt dort, wo sie jemand'
+   + ' verschraubt hat, und richtet sich NICHT selbst nach dem Teil aus. Eine halbe'
+   + ' Drehung ist dieselbe Platte, 30 und 210 sagen also dasselbe.',
+ pedDYawTip: 'Wie viel Kurs der Auflage zu viel oder zu wenig ist: ihr eigener minus der,'
+   + ' den die Stange verlangt, in Grad und zwischen −90 und 90. Rot, wenn die Stange'
+   + ' seitlich von der Platte läuft; die Hilfe jeder Zelle nennt die Millimeter.',
+ pedSlipTip: 'Bei diesem Kurs läuft die Stange am Ende der Auflage um {v} mm aus ihrer'
+   + ' Achse, bei {w} mm halber Plattenbreite.',
  addPed: '+ Bock',
  seedPed: '{n} setzen',
  clearPed: 'Leeren',

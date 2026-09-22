@@ -336,6 +336,8 @@ export const en: Record<I18nKey, string> = {
  pedH: 'Height',
  pedPad: 'Saddle',
  pedTilt: 'Tilt',
+ pedYaw: 'Heading',
+ pedDYaw: 'Δ head.',
  pedWant: 'Wants',
  pedS: 'Touches',
  pedPlan: 'Offset',
@@ -346,6 +348,14 @@ export const en: Record<I18nKey, string> = {
  pedOffN: '{n} unsupported',
  pedOffTip: 'The foot sits farther from the bar axis than half the saddle plus half the section width: this pedestal holds nothing. Move X and Y until the bar passes over it.',
  pedLiftTip: 'At this tilt the bar lifts {v} mm off the end of the saddle. Compared against the point tolerance.',
+ pedYawTip: 'Where the long axis of the saddle points, in plan and from +x, in degrees.'
+   + ' Fixture data, not a reading: the saddle sits where someone bolted it and does NOT'
+   + ' aim itself at the part. Half a turn is the same plate, so 30 and 210 say the same.',
+ pedDYawTip: 'How much heading the saddle has too much or too little: its own minus the one'
+   + ' the bar wants, in degrees and between −90 and 90. Red when the bar runs off the'
+   + ' plate sideways; the help on each cell gives the millimetres it drifts.',
+ pedSlipTip: 'At this heading the bar drifts {v} mm off the saddle axis at its end, against'
+   + ' {w} mm of half plate width.',
  addPed: '+ Pedestal',
  seedPed: 'Seed {n}',
  clearPed: 'Clear',

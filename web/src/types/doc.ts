@@ -54,6 +54,19 @@ export type Pedestal = {
   h: number;
   /** inclinación de la cuna, °. Positiva si sube en el sentido de la barra */
   tilt: number;
+  /** RUMBO de la cuna en planta, medido desde +x, °. Hacia dónde mira el eje
+   *  largo de la chapa.
+   *
+   *  Es DATO DEL FIXTURE y no una lectura, que es el motivo entero de que
+   *  exista: hasta el 2026-09-21 la cuna no guardaba su rumbo y se apuntaba
+   *  sola a la barra en cada repintado, así que **nunca podía salir cruzada**
+   *  y el programa no sabía decir lo que un montador ve a simple vista. Es el
+   *  mismo argumento que `Pin.side`, y tiene el mismo dueño: el rumbo es el
+   *  que alguien atornilló, y no cambia porque la pieza se deforme.
+   *
+   *  Manda módulo 180: una chapa girada media vuelta es la misma chapa, así
+   *  que el desajuste contra la barra se lee en (−90, 90]. */
+  yaw: number;
   /** largo de la cuna a lo largo de la barra, mm. Un pedestal no apoya en un
    *  punto: apoya en un tramo, y ese tramo es lo que decide si la barra pisa
    *  el pedestal o pasa de largo por al lado */
@@ -228,6 +241,8 @@ export type Doc = {
   marks: { name: string; color: string; visible: boolean; x: number; y: number; z: number }[];
   /** el fixture. Sin `id`: se reasigna al abrir, igual que en `marks` */
   fixture: Omit<Pedestal, 'id'>[];
+  /* (el `yaw` de cada cuna viaja desde `barcomp/2.5`; los anteriores no lo
+     traen y se apuntan una vez al abrirlos) */
   /** los pines laterales. Sin `id`, por lo mismo */
   pins: Omit<Pin, 'id'>[];
   /** el amarre: si la barra se considera sujeta y con qué ajustes */
@@ -277,7 +292,11 @@ export type LoadedDoc = {
   ref: string | null;
   place: Place;
   marks: Mark[];
-  fixture: Pedestal[];
+  /** El fixture. El RUMBO puede faltar: un archivo anterior a `barcomp/2.5` no
+   *  lo trae, y la diferencia entre «no venía» y «venía a cero» son dos
+   *  fixtures distintos. Lo resuelve `setPedestals()`, que es quien tiene una
+   *  pieza colocada contra la que apuntar la cuna. Ver SCHEMA_COMPAT. */
+  fixture: (Omit<Pedestal, 'yaw'> & { yaw?: number })[];
   pins: Pin[];
   restraint: Restraint;
   load: Load;

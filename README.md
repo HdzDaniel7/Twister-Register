@@ -251,7 +251,7 @@ web/
     engine/compensate.ts  pieza simulada, lazo, desviaciones, lote, resorte
     engine/expr.ts        la celda de compensación (parser propio, sin eval)
     engine/machine.ts     el comando que sale a la dobladora: columnas, unidades, signos
-    engine/doc.ts         esquema barcomp/2.4, migración de archivos anteriores
+    engine/doc.ts         esquema barcomp/2.5, migración de archivos anteriores
     engine/csv.ts         la nube de PI: lectura tolerante y escritura
     engine/section.ts     LO QUE LA SECCIÓN SABE DE SÍ MISMA: área, inercias, cuánto
                           asoma, la fibra del esfuerzo. Un solo sitio, y es donde
@@ -285,7 +285,7 @@ web/
   src/app.css       tokens de diseño y layout; la paleta de los DOS temas
   src/shell.html    esqueleto con los marcadores del build
   build.mjs         esbuild: src/ + three  ->  index.html
-  test_motor.js     687 pruebas del motor y del i18n, en Node y sin navegador
+  test_motor.js     705 pruebas del motor y del i18n, en Node y sin navegador
   tools/            banco de interfaz por CDP y las sondas de medición
 index.html          SALIDA GENERADA — no se edita a mano
 ```
@@ -312,7 +312,7 @@ npm run check        # typecheck -> pruebas -> build -> banco de interfaz
 npm run typecheck    # tsc --noEmit, con strict
 npm test             # 605 pruebas del motor y del i18n
 npm run build        # regenera index.html (y web/barcomp_viewer.html en local)
-npm run test:ui      # 292 pasos de interfaz en Edge headless, por CDP
+npm run test:ui      # 296 pasos de interfaz en Edge headless, por CDP
 npm run demo:amarre  # cinco escenarios del amarre, con las cifras a la vista
 npm run demo:carga   # el muelle de contacto contra una solución exacta, y el codo
                      # del hueco que impide cerrar FIS-10b
@@ -580,7 +580,7 @@ escaneo de una barra recta certificada montada en el fixture.
 
 ## Formato de archivo
 
-Esquema `barcomp/2.4`, un JSON con el modelo, los comandos de máquina, las
+Esquema `barcomp/2.5`, un JSON con el modelo, los comandos de máquina, las
 ganancias, los parámetros del simulador, las piezas medidas y los modelos
 comparados. Las claves `variants`, `ref`, `anchor`, `place`, `marks`, `fixture` y
 `tweak` son opcionales: los archivos viejos siguen abriendo.
@@ -603,6 +603,17 @@ otra pieza en cada uno:
 | `barcomp/2.2` | **cuánto GIRA** ese eje; el eje se sostiene entre estaciones |
 | `barcomp/2.3` | igual que 2.2, pero el ángulo y el rodado doblan al otro lado |
 | `barcomp/2.4` | lo mismo; lo que cambia es que la sección ya puede ser hueca y redonda |
+| `barcomp/2.5` | lo mismo; lo que cambia es que la cuna de un pedestal guarda su RUMBO |
+
+Un `barcomp/2.5` **no dice nada nuevo de la forma de la pieza** tampoco: del 2.4 al
+2.5 lo único que aparece es `yaw` en cada pedestal, el rumbo en planta al que mira
+la cuna. Hasta el 2.5 ese rumbo no existía como dato —la chapa se apuntaba sola a
+la barra en cada repintado— así que un archivo anterior **se abre apuntando cada
+cuna una vez** contra la pieza que trae y a partir de ahí se queda quieta: el
+archivo se ve igual que cuando se guardó y el dato pasa a estar escrito. El número
+sube por el otro sentido, que es el que muerde: un 2.5 con una cuna puesta a mano,
+abierto por una copia anterior, se leería con la cuna reapuntada a la barra —o sea,
+apoyando— y no avisaría nadie.
 
 Un `barcomp/2.4` **no dice nada nuevo de la forma de la pieza**: del 2.3 al 2.4
 no cambió ni un signo ni una fórmula, y un 2.3 se abre tal cual, sin convertir y
@@ -632,7 +643,7 @@ teclea.
 
 ```jsonc
 {
-  "schema": "barcomp/2.4",
+  "schema": "barcomp/2.5",
   "model": {
     "name": "...",
     "section": { "kind": "rect", "width": 40, "thickness": 12, "wall": 0, "chamfer": 1.2, "endLen": 20 },

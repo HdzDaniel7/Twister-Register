@@ -214,7 +214,7 @@ Todas puras y todas en `web/src/engine.ts`, que no toca el DOM.
 | `medianPart(piezas)` | → `bends[]` | la pieza mediana del lote; se detiene en la más CORTA |
 | `springback(muestras,ori)` | → `{W,T}` | `sb = 1 − medido/comandado`, con pendiente y r |
 | `evalCell(texto,c,v)` | → número \| null | la celda de compensación; parser propio, sin `eval` |
-| `toDoc` / `fromDoc` | → `doc` / estado | esquema `barcomp/2.4`; migra los anteriores al abrir |
+| `toDoc` / `fromDoc` | → `doc` / estado | esquema `barcomp/2.5`; migra los anteriores al abrir |
 
 `barGeometry(path, sec, devFn)` vive en `scene/geometry.ts`, no en el motor: devuelve una `BufferGeometry` y
 por lo tanto depende de three.
@@ -531,7 +531,7 @@ punteada. Deja ver de un vistazo cuál doblez está fuera. Es clicable.
 ## 7. Trampas conocidas
 
 0. **El eje acumula; la sección no rueda.** Es la trampa que ha costado una versión entera,
-   así que va primero. `SCHEMA` es `barcomp/2.4` y la cinemática es la de 2.2:
+   así que va primero. `SCHEMA` es `barcomp/2.5` y la cinemática es la de 2.2:
 
        2.0  Rx(rot) · Rz(-angle)              la sección salía RODADA   ← mal
        2.1  Rx(rot) · Rz(-angle) · Rx(-rot)   solo se inclina el eje    ← bien
@@ -703,7 +703,7 @@ cd web && npm run check            # typecheck -> pruebas -> build -> banco, de 
 cd web && npm run typecheck        # tsc --noEmit, con strict
 cd web && node test_motor.js       # 605 pruebas; todas deben pasar
 cd web && node build.mjs           # regenera index.html y barcomp_viewer.html
-cd web && node tools/ui_test.mjs   # 292 pasos de interfaz en Edge headless
+cd web && node tools/ui_test.mjs   # 296 pasos de interfaz en Edge headless
 cd web && node tools/demo_carga.mjs # κ contra una solución exacta, y el codo del hueco
 cd web && node tools/demo_escala.mjs # dónde el solver de la carga deja de caber
 ```
@@ -1158,6 +1158,21 @@ lo único que ese contador puede decir, y un aviso de no meter nada entre `f0` y
 
 ### Decisiones que siguen gobernando el código
 
+- **La cuna de un pedestal GUARDA SU RUMBO** (2026-09-21). Hasta ese día no lo guardaba:
+  `pedestalFit()` lo leía de la barra en cada llamada, así que la chapa se apuntaba sola y
+  **era imposible verla cruzada**. Un fixture que siempre casa no sirve para entender un
+  fixture, porque un fixture es justo lo que no cede. Pedido por el taller: «que no se
+  movieran para forzar que coincidan girando contra mi pieza». `Pedestal.yaw` es el rumbo en
+  planta desde +x, y manda **módulo 180** —media vuelta de chapa es la misma chapa, así que
+  el desvío se lee en (−90, 90] con `wrapCradle()`; con el envoltorio normal, una cuna
+  perfecta bajo una barra que va hacia −x salía con 180° de desajuste—. El sembrado SÍ
+  apunta, porque sembrar es proponer un fixture: escribe el rumbo y lo deja puesto. La
+  lectura nueva es `slip` = `|sin(dYaw)| · pad/2`, cuánto se va la barra del eje de la cuna
+  en su punta; por encima de **media anchura de chapa, 22 mm**, ya no hay chapa debajo, y
+  por eso la celda se pinta con `CRADLE_W / 4` de tolerancia —`cls()` pone el rojo en `2t`—.
+  Ojo con la intuición fácil: una cuna cruzada 90° **sigue tocando**, porque 60 × 44 es casi
+  cuadrada. Lo que cambia es que la barra se va 30 mm sobre 22, y eso lo dice el número.
+  Sube el esquema a `barcomp/2.5`; un archivo anterior se apunta una vez al abrirlo.
 - **El indicador de ejes es el marco de UNA ESTACIÓN, no del modelo** (2026-09-21). Reportado
   desde el taller como «los ejes no me coinciden con la pieza», y era literal: el widget prometía
   «x el eje de la barra, y el espesor, z el ancho» —los ejes de la SECCIÓN— y pintaba el marco del

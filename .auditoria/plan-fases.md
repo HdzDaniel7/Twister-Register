@@ -135,7 +135,9 @@ Detalle en `CONTEXTO_BARCOMP.md`, «La carga».
       lo dicen** (eran 3 hasta FIS-10c, que movió unas micras dónde se posa la pieza sujeta);
       antes de `PedFit.deep` ese aviso era mudo por encima del radio de la sección.
 
-- [ ] **El pedestal no gira en Z, y el sembrado lo gira contra la pieza · [O]** — pedido por
+- [x] **El pedestal no gira en Z, y el sembrado lo gira contra la pieza · [O]** — **hecho el
+      2026-09-21.** `Pedestal.yaw`, esquema `barcomp/2.5`, y la cuna deja de apuntarse sola.
+      Lo que queda de esta entrada es el porqué, que sigue valiendo — pedido por
       el taller el 2026-09-21, al contestar **C.1**: «me gustaría que los pedestales también
       se pudieran rotar en z y no solo en el ángulo de inclinación, y no se movieran para
       forzar que coincidan girando contra mi pieza». Son **dos** cosas y la segunda es la
@@ -164,7 +166,10 @@ Detalle en `CONTEXTO_BARCOMP.md`, «La carga».
       No cierra nada, y con eso la salida deja de ser modelar más: es **dejar que se teclee**.
       Va junta con la tarea de arriba —el giro en Z del pedestal— porque son el mismo arreglo
       mirado dos veces: si no se sabe qué cuna hay montada, el programa no puede deducir su
-      orientación, y lo único honesto es que la ponga quien la ve.
+      orientación, y lo único honesto es que la ponga quien la ve. **La mitad del RUMBO está
+      hecha el 2026-09-21** (`Pedestal.yaw`): la cuna ya no se apunta sola y quien la ve la
+      teclea. Lo que sigue abierto es lo de arriba, que es otra cosa: el LARGO de la cuna
+      contra una barra curvada, que es `pad` y sigue sin saberse qué cunas hay.
 
 
 ## Aplazado a futuras actualizaciones (decisión 2026-09-08)

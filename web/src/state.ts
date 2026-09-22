@@ -314,15 +314,40 @@ export function addPedestal(p: Partial<Pedestal> = {}): Pedestal {
     name: p.name || `Ped ${ST.fixture.length + 1}`,
     visible: p.visible !== false,
     x: +p.x! || 0, y: +p.y! || 0, h: +p.h! || 0,
-    tilt: +p.tilt! || 0, pad: +p.pad! || E.PED_DEFAULT.pad,
+    tilt: +p.tilt! || 0, yaw: +p.yaw! || 0, pad: +p.pad! || E.PED_DEFAULT.pad,
   };
   ST.fixture.push(d);
   return d;
 }
-export function setPedestals(list: Partial<Pedestal>[] | null | undefined): Pedestal[] {
+/** Pone la lista de pedestales, y APUNTA UNA VEZ la cuna que venga sin rumbo.
+ *
+ *  El rumbo (`yaw`) es un dato del fixture desde `barcomp/2.5`. Un archivo
+ *  anterior no lo trae, y antes de que existiera la cuna se apuntaba sola a la
+ *  barra en cada repintado: dejarla a cero enseñaría todas las cunas mirando a
+ *  +x y la mitad del fixture dejaría de apoyar, o sea un archivo que se abre
+ *  distinto de como se guardó. Se apunta una vez contra la pieza que hay y a
+ *  partir de ahí se queda quieta, que es justo lo que se estaba pidiendo.
+ *
+ *  Aquí y no en `fromDoc()` porque esto necesita una pieza COLOCADA contra la
+ *  que apuntar —`shownPath()`— y el motor no la tiene. `applyDoc()` ya ha
+ *  puesto el modelo, la colocación y el amarre cuando llama. */
+export function setPedestals(
+  list: (Partial<Pedestal> & { yaw?: number })[] | null | undefined,
+): Pedestal[] {
   ST.fixture = [];
   pedSeq = 0;
-  for (const p of list || []) addPedestal(p);
+  const sinRumbo: number[] = [];
+  for (const p of list || []) {
+    if (p.yaw === undefined) sinRumbo.push(ST.fixture.length);
+    addPedestal(p);
+  }
+  if (sinRumbo.length && ST.model) {
+    const path = shownPath();
+    for (const i of sinRumbo) {
+      const f = E.pedestalFit(path, ST.model.section, ST.fixture[i]);
+      if (f) ST.fixture[i].yaw = +f.head.toFixed(2);
+    }
+  }
   return ST.fixture;
 }
 /** Siembra un fixture de partida bajo la pieza actual y TIRA el que hubiera.

@@ -1,6 +1,6 @@
 # Fixtures congelados
 
-`demo-2.4.json` no es un ejemplo: es un **candado**. Guarda los PI que el motor
+`demo-2.5.json` no es un ejemplo: es un **candado**. Guarda los PI que el motor
 produce hoy para `demoModel()`, junto con `ANG_DIR`, `ROT_DIR` y los ejes
 absolutos que salen de esos dobleces.
 
@@ -64,5 +64,5 @@ process.stdout.write(JSON.stringify({
   pis: P.map(p => [+p.x.toFixed(9), +p.y.toFixed(9), +p.z.toFixed(9)]),
   ejesAbsolutos: M.bends.map(b => +(a += b.rot).toFixed(6)),
 }, null, 1));
-" > test/fixtures/demo-2.4.json
+" > test/fixtures/demo-2.5.json
 ```

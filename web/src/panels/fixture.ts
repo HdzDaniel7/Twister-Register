@@ -15,7 +15,18 @@ import { ST, shownPath, shownModel, heldResult, heldOn, refHeldOn, pedCarrying }
 import { fx, esc, cls, nfield, reacCell, th } from './fmt.ts';
 
 /** El rótulo de cada campo tecleable, que es también el de su columna. */
-const PED_LBL = { x: 'x', y: 'y', h: 'pedH', pad: 'pedPad', tilt: 'pedTilt' } as const;
+/** Con qué se pinta el desvío lateral de la cuna, mm.
+ *
+ *  Un CUARTO de la anchura de chapa, no la mitad, y no es un gusto: `cls()`
+ *  pinta verde hasta `t`, ámbar hasta `2t` y rojo por encima. El límite duro es
+ *  MEDIA anchura —22 mm, donde la barra se sale de la chapa por el costado— así
+ *  que ese es el que tiene que caer en la raya del rojo, y eso pone `t` en 11:
+ *  verde mientras la barra va centrada, ámbar mientras se descentra con chapa
+ *  todavía debajo, rojo cuando ya no la hay. */
+const SLIP_TOL = E.CRADLE_W / 4;
+
+const PED_LBL = { x: 'x', y: 'y', h: 'pedH', pad: 'pedPad',
+                  tilt: 'pedTilt', yaw: 'pedYaw' } as const;
 
 /** Una fila. Sale aparte porque la de un pedestal tiene trece columnas y
  *  `paneFixture` se pasaba de las 60 líneas de la regla con el bucle dentro. */
@@ -25,20 +36,20 @@ function pedRow(M: Model, i: number, f: PedFit | null, vano: number, flecha: num
   /* Cada campo se anuncia con su fila Y su columna: «P3 · Alto». Con solo la
      columna, siete campos seguidos dicen «Alto» y no se sabe de qué pedestal. */
   const nombre = (col: string) => `aria-label="${esc(`${p.name} · ${col}`)}"`;
-  const num = (k: 'x' | 'y' | 'h' | 'pad' | 'tilt', fmt = '1') =>
+  const num = (k: 'x' | 'y' | 'h' | 'pad' | 'tilt' | 'yaw', fmt = '1') =>
     `<td>${nfield(fmt, `data-pd="${p.id}" data-k="${k}" ${nombre(T(PED_LBL[k]))}`, p[k])}</td>`;
   const cabeza = `<tr class="ped"><td><input type="checkbox" data-pv="${p.id}" ${p.visible ? 'checked' : ''}
       ${nombre(T('colVis'))}></td>
     <td><input type="text" data-pd="${p.id}" data-k="name" value="${esc(p.name)}" style="min-width:64px"
       aria-label="${esc(`${T('fixture')} ${i + 1} · ${T('name')}`)}"></td>
-    ${num('x')}${num('y')}${num('h')}${num('pad', '0')}${num('tilt', '2')}`;
+    ${num('x')}${num('y')}${num('h')}${num('pad', '0')}${num('tilt', '2')}${num('yaw', '2')}`;
   const cola = `<td><button class="xbtn" data-px="${p.id}" title="${T('del')}"
       ${nombre(T('del'))}>✕</button></td></tr>`;
   /* Sin barra encima, las columnas derivadas no dicen «0»: dicen «—». Un cero
      se lee como «ajustado» y es justo lo contrario. */
   if (!f || !f.over) {
     return `${cabeza}
-      <td class="v-bad" colspan="5" title="${esc(T('pedOffTip'))}">${T('pedOff')}</td>
+      <td class="v-bad" colspan="6" title="${esc(T('pedOffTip'))}">${T('pedOff')}</td>
       <td class="v-dim">${isFinite(vano) ? fx(vano, 0) : '—'}</td>
       <td class="v-dim">—</td>
       ${ST.load.on ? '<td class="v-dim">—</td>' : ''}
@@ -47,6 +58,8 @@ function pedRow(M: Model, i: number, f: PedFit | null, vano: number, flecha: num
   return `${cabeza}
     <td class="v-dim">${fx(f.want, 2)}</td>
     <td class="${cls(f.lift, M.tol.point)}" title="${esc(T('pedLiftTip').replace('{v}', fx(f.lift, 2)))}">${fx(f.dTilt, 2)}</td>
+    <td class="${cls(f.slip, SLIP_TOL)}"
+      title="${esc(T('pedSlipTip').replace('{v}', fx(f.slip, 1)).replace('{w}', fx(E.CRADLE_W / 2, 0)))}">${fx(f.dYaw, 2)}</td>
     <td class="v-dim">${fx(f.s, 0)}</td>
     <td class="v-dim">${fx(f.plan, 1)}</td>
     <td class="${cls(Math.abs(f.gap), M.tol.point)}">${fx(f.gap, 2)}</td>
@@ -64,8 +77,10 @@ const pedHead = (): string => `<tr>
   ${th('', '', T('colVis'))}${th(T('name'))}
   ${th(T('x'), 'mm', T('xyTip'))}${th(T('y'), 'mm', T('xyTip'))}
   ${th(T('pedH'), 'mm', T('pedHTip'))}${th(T('pedPad'), 'mm', T('pedPadTip'))}
-  ${th(T('pedTilt'), '°', T('pedTiltTip'))}${th(T('pedWant'), '°', T('pedWantTip'))}
-  ${th(T('pedD'), '°', T('pedDTip'))}${th(T('pedS'), 'mm', T('pedSTip'))}
+  ${th(T('pedTilt'), '°', T('pedTiltTip'))}${th(T('pedYaw'), '°', T('pedYawTip'))}
+  ${th(T('pedWant'), '°', T('pedWantTip'))}
+  ${th(T('pedD'), '°', T('pedDTip'))}${th(T('pedDYaw'), '°', T('pedDYawTip'))}
+  ${th(T('pedS'), 'mm', T('pedSTip'))}
   ${th(T('pedPlan'), 'mm', T('pedPlanTip'))}${th(T('pedGap'), 'mm', T('pedGapTip'))}
   ${th(T('pedSpan'), 'mm', T('pedSpanTip'))}${th(T('sag'), 'mm', T('sagTip'))}
   ${ST.load.on ? th(T('loadN'), 'N', T('loadNTip')) : ''}
