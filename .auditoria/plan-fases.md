@@ -40,12 +40,17 @@ Detalle del mecanismo en `CONTEXTO_BARCOMP.md`, «El amarre: la barra sujeta por
       material. Sin eso, el modelo dice DÓNDE se concentra el esfuerzo y cuánto
       se mueve la punta, pero la magnitud en MPa lleva un material de manual.
       Es el mismo dato que espera M6 (la flecha por gravedad), así que van en el
-      mismo correo. El material se pide en **C.4**.
-- [ ] **Decidir qué es el nominal con la barra sujeta · [—]** — ⛔ pregunta de
-      taller, no de software: el lazo compara hoy contra la pieza LIBRE, y con
-      el amarre puesto eso corrige hacia una forma que la barra sujeta no puede
-      tomar. Hay dos respuestas posibles —la forma que se quiere AL SOLTARLA o la
-      que se quiere MONTADA— y cada una cambia el código. Preguntado en **C.3**.
+      mismo correo. El material se pide en **C.4**, contestada el 2026-09-21 con «no lo
+      tengo a la mano»: sigue pendiente, no descartada, y `MAT_DEFAULT` sigue siendo de
+      catálogo.
+- [x] **Decidir qué es el nominal con la barra sujeta · [O]** — **decidido el 2026-09-21**
+      con la respuesta a **C.3**: la forma que se quiere es la **MONTADA**, porque la pieza se
+      compara contra el CAD dentro del fixture. De las dos respuestas posibles que llevaban
+      desde el 09-09 sobre la mesa, esta. Y el taller añadió el criterio que la hace
+      coherente: se ajusta hasta que la forma libre asiente perfecto, así que la libre no es
+      un objetivo rival — es donde se comprueba que ya no se está forzando nada.
+      La decisión está tomada; **lo que falta es aplicarla**, y es la tarea «Compensar tiene
+      que corregir contra la forma ASENTADA», abajo.
 
 ## La carga — lo que queda
 
@@ -65,10 +70,13 @@ Detalle en `CONTEXTO_BARCOMP.md`, «La carga».
       flexómetro es el peso y si toca o no. Está en `tools/demo_carga.mjs` §6, en tres
       pruebas de motor y en el tooltip de la columna Reacción. ⛔ Para dar reacciones de
       verdad hace falta un fixture medido en MICRAS, que es otra petición al taller y va en
-      el mismo correo que el escaneo. Preguntado en **C.1**, y la pregunta está escrita para que
-      «se ponen a ojo» cuente como respuesta válida.
+      el mismo correo que el escaneo. **C.1 contestada el 2026-09-21, y la respuesta es la que
+      la pregunta no esperaba:** el fixture real **sí** está puesto en micras — lo que no hay
+      son las medidas, así que aquí se teclean a ojo. O sea que el límite no se relaja ni un
+      newton: el fixture es fino y este programa no sabe dónde está. Sigue esperando **A.5**,
+      y ahora se sabe que el dato existe y es cuestión de que lo midan.
 
-- [ ] **[PERF-01] Cuántos dobleces aguanta el solver de la carga · [O]** — el hallazgo
+- [x] **[PERF-01] Cuántos dobleces aguanta el solver de la carga · [O]** — el hallazgo
       **nunca se escribió**: nace colgando en `8759820`, citado en las preguntas abiertas
       del informe del 09-10 y sin texto detrás, y con él se quedó esperando nueve días una
       respuesta de taller para cerrar algo ilegible. Medido el 2026-09-19 en
@@ -82,9 +90,32 @@ Detalle en `CONTEXTO_BARCOMP.md`, «La carga».
       clavan en VUELTAS y no en milisegundos, que no dependen de la máquina.
       **La mitad que no dependía del taller está hecha (2026-09-19):** por encima de
       `LOAD_SLOW_BENDS = 30` la pestaña Amarre avisa de lo que va a costar, con el
-      interruptor apagado, que es cuando sirve para decidir. ⛔ Optimizarlo
-      —y cómo— depende de la respuesta a **C.6**, que por esto sube a 🔴: si una pieza real
-      pasa de 30 dobleces, el visor con la carga puesta no es lento, es inusable.
+      interruptor apagado, que es cuando sirve para decidir.
+      **C.6 contestada el 2026-09-21, y cierra ESTA tarea:** la pieza real ronda los 30
+      dobleces, o sea 134 ms contra 250 de presupuesto. Una pieza cabe. Lo que la respuesta
+      abre es la tarea de abajo, que es otra cosa y hay que medirla antes de opinar.
+
+- [ ] **Cuántas BARRAS A LA VEZ aguanta el solver · [O]** — abierta el 2026-09-21 por la
+      respuesta a **C.6**: «cerca de 30 [dobleces], pero pueden haber muchas barras a la vez,
+      por lo que debe ser eficiente en recursos para tener un buen rendimiento». El número por
+      pieza está medido; el de varias no. Lo único que hay es de refilón y con 15 dobleces
+      —«el amarre de seis modelos pasa de 84 a 98 ms»— y ahí los seis no llevaban carga. A 30
+      dobleces una sola pieza son 134 ms, así que **si el coste se suma, dos piezas se comen el
+      presupuesto**. Que se sume o no es lo que hay que medir, y `heldCache` puede estar
+      tapándolo. **No depende del taller: es una medición y va antes de cualquier
+      optimización**, por la regla de esta casa —lo mismo que pasó con `paneComp` y con
+      `InstancedMesh`, que se aplazaron confirmados con cifra—. Hasta que haya tabla, el
+      aviso de `LOAD_SLOW_BENDS` cuenta dobleces de UNA pieza y no sabe cuántas hay.
+
+- [ ] **Compensar tiene que corregir contra la forma ASENTADA · [O]** — abierta el 2026-09-21
+      por **C.3**, que era la pregunta abierta desde el 09-09. Hoy Compensar corrige
+      **siempre** contra la libre y desde el 2026-09-19 lo avisa; el taller mide en el fixture
+      y contra el CAD en sitio, así que la referencia que toca es la asentada. Va **junta con
+      C.7** —los interruptores no se exponen en Compensar— o las dos respuestas se
+      contradicen: la idea es que Compensar use la referencia correcta sin que nadie se
+      acuerde de encender nada. Toca `shownModel()` / `refHeldOn()`, que son el sitio único
+      donde se decide esto, y **cambia lo que se manda a la máquina**, así que va con su
+      medición y sin mezclarla con nada más.
 
 - [ ] **Quitar el punto ciego de los tramos rectos · [—]** — hoy las incógnitas
       son los codos de las ESTACIONES, así que una recta no se cuelga por el
@@ -104,6 +135,22 @@ Detalle en `CONTEXTO_BARCOMP.md`, «La carga».
       lo dicen** (eran 3 hasta FIS-10c, que movió unas micras dónde se posa la pieza sujeta);
       antes de `PedFit.deep` ese aviso era mudo por encima del radio de la sección.
 
+- [ ] **El pedestal no gira en Z, y el sembrado lo gira contra la pieza · [O]** — pedido por
+      el taller el 2026-09-21, al contestar **C.1**: «me gustaría que los pedestales también
+      se pudieran rotar en z y no solo en el ángulo de inclinación, y no se movieran para
+      forzar que coincidan girando contra mi pieza». Son **dos** cosas y la segunda es la
+      que muerde.
+      1. Falta un campo: el pedestal tiene `tilt` —cuánto se tumba— y no tiene GIRO en planta,
+         así que la cuna no se puede apuntar. Es un campo por pedestal, como `pad`, y sube
+         `SCHEMA`.
+      2. El sembrado **elige** la orientación por su cuenta: coge la cuerda de lo que la cuna
+         cubre (ver la tarea de abajo). Con un campo tecleado eso pasa a ser un valor de
+         partida y no una imposición, y hace falta poder decir «déjalo donde lo puse». Es lo
+         que el taller está pidiendo: en la mesa real la cuna está donde está.
+      Lo que la respuesta a **C.1** añade, y vale más que el campo: **los pedestales del
+      fixture real sí están puestos en micras** —lo que no hay son las medidas, así que hoy
+      se teclean a ojo—. O sea que el límite de 6.16 N por micra sigue en pie tal cual: no es
+      que el fixture sea basto, es que aquí no se sabe dónde está. Sigue esperando **A.5**.
 - [ ] **La cuna no bascula y no siempre puede casar con la barra · [—]** — abierto al cerrar
       FIS-08 el 2026-09-18. La cuna es una chapa recta de `pad` × 44, y sobre una pieza
       curvada la recta que mejor casa con lo que cubre depende del largo de la cuna: sobre un
@@ -113,8 +160,11 @@ Detalle en `CONTEXTO_BARCOMP.md`, «La carga».
       la demo eso deja Δ por debajo de 0.004°. **Se decidió avisar y no modelar más**: las
       otras dos salidas son cunas más cortas donde la barra se curva —`pad` ya es un campo
       por pedestal, así que no cuesta código— o una cuna en V o basculante, que es modelo
-      nuevo y campo nuevo en el esquema. ⛔ Es una pregunta de taller: qué cunas hay montadas,
-      y va preguntada en **C.2**.
+      nuevo y campo nuevo en el esquema. **C.2 contestada el 2026-09-21: «no estoy seguro».**
+      No cierra nada, y con eso la salida deja de ser modelar más: es **dejar que se teclee**.
+      Va junta con la tarea de arriba —el giro en Z del pedestal— porque son el mismo arreglo
+      mirado dos veces: si no se sabe qué cuna hay montada, el programa no puede deducir su
+      orientación, y lo único honesto es que la ponga quien la ve.
 
 
 ## Aplazado a futuras actualizaciones (decisión 2026-09-08)
@@ -156,32 +206,59 @@ Desde el 2026-09-19 las que siguen abiertas viajan escritas en
 [`correo-c-taller.md`](correo-c-taller.md), con la cifra que hace falta para entenderlas.
 Aquí se quedan con el número que citan los mensajes de commit.
 
+**Contestadas de viva voz el 2026-09-21, las nueve.** Tres cierran —**C.6** (≈30 dobleces,
+pero muchas barras), **C.7** (los interruptores no van en Compensar) y **C.8** («haz lo que
+quieras», y por eso el umbral se queda en 0)—; **C.3** cierra y abre trabajo, que es lo que
+tenía que pasar; **C.1** cierra la parte de software y pide dos cosas nuevas; y **C.2**,
+**C.4**, **C.5** y **C.9** se quedan abiertas porque la respuesta fue «no lo sé» o «dame
+consejo», que es una respuesta legítima y **cambia qué hay que hacer**: donde el taller no
+puede deducirlo, el programa tampoco, así que deja de ser algo que modelar y pasa a ser algo
+que se teclea. El consejo pedido en C.9 está escrito abajo, en el punto 10.
+
+Lo que sigue esperando al taller después de esto es **un solo dato y no nueve preguntas**:
+el escaneo de **A.5** —con el fixture puesto y sus pedestales medidos— más el certificado del
+material. Eso solo cierra C.4, C.5, el amarre, la carga y M6.
+
 1. ~~**¿El fixture real tiene mordaza en el primer extremo?**~~
    **Contestada el 2026-09-15: sí.** X-04 cerrado con eso.
-2. **¿Cuántos dobleces tiene la pieza más grande que pasa de verdad?** Si no supera ~30,
-   PERF-01 se cierra sin tocar código. **Y desde el 2026-09-19 se sabe qué hay al otro
-   lado**, que hasta entonces no: a 34 dobleces asentar la pieza cuesta 954 ms contra 250 de
-   presupuesto, y a 60, 16 segundos. No es la pieza más LARGA, es la que más dobleces
-   tiene. · **C.6**
+2. ~~**¿Cuántos dobleces tiene la pieza más grande que pasa de verdad?**~~
+   **Contestada el 2026-09-21: cerca de 30 — pero muchas barras a la vez.** La mitad que se
+   esperaba está bien: una pieza de ~30 dobleces cuesta 134 ms contra 250 de presupuesto, así
+   que **PERF-01 se cierra por el lado de UNA pieza**. Lo que la respuesta abre es otra cosa,
+   y no estaba medida: el coste con VARIAS piezas sujetas a la vez. Lo único que hay del
+   2026-09-19 es de refilón —«el amarre de seis modelos pasa de 84 a 98 ms» con 15 dobleces— y
+   ahí los seis no llevaban carga. Con 30 dobleces por pieza el solver está en 134 ms cada
+   una, así que **dos piezas ya se comen el presupuesto si el coste se suma**. Si se suma o no
+   es justo lo que hay que medir, porque `heldCache` existe y puede estar tapándolo. Tarea
+   nueva, abajo, y **no depende del taller**.
 3. ~~**¿`tol.point` = 1 mm es la tolerancia para decidir si un pedestal apoya?**~~
    **Contestada el 2026-09-15: de momento basta.** Si algún día hace falta una holgura
    propia, se cambia en un solo sitio: `bears()`.
-4. **Con la carga puesta, ¿la desviación se compara contra la forma libre o contra la
-   asentada?** Hoy siempre contra la libre, mientras el 3D puede estar enseñando la
-   asentada. Segunda cara de la pregunta que sigue abierta desde el 09-09. · **C.3**
-   **Desde el 2026-09-19 al menos se dice:** con un interruptor puesto, Compensar avisa de
-   que corrige contra la LIBRE. No contesta la pregunta —la contesta el taller—, pero deja
-   de ser una trampa silenciosa en el único modo donde se decide sobre material.
-5. **¿Cuánto cede el rodado de verdad con los pines puestos?** El modelo usa 0.5 donde la
-   torsión de la sección da 1.22, y con pines laterales eso triplica lo que se mueve la
-   punta (FIS-07). Se contesta con el escaneo de una pieza montada en el fixture: no hay
-   que elegir a ojo. · **C.5**
-   **Cuando llegue la respuesta, es un solo número:** `ROT_STIFF_FAC` en `engine/pins.ts`,
-   que el amarre y la carga importan los dos. Hasta el 2026-09-19 estaba tecleado en cada
-   archivo por separado, así que contestar bien y aplicarlo mal era el resultado probable.
-6. **¿Compensar debe poder ver y apagar el amarre y la carga**, o dejarlos puestos ahí es
-   un error que conviene bloquear? Compensar es el modo taller y es el único donde se
-   decide sobre material. · **C.7**
+4. ~~**Con la carga puesta, ¿la desviación se compara contra la forma libre o contra la
+   asentada?**~~ **Contestada el 2026-09-21: contra la ASENTADA.** La pieza entra en un
+   fixture y se compara contra el CAD **en sitio**, así que la forma que se juzga es la que
+   toma sujeta. Y viene con el criterio de taller detrás, que es lo que de verdad cierra la
+   pregunta: **se ajusta hasta que la forma LIBRE asiente perfecto en el fixture**, y a partir
+   de ahí da igual cuál se mire porque las dos coinciden. O sea que la libre no es el
+   objetivo: es el sitio donde se comprueba que ya no hace falta forzar nada.
+   Lo que cambia en el código: hoy Compensar corrige **siempre** contra la libre y solo avisa
+   (2026-09-19). Con esta respuesta, la referencia por defecto con un interruptor puesto es la
+   asentada, y el aviso deja de ser un aviso y pasa a ser lo que hace. Tarea abajo.
+5. **¿Cuánto cede el rodado de verdad con los pines puestos?** **Contestada a medias el
+   2026-09-21, y la media que falta es la que importa:** «no estoy seguro, depende de la
+   geometría y posición de los pines, no tengo forma de confirmarlo». Las dos mitades sirven.
+   La segunda dice que **no llega número**, así que `ROT_STIFF_FAC = 0.5` se queda
+   provisional y sigue esperando **A.5**, el escaneo. La primera dice algo del MODELO y no del
+   dato: si de verdad depende de la geometría y de dónde están los pines, entonces una
+   constante global es la forma equivocada de escribirlo, y ponerle el número exacto no lo
+   arreglaría. Queda anotado y **no se toca todavía**: cambiar la forma del modelo sin una
+   medida contra la que contrastarlo es cambiar de opinión, no de modelo. · sigue en **C.5**
+6. ~~**¿Compensar debe poder ver y apagar el amarre y la carga**?~~ **Contestada el
+   2026-09-21: no hace falta.** «Compensar es la compensación para cambiar geometría al
+   detalle.» Los interruptores no se exponen ahí. Ojo con leerlo como «Compensar ignora el
+   amarre»: junto con **C.3** dice lo contrario — Compensar usa la referencia que toca, la
+   asentada, sin que nadie tenga que acordarse de encender nada. Las dos respuestas se
+   aplican de una vez o se contradicen. · **C.7**
 7. ~~**¿`CONTACT_K = 1e5` se validó contra una solución exacta** —viga con muelle rígido— o
    solo se contrasta consigo mismo vía `pene`?~~
    **Contestada el 2026-09-16: es una cifra, no un artefacto.** `npm run demo:carga` monta
@@ -194,9 +271,26 @@ Aquí se quedan con el número que citan los mensajes de commit.
    la constante: la fórmula sigue al solver con error < 0.5 % hasta κ ≈ 16, y lo primero que
    se rompe es la linealidad de `gap`, no el muelle. Queda clavado en tres pruebas de motor
    y en el banco.
-8. **Cuando `dev.theta` y la desviación por fila discrepan, ¿cuál manda?** La rama se
-   arregló (C1 + A4, `alignBranch`) y `theta` está visible, que era la disyuntiva D1 del
-   informe del 09-07; lo que no se decidió nunca es el criterio de aceptación. · **C.9**
+8. *(la disyuntiva `theta` vs. fila se movió al punto 10, con el consejo pedido.)*
+9. **¿Cuál es la norma de radio mínimo de tubo?** **Contestada el 2026-09-21: «haz lo que
+   quieras con ella».** Y por eso `tubeRfac` **se queda en 0**, que es «no vigiles esto». No
+   es pereza: es la regla que ya estaba escrita en `engine/lims.ts` desde que el campo nació.
+   Una cifra elegida por mí tendría cara de dato y sería una opinión, y este campo decide
+   qué pieza se RECHAZA. El aviso de la pestaña Sección seguirá diciendo con palabras que el
+   programa no lo juzga, y el campo está ahí para quien traiga la norma. **Cerrada sin tocar
+   código, y el motivo es el valor de la respuesta.** · **C.8**
+10. **Cuando `dev.theta` y la desviación por fila discrepan, ¿cuál manda?** **El taller pide
+   consejo el 2026-09-21.** Lo que se puede aconsejar con lo que hay, y el argumento sale de
+   **C.3**: no compiten, contestan preguntas distintas y las dos hacen falta.
+   - la **fila** dice QUÉ DOBLEZ arreglar. Es la que se mira para tocar la máquina, y es la
+     que tiene que llevar la tolerancia de aceptación;
+   - **`theta`** dice si la PIEZA sirve. Es global, y una pieza con todas las filas dentro
+     puede acumular error y no entrar en el fixture.
+   El consejo, entonces: **acepta por la fila, diagnostica por `theta`, y si `theta` se sale
+   con todas las filas dentro, eso no es una discrepancia — es que el criterio de la fila es
+   demasiado ancho para esta pieza.** Y como el taller mide EN EL FIXTURE (C.3), las dos se
+   tienen que leer sobre la forma ASENTADA o no describen lo que se está mirando. Falta la
+   cifra: la tolerancia de la fila. Esa sí es del taller. · sigue en **C.9**
 
 ## Puesta en marcha con material
 
@@ -231,7 +325,7 @@ el modelo, no ajustar una tolerancia.
 | `STRAIGHT_MIN_MM = 25` | `engine/lims.ts` | B.2 — es una cota de la MÁQUINA (mordaza + carrera) |
 | `E`, `ρ`, `yield` del material | `engine/pins.ts` (`MAT_DEFAULT`) | el certificado; hoy son de catálogo |
 | rigidez de rodado `ROT_STIFF_FAC = 0.5` | `engine/pins.ts` | C.5; la sección da 1.22. Estuvo tecleado a mano en `pins.ts` **y** en `load.ts`, que es donde el cambio se iba a quedar a medias: desde el 2026-09-19 es un solo número y hay prueba que lo clava |
-| `tubeRfac = 0` (no vigilar) | `engine/lims.ts` | C.8 — la norma de radio mínimo de tubo del taller |
+| `tubeRfac = 0` (no vigilar) | `engine/lims.ts` | **C.8 cerrada 2026-09-21: «haz lo que quieras».** Se queda en 0 a propósito — una cifra mía sería una opinión con cara de dato, y este campo rechaza piezas |
 
 ---
 
