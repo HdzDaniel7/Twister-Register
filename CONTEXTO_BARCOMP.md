@@ -704,9 +704,9 @@ punteada. Deja ver de un vistazo cuál doblez está fuera. Es clicable.
 ```bash
 cd web && npm run check            # typecheck -> pruebas -> build -> banco, de una
 cd web && npm run typecheck        # tsc --noEmit, con strict
-cd web && node test_motor.js       # 605 pruebas; todas deben pasar
+cd web && node test_motor.js       # 773 pruebas; todas deben pasar
 cd web && node build.mjs           # regenera index.html y barcomp_viewer.html
-cd web && node tools/ui_test.mjs   # 306 pasos de interfaz en Edge headless
+cd web && node tools/ui_test.mjs   # 309 pasos de interfaz en Edge headless
 cd web && node tools/demo_carga.mjs # κ contra una solución exacta, y el codo del hueco
 cd web && node tools/demo_escala.mjs # dónde el solver de la carga deja de caber
 ```
@@ -1161,6 +1161,58 @@ lo único que ese contador puede decir, y un aviso de no meter nada entre `f0` y
 
 ### Decisiones que siguen gobernando el código
 
+- **El `Δ` de ángulo dejó de comerle recta al de al lado** (2026-09-22, por la
+  tarde, después de la fibra neutra). Pedido del taller, literal: «Cuando modifico
+  compensaciones de los ángulos me modifica compensaciones de distancias, no
+  debería de hacer eso, mi tabla se debería de conservar con los ajustes que yo
+  dé». El diagnóstico: la columna `Δ` de `Recta`, en la pestaña Modelo, no
+  guarda lo que se teclea, lo CALCULA —`straightDelta = recta(pieza) −
+  recta(base)`—, y la recta no es un campo guardado: sale del avance menos los
+  dos trims, así que un `Δ` de ángulo le come trim a su recta y a la de al lado
+  y la celda se encendía sola en dos filas que nadie había tocado. Medido en
+  DEMO-1700 con un `Δ` de 1.5° en B5: las rectas de B5 y B6 pasan de **47.872 y
+  80.930** a **47.003 y 80.061**, 0.869 mm cada una. La decisión, preguntada
+  explícitamente al dueño del proyecto: CONSERVAR LAS RECTAS. Un `Δ` de un
+  parámetro de trim (ángulo, radio) recoloca los `Δ` de AVANCE para dejar las
+  rectas de la pieza donde estaban, que es exactamente lo que `editBend()` hace
+  en la BASE desde el 2026-09-17. El avance sí se mueve, y tiene que moverse: si
+  el doblez se lleva más barra y el avance no cambia, la siguiente estación cae
+  en otro sitio de la barra, y el avance de PI a PI es el estado que se guarda y
+  el que va a la máquina, así que es el sitio correcto donde absorberlo. Lo que
+  se conserva es la recta EFECTIVA, no la de la base: un `Δ` de recta ya
+  tecleado —por ejemplo 0.8 mm— sigue valiendo 0.8 después de corregir un
+  ángulo. Con ese mismo `Δ` de 1.5° en B5 la barra de corte CRECE **1.178 mm**
+  —antes, con las rectas comiéndose el trim, MENGUABA 0.560—, y un `Δ` de 1.5°
+  en el ÚLTIMO doblez deja quieta la recta de la cola y lo paga `tailDelta`,
+  **−0.404 mm**. Una clave que no mueve el trim —`twist`, `twistLen`— entra por
+  el camino corto y no recoloca ningún avance.
+
+  Dos mitades. `web/src/engine/model.ts` gana `straightsAt(v, i)` —las rectas de
+  la pieza que el trim del doblez `i` puede mover: la suya, la del siguiente y
+  la cola si es el último—, `holdStraights(v, i, prev)` —recoloca los `Δ` de
+  avance para devolverlas— y `setDelta(v, i, key, val)`; `web/src/app/actions.ts`
+  hace pasar `editDelta()` por `E.setDelta()`, y `editBend()` captura
+  `E.straightsAt()` antes de tocar la base y llama a `E.holdStraights()`
+  después. La cuenta vive en el MOTOR y no en la interfaz por la misma regla de
+  siempre: la tabla de quien opera no puede cambiar sola y eso hay que poder
+  probarlo sin navegador. Editar el ángulo en la BASE ya dejaba quietas sus
+  propias rectas desde el 09-17, pero el `Δ` de avance es un desplazamiento FIJO
+  y los trims con los que se descuenta cambian al cambiar el ángulo de la base:
+  sin `holdStraights()` quedaba un residuo de **0.0026 mm** en el banco de
+  interfaz —poco, pero de la misma familia, un número que se mueve solo, y
+  suficiente para encender la celda—. Un suelo de 1e-9 al escribir los `Δ` de
+  avance, porque un 1e-16 encendería la fila entera con un `Δ` que nadie
+  tecleó. **No sube el esquema**: no cambia ni un dato guardado, cambia cuándo
+  se recalcula el avance, que ya era un campo derivado de la recta desde el
+  2026-09-17.
+
+  Lo que se comprobó y estaba limpio, para no volver a buscarlo: la pestaña
+  Compensar no tenía este defecto. `compensate()` corrige el ángulo con el
+  error de ángulo y el avance con el error de avance, sin cruce
+  (`web/src/engine/compensate.ts`, líneas 275-279), y `editTweak()` solo
+  escribe su propia celda de `ST.tweak`. El cruce estaba únicamente en la tabla
+  del Modelo. Nets: `node test_motor.js` **755 → 773** pruebas, `node
+  tools/ui_test.mjs` **306 → 309** pasos.
 - **Las longitudes se cuentan sobre la FIBRA NEUTRA** (2026-09-22). `L`, `Σ L`, la
   longitud del pie y las columnas `arc`/`cum` del CSV de máquina dejan de
   contarse sobre el centro de la sección y pasan a contarse sobre la fibra

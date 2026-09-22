@@ -208,6 +208,112 @@ console.log('\n— longitudes por doblez —');
                 - E.developedLength(effu)) < 1e-12);
   }
 
+  /* LA TABLA DE AJUSTES NO SE MUEVE SOLA (2026-09-22, misma tarde). Lo de
+     arriba es lo que un Δ de angulo le HACE a la recta; esto es lo que el
+     programa hace con ello. Pedido por el taller: «cuando modifico
+     compensaciones de los angulos me modifica compensaciones de distancias, mi
+     tabla se deberia conservar con los ajustes que yo de». `setDelta()`
+     recoloca los Δ de avance para dejar las rectas de la PIEZA quietas, igual
+     que `editBend()` en la base. El avance se mueve, y tiene que moverse. */
+  {
+    const nb = M.bends.length;
+    const mkv = () => E.syncDeltas({ id: 'v', name: 'v', base: E.cloneModel(M),
+                                     deltas: [], tailDelta: 0 });
+
+    const v = mkv();
+    E.setDelta(v, 4, 'angle', 1.5);
+    const eff = E.effectiveModel(v);
+    ok('setDelta: un Δ de angulo deja las DOS rectas donde estaban',
+       Math.abs(E.straightOf(eff, 4) - E.straightOf(M, 4)) < 1e-9
+       && Math.abs(E.straightOf(eff, 5) - E.straightOf(M, 5)) < 1e-9,
+       `${E.straightOf(eff, 4).toFixed(6)} y ${E.straightOf(eff, 5).toFixed(6)}`);
+    ok('  o sea que la columna del Δ de la Recta se queda en cero',
+       Math.abs(E.straightDelta(M, eff, 4)) < 1e-9
+       && Math.abs(E.straightDelta(M, eff, 5)) < 1e-9);
+    ok('  y el angulo tecleado sigue siendo el tecleado',
+       Math.abs(v.deltas[4].angle - 1.5) < 1e-12);
+    ok('  el precio es el AVANCE: 0.869 mm en cada una de las dos filas',
+       Math.abs(v.deltas[4].feed - 0.869) < 5e-4 && Math.abs(v.deltas[5].feed - 0.869) < 5e-4,
+       `${v.deltas[4].feed.toFixed(4)} y ${v.deltas[5].feed.toFixed(4)} mm`);
+    ok('  y ninguna fila ajena toca su avance',
+       maxAbs(v.deltas.map((d, k) => (k === 4 || k === 5) ? 0 : d.feed)) < 1e-12);
+    /* la barra CRECE: antes el doblez se comia 1.738 mm de recta y ahora no */
+    ok('  con las rectas quietas la barra de corte CRECE 1.178 mm',
+       Math.abs((E.cutLength(eff) - E.cutLength(M)) - 1.178) < 5e-4,
+       `${(E.cutLength(eff) - E.cutLength(M)).toFixed(4)} mm`);
+
+    /* lo que se conserva es la recta EFECTIVA, no la de la base */
+    const w = mkv();
+    const ew = E.effectiveModel(w);
+    w.deltas[4].feed = E.feedDeltaForStraightDelta(w.base, ew, 4, 0.8);
+    E.setDelta(w, 4, 'angle', 1.5);
+    ok('un Δ de RECTA ya tecleado sobrevive a corregir el angulo',
+       Math.abs(E.straightDelta(M, E.effectiveModel(w), 4) - 0.8) < 1e-9,
+       `${E.straightDelta(M, E.effectiveModel(w), 4).toFixed(6)} vs 0.8`);
+
+    /* el ultimo doblez no tiene fila siguiente: le toca a la cola */
+    const u = mkv();
+    E.setDelta(u, nb - 1, 'angle', 1.5);
+    ok('un Δ en el ULTIMO doblez deja quieta la recta de la cola',
+       Math.abs(E.tailStraight(E.effectiveModel(u)) - E.tailStraight(M)) < 1e-9,
+       `${E.tailStraight(E.effectiveModel(u)).toFixed(6)}`);
+    ok('  y lo paga tailDelta, no la recta',
+       Math.abs(u.tailDelta + 0.404) < 5e-4, `${u.tailDelta.toFixed(4)} mm`);
+
+    /* una clave que no mueve el trim entra por el camino corto */
+    const t = mkv();
+    E.setDelta(t, 4, 'twist', 3);
+    ok('un Δ que no toca el trim no recoloca ningun avance',
+       Math.abs(t.deltas[4].twist - 3) < 1e-12
+       && maxAbs(t.deltas.map(d => d.feed)) < 1e-12 && t.tailDelta === 0);
+
+    /* un radio tambien mueve el trim, y entra por el mismo sitio */
+    const r = mkv();
+    E.setDelta(r, 4, 'radius', 10);
+    ok('un Δ de RADIO tambien deja las rectas quietas',
+       Math.abs(E.straightOf(E.effectiveModel(r), 4) - E.straightOf(M, 4)) < 1e-9
+       && Math.abs(E.straightOf(E.effectiveModel(r), 5) - E.straightOf(M, 5)) < 1e-9);
+    ok('  y mueve el avance de verdad, no por redondeo',
+       Math.abs(r.deltas[4].feed) > 1, `${r.deltas[4].feed.toFixed(3)} mm`);
+
+    /* fuera de rango no revienta ni escribe */
+    const z = mkv();
+    E.setDelta(z, nb + 3, 'angle', 5);
+    ok('un indice fuera de rango no escribe nada',
+       maxAbs(z.deltas.map(d => d.angle + d.feed)) < 1e-12 && z.deltas.length === nb);
+
+    /* LA OTRA MITAD: editar el angulo en la BASE tampoco puede mover la recta
+       de la PIEZA. editBend() ya dejaba quietas las rectas de la base, pero el
+       Δ de avance es un desplazamiento fijo y los trims con que se descuenta
+       cambian con el angulo de la base: quedaba un residuo. Esto es lo que
+       hace editBend(), con holdStraights() cerrando el hueco. */
+    const e = mkv();
+    E.setDelta(e, 3, 'angle', 2.5);
+    const rectaPieza = [3, 4].map(k => E.straightOf(E.effectiveModel(e), k));
+    const rectaBase = [3, 4].map(k => E.straightOf(e.base, k));
+    const guarda = E.straightsAt(e, 3);
+    e.base.bends[3].angle = e.base.bends[3].angle + 5;
+    e.base.bends[3].feed = E.feedForStraight(e.base, 3, rectaBase[0]);
+    e.base.bends[4].feed = E.feedForStraight(e.base, 4, rectaBase[1]);
+    ok('sin holdStraights, cambiar el angulo de la BASE movia la recta de la pieza',
+       Math.abs(E.straightOf(E.effectiveModel(e), 3) - rectaPieza[0]) > 1e-6);
+    E.holdStraights(e, 3, guarda);
+    ok('holdStraights devuelve las rectas de la PIEZA a donde estaban',
+       Math.abs(E.straightOf(E.effectiveModel(e), 3) - rectaPieza[0]) < 1e-9
+       && Math.abs(E.straightOf(E.effectiveModel(e), 4) - rectaPieza[1]) < 1e-9);
+    ok('  y las de la BASE siguen quietas: las dos cuentas cuadran a la vez',
+       Math.abs(E.straightOf(e.base, 3) - rectaBase[0]) < 1e-9
+       && Math.abs(E.straightOf(e.base, 4) - rectaBase[1]) < 1e-9);
+    ok('  asi que el Δ de la Recta sigue marcando lo que marcaba',
+       maxAbs([3, 4].map(k => E.straightDelta(e.base, E.effectiveModel(e), k))) < 1e-9);
+
+    /* el ruido de coma flotante no puede encender una fila entera */
+    const q0 = mkv();
+    E.holdStraights(q0, 5, E.straightsAt(q0, 5));
+    ok('recolocar sin cambiar nada deja los avances en CERO, no en 1e-16',
+       q0.deltas[5].feed === 0 && q0.deltas[6].feed === 0 && !E.hasDeltas(q0));
+  }
+
   /* LA BARRA QUE SE GASTA NO ES EL CAMINO QUE RECORRE EL EJE (2026-09-22).
      `rowLengths()` servia a dos amos: la geometria —el eje que se dibuja, la
      cinta, los pedestales, los tramos del STEP— y el material, o sea cuanta

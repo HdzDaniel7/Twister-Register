@@ -12,7 +12,8 @@ import type { Bend, Model, Variant, DeltaKey, Delta, Lims } from '../types.ts';
 import { clamp, wrapTurn, mulberry32 } from './math.ts';
 import { BEND_DEFAULT, newBend, bendFrom, normalizeModel, cloneModel } from './bend.ts';
 import type { RawModel } from './bend.ts';
-import { fk, ik, canonRot } from './kinematics.ts';
+import { fk, ik, canonRot, straightOf, feedForStraight,
+         tailStraight, tailForStraight } from './kinematics.ts';
 import { LIMS_DEFAULT } from './lims.ts';
 
 /* ------------------------------------------------------------------ modelo */
@@ -115,6 +116,90 @@ export function effectiveModel(v: Variant): Model {
   m.name = v.name ?? m.name;
   return m;
 }
+/* --- LA TABLA DE AJUSTES NO SE MUEVE SOLA ---------------------------------
+   La columna de Δ es la tabla de quien opera: lo que hay escrito ahí lo
+   escribió alguien, y tiene que seguir diciendo lo mismo mañana. Pero la RECTA
+   no es un campo guardado —sale del avance menos los dos trims— así que
+   cualquier cosa que mueva el trim le come recta al doblez y al siguiente.
+   Medido en DEMO-1700 con 1.5° en B5: las rectas de B5 y B6 pasan de 47.872 y
+   80.930 a 47.003 y 80.061, 0.869 mm cada una, y hasta el 2026-09-22 por la
+   tarde la columna del Δ de la Recta se encendía sola en dos filas que nadie
+   había tocado.
+
+   Desde entonces, quien mueve el trim RECOLOCA los avances para dejar las
+   rectas donde estaban — las dos veces:
+
+     · `editBend()` ya lo hacía desde el 2026-09-17 con las rectas de la BASE;
+     · `setDelta()` lo hace con los Δ, y `holdStraights()` cierra la otra
+       mitad: editar el ángulo en la base tampoco puede mover la recta de la
+       PIEZA, que es base + Δ. Sin eso quedaba un residuo de 0.0026 mm en el
+       banco, pequeño pero de la misma familia: un número que se movía solo.
+
+   El avance sí se mueve, y tiene que moverse: si el doblez se lleva más barra
+   y el avance no cambia, la siguiente estación cae en otro sitio de la barra.
+   El avance de PI a PI es el estado que se guarda y lo que va a la máquina, así
+   que es el sitio correcto donde absorberlo.
+
+   Lo que se conserva es la recta EFECTIVA, no la de la base: un Δ de recta ya
+   tecleado sigue valiendo lo tecleado después de corregir un ángulo.
+
+   `rot` está en la lista por simetría con `editBend()`: el trim no depende del
+   rodado —`bendDecomp()` saca theta solo del ángulo— así que entrar por aquí
+   con un Δ de rodado recalcula el mismo avance y no cambia nada. Se quita de
+   los dos sitios a la vez, en una pasada que no cambie comportamiento. */
+const TRIM_DELTA_KEYS: DeltaKey[] = ['radius', 'rot', 'angle'];
+
+/* Por debajo de esto no hay recta que valga: es ruido de coma flotante, y
+   escribirlo encendería la fila entera con un Δ que nadie tecleó. */
+const CERO = 1e-9;
+const snap = (x: number): number => Math.abs(x) < CERO ? 0 : x;
+
+/** Las rectas de la PIEZA que el trim del doblez `i` puede mover: la suya, la
+ *  del siguiente y la de la cola si `i` es el último. Se miran solo esas para
+ *  no arrastrar el error de ida y vuelta por las quince filas a cada tecla. */
+export function straightsAt(v: Variant, i: number): (number | null)[] {
+  const m = effectiveModel(v), n = v.base.bends.length;
+  return [
+    straightOf(m, i),
+    i + 1 < n ? straightOf(m, i + 1) : null,
+    i === n - 1 ? tailStraight(m) : null,
+  ];
+}
+
+/** Recoloca los Δ de avance para devolver esas rectas a donde estaban.
+ *
+ *  TRAMPA: `effectiveModel()` llama por dentro a `syncDeltas()`, que REEMPLAZA
+ *  `v.deltas` por objetos nuevos, así que el efectivo se saca a una variable
+ *  ANTES de escribir o la asignación aterriza en el array que se acaba de tirar
+ *  y no pasa nada visible. Y basta UNA pasada: `feedForStraight()` solo lee
+ *  trims, nunca avances, así que `eff` sigue valiendo después de escribir. */
+export function holdStraights(v: Variant, i: number, prev: (number | null)[]): Variant {
+  syncDeltas(v);
+  const n = v.base.bends.length;
+  if (!(i >= 0 && i < n)) return v;
+  const eff = effectiveModel(v);
+  const [rectaI, rectaSig, cola] = prev;
+  if (rectaI !== null) {
+    v.deltas[i].feed = snap(feedForStraight(eff, i, rectaI) - v.base.bends[i].feed);
+  }
+  if (rectaSig !== null && i + 1 < n) {
+    v.deltas[i + 1].feed = snap(feedForStraight(eff, i + 1, rectaSig) - v.base.bends[i + 1].feed);
+  }
+  if (cola !== null) v.tailDelta = snap(tailForStraight(eff, cola) - v.base.tail);
+  return v;
+}
+
+/** Escribe un Δ en la columna `key` del doblez `i` dejando quietas las rectas
+ *  de la PIEZA. Devuelve la misma variante, ya sincronizada. */
+export function setDelta(v: Variant, i: number, key: DeltaKey, val: number): Variant {
+  syncDeltas(v);
+  if (!(i >= 0 && i < v.base.bends.length)) return v;
+  if (!TRIM_DELTA_KEYS.includes(key)) { v.deltas[i][key] = val; return v; }
+  const prev = straightsAt(v, i);
+  v.deltas[i][key] = val;
+  return holdStraights(v, i, prev);
+}
+
 /** Funde los deltas en la base y los deja en cero. Sin vuelta atrás. */
 export function bakeDeltas(v: Variant): Variant {
   const m = effectiveModel(v);

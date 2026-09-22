@@ -64,6 +64,11 @@ export function editBend(i: number, key: DeltaKey, val: number): void {
   const sig = i + 1 < B.length ? i + 1 : -1;
   const rectaSig = sig >= 0 ? E.straightOf(v.base, sig) : 0;
   const cola = i === B.length - 1 ? E.tailStraight(v.base) : null;
+  /* Y las de la PIEZA, que con un Δ puesto NO son las mismas: el Δ de avance es
+     un desplazamiento fijo, pero los trims con los que se descuenta cambian al
+     cambiar el ángulo de la base. Sin esto quedaba un residuo —0.0026 mm en el
+     banco— y la columna del Δ de la Recta volvía a encenderse sola. */
+  const piezaAntes = E.straightsAt(v, i);
 
   B[i][key] = val;
 
@@ -71,6 +76,8 @@ export function editBend(i: number, key: DeltaKey, val: number): void {
   B[i].feed = E.feedForStraight(v.base, i, rectaI);
   if (sig >= 0) B[sig].feed = E.feedForStraight(v.base, sig, rectaSig);
   if (cola !== null) v.base.tail = cola + E.trimOf(B[B.length - 1]);
+
+  E.holdStraights(v, i, piezaAntes);
 
   syncModel(); syncCommand(); refreshTable();
 }
@@ -116,11 +123,13 @@ export function editTail(val: number): void {
   v.base.tail = E.tailForStraight(v.base, val);
   syncModel(); syncCommand(); refreshTable();
 }
+/** Δ de una columna de la tabla. Un Δ de ángulo o de radio RECOLOCA los Δ de
+ *  avance para dejar las rectas de la pieza donde estaban, igual que editar el
+ *  ángulo en la BASE. La cuenta está en `setDelta()`, en el motor, porque la
+ *  tabla de ajustes de quien opera no puede cambiar sola y eso hay que poder
+ *  probarlo sin navegador. */
 export function editDelta(i: number, key: DeltaKey, val: number): void {
-  const v = V();
-  E.syncDeltas(v);
-  if (!(i >= 0 && i < v.deltas.length)) return;
-  v.deltas[i][key] = val;
+  E.setDelta(V(), i, key, val);
   syncModel(); syncCommand(); refreshTable();
 }
 /** Edición ABSOLUTA en el espacio de los PI: mover un punto deja los demás

@@ -45,10 +45,10 @@ tiene internet.
 - **La tabla cuadra hacia abajo.** Cada columna editable va sobre la base con su
   `Δ` al lado, y la suma de las dos es la pieza que se dibuja. Con la `Recta`
   eso obliga a que su `Δ` esté en **milímetros de recta y no de avance**: la
-  recta no es un campo guardado, sale del avance menos los dos trims, así que un
-  `Δ` de ángulo la acorta sin tocar ningún avance. Con el `Δ` del avance en esa
-  columna, un `Δ` de 1.5° en B5 marcaba cero mientras `Σ L` subía 0.869 mm menos
-  de lo que sumaba la fila.
+  recta no es un campo guardado, sale del avance menos los dos trims. Un `Δ`
+  de ángulo o de radio no la mueve: recoloca el `Δ` del avance para dejarla
+  donde estaba, lo mismo si se teclea en la columna del `Δ` que en la base,
+  porque el avance es lo que se guarda y lo que va a la máquina.
 - **La tabla se recorre con el teclado como una hoja de cálculo**: Tab / ⇧Tab en
   horizontal, Enter y ↑ ↓ en vertical, Esc descarta la celda, y el valor sube o
   baja un paso con la rueda del ratón o con Ctrl+↑ ↓. El foco no se pierde al
@@ -292,7 +292,7 @@ web/
   src/app.css       tokens de diseño y layout; la paleta de los DOS temas
   src/shell.html    esqueleto con los marcadores del build
   build.mjs         esbuild: src/ + three  ->  index.html
-  test_motor.js     755 pruebas del motor y del i18n, en Node y sin navegador
+  test_motor.js     773 pruebas del motor y del i18n, en Node y sin navegador
   tools/            banco de interfaz por CDP y las sondas de medición
 index.html          SALIDA GENERADA — no se edita a mano
 ```
@@ -317,9 +317,9 @@ cd web
 npm install          # una sola vez: three + esbuild
 npm run check        # typecheck -> pruebas -> build -> banco de interfaz
 npm run typecheck    # tsc --noEmit, con strict
-npm test             # 755 pruebas del motor y del i18n
+npm test             # 773 pruebas del motor y del i18n
 npm run build        # regenera index.html (y web/barcomp_viewer.html en local)
-npm run test:ui      # 306 pasos de interfaz en Edge headless, por CDP
+npm run test:ui      # 309 pasos de interfaz en Edge headless, por CDP
 npm run demo:amarre  # cinco escenarios del amarre, con las cifras a la vista
 npm run demo:carga   # el muelle de contacto contra una solución exacta, y el codo
                      # del hueco que impide cerrar FIS-10b
@@ -478,18 +478,24 @@ la palabra «Cola» nombraba dos números: el campo decía `160.00` y el pie
 mano el último `Σ L` más la cola del campo se iba **5.34 mm** por encima de la
 longitud desarrollada, sin que nada estuviera mal calculado.
 
-Y la columna del `Δ` de la `Recta` lleva **milímetros de recta**, no de avance.
-La recta no se guarda: sale del avance menos los dos trims, así que un `Δ` de
-ángulo mueve **dos** rectas —la suya y la de al lado— sin tocar ni un avance.
-Con el `Δ` del avance en esa columna, un `Δ` de 1.5° en B5 dejaba la columna en
-cero mientras las rectas de B5 y B6 se acortaban **0.869 mm** cada una, y `Σ L`
-subía 0.869 menos de lo que sumaban la recta y la `L` de esa fila. Se teclea el
-`Δ` de la recta y se guarda el `Δ` del avance, igual que arriba se teclea una
-recta y se guarda un avance. Tecleando el ángulo en la **base** esto no pasa:
-`editBend()` recoloca los avances para dejar las rectas quietas. El camino del
-`Δ` no lo hace a propósito —un `Δ` es una corrección del lazo y no puede ir
-moviendo avances que nadie pidió— así que la diferencia **se enseña** en vez de
-taparse.
+Y la columna del `Δ` de la `Recta` lleva **milímetros de recta**, no de avance,
+porque la recta no se guarda: sale del avance menos los dos trims. Hasta el
+2026-09-22 por la tarde eso significaba que un `Δ` de ángulo movía **dos**
+rectas —la suya y la de al lado— sin tocar ni un avance: con el `Δ` del avance
+en esa columna, un `Δ` de 1.5° en B5 dejaba la columna en cero mientras las
+rectas de B5 y B6 se acortaban **0.869 mm** cada una, y `Σ L` subía 0.869 menos
+de lo que sumaban la recta y la `L` de esa fila. Pedido del taller, literal:
+«mi tabla se debería de conservar con los ajustes que yo dé». Ahora un `Δ` de
+un parámetro de trim —ángulo, radio— CONSERVA las rectas y recoloca el `Δ` del
+avance para absorber el cambio, lo mismo si se teclea en la columna del `Δ`
+que en la **base**. Con ese mismo `Δ` de 1.5° en B5 las rectas de B5 y B6 quedan
+quietas al 1e-9 y el precio son 0.869 mm de `Δ` de avance en cada una de esas
+dos filas; ninguna fila ajena toca su avance, y la barra de corte —que antes,
+con las rectas comiéndose el trim, MENGUABA 0.560 mm— ahora CRECE 1.178 mm,
+que es el doblez más grande llevándose más barra. Se teclea el `Δ` de la recta
+y se guarda el `Δ` del avance, igual que arriba se teclea una recta y se
+guarda un avance. Una clave que no mueve el trim —`twist`, `twistLen`— entra
+por el camino corto y no recoloca ningún avance.
 
 ### `L` y `Σ L` van sobre la FIBRA NEUTRA
 

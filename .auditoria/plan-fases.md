@@ -220,6 +220,37 @@ Detalle en `CONTEXTO_BARCOMP.md`, «La carga».
         pediría mandril. La pantalla lo avisa con un cuadro rojo; no hay norma que lo
         sustituya sin la K medida de la tarea de arriba.
 
+- [x] **Un `Δ` de ángulo dejaba de conservar las rectas de al lado · [O]** — **arreglado el
+      2026-09-22, por la tarde**, a raíz del pedido del taller: «Cuando modifico
+      compensaciones de los ángulos me modifica compensaciones de distancias, no debería de
+      hacer eso, mi tabla se debería de conservar con los ajustes que yo dé». La columna `Δ`
+      de `Recta` no guardaba lo que se tecleaba, lo CALCULABA —`straightDelta =
+      recta(pieza) − recta(base)`—, así que un `Δ` de ángulo le comía trim a su recta y a la
+      de al lado y la celda se encendía sola en dos filas que nadie había tocado. Medido en
+      DEMO-1700 con un `Δ` de 1.5° en B5: las rectas de B5 y B6 pasan de 47.872 y 80.930 a
+      47.003 y 80.061, 0.869 mm cada una. Decisión: se CONSERVAN las rectas y se recoloca el
+      `Δ` de AVANCE, igual que `editBend()` ya hace en la base desde el 2026-09-17 — el
+      avance es el estado que se guarda y el que va a la máquina, así que es el sitio
+      correcto donde absorber que el doblez se lleve más barra. Con ese `Δ` la barra de
+      corte pasa de MENGUAR 0.560 mm a CRECER **1.178 mm**, y el `Δ` en el último doblez lo
+      paga `tailDelta` (−0.404 mm). Dos mitades: `engine/model.ts` gana `straightsAt()`,
+      `holdStraights()` y `setDelta()`; `app/actions.ts` hace pasar `editDelta()` por
+      `E.setDelta()` y `editBend()` captura `E.straightsAt()` antes de tocar la base y llama
+      `E.holdStraights()` después — sin esto quedaba un residuo de 0.0026 mm al editar el
+      ángulo en la base, mismo defecto en miniatura. Suelo de 1e-9 al escribir los `Δ` de
+      avance. **No sube el esquema.** Comprobado y limpio: la pestaña Compensar no tenía
+      este cruce (`compensate()`, `web/src/engine/compensate.ts` líneas 275-279). Nets:
+      `node test_motor.js` 755 → 773 pruebas, `node tools/ui_test.mjs` 306 → 309 pasos.
+      Detalle completo en `CONTEXTO_BARCOMP.md` §11.
+
+- [ ] **`'rot'` sigue en DOS listas de claves de trim · [S]** — creencia vieja de cuando
+      `rot` era componente de doblez; el trim no depende del rodado —`bendDecomp()` saca θ
+      solo del ángulo—, así que editar `rot` entra al camino de recolocar avances para nada
+      y sale el mismo avance de vuelta. Hasta el 2026-09-22 estaba solo en `TRIM_KEYS`
+      (`web/src/app/actions.ts`); con `holdStraights()` la lista se duplicó en
+      `TRIM_DELTA_KEYS` (`web/src/engine/model.ts`), así que ahora hay que quitarlo de las
+      DOS a la vez, en una pasada que no cambie comportamiento.
+
 - [x] **El pedestal no gira en Z, y el sembrado lo gira contra la pieza · [O]** — **hecho el
       2026-09-21.** `Pedestal.yaw`, esquema `barcomp/2.5`, y la cuna deja de apuntarse sola.
       Lo que queda de esta entrada es el porqué, que sigue valiendo — pedido por

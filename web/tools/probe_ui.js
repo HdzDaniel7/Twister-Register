@@ -274,29 +274,89 @@ step('Recta + su Δ + L es exactamente lo que sube Sigma L', () => {
   }
 });
 
-step('  y un Δ de angulo aparece en el Δ de la Recta, no en cero', () => {
+/* LA TABLA DE AJUSTES NO SE MUEVE SOLA (2026-09-22, misma tarde). Pedido por el
+   taller: «cuando modifico compensaciones de los angulos me modifica
+   compensaciones de distancias». Un Δ de angulo le come trim a dos rectas, asi
+   que ahora RECOLOCA los Δ de avance para dejarlas quietas, igual que editar el
+   angulo en la base. Estos pasos no pueden pasar con el comportamiento
+   anterior: entonces el Δ de la recta de B4 se encendia solo y su avance
+   quedaba en cero. */
+step('  y un Δ de angulo NO mueve el Δ de la Recta', () => {
   /* B4 arrastra un Δ de angulo de 2.5 grados desde el principio del banco */
   const d = +q('input[data-bd="3"][data-k="straight"]').value;
-  if (Math.abs(d) < 0.01) throw new Error('el Δ de la recta marca cero: ' + d);
-  /* y el avance guardado sigue en cero: nadie ha tecleado un avance */
-  near(S().variants[0].deltas[3].feed, 0, 1e-9, 'el Δ de angulo movio un avance');
+  if (Math.abs(d) > 1e-3) throw new Error('el Δ de la recta se movio solo: ' + d);
+  /* y lo paga el avance, que es lo que tiene que moverse */
+  const f = S().variants[0].deltas[3].feed;
+  if (Math.abs(f) < 0.01) throw new Error('el avance no recogio el trim: ' + f);
 });
 
+step('  teclear un Δ de angulo deja quietas las DOS rectas de al lado', () => {
+  const v = S().variants[0];
+  const dstr = i => +q('input[data-bd="' + i + '"][data-k="straight"]').value;
+  const base = i => +q('input[data-st="' + i + '"]').value;
+  const b6 = base(6), b7 = base(7), arco = celda(6, 'arc');
+  setval('input[data-bd="6"][data-k="angle"]', '2');
+  if (Math.abs(dstr(6)) > 1e-3 || Math.abs(dstr(7)) > 1e-3) {
+    throw new Error('el Δ de la recta se encendio solo: ' + dstr(6) + ' y ' + dstr(7));
+  }
+  near(base(6), b6, 1e-6, 'la recta de la base se movio');
+  near(base(7), b7, 1e-6, 'la recta de la base de al lado se movio');
+  if (Math.abs(v.deltas[6].feed) < 0.01) throw new Error('el avance no se movio');
+  /* y la pieza SI cambia: el doblez de verdad se lleva mas barra */
+  if (!(celda(6, 'arc') > arco + 0.1)) throw new Error('el arco no crecio');
+  setval('input[data-bd="6"][data-k="angle"]', '0');
+  near(v.deltas[6].feed, 0, 1e-9, 'el avance no volvio a cero');
+});
+
+step('  y un Δ de RECTA ya tecleado sobrevive a corregir el angulo', () => {
+  setval('input[data-bd="6"][data-k="straight"]', '1.2');
+  setval('input[data-bd="6"][data-k="angle"]', '2');
+  const d = +q('input[data-bd="6"][data-k="straight"]').value;
+  near(d, 1.2, 1e-3, 'el ajuste tecleado se perdio');
+  setval('input[data-bd="6"][data-k="angle"]', '0');
+  setval('input[data-bd="6"][data-k="straight"]', '0');
+  near(S().variants[0].deltas[6].feed, 0, 1e-9, 'quedo avance colgando');
+});
+
+/* LA OTRA MITAD. editBend() ya dejaba quietas las rectas de la BASE, pero el Δ
+   de avance es un desplazamiento fijo y los trims con que se descuenta cambian
+   con el angulo de la base: la recta de la PIEZA se movia igual. Con solo la
+   mitad del arreglo esto dejaba un residuo de 0.0026 mm, que es poco pero
+   enciende la celda. */
+step('  ni tecleando el angulo en la BASE con un Δ puesto', () => {
+  const v = S().variants[0];
+  const dstr = i => +q('input[data-bd="' + i + '"][data-k="straight"]').value;
+  setval('input[data-bd="6"][data-k="angle"]', '2');
+  const campo = q('input[data-b="6"][data-k="angle"]');
+  const ang0 = +campo.value;
+  setval('input[data-b="6"][data-k="angle"]', String(ang0 + 5));
+  if (Math.abs(dstr(6)) > 1e-3 || Math.abs(dstr(7)) > 1e-3) {
+    throw new Error('el Δ de la recta se movio con el angulo de la base: '
+                    + dstr(6) + ' y ' + dstr(7));
+  }
+  near(Eg().straightOf(v.base, 6), Eg().rowLengths(S().model)[6].straight, 1e-6,
+       'base y pieza dejaron de coincidir');
+  setval('input[data-b="6"][data-k="angle"]', String(ang0));
+  setval('input[data-bd="6"][data-k="angle"]', '0');
+  near(v.deltas[6].feed, 0, 1e-9, 'quedo avance colgando');
+});
+
+/* El rojo mira la recta EFECTIVA, que es la que hay que fabricar y la misma que
+   juzga feasNote(). Desde que un Δ de angulo deja las rectas quietas, la unica
+   forma de acortar una recta desde la columna de Δ es tecleando un Δ de RECTA:
+   el campo sigue enseñando la base, 47.87, y aun asi tiene que ponerse rojo. */
 step('el rojo de la Recta mira la recta de la PIEZA, no la de la base', () => {
   const v = S().variants[0];
   const campo = () => q('input[data-st="4"]');
   if (campo().classList.contains('v-bad')) throw new Error('ya nacia en rojo');
-  /* 35 grados de mas en B5 le comen 26.5 mm de trim a su recta: 47.87 pasa a
-     21.4, por debajo de los 25 de recta minima. El campo sigue enseñando la
-     base, que son 47.87, y aun asi tiene que ponerse rojo. */
-  setval('input[data-bd="4"][data-k="angle"]', '35');
+  setval('input[data-bd="4"][data-k="straight"]', '-26');
   const real = Eg().rowLengths(S().model)[4].straight;
   if (!(real < 25)) throw new Error('la recta efectiva no bajo de 25: ' + real.toFixed(2));
   near(+campo().value, Eg().straightOf(v.base, 4), 0.006, 'el campo dejo de enseñar la base');
   if (!campo().classList.contains('v-bad')) {
     throw new Error('recta efectiva ' + real.toFixed(2) + ' mm y el campo no esta en rojo');
   }
-  setval('input[data-bd="4"][data-k="angle"]', '0');
+  setval('input[data-bd="4"][data-k="straight"]', '0');
   if (campo().classList.contains('v-bad')) throw new Error('se quedo en rojo');
 });
 
@@ -553,18 +613,17 @@ step('la rueda sigue subiendo el valor', () => {
    AVANCE, marcaba cero, y Σ L subia menos de lo que sumaba la fila. */
 step('el Δ de la Recta se teclea en mm de RECTA, no de avance', () => {
   const v = S().variants[0], antes = celda(3, 'cum');
-  /* B4 ya trae Δ de recta por su Δ de angulo: lo que sube Sigma L es la
-     DIFERENCIA, no el 0.8 entero */
-  const d0 = Eg().straightDelta(v.base, S().model, 3);
+  /* B4 arrastra un Δ de angulo de 2.5 grados, pero ya NO arrastra Δ de recta:
+     el avance se recoloco para dejarla quieta. Asi que lo que sube Sigma L es
+     el 0.8 entero, y el avance guardado sale 0.8 sobre el trim que ya recogia. */
+  const f0 = v.deltas[3].feed;
+  near(Eg().straightDelta(v.base, S().model, 3), 0, 1e-9, 'B4 nacia con Δ de recta');
   setval('input[data-bd="3"][data-k="straight"]', '0.8');
   near(Eg().straightDelta(v.base, S().model, 3), 0.8, 1e-9, 'Δ de recta');
-  near(celda(3, 'cum'), antes + (0.8 - d0), 0.01, 'Sigma L recoge el delta');
-  if (Math.abs(v.deltas[3].feed - 0.8) < 1e-6) {
-    throw new Error('el avance guardado salio igual que la recta: ' + v.deltas[3].feed);
-  }
-  /* se devuelve el Δ DE RECTA que habia, que es lo que deja el avance en cero */
-  setval('input[data-bd="3"][data-k="straight"]', String(d0));
-  near(v.deltas[3].feed, 0, 1e-9, 'el avance no volvio a cero');
+  near(celda(3, 'cum'), antes + 0.8, 0.01, 'Sigma L recoge el delta');
+  near(v.deltas[3].feed, f0 + 0.8, 1e-6, 'el avance no recogio la recta tecleada');
+  setval('input[data-bd="3"][data-k="straight"]', '0');
+  near(v.deltas[3].feed, f0, 1e-9, 'el avance no volvio a lo que era');
 });
 
 /* ------------------------------------------------------------- tema ---- */
