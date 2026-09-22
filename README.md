@@ -344,11 +344,14 @@ comprobación del artefacto falla, y falla con razón.
 
 Hay dos sondas de medición, que no son pruebas: `tools/probe_perf.js` mide el
 coste de la escena dentro del navegador y `tools/bundle_report.mjs` dice de qué
-está hecho el bundle. Hoy: `rebuildScene()` 2.8 ms con 15 dobleces y 9.6 ms con
-60, sin fugas de geometría, cero cuadros dibujados en reposo, y un paso de
-deshacer cuesta 6 µs y 5.3 KB.
+está hecho el bundle. Hoy: `rebuildScene()` 0.70 ms con 15 dobleces y 2.00 ms
+con 60 (antes de que los puntos PI compartieran una esfera y de reescribir la
+soldadura de aristas del alambre sin cadenas de texto, el 2026-09-22: 2.70 y
+9.30 ms), sin fugas de geometría —diez piezas medidas en pantalla usan 14
+geometrías en GPU, antes 200, aunque las llamadas de dibujo siguen en 200—,
+cero cuadros dibujados en reposo, y un paso de deshacer cuesta 6 µs y 5.3 KB.
 
-**`index.html` es un artefacto compilado de ~822 KB con three.js empotrado, que es
+**`index.html` es un artefacto compilado de ~872 KB con three.js empotrado, que es
 lo que sirve Pages. Nunca se edita a mano: el siguiente build borra el cambio.**
 Se edita `web/src/`.
 

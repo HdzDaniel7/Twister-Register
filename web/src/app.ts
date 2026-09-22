@@ -36,8 +36,9 @@ import {
   refModel, refModelFree,
 } from './state.ts';
 import {
-  initScene, fitView, setOnPick, setOnResize, markDirty, rebuildScene, renderer, scene,
+  initScene, fitView, setOnPick, setOnResize, markDirty, rebuildScene, renderer, scene, camera,
   drawGizmo, drawLabels, groupHost, groups, captureViews, showFault,
+  edgesRef, edgesGeometry,
 } from './scene.ts';
 import { drawRibbon, bindRibbon, setOnRibbonSelect } from './ribbon.ts';
 import { renderAll, refresh, selectBend } from './app/render.ts';
@@ -165,6 +166,10 @@ type DebugExports = {
   /* las cuatro vistas del reporte: desde que el lienzo no conserva el búfer,
      el banco comprueba que la captura no sale en blanco */
   captureViews: typeof captureViews;
+  /* el original de three contra el que el banco compara `ghost()` */
+  edgesRef: typeof edgesRef;
+  edgesGeometry: typeof edgesGeometry;
+  readonly camera: typeof camera;
 };
 /* `renderer` se lee por getter porque initScene() lo asigna DESPUÉS de que
    este módulo se evalúe: copiarlo aquí guardaría el undefined de arranque. */
@@ -173,6 +178,10 @@ if (typeof window !== 'undefined') (window as unknown as { BARCOMP: DebugExports
   rebuildScene, markDirty, importCsvText, importCsvBatch, openError, commandModel,
   placedPath, shownPath, shownModel, heldResult, heldOfVariant, refModel, refModelFree,
   captureViews,
+  edgesRef, edgesGeometry,
   get renderer() { return renderer; },
   get scene() { return scene; },
+  /* la cámara, como el renderer y por lo mismo: initScene() la asigna después.
+     El banco la necesita para proyectar un PI a píxeles y pinchar ahí. */
+  get camera() { return camera; },
 };

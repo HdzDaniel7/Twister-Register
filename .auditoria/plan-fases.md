@@ -243,6 +243,34 @@ Detalle en `CONTEXTO_BARCOMP.md`, «La carga».
       `node test_motor.js` 755 → 773 pruebas, `node tools/ui_test.mjs` 306 → 309 pasos.
       Detalle completo en `CONTEXTO_BARCOMP.md` §11.
 
+- [x] **`rebuildScene()` clonaba geometría y soldaba aristas por cadenas de texto · [S]** —
+      **hecho el 2026-09-22, por la noche.** Pasada de RENDIMIENTO PURO, sin cambio de
+      conducta: `rebuildScene()` corre con CADA tecla que se pulsa en la tabla del modelo, así
+      que su coste es el tirón que se nota al recorrerla. Tres arreglos en `web/src/scene/`:
+      cada punto PI dibujaba su propia `SphereGeometry` CLONADA —`clone()` teselaba una esfera
+      32×16 entera (561 vértices) solo para pisarla con la copia, 24 % del tiempo— y ahora
+      comparte UNA sola, con lo que cambia por punto viviendo en la malla y el material (igual
+      con los rombos de choque, cota y diferencia); `EdgesGeometry` soldaba vértices con tres
+      cadenas de texto por triángulo en un objeto-diccionario, 41 % del tiempo (58 % ya sin lo
+      de las esferas), y se reescribe (`edgesGeometry()`, `web/src/scene/geometry.ts`) con la
+      soldadura una vez por VÉRTICE y un `Map` numérico en vez de cadenas, MISMO resultado —la
+      clase de three se queda en el paquete a propósito para que el banco compare vértice a
+      vértice con desvío 0—; y `barGeometry()` escribe directo en búferes tipados en vez de
+      un `Vector3` por vértice que three volvía a copiar. Medido en `tools/probe_perf.js`
+      (Edge headless, SwiftShader): 15 dobleces 2.70 → **0.70 ms**, 60 dobleces 9.30 →
+      **2.00 ms**, 10 piezas medidas 13.95 → **2.00 ms**, geometrías en GPU con 10 piezas
+      200 → **14** (las llamadas de dibujo siguen en 200). Caso pesado —30 dobleces + 4
+      modelos + 3 piezas + carga y amarre—: `rebuildScene()` 39.42 → **8.85 ms**, teclear un
+      ángulo en la tabla 41.57 → **11.88 ms**. Artefacto +1 830 B (+0.2 %), de los que unos 1 360 B
+      son la clase `EdgesGeometry` de three que se queda solo para el banco. Medido y
+      descartado en la misma pasada: `computeVertexNormals()` sobre las barras fantasma
+      (6.6 %, arriesga una malla sólida sin normales, que sale negra); compartir también los
+      materiales (0.2 %, hay un color distinto por punto); `InstancedMesh` para los PI, que
+      sigue aplazado y está actualizado arriba, en «Diferido a después de beta 1.0». Nets:
+      `tsc --noEmit` limpio, `node test_motor.js` 773 pruebas sin cambios (el motor no se
+      toca), `node tools/ui_test.mjs` 309 → 312 pasos. Detalle completo en
+      `CONTEXTO_BARCOMP.md` §11.
+
 - [ ] **`'rot'` sigue en DOS listas de claves de trim · [S]** — creencia vieja de cuando
       `rot` era componente de doblez; el trim no depende del rodado —`bendDecomp()` saca θ
       solo del ángulo—, así que editar `rot` entra al camino de recolocar avances para nada
@@ -476,6 +504,14 @@ Recortado a propósito. Cuesta mucho, aporta poco **a esta versión**:
   con diez. Diez piezas a la vez —más de las que va a ver la beta entera, que son 13 barras—
   caben en un cuadro de 60 Hz y están diecisiete veces por debajo del presupuesto de 250 ms.
   **Se aplaza confirmado**, y si el taller dice un número mayor se interpola de esa tabla.
+  **Vuelto a medir el 2026-09-22, por la noche**, tras compartir la geometría de la esfera
+  entre todos los PI (ver más abajo): con 10 piezas, `rebuildScene()` baja de 14.0 a **2.00
+  ms** y las geometrías en GPU de 200 a **14**, pero las LLAMADAS DE DIBUJO siguen en 200 —
+  seguían sin ser el cuello, el coste estaba en construir y destruir geometrías, y eso ya
+  está resuelto por otra vía—. `InstancedMesh` bajaría las 200 llamadas a unas pocas, pero
+  cambia el picking, que hoy lee `userData.pi` de cada malla. **Sigue aplazado**, ahora con
+  menos margen de duda: lo que quedaba por explicar (las 200 llamadas) ya no es el gasto
+  dominante.
 - **Pruebas de `state.ts`.** `history.ts` sí, porque ahí se pierden datos; `state.ts` es
   mayormente cableado.
 - **Extractor de nube en Python (RANSAC).** ⛔ No escribir una línea hasta responder **A.3**.
@@ -492,13 +528,24 @@ Recortado a propósito. Cuesta mucho, aporta poco **a esta versión**:
 - **Migrar `test_motor.js` a otro runner.** Funciona y las pruebas son honestas.
 - **`noUncheckedIndexedAccess`.** El `tsconfig.json` ya explica por qué está apagada y el
   argumento sigue en pie.
-- **Optimizar el rendimiento del 3D.** Sigue fuera de alcance, pero **solo el 3D**: esta
-  entrada se leyó durante nueve días como si cubriera el rendimiento entero, y el solver de
-  la carga llegó después de la medida que la justifica —ver PERF-01, arriba—. Medido:
-  14.3 ms de camino crítico con la pieza real
-  contra 250 ms de presupuesto, arranque en frío de 234 ms en el peor caso (Edge headless sin
-  GPU), sin fugas de three.js. El 71.5 % del bundle es three.js sin grasa, y los tres idiomas
-  no se pueden separar sin romper la regla del archivo único.
+- **Optimizar el rendimiento del 3D.** Sigue fuera de alcance como BÚSQUEDA especulativa de
+  velocidad, pero **matiz del 2026-09-22, por la noche**: no cubre desperdicio real ya
+  medido. `rebuildScene()` corre con cada tecla en la tabla del modelo y clonaba una
+  `SphereGeometry` completa (561 vértices) por cada punto PI para pisarla acto seguido, y
+  soldaba las aristas del alambre armando cadenas de texto —era el 24 % y el 41 % del tiempo
+  de reconstruir, respectivamente—. Arreglado sin cambiar la conducta: 15 dobleces baja de
+  2.70 a **0.70 ms**, 60 dobleces de 9.30 a **2.00 ms**, 10 piezas medidas de 13.95 a
+  **2.00 ms**, y el caso pesado (30 dobleces + 4 modelos + 3 piezas + carga y amarre) de
+  39.42 a **8.85 ms**. Detalle y las tres cosas medidas y descartadas en la misma pasada
+  —`computeVertexNormals()` en las barras fantasma (6.6 %, no vale el riesgo de una malla sin
+  normales), compartir también los materiales (0.2 %, hay un color por punto) e
+  `InstancedMesh` (sigue aplazado, ver arriba)— en `CONTEXTO_BARCOMP.md` §11. Sigue fuera de
+  alcance ir a buscar MÁS margen sin una medida nueva que lo pida: esta entrada anterior
+  seguía en pie —14.3 ms de camino crítico con la pieza real contra 250 ms de presupuesto,
+  arranque en frío de 234 ms en el peor caso (Edge headless sin GPU), sin fugas de three.js,
+  71.5 % del bundle en three.js sin grasa, los tres idiomas sin poder separarse sin romper la
+  regla del archivo único— y lo que cambió fue quitar gasto de construir/destruir geometría
+  que no debía estar ahí, no bajar ese presupuesto.
 - **El mecanismo de clave de `heldCache`.** ARQ lo pidió, PERF lo midió en 0.02 % del coste.
   Gana la medida. Es la regla de esta casa: lo mismo pasó con `rebuildGroup(k)`.
 - **Un tope de TIEMPO en el solver.** Ya está acotado por iteraciones y pasadas, y un tope de

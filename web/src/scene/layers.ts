@@ -16,7 +16,7 @@ import {
   ST, shownPath, anchoredShownPis, refModelFree, heldResult, heldOn, heldOfVariant, placeMatrix,
   refHeldOn, pedCarrying,
 } from '../state.ts';
-import { groups, cssVar, devThreeColor, ghost, solidMat, extraLabels } from './stage.ts';
+import { groups, cssVar, devThreeColor, ghost, solidMat, extraLabels, sharedGeometry } from './stage.ts';
 import { barGeometry } from './geometry.ts';
 import type { SceneCtx } from './types.ts';
 
@@ -150,18 +150,17 @@ export function layerHeld(ctx: SceneCtx): void {
      que se deshace la colocación. */
   const taller = placeMatrix().invert();
   const bad = cssVar('--bad', '#FF4D5E');
-  const rombo = new OctahedronGeometry(12);
+  const rombo = sharedGeometry('oct12', () => new OctahedronGeometry(12));
   for (const e of held) {
     for (const c of heldOfVariant(e.v).clash) {
       const q = c.p.clone().applyMatrix4(taller);
-      const m = new Mesh(rombo.clone(), new MeshBasicMaterial({ color: bad }));
+      const m = new Mesh(rombo, new MeshBasicMaterial({ color: bad }));
       m.position.copy(q);
       groups.held.add(m);
       const quien = (c.pin ? ST.pins[c.k] : ST.fixture[c.k])?.name || '?';
       extraLabels.push({ p: q, color: e.v.color, txt: `${e.v.name} · ${quien} · ${c.depth.toFixed(1)} mm` });
     }
   }
-  rombo.dispose();
 
   /* Cada variante visible, con la forma que toma SUJETA y en SU color: si todas
      salieran del mismo color rosa no se sabría cuál es cuál, y con dos modelos
@@ -351,16 +350,15 @@ export function layerDiff(ctx: SceneCtx): void {
     /* `fk()` devuelve siempre n+2 puntos —amarre, los PI y el extremo libre—,
        así que el primero y el último existen y `at()` nunca da undefined. */
     const rq = rp.at(k)!;
-    const dia = new OctahedronGeometry(11);
+    const dia = sharedGeometry('oct11', () => new OctahedronGeometry(11));
     for (const e of shown) {
       const q = e.pis.at(k)!;
-      const m = new Mesh(dia.clone(), new MeshBasicMaterial({ color: e.v.color }));
+      const m = new Mesh(dia, new MeshBasicMaterial({ color: e.v.color }));
       m.position.copy(q);
       groups.diff.add(m);
       const d = q.distanceTo(rq);
       if (d > .01) extraLabels.push({ p: q.clone(), txt: d.toFixed(1) + ' mm', color: e.v.color });
     }
-    dia.dispose();
   }
 }
 
@@ -376,12 +374,12 @@ export function layerMarks(ctx: SceneCtx): void {
      la cifra escrita y la línea pintada no puedan discrepar. */
   const nomPis = anchoredShownPis();
   if (L.marks.on && ST.marks.length) {
-    const oct = new OctahedronGeometry(9);
+    const oct = sharedGeometry('oct9', () => new OctahedronGeometry(9));
     const pos = [], col = [];
     for (const mk of ST.marks) {
       if (!mk.visible) continue;
       const q = new Vector3(mk.x, mk.y, mk.z);
-      const m = new Mesh(oct.clone(), new MeshBasicMaterial({ color: mk.color }));
+      const m = new Mesh(oct, new MeshBasicMaterial({ color: mk.color }));
       m.position.copy(q);
       groups.marks.add(m);
       const near = E.nearestPoint(nomPis, q);
@@ -406,7 +404,6 @@ export function layerMarks(ctx: SceneCtx): void {
       ln.computeLineDistances();
       groups.marks.add(ln);
     }
-    oct.dispose();
   }
 }
 
@@ -418,10 +415,10 @@ export function layerPoints(ctx: SceneCtx): void {
   const act = primary.find(e => e.v.id === ST.active) || null;
   const shown = primary;
   const nomPis = act ? act.pis : ctx.nomPis;
-  const sph = new SphereGeometry(6, 12, 10);
+  const sph = sharedGeometry('sph6', () => new SphereGeometry(6, 12, 10));
   if (L.pts.on) {
     for (let i = 0; i < nomPis.length; i++) {
-      const m = new Mesh(sph.clone(), new MeshBasicMaterial({
+      const m = new Mesh(sph, new MeshBasicMaterial({
         color: i === ST.sel + 1 ? 0xffffff : (act ? act.v.color : L.nom.color),
       }));
       m.position.copy(nomPis[i]);
@@ -431,7 +428,7 @@ export function layerPoints(ctx: SceneCtx): void {
     for (const e of shown) {
       if (e === act) continue;
       for (const q of e.pis) {
-        const m = new Mesh(sph.clone(), new MeshBasicMaterial({ color: e.v.color }));
+        const m = new Mesh(sph, new MeshBasicMaterial({ color: e.v.color }));
         m.position.copy(q); m.scale.setScalar(.6);
         groups.pts.add(m);
       }
@@ -441,7 +438,7 @@ export function layerPoints(ctx: SceneCtx): void {
       const Q = E.applyMat(Axf, ds.pis);
       for (let i = 0; i < Q.length; i++) {
         const dv = ds.dev ? ds.dev.point[i] : 0;
-        const m = new Mesh(sph.clone(), new MeshBasicMaterial({
+        const m = new Mesh(sph, new MeshBasicMaterial({
           color: ST.view.cmode === 'dev' ? devThreeColor(dv, M.tol.point) : new Color(ds.color),
         }));
         m.position.copy(Q[i]); m.scale.setScalar(.8);
@@ -449,7 +446,6 @@ export function layerPoints(ctx: SceneCtx): void {
       }
     }
   }
-  sph.dispose();
 }
 
 /* --- vectores de desviación (piezas medidas) -------------------------- */

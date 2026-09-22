@@ -18,6 +18,7 @@ import { ST, anchoredShownPis, placeMatrix, shownBasis } from '../state.ts';
 import { T } from '../i18n.ts';
 import { esc, safeColor } from '../safe.ts';
 import { $ } from '../dom.ts';
+import { edgesGeometry } from './geometry.ts';
 import type { ExtraLabel, PickHandler, Disposable, GizmoArm } from './types.ts';
 
 export let renderer: WebGLRenderer, scene: Scene, camera: PerspectiveCamera, controls: OrbitControls;
@@ -212,11 +213,48 @@ export function onResize(): void {
   onResizeExtra();
 }
 
+/* --- lo que NO se tira al vaciar un grupo -------------------------------
+   Doscientos puntos PI son doscientas veces la MISMA esfera, y hasta aquí cada
+   uno se llevaba su propia copia: una geometría y un material por punto, todos
+   construidos, subidos a la GPU y destruidos en cada reconstrucción — y una
+   reconstrucción es cada tecla que se pulsa en la tabla.
+
+   Peor todavía por cómo clona three: `SphereGeometry.clone()` llama al
+   constructor PARAMÉTRICO sin argumentos, así que teselaba una esfera de 32×16
+   entera —561 vértices— solo para pisarla acto seguido con la copia. Medido con
+   30 dobleces, 4 modelos y 3 piezas: el 24 % del tiempo de reconstrucción se
+   iba ahí dentro.
+
+   La esfera es la misma para todos, así que se construye UNA y se comparte. Lo
+   que cambia por punto —posición, escala y color— vive en la malla y en el
+   material, no en la geometría. Lo mismo con los rombos de choque, de cota y de
+   diferencia.
+
+   El precio es que `clearGroup()` ya no puede tirar a ciegas: lo compartido se
+   apunta aquí y se salta. No es una fuga —son unas pocas geometrías fijas que
+   duran lo que la pestaña— y la sonda de medición lo vigila contando
+   `renderer.info.memory.geometries` a lo largo de diez reconstrucciones: lo que
+   no puede pasar es que el número CREZCA.
+
+   El MATERIAL sigue siendo uno por malla y se sigue tirando: ahí va el color,
+   que es distinto en cada punto, y compartirlo pedía un material por color.
+   Medido: los materiales eran el 0.2 % del tiempo, así que no vale el enredo. */
+const compartidas = new Map<string, BufferGeometry>();
+const esCompartida = new Set<BufferGeometry>();
+
+/** Una geometría que se reparte entre muchas mallas. `make` solo corre la
+ *  primera vez; a partir de ahí es una búsqueda en un mapa. */
+export function sharedGeometry(key: string, make: () => BufferGeometry): BufferGeometry {
+  let g = compartidas.get(key);
+  if (!g) { g = make(); compartidas.set(key, g); esCompartida.add(g); }
+  return g;
+}
+
 export function clearGroup(g: Group): void {
   while (g.children.length) {
     /* el bucle exige children.length > 0: pop() siempre da un elemento aquí. */
     const c: Object3D & Partial<Disposable> = g.children.pop()!;
-    c.geometry && c.geometry.dispose();
+    if (c.geometry && !esCompartida.has(c.geometry)) c.geometry.dispose();
     c.material && c.material.dispose();
     g.remove(c);
   }
@@ -226,11 +264,21 @@ export const solidMat = (): MeshStandardMaterial => new MeshStandardMaterial({
   vertexColors: true, roughness: .55, metalness: .3,
 });
 export function ghost(g: BufferGeometry, color: string, opacity = .75): LineSegments {
-  const e = new EdgesGeometry(g, 28);
+  const e = edgesGeometry(g, 28);
   return new LineSegments(e, new LineBasicMaterial({
     color, transparent: true, opacity, depthWrite: false,
   }));
 }
+
+/** Las aristas TAL COMO LAS SACA THREE, solo para que el banco pueda comparar.
+ *
+ *  `edgesGeometry()` reescribe a mano el algoritmo de `EdgesGeometry` para
+ *  quitarle las cadenas de texto, y una reimplementación a mano de algo que ya
+ *  trae la librería no se sostiene sin la original al lado con que compararla:
+ *  el banco fantasmea la escena entera y exige las dos salidas vértice a
+ *  vértice, con desvío exactamente 0. Lo que cuesta es la clase en el paquete,
+ *  que se mide en el commit. */
+export const edgesRef = (g: BufferGeometry): BufferGeometry => new EdgesGeometry(g, 28);
 
 /* --------------------------------------------------------------- picking */
 const ray = new Raycaster(), mouse = new Vector2();

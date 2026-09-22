@@ -3895,4 +3895,109 @@ step('Compensar avisa de que corrige contra la pieza LIBRE aunque el 3D enseñe 
   }
 });
 
+/* LO QUE CUESTA DIBUJAR (2026-09-22, por la noche). Reconstruir la escena es
+   lo que hace CADA tecla que se pulsa en la tabla, así que su coste es el
+   tirón que se nota al recorrerla. Con 30 dobleces, 4 modelos y 3 piezas
+   costaba 41.5 ms por tecla. Estos dos pasos vigilan las dos cosas que lo
+   explicaban; los dos fallan contra la versión anterior. */
+step('los puntos PI comparten UNA esfera, no una por punto', () => {
+  const B = window.BARCOMP;
+  if (!S().layers.pts.on) throw new Error('la capa de puntos está apagada: el paso no prueba nada');
+  B.rebuildScene();
+  const mallas = B.groups.pts.children.slice();
+  if (mallas.length < 10) throw new Error('solo hay ' + mallas.length + ' puntos: el paso no prueba nada');
+  const geos = new Set(mallas.map(o => o.geometry));
+  /* Una esfera de 12x10 por punto son unos 400 indices cada una, construidos,
+     subidos a la tarjeta y destruidos en cada reconstruccion. Y three clona
+     una geometria PARAMETRICA llamando otra vez al constructor sin argumentos,
+     o sea teselando una esfera de 32x16 entera para pisarla acto seguido. */
+  if (geos.size !== 1) {
+    throw new Error(mallas.length + ' puntos reparten ' + geos.size + ' geometrias, y deberian compartir 1');
+  }
+  /* y compartirla no puede dejar la escena sin puntos al vaciar el grupo */
+  B.rebuildScene();
+  if (B.groups.pts.children.length !== mallas.length) {
+    throw new Error('tras reconstruir quedan ' + B.groups.pts.children.length
+                    + ' puntos y antes habia ' + mallas.length);
+  }
+  const g = B.groups.pts.children[0].geometry.getAttribute('position');
+  if (!g || !g.count) throw new Error('la esfera compartida se quedo sin vertices: la tiraron al vaciar');
+});
+
+/* GUARDA, no prueba: esto ya funcionaba. Se escribe porque compartir la esfera
+   es justo lo que podria romperlo —el `raycast` de three usa la esfera
+   envolvente de la GEOMETRIA, que ahora es la misma para los doscientos
+   puntos— y no habia ni un paso que pinchara en el 3D. */
+step('pinchar una esfera en el 3D sigue seleccionando su doblez', () => {
+  const B = window.BARCOMP;
+  if (!S().layers.pts.on) throw new Error('la capa de puntos esta apagada: el paso no prueba nada');
+  B.rebuildScene();
+  const lienzo = B.renderer.domElement;
+  const r = lienzo.getBoundingClientRect();
+  if (!r.width || !r.height) throw new Error('el lienzo no tiene tamano: el paso no prueba nada');
+  /* la esfera del PI de un doblez concreto, proyectada a pixeles */
+  const objetivo = 5;
+  const malla = B.groups.pts.children.find(o => o.userData.pi === objetivo + 1);
+  if (!malla) throw new Error('no hay esfera para el doblez ' + objetivo);
+  /* sin un cuadro dibujado por medio las matrices de mundo son las de antes de
+     colgar las esferas: hay que forzarlas antes de proyectar Y antes de pinchar */
+  B.scene.updateMatrixWorld(true);
+  const v = malla.position.clone().applyMatrix4(malla.parent.matrixWorld);
+  v.project(B.camera);
+  const x = r.left + (v.x + 1) / 2 * r.width;
+  const y = r.top + (1 - v.y) / 2 * r.height;
+  const antes = S().sel;
+  S().sel = -1;
+  /* OrbitControls tambien escucha `pointerdown` y pide setPointerCapture, que
+     con un evento sintetico revienta porque no hay puntero de verdad. No es lo
+     que se prueba aqui: se calla durante el pinchazo y se devuelve. */
+  const captura = lienzo.setPointerCapture;
+  lienzo.setPointerCapture = () => {};
+  try {
+    lienzo.dispatchEvent(new PointerEvent('pointerdown', {
+      clientX: x, clientY: y, bubbles: true, cancelable: true,
+    }));
+  } finally { lienzo.setPointerCapture = captura; }
+  if (S().sel !== objetivo) {
+    const dicho = S().sel;
+    S().sel = antes;
+    throw new Error('pinchando el PI del doblez ' + objetivo + ' quedo seleccionado ' + dicho);
+  }
+  S().sel = antes;
+});
+
+step('el alambre saca las MISMAS aristas que three, vertice a vertice', () => {
+  const B = window.BARCOMP;
+  /* `edgesGeometry()` reescribe a mano `EdgesGeometry` para quitarle las tres
+     cadenas de texto por triangulo. Era el 58 % de lo que costaba reconstruir,
+     y es tambien un algoritmo de libreria reescrito a mano: se compara contra
+     el original, que sigue en el paquete solo para esto. */
+  B.rebuildScene();
+  let n = 0;
+  for (const k in B.groups) {
+    B.groups[k].traverse(o => {
+      const geo = o.geometry;
+      /* solo mallas de triangulos: la rejilla son LINEAS, y su bufer ni
+         siquiera es multiplo de 3 —164 vertices—, asi que las dos versiones
+         leen fuera del bufer en el ultimo triangulo y leen basura distinta.
+         Nadie fantasmea la rejilla. */
+      if (!geo || !geo.getAttribute('position') || !o.isMesh) return;
+      const cuenta = geo.index ? geo.index.count : geo.getAttribute('position').count;
+      if (cuenta % 3) return;
+      const a = B.edgesRef(geo).getAttribute('position');
+      const b = B.edgesGeometry(geo, 28).getAttribute('position');
+      n++;
+      if (a.count !== b.count) {
+        throw new Error('en ' + k + ': three saca ' + a.count + ' vertices y nosotros ' + b.count);
+      }
+      for (let i = 0; i < a.count * 3; i++) {
+        if (a.array[i] !== b.array[i]) {
+          throw new Error('en ' + k + ', vertice ' + i + ': ' + a.array[i] + ' vs ' + b.array[i]);
+        }
+      }
+    });
+  }
+  if (n < 5) throw new Error('solo se compararon ' + n + ' mallas: el paso no prueba nada');
+});
+
 return log.join('\n');

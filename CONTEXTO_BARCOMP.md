@@ -13,7 +13,8 @@
 `index.html` en la raíz (lo que publica GitHub Pages, y lo único que va al repo) y
 `web/barcomp_viewer.html` para abrirlo en local con doble clic.
 
-Son ~822 KB con three.js empotrado. Editarlo directamente significa leer y reescribir 800 KB por
+Son ~872 KB con three.js empotrado —892 593 bytes el 2026-09-22; el «~822 KB» que ponía aquí
+llevaba desfasado varias compilaciones—. Editarlo directamente significa leer y reescribir 800 KB por
 cada cambio, y el siguiente build borra todo lo que hayas hecho.
 
 ```
@@ -706,7 +707,7 @@ cd web && npm run check            # typecheck -> pruebas -> build -> banco, de 
 cd web && npm run typecheck        # tsc --noEmit, con strict
 cd web && node test_motor.js       # 773 pruebas; todas deben pasar
 cd web && node build.mjs           # regenera index.html y barcomp_viewer.html
-cd web && node tools/ui_test.mjs   # 309 pasos de interfaz en Edge headless
+cd web && node tools/ui_test.mjs   # 312 pasos de interfaz en Edge headless
 cd web && node tools/demo_carga.mjs # κ contra una solución exacta, y el codo del hueco
 cd web && node tools/demo_escala.mjs # dónde el solver de la carga deja de caber
 ```
@@ -845,9 +846,9 @@ Ninguna de estas se vuelve a sacar leyendo el código.
 | … y es el NÚMERO de dobleces, no lo juntos que vayan | 30 fijos, avance de 35 a 150 mm: **141–222 ms** | `demo_escala` |
 | Arranque en frío, peor caso (Edge headless sin GPU) | **234 ms** | auditoría 09-10 |
 | `rebuildScene()` con 13 piezas medidas visibles | **~18 ms**, 270 objetos | A8, medido y descartado |
-| `rebuildScene()` con 15 dobleces / con 60 | **2.8 ms / 9.6 ms** | `tools/probe_perf.js` |
+| `rebuildScene()` con 15 dobleces / con 60 | **0.70 ms / 2.00 ms** (eran 2.8 / 9.6 hasta el 2026-09-22 por la noche) | `tools/probe_perf.js` |
 | Confirmar una celda Δ en Compensar, 15 dobleces / 60 con las TRES correcciones | **1.6 ms / 8.7 ms** | `tools/probe_comp.js` |
-| `rebuildScene()` con 1 pieza medida en pantalla / con 10 | **3.9 ms / 14.0 ms** | `tools/probe_perf.js` |
+| `rebuildScene()` con 1 pieza medida en pantalla / con 10 | **0.70 ms / 2.10 ms** (eran 3.9 / 14.0 hasta el 2026-09-22 por la noche) | `tools/probe_perf.js` |
 | Un paso de deshacer | **6 µs, 5.3 KB** | `tools/probe_perf.js` |
 | Bucle de animación en reposo, 2 s sin tocar nada | **0 cuadros** (render bajo demanda) | `tools/probe_perf.js` |
 | Clave de `heldCache` | **0.006 ms** contra 14–100 ms del solver | PERF, 09-10 |
@@ -901,6 +902,84 @@ auditoría —al menos con una pieza que va mayormente de canto—, y E y ρ del
 buenos a un ±5 %, no a un factor 50. Lo que sí puede dar flecha del orden de la tolerancia:
 una pieza que vaya de PLANO en un vano largo —once veces más con 40×12— o un fixture con dos
 apoyos mal repartidos. Por eso el número se enseña **por tramo** y no como total.
+
+**La escena 3D deja de clonar geometría y de soldar aristas por cadenas de texto
+(2026-09-22, por la noche) — PERF puro, sin cambio de conducta.** `rebuildScene()` corre en
+`web/src/scene/` con CADA tecla que se pulsa en la tabla del modelo, así que su coste es el
+tirón que se nota al recorrerla. Tres arreglos, ninguno cambia lo que sale en pantalla:
+
+1. **Los puntos PI comparten una esfera.** Cada punto se dibujaba con una malla propia y una
+   `SphereGeometry` CLONADA (`sph.clone()`) —(dobleces+2) × piezas geometrías construidas,
+   subidas a la tarjeta y destruidas en cada reconstrucción—, y peor de lo que parece:
+   `SphereGeometry.clone()` llama al constructor PARAMÉTRICO sin argumentos, teselando una
+   esfera de 32×16 entera (561 vértices) solo para pisarla acto seguido con la copia. Era el
+   24 % del tiempo. Ahora se construye UNA y se comparte; lo que cambia por punto (posición,
+   escala, color) vive en la malla y en el material. Igual con los rombos de choque, de cota
+   y de diferencia. `clearGroup()` ya no destruye lo compartido: lo apunta en un registro y lo
+   salta. No es una fuga —son unas pocas geometrías fijas que duran lo que la pestaña— y la
+   sonda lo vigila: `renderer.info.memory.geometries` no crece a lo largo de diez
+   reconstrucciones.
+2. **Las aristas del alambre, sin cadenas de texto.** `EdgesGeometry` de three suelda los
+   vértices por posición armando TRES cadenas de texto por triángulo y guardando las aristas
+   en un objeto plano con esas cadenas pegadas de dos en dos como claves. Era el 41 % del
+   tiempo de reconstruir, y el 58 % una vez arreglado lo de las esferas. Se reescribe
+   (`edgesGeometry()` en `web/src/scene/geometry.ts`) haciendo lo MISMO con dos cambios que no
+   tocan el resultado: la soldadura se calcula una vez por VÉRTICE en vez de tres por
+   TRIÁNGULO (seis veces menos cadenas en la barra), y la arista se indexa por un número en un
+   `Map` en vez de por dos cadenas en un objeto-diccionario. Todo lo demás se copia al pie de
+   la letra. La clase original de three se queda en el paquete a propósito: el banco
+   fantasmea la escena entera y exige las dos salidas vértice a vértice con desvío exactamente
+   0.
+3. **La barra se escribe en búferes tipados.** `barGeometry()` construía un `Vector3` nuevo
+   por vértice, lo empujaba a un array de números y three volvía a copiarlo todo a un
+   `Float32Array`: tres pasadas y miles de objetos que el recolector barría en cada
+   reconstrucción. Ahora se escribe directo en el búfer, con la misma aritmética. El índice
+   sigue en 16 bits mientras quepa, como antes.
+
+Cifras medidas con la sonda del repo (`web/tools/probe_perf.js`, Edge headless por
+SwiftShader: los milisegundos absolutos son un techo pesimista, lo que vale es la
+comparación):
+
+| Qué | Antes | Después |
+|---|---|---|
+| `rebuildScene()`, 15 dobleces | 2.70 ms | **0.70 ms** |
+| `rebuildScene()`, 60 dobleces | 9.30 ms | **2.00 ms** |
+| Arrastre, por evento | 2.40 ms | **0.50 ms** (techo 417 → ~2000 cuadros/s) |
+| `rebuildScene()`, 1 pieza medida | 3.60 ms | **0.70 ms** |
+| `rebuildScene()`, 3 piezas medidas | 5.80 ms | **0.95 ms** |
+| `rebuildScene()`, 10 piezas medidas | 13.95 ms | **2.00 ms** |
+| Geometrías en GPU, 60 dobleces | 49 | **4** |
+| Geometrías en GPU, 10 piezas (las llamadas de dibujo siguen en 200) | 200 | **14** |
+
+Y en el caso pesado —30 dobleces + 4 modelos + 3 piezas medidas + carga y amarre—:
+
+| Qué | Antes | Después |
+|---|---|---|
+| `rebuildScene()` | 39.42 ms | **8.85 ms** |
+| Teclear un ángulo en la tabla | 41.57 ms | **11.88 ms** |
+
+El artefacto crece de 890 763 a 892 593 bytes (+1 830 B, +0.2 %); de esos, unos 1 360 B son
+la clase `EdgesGeometry` de three, que se queda SOLO para que el banco compare contra ella.
+`tsc --noEmit` limpio; `test_motor.js` en 773 aserciones, sin cambios porque el motor no se
+toca; `tools/ui_test.mjs` sube de 309 a 312 pasos, y los tres nuevos fallan contra el HEAD
+anterior. El tercero es una GUARDA y no una prueba de este cambio: pinchar un PI en el 3D
+ya funcionaba y no había ni un paso que lo tocara, y compartir la esfera es justo lo que
+podía romperlo —el `raycast` de three parte de la esfera envolvente de la GEOMETRÍA, que
+ahora es la misma para los doscientos puntos—.
+
+Medido y descartado en esta misma pasada:
+
+- **`computeVertexNormals()` sobre las barras que solo se fantasmean** es el 6.6 % del
+  perfil, unos 0.65 ms. No se hace: obligaría a que `barGeometry()` devuelva a veces una
+  malla SIN normales, y una malla sólida sin normales sale negra. El riesgo de que ese
+  contrato se pudra no vale 0.65 ms.
+- **Compartir también los MATERIALES** era el 0.2 % del tiempo. Ahí va el color, que es
+  distinto en cada punto, así que compartirlos pedía un material por color. No vale el
+  enredo.
+- **`InstancedMesh` para los puntos PI** sigue aplazado. Bajaría las llamadas de dibujo de
+  200 a unas pocas, pero cambia el picking, que hoy lee `userData.pi` de cada malla. Las
+  llamadas de dibujo NO eran el cuello: el coste estaba en construir y destruir geometrías, y
+  eso ya está resuelto.
 
 **La torsión contada dos veces (2026-09-18).** `ik()` leía el rodado con el marco sin rodar,
 así que la torsión se le colaba dentro del rodado, y `measuredModel()`/`migrateModel()` le
@@ -1132,6 +1211,13 @@ en `tools/probe_perf.js`, con 15 dobleces:
 | 1 | 34 | 3.9 ms | 38 |
 | 3 | 68 | 6.5 ms | 74 |
 | 10 | 187 | **14.0 ms** | 200 |
+
+**Los milisegundos de esta tabla son de ANTES del 2026-09-22 por la noche**, cuando cada PI
+se llevaba su esfera clonada. Hoy esa misma fila de 10 piezas está en 2.10 ms y 14 geometrías;
+las mallas y las llamadas de dibujo siguen siendo 187 y 200, que es lo que mediría
+`InstancedMesh`. Se deja la tabla como estaba porque es la que sostiene el aplazamiento, y lo
+que el aplazamiento decide —las llamadas de dibujo— no ha cambiado. Ver la entrada de esa
+noche más arriba.
 
 Cada PI es un `Mesh` con su esfera CLONADA y su material, en `scene/layers.ts`, así que las
 mallas son (dobleces+2) × piezas y la cuenta crece recta: **~1.1 ms por pieza añadida**. Diez
