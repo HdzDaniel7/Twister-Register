@@ -15,6 +15,7 @@
 export * from './engine/math.ts';
 export * from './engine/bend.ts';
 export * from './engine/kinematics.ts';
+export * from './engine/fibre.ts';
 export * from './engine/model.ts';
 export * from './engine/feasible.ts';
 export * from './engine/lims.ts';

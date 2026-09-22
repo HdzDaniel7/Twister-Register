@@ -140,7 +140,8 @@ export function updateModelDerived(): boolean {
 
   const v = V();
   E.syncDeltas(v);
-  const LEN = E.rowLengths(M), BASE = E.rowLengths(v.base);
+  /* en barra y no sobre el camino del eje, igual que en model.ts: fibre.ts */
+  const LEN = E.fibreLengths(M), BASE = E.fibreLengths(v.base);
   const ori = E.orientations(M);
   const act = document.activeElement;
   const put = (row: Element, cell: string, txt: string): void => {
@@ -210,7 +211,7 @@ export function updateModelDerived(): boolean {
     const dt = +E.tailStraightDelta(v.base, M).toFixed(3);
     const dtc = foot.querySelector('[data-cell="tdlt"] span');
     if (dtc) { dtc.textContent = fx(dt, 2); dtc.className = dt ? '' : 'z'; }
-    put(foot, 'dev', fx(E.developedLength(M), 2));
+    put(foot, 'dev', fx(E.cutLength(M), 2));
   }
   /* El aviso de fabricabilidad se recalcula aquí y no solo al reconstruir el
      panel: teclear una recta pasa SIEMPRE por este camino dirigido, y es justo

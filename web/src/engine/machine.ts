@@ -23,7 +23,8 @@
    se ESCRIBE en el archivo, no lo que el motor calcula, y por eso son seguros.
    ========================================================================= */
 import type { Bend, Model } from '../types.ts';
-import { axisAngles, rowLengths, tailStraight } from './kinematics.ts';
+import { axisAngles, tailStraight } from './kinematics.ts';
+import { fibreLengths } from './fibre.ts';
 
 /** Las columnas que se pueden pedir. Cada una es un número por doblez, salvo
  *  `n`, que es el número de estación. */
@@ -116,7 +117,9 @@ type RawRow = Partial<Record<MachineCol, number>>;
 
 function rawRows(model: Model, fmt: MachineFmt): RawRow[] {
   const B: Bend[] = model.bends;
-  const L = rowLengths(model);
+  /* el arco y el acumulado que sube a la máquina son los de BARRA: quien lee
+     este archivo corta el material, no recorre el eje. Ver engine/fibre.ts. */
+  const L = fibreLengths(model);
   const ejes = axisAngles(model);
   const rows: RawRow[] = B.map((b, i) => ({
     n: i + 1,

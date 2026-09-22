@@ -208,6 +208,44 @@ console.log('\n— longitudes por doblez —');
                 - E.developedLength(effu)) < 1e-12);
   }
 
+  /* LA BARRA QUE SE GASTA NO ES EL CAMINO QUE RECORRE EL EJE (2026-09-22).
+     `rowLengths()` servia a dos amos: la geometria —el eje que se dibuja, la
+     cinta, los pedestales, los tramos del STEP— y el material, o sea cuanta
+     barra recta hay que cortar. Se separan en engine/fibre.ts porque en cuanto
+     la fibra neutra deja de estar en el centro son dos numeros distintos: sobre
+     DEMO-1700, 1861.867 contra 1825.431 por DIN 6935.
+
+     Estas comprobaciones son HOY una tautologia, y estan escritas a proposito:
+     en la fase siguiente `fibreLengths()` deja de reenviar a `rowLengths()` y
+     entonces son el candado de que K = 0.5 —la fibra en el centro, que es lo
+     que este programa ha hecho siempre— sigue dando exactamente lo de antes. */
+  {
+    ok('existe la cuenta en barra, separada de la geometrica',
+       typeof E.fibreLengths === 'function' && typeof E.cutLength === 'function'
+       && typeof E.fibreRadius === 'function');
+    const G = E.rowLengths(M), F = E.fibreLengths(M);
+    ok('con la fibra en el centro (K = 0.5) la barra da lo mismo que el eje',
+       G.length === F.length && maxAbs(G.map((r, k) =>
+         Math.max(Math.abs(r.arc - F[k].arc), Math.abs(r.cum - F[k].cum)))) === 0);
+    ok('  y la longitud de corte coincide con la desarrollada, al bit',
+       E.cutLength(M) === E.developedLength(M), `${E.cutLength(M).toFixed(4)} mm`);
+    ok('  y el radio de la fibra es el del centro',
+       maxAbs(M.bends.map((b, k) => E.fibreRadius(M, k) - b.radius)) === 0);
+
+    /* Y lo que NO puede cambiar nunca, valga lo que valga K: la RECTA es la
+       misma en las dos cuentas —sin doblez no hay estiramiento y la fibra ES el
+       centro— y la cola tampoco lleva arco. */
+    ok('la recta es el mismo numero en las dos cuentas',
+       maxAbs(G.map((r, k) => r.straight - F[k].straight)) === 0);
+    ok('  y la cola, que es recta, tambien',
+       E.cutLength(M) - F[F.length - 1].cum === E.tailStraight(M));
+
+    /* Un modelo vacio no revienta ninguna de las dos. */
+    const vacio = E.normalizeModel({ name: 'X', tail: 300, bends: [] });
+    ok('sin dobleces, la barra de corte es la cola',
+       E.cutLength(vacio) === 300);
+  }
+
   /* un modelo sin dobleces: solo cola */
   {
     const solo = E.normalizeModel({ ...M, bends: [], tail: 250 });

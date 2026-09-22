@@ -458,6 +458,12 @@ export function stepText(model: Model, meta: StepMeta): string {
       + `, cola ${model.tail} mm`),
     /* El volumen que TIENE que tener el solido, por Pappus: el centroide de la
        seccion va sobre el eje, asi que es area x longitud desarrollada, exacto.
+       LA DESARROLLADA GEOMETRICA, no la de corte de engine/fibre.ts, y no es un
+       descuido: este numero se contrasta contra lo que mide el CAD, y el solido
+       que se escribe barre una seccion CONSTANTE a lo largo del centro. La
+       barra de verdad no hace eso —se adelgaza en el doblez— y por eso conserva
+       material con la fibra neutra. Las dos cuentas son ciertas y miden cosas
+       distintas; poner aqui la de corte haria fallar check_step_freecad.py.
        Va escrito en el archivo para que se pueda contrastar contra lo que mida
        el CAD sin tener el modelo delante — es lo que hace
        `tools/check_step_freecad.py`. Las dos cuentas salen del motor y no de

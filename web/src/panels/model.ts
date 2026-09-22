@@ -63,7 +63,11 @@ export function paneModel(M: Model): string {
      GIRA el eje, no dónde queda, así que una fila de ceros no significa «eje a
      cero» sino «no lo muevas»: la celda lleva el resultado en su tooltip. */
   const ejes = E.axisAngles(M);
-  const LEN = E.rowLengths(M), BASE = E.rowLengths(v.base);
+  /* LAS LONGITUDES DE LA TABLA SE CUENTAN EN BARRA, no sobre el camino que
+     recorre el eje: ver engine/fibre.ts. `straight` es el mismo número en las
+     dos cuentas —la fibra y el centro coinciden en los tramos rectos— así que
+     lo único que cambia de manos es el arco y su acumulado. */
+  const LEN = E.fibreLengths(M), BASE = E.fibreLengths(v.base);
   /* La celda en rojo ya estaba, pero el rojo NO es un aviso: hay que estar
      mirando esa columna, y en una tabla de quince filas con desplazamiento
      lateral no se está. Esto lo dice con palabras y nombra los dobleces. */
@@ -172,7 +176,7 @@ export function paneModel(M: Model): string {
           return `<span class="${dt ? '' : 'z'}">${fx(dt, 2)}</span>`;
         })()}</td>
         <td colspan="7"></td><td class="v-dim"></td>
-        <td data-cell="dev">${fx(E.developedLength(M), 2)}</td></tr></tfoot>
+        <td data-cell="dev">${fx(E.cutLength(M), 2)}</td></tr></tfoot>
       </table></div>
     <div class="row mt6"><button class="btn sm" data-a="addb">+ ${T('addBend')}</button>
       ${ST.sel >= 0 ? `<button class="btn sm" data-a="delb">✕ B${ST.sel + 1}</button>` : ''}
