@@ -89,6 +89,33 @@ export function editStraight(i: number, val: number): void {
   v.base.bends[i].feed = E.feedForStraight(v.base, i, val);
   syncModel(); syncCommand(); refreshTable();
 }
+/** Δ de la columna «Recta»: se teclea un Δ de RECTA y se guarda el Δ de
+ *  AVANCE, igual que la columna de arriba teclea una recta y guarda un avance.
+ *
+ *  El Δ del avance NO vale como columna: un Δ de ángulo mueve la recta sin
+ *  tocar el avance, así que la columna marcaría cero mientras la fila cambia
+ *  de largo y Σ L dejaría de cuadrar con lo que suma la fila. Ver
+ *  `feedDeltaForStraightDelta()`. */
+export function editStraightDelta(i: number, val: number): void {
+  const v = V();
+  E.syncDeltas(v);
+  if (!(i >= 0 && i < v.deltas.length)) return;
+  if (!isFinite(val)) return;
+  /* El efectivo se saca ANTES de escribir: effectiveModel() llama por dentro a
+     syncDeltas(), que reemplaza `v.deltas` por objetos nuevos, y la asignacion
+     aterrizaria en el objeto viejo que se acaba de tirar. */
+  const eff = E.effectiveModel(v);
+  v.deltas[i].feed = E.feedDeltaForStraightDelta(v.base, eff, i, val);
+  syncModel(); syncCommand(); refreshTable();
+}
+/** La cola, tecleada de TANGENCIA A TANGENCIA como el resto de longitudes.
+ *  Guarda el PI a PI, que es lo que sigue yendo al JSON y a la máquina. */
+export function editTail(val: number): void {
+  const v = V();
+  if (!isFinite(val)) return;
+  v.base.tail = E.tailForStraight(v.base, val);
+  syncModel(); syncCommand(); refreshTable();
+}
 export function editDelta(i: number, key: DeltaKey, val: number): void {
   const v = V();
   E.syncDeltas(v);

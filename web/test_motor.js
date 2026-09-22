@@ -133,6 +133,81 @@ console.log('\n— longitudes por doblez —');
          k === i ? 0 : E.straightOf(M2, k) - E.straightOf(M, k))) < 1e-12);
   }
 
+  /* LA COLA SE TECLEA DE TANGENCIA A TANGENCIA (2026-09-22). Era el único sitio
+     donde se tecleaba un PI a PI, y la palabra «Cola» nombraba dos números: el
+     campo decía 160.00 y el pie 154.66. Quien sumaba el último Σ L más la cola
+     del campo se iba 5.34 mm por encima de la desarrollada, sin que nada
+     estuviera mal calculado. */
+  {
+    ok('tailForStraight es la inversa exacta de tailStraight',
+       Math.abs(E.tailForStraight(M, E.tailStraight(M)) - M.tail) < 1e-12);
+    const objetivo = 120;
+    const MT = E.normalizeModel({ ...M, tail: E.tailForStraight(M, objetivo) });
+    ok('  y deja la recta de salida pedida',
+       Math.abs(E.tailStraight(MT) - objetivo) < 1e-9, `${E.tailStraight(MT).toFixed(4)} mm`);
+    const ultimo = E.rowLengths(M)[M.bends.length - 1].cum;
+    ok('Σ L del último + la RECTA de la cola = la desarrollada',
+       Math.abs(ultimo + E.tailStraight(M) - E.developedLength(M)) < 1e-12);
+    ok('  y con el PI a PI no cerraba: sobraba el trim del último doblez',
+       Math.abs((ultimo + M.tail - E.developedLength(M))
+                - E.trimOf(M.bends[M.bends.length - 1])) < 1e-12,
+       `${(ultimo + M.tail - E.developedLength(M)).toFixed(3)} mm de más`);
+  }
+
+  /* EL Δ DE LA COLUMNA «RECTA» ES UN Δ DE RECTA (2026-09-22). La recta no es un
+     campo guardado: sale del avance menos los dos trims. Un Δ de ÁNGULO mueve
+     dos rectas sin tocar ningún avance, así que una columna que enseñara el Δ
+     del AVANCE marcaba cero mientras la fila cambiaba de largo, y Σ L subía
+     menos de lo que sumaba la fila. */
+  {
+    const v = { base: M, deltas: E.zeroDeltas(M.bends.length), tailDelta: 0 };
+    v.deltas[4].angle = 1.5;
+    const eff = E.effectiveModel(v);
+    const LB = E.rowLengths(M), LE = E.rowLengths(eff);
+
+    ok('un Δ de ángulo NO mueve ningún avance',
+       maxAbs(eff.bends.map((b, k) => b.feed - M.bends[k].feed)) < 1e-12);
+    ok('  pero acorta DOS rectas: la suya y la de al lado',
+       Math.abs(LE[4].straight - LB[4].straight + 0.869) < 5e-4
+       && Math.abs(LE[5].straight - LB[5].straight + 0.869) < 5e-4,
+       `${(LE[4].straight - LB[4].straight).toFixed(4)} y ${(LE[5].straight - LB[5].straight).toFixed(4)} mm`);
+    ok('  y las ajenas no se mueven',
+       maxAbs(LB.map((r, k) => (k === 4 || k === 5) ? 0 : LE[k].straight - r.straight)) < 1e-12);
+
+    ok('straightDelta es exactamente lo que la fila tiene que enseñar',
+       maxAbs(LB.map((r, k) => E.straightDelta(M, eff, k) - (LE[k].straight - r.straight))) < 1e-12);
+    ok('base + Δ de recta = la recta de la PIEZA, en todas las filas',
+       maxAbs(LB.map((r, k) => r.straight + E.straightDelta(M, eff, k) - LE[k].straight)) < 1e-12);
+    ok('  así Σ L sube lo que suman la recta pintada, su Δ y el arco',
+       maxAbs(LE.map((r, k) => r.cum - ((k ? LE[k - 1].cum : 0)
+         + LB[k].straight + E.straightDelta(M, eff, k) + r.arc))) < 1e-12);
+
+    /* la vuelta: se teclea un Δ de recta y se guarda un Δ de avance */
+    for (const [k, ds] of [[4, -2.5], [5, 0.8], [0, 3]]) {
+      const w = { base: M, deltas: v.deltas.map(d => ({ ...d })), tailDelta: 0 };
+      /* el efectivo ANTES de escribir: effectiveModel() reemplaza w.deltas */
+      const ew = E.effectiveModel(w);
+      w.deltas[k].feed = E.feedDeltaForStraightDelta(M, ew, k, ds);
+      ok(`feedDeltaForStraightDelta deja el Δ de recta pedido en B${k + 1}`,
+         Math.abs(E.straightDelta(M, E.effectiveModel(w), k) - ds) < 1e-9,
+         `${E.straightDelta(M, E.effectiveModel(w), k).toFixed(6)} vs ${ds}`);
+    }
+    ok('con los trims quietos, un Δ de avance Y uno de recta son el mismo número',
+       Math.abs(E.feedDeltaForStraightDelta(M, M, 7, 0.8) - 0.8) < 1e-12);
+
+    /* y la cola, que no tiene Δ que teclear pero se la come igual */
+    const vu = { base: M, deltas: E.zeroDeltas(M.bends.length), tailDelta: 0 };
+    vu.deltas[M.bends.length - 1].angle = 2;
+    const effu = E.effectiveModel(vu);
+    ok('un Δ en el ÚLTIMO doblez mueve la recta de la cola',
+       Math.abs(E.tailStraightDelta(M, effu)) > 0.5,
+       `${E.tailStraightDelta(M, effu).toFixed(3)} mm`);
+    ok('  y el pie cierra: Σ L del último + cola + su Δ = la desarrollada',
+       Math.abs(E.rowLengths(effu)[M.bends.length - 1].cum
+                + E.tailStraight(M) + E.tailStraightDelta(M, effu)
+                - E.developedLength(effu)) < 1e-12);
+  }
+
   /* un modelo sin dobleces: solo cola */
   {
     const solo = E.normalizeModel({ ...M, bends: [], tail: 250 });

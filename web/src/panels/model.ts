@@ -51,9 +51,12 @@ export function feasNote(M: Model): string {
 export function paneModel(M: Model): string {
   const v = V();
   E.syncDeltas(v);
-  /* La RECTA es lo que se teclea y va sobre la base, como el resto de columnas
-     editables. El AVANCE es de solo lectura y se lee del modelo efectivo: es la
-     consecuencia de la recta más lo que el doblez le come por los dos lados. */
+  /* LAS COLUMNAS EDITABLES VAN SOBRE LA BASE Y SU Δ AL LADO, y la suma de las
+     dos tiene que ser la pieza que se dibuja. Con `rot` y con el ángulo eso es
+     trivial —son campos guardados— pero con la RECTA no: la recta sale del
+     avance menos los dos trims, así que un Δ de ángulo la mueve sin tocar el
+     avance. Por eso la columna del Δ de la recta enseña el Δ de la RECTA y no
+     el del avance: ver `straightDelta()` en engine/kinematics.ts. */
   const base = v.base.bends, ori = E.orientations(M);
   const redonda = M.section.kind === 'round';
   /* El eje de doblado ABSOLUTO tras cada giro. La columna «Rodado» dice cuánto
@@ -65,14 +68,28 @@ export function paneModel(M: Model): string {
      mirando esa columna, y en una tabla de quince filas con desplazamiento
      lateral no se está. Esto lo dice con palabras y nombra los dobleces. */
   const fab = feasNote(M);
-  /* la cabecera del pie ocupa las 10 columnas de parámetros; la recta de salida
-     va bajo L y la longitud desarrollada bajo Σ L */
+  /* EL PIE ES UNA FILA MÁS. La cola lleva su recta bajo «Recta» y su Δ bajo el
+     Δ, igual que cualquier doblez; no lleva L porque una cola no tiene arco, y
+     bajo Σ L va la longitud desarrollada. Así la última columna se lee entera
+     de arriba abajo: Σ L del último doblez, más la recta de la cola con su Δ,
+     da la desarrollada. Hasta el 2026-09-22 la recta de salida se pintaba bajo
+     «L» —una recta en la columna del arco— y la cola se tecleaba arriba y en
+     PI a PI, que son dos números distintos con el mismo nombre. */
   const num = (attr: string, i: number, k: DeltaKey, val: number, step: string): string =>
     nfield(step, `data-${attr}="${i}" data-k="${k}"`, val);
   /* un Δ en cero se apaga: la columna solo debe cantar cuando hay corrección */
   const dnum = (i: number, k: DeltaKey, step: string): string => {
     const d = v.deltas[i][k];
     return nfield(step, `class="${d ? '' : 'z'}" data-bd="${i}" data-k="${k}"`, d);
+  };
+  /** El Δ de la RECTA. `data-k="straight"` y no `"feed"` porque lo que se
+   *  teclea aquí está en la unidad de la columna de al lado; el avance sigue
+   *  siendo lo que se guarda. Se redondea a la milésima para la comparación
+   *  con cero: un Δ de ángulo deja restos de 1e-13 en las rectas vecinas y sin
+   *  esto la columna se encendería con un cero. */
+  const dstr = (i: number): string => {
+    const d = +E.straightDelta(v.base, M, i).toFixed(3);
+    return nfield('.1', `class="${d ? '' : 'z'}" data-bd="${i}" data-k="straight"`, d);
   };
 
   const rows = M.bends.map((b, i) => {
@@ -82,9 +99,13 @@ export function paneModel(M: Model): string {
     const bb = base[i];
     return `<tr class="clk ${i === ST.sel ? 'sel' : ''} ${hasD ? 'hasd' : ''}" data-r="${i}">
       <td>B${i + 1}</td><td>${oriTag(ori[i], redonda)}</td>
-      <td>${nfield('.5', `data-st="${i}" class="${BASE[i].straight < ST.lims.straightMin ? 'v-bad' : ''}"`,
+      ${/* El rojo mira la recta EFECTIVA, que es la que hay que fabricar y la
+           misma que juzga feasNote(): con un Δ de ángulo la recta de la pieza
+           se acorta y el campo sigue enseñando la de la base, así que el aviso
+           de arriba y la celda tienen que estar de acuerdo. */''}
+      <td>${nfield('.5', `data-st="${i}" class="${LEN[i].straight < ST.lims.straightMin ? 'v-bad' : ''}"`,
                    BASE[i].straight)}</td>
-      <td class="dcol">${dnum(i, 'feed', '.1')}</td>
+      <td class="dcol">${dstr(i)}</td>
       <td>${nfield('.1', `data-b="${i}" data-k="rot"
         title="${T('rotAxisTip').replace('%e', fx(ejes[i], 1))}"`, bb.rot)}</td>
       <td class="dcol">${dnum(i, 'rot', '.1')}</td>
@@ -111,15 +132,19 @@ export function paneModel(M: Model): string {
            una. Estuvieron en los dos sitios hasta el 2026-09-18, con el mismo
            `data-s` y el mismo dato detrás —dos vistas de uno, no dos copias—,
            pero obligaban a mirar en dos lados para entender una sección. Lo
-           que sí se queda es el resumen y la cola, que es de la pieza y no de
-           la sección. */''}
+           que sí se queda es el resumen.
+
+           La COLA tampoco está ya aquí: se teclea en el pie de la tabla, en la
+           columna «Recta» y de tangencia a tangencia como las demás. Aquí se
+           tecleaba de PI a PI, así que el campo decía 160.00 y el pie 154.66 y
+           las dos cosas se llamaban «Cola». */''}
       <div class="fgrid pair"><label>${T('secKind')}</label>
       <b>${T(M.section.kind === 'round' ? 'secRound' : 'secRect')}</b>
       <label>${T(M.section.kind === 'round' ? 'dia' : 'width')} (mm)</label>
       <b>${fx(M.section.width, 1)}</b>
       ${M.section.kind === 'round' ? ''
         : `<label>${T('thick')} (mm)</label><b>${fx(M.section.thickness, 1)}</b>`}
-      <label>${T('tail')} (mm)</label>${nfield('.5', 'data-m="tail"', v.base.tail)}</div></div>
+      </div></div>
     <div class="mcol"><div class="eyebrow">${T('tol')}</div>
       <div class="fgrid pair"><label>${T('tolA')} (°)</label>${nfield('.05', 'data-t="angle"', M.tol.angle)}
       <label>${T('tolR')} (°)</label>${nfield('.05', 'data-t="rot"', M.tol.rot)}
@@ -130,14 +155,23 @@ export function paneModel(M: Model): string {
     <div id="fabnote">${fab}</div>
     <div class="tw"><table class="lra"><thead><tr>
       <th scope="col">${T('nBend')}</th><th scope="col">${T('ori')}</th>
-      <th scope="col">${T('straight')}</th><th scope="col" class="dcol">${d}</th>
+      <th scope="col">${T('straight')}</th>
+      <th scope="col" class="dcol" title="${esc(T('dStraightTip'))}">${d}</th>
       <th scope="col" title="${T('rotHeadTip')}">${T('rot')}</th><th scope="col" class="dcol">${d}</th>
       <th scope="col">${T('ang')}</th><th scope="col" class="dcol">${d}</th>
       <th scope="col">${T('rad')}</th><th scope="col">${T('twist')}</th><th scope="col">${T('twlen')}</th>
       <th scope="col">${T('arcL')}</th><th scope="col">${T('cumL')}</th>
       </tr></thead><tbody>${rows}</tbody>
-      <tfoot><tr class="foot"><td>${T('tailRow')}</td><td colspan="10"></td>
-        <td class="v-dim" data-cell="tstr">${fx(E.tailStraight(M), 2)}</td>
+      <tfoot><tr class="foot"><td>${T('tailRow')}</td><td></td>
+        <td data-cell="tstr">${nfield('.5',
+          `data-m="tail" title="${esc(T('tailFootTip'))}"
+           class="${E.tailStraight(M) < ST.lims.straightMin ? 'v-bad' : ''}"`,
+          E.tailStraight(v.base))}</td>
+        <td class="dcol" data-cell="tdlt">${(() => {
+          const dt = +E.tailStraightDelta(v.base, M).toFixed(3);
+          return `<span class="${dt ? '' : 'z'}">${fx(dt, 2)}</span>`;
+        })()}</td>
+        <td colspan="7"></td><td class="v-dim"></td>
         <td data-cell="dev">${fx(E.developedLength(M), 2)}</td></tr></tfoot>
       </table></div>
     <div class="row mt6"><button class="btn sm" data-a="addb">+ ${T('addBend')}</button>

@@ -161,7 +161,18 @@ export function updateModelDerived(): boolean {
     const st = row.querySelector<HTMLInputElement>('input[data-st]');
     if (st) {
       if (st !== act) st.value = nx(BASE[i].straight);
-      st.classList.toggle('v-bad', BASE[i].straight < ST.lims.straightMin);
+      /* el rojo va sobre la recta EFECTIVA, que es la que se fabrica y la que
+         juzga feasNote(); el campo enseña la de la base */
+      st.classList.toggle('v-bad', LEN[i].straight < ST.lims.straightMin);
+    }
+    /* El Δ de la RECTA: se teclea en la unidad de la columna de al lado y se
+       guarda como Δ de avance. Un Δ de ángulo lo mueve sin que nadie lo
+       teclee, así que este campo se reescribe aunque no se haya tocado. */
+    const dst = row.querySelector<HTMLInputElement>('input[data-bd][data-k="straight"]');
+    if (dst) {
+      const d = +E.straightDelta(v.base, M, i).toFixed(3);
+      if (dst !== act) dst.value = nx(d);
+      dst.classList.toggle('z', !d);
     }
 
     put(row, 'arc', fx(LEN[i].arc, 2));
@@ -187,7 +198,18 @@ export function updateModelDerived(): boolean {
 
   const foot = $('#panes table.lra tfoot');
   if (foot) {
-    put(foot, 'tstr', fx(E.tailStraight(M), 2));
+    /* la cola se TECLEA en el pie desde el 2026-09-22: no es un textContent */
+    /* `input[data-m]` a secas y no `[data-m="tail"]`: en el pie no hay otro
+       campo, y nombrar el valor haría que focus.ts figurara como EMISOR de
+       `data-m` en la prueba de atributos compartidos (ARQ-02). */
+    const tf = foot.querySelector<HTMLInputElement>('input[data-m]');
+    if (tf) {
+      if (tf !== act) tf.value = nx(E.tailStraight(v.base));
+      tf.classList.toggle('v-bad', E.tailStraight(M) < ST.lims.straightMin);
+    }
+    const dt = +E.tailStraightDelta(v.base, M).toFixed(3);
+    const dtc = foot.querySelector('[data-cell="tdlt"] span');
+    if (dtc) { dtc.textContent = fx(dt, 2); dtc.className = dt ? '' : 'z'; }
     put(foot, 'dev', fx(E.developedLength(M), 2));
   }
   /* El aviso de fabricabilidad se recalcula aquí y no solo al reconstruir el

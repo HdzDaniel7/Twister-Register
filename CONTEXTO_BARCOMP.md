@@ -703,7 +703,7 @@ cd web && npm run check            # typecheck -> pruebas -> build -> banco, de 
 cd web && npm run typecheck        # tsc --noEmit, con strict
 cd web && node test_motor.js       # 605 pruebas; todas deben pasar
 cd web && node build.mjs           # regenera index.html y barcomp_viewer.html
-cd web && node tools/ui_test.mjs   # 296 pasos de interfaz en Edge headless
+cd web && node tools/ui_test.mjs   # 301 pasos de interfaz en Edge headless
 cd web && node tools/demo_carga.mjs # κ contra una solución exacta, y el codo del hueco
 cd web && node tools/demo_escala.mjs # dónde el solver de la carga deja de caber
 ```
@@ -1158,6 +1158,24 @@ lo único que ese contador puede decir, y un aviso de no meter nada entre `f0` y
 
 ### Decisiones que siguen gobernando el código
 
+- **La tabla de longitudes CUADRA HACIA ABAJO** (2026-09-22). El motor nunca se equivocó
+  —`developedLength()` contra el camino 3D refinado da 1861.8670 contra 1861.8670, y
+  `dev − PIaPI` es exactamente `−Σ(2·trim − arco)`— pero la tabla enseñaba dos cosas que no
+  se podían sumar. Una: la **cola** se tecleaba de PI a PI en la cabecera mientras el pie la
+  daba de tangencia a tangencia, con el mismo nombre; el campo decía 160.00, el pie 154.66,
+  y sumar el último `Σ L` más el campo se iba **5.34 mm**, que es el `trim` del último
+  doblez. Ahora se teclea en el PIE, bajo `Recta`, en la misma unidad que las demás. Dos: la
+  columna del `Δ` de la `Recta` enseñaba el `Δ` del **avance**, y la recta no es un campo
+  guardado —sale del avance menos los dos trims— así que un `Δ` de ángulo la mueve sin tocar
+  ningún avance: medido, 1.5° en B5 acorta 0.869 mm la recta de B5 y otro tanto la de B6, y
+  `Σ L` subía 0.869 menos de lo que sumaba la fila. La columna pasa a llevar `Δ` de RECTA
+  (`data-k="straight"`), que se teclea y se guarda como `Δ` de avance. **No sube el esquema**:
+  no cambia ni un dato guardado, solo lo que se pinta y en qué unidad se teclea. Y el rojo de
+  la `Recta` pasa a juzgar la recta EFECTIVA, que es la que juzga `feasNote()`: antes el
+  aviso podía nombrar un doblez cuya celda seguía en blanco. Trampa encontrada al escribirlo:
+  `effectiveModel()` llama por dentro a `syncDeltas()`, que **reemplaza** `v.deltas` por
+  objetos nuevos, así que `v.deltas[i].feed = f(effectiveModel(v))` escribe en el objeto que
+  se acaba de tirar — el efectivo se saca a una variable antes.
 - **La cuna de un pedestal GUARDA SU RUMBO** (2026-09-21). Hasta ese día no lo guardaba:
   `pedestalFit()` lo leía de la barra en cada llamada, así que la chapa se apuntaba sola y
   **era imposible verla cruzada**. Un fixture que siempre casa no sirve para entender un

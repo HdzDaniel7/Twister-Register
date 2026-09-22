@@ -22,7 +22,7 @@ import { $ } from '../../dom.ts';
 import { refresh } from '../render.ts';
 import { commit } from '../history.ts';
 import {
-  variantById, editBend, editStraight, editDelta, editPoint, editTweak,
+  variantById, editBend, editStraight, editStraightDelta, editTail, editDelta, editPoint, editTweak,
 } from '../actions.ts';
 
 /* --- listas blancas ------------------------------------------------------
@@ -156,8 +156,10 @@ function onModelField(t: HTMLInputElement, d: DOMStringMap): boolean {
       v.name = t.value; v.base.name = t.value;
       syncModel(); renderShell(); renderLeft(); renderStatus();
     } else if (d.m === 'tail') {
+      /* Se teclea la RECTA de salida, no el PI a PI: la conversión vive en
+         editTail() y el estado guardado sigue siendo `tail`. */
       const n = num(t.value);
-      if (n !== null) { v.base.tail = n; syncModel(); refresh(); }
+      if (n !== null) editTail(n);
     }
     return true;
   }
@@ -331,7 +333,10 @@ function onCell(t: HTMLInputElement, d: DOMStringMap): boolean {
   }
   if (d.st !== undefined) { if (n !== null) editStraight(+d.st, n); return true; }
   if (d.bd !== undefined) {
-    if (n !== null && d.k && DELTA_SET.has(d.k)) editDelta(+d.bd, d.k as DeltaKey, n);
+    /* `straight` no es un DeltaKey: es la LECTURA del Δ de avance en la misma
+       unidad que la columna de al lado. Se teclea aquí y se guarda como avance. */
+    if (n !== null && d.k === 'straight') editStraightDelta(+d.bd, n);
+    else if (n !== null && d.k && DELTA_SET.has(d.k)) editDelta(+d.bd, d.k as DeltaKey, n);
     return true;
   }
   if (d.p !== undefined) {

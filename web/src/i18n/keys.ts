@@ -6,7 +6,7 @@
    ========================================================================= */
 export type Lang = 'es' | 'en' | 'de';
 
-/** Las 457 claves que deben existir en LOS TRES diccionarios. */
+/** Las 458 claves que deben existir en LOS TRES diccionarios. */
 export type I18nKey =
   | 'sub' | 'bNew' | 'bOpen' | 'bSave' | 'bRep' | 'bDemo' | 'layers' | 'datasets'
   | 'model' | 'meas' | 'thSys' | 'thLight' | 'thDark' | 'comp' | 'points' | 'lNom'
@@ -14,9 +14,10 @@ export type I18nKey =
   | 'lFix' | 'addSim' | 'del' | 'view' | 'vIso' | 'vTop' | 'vFront' | 'vSide'
   | 'vFit' | 'exag' | 'cmode' | 'cSolid' | 'cDev' | 'legend' | 'devscale' | 'hint'
   | 'ribbon' | 'vsRef' | 'gripW' | 'gripH' | 'name' | 'section' | 'width' | 'thick'
-  | 'chamfer' | 'endlen' | 'tail' | 'tol' | 'tolA' | 'tolR' | 'tolF' | 'tolP'
+  | 'chamfer' | 'endlen' | 'tol' | 'tolA' | 'tolR' | 'tolF' | 'tolP'
   | 'bends' | 'addBend' | 'nBend' | 'feed' | 'rot' | 'ang' | 'rad' | 'twist'
-  | 'twlen' | 'ori' | 'dcol' | 'straight' | 'arcL' | 'cumL' | 'tailRow' | 'lenNote'
+  | 'twlen' | 'ori' | 'dcol' | 'dStraightTip' | 'straight' | 'arcL' | 'cumL'
+  | 'tailRow' | 'tailFootTip' | 'lenNote'
   | 'kbdNote' | 'twnote' | 'proc' | 'sbW' | 'sbT' | 'slip' | 'biasR' | 'noise'
   | 'seed' | 'simulate' | 'dNone' | 'deltas' | 'dA' | 'dR' | 'dF' | 'dP'
   | 'srcSim' | 'srcVerify' | 'srcMeas' | 'srcUnk' | 'impCsv' | 'impTip' | 'csvBad'

@@ -260,6 +260,46 @@ step('Recta, L y Sigma L coinciden con el motor', () => {
   }
 });
 
+/* LA FILA TIENE QUE CUADRAR CON Σ L. La Recta va sobre la base y su Δ al lado,
+   igual que el angulo y el rodado; con el Δ del AVANCE en esa columna la cuenta
+   se iba 0.869 mm por fila en cuanto habia un Δ de angulo. */
+step('Recta + su Δ + L es exactamente lo que sube Sigma L', () => {
+  const M = S().model, v = S().variants[0], L = Eg().rowLengths(M);
+  const rows = document.querySelectorAll('table.lra tbody tr');
+  for (let i = 0; i < rows.length; i++) {
+    const base = +rows[i].querySelector('input[data-st]').value;
+    const d = +rows[i].querySelector('input[data-bd][data-k="straight"]').value;
+    const salto = L[i].cum - (i ? L[i - 1].cum : 0);
+    near(base + d + L[i].arc, salto, 0.012, 'la fila ' + i + ' no cuadra con Sigma L');
+  }
+});
+
+step('  y un Δ de angulo aparece en el Δ de la Recta, no en cero', () => {
+  /* B4 arrastra un Δ de angulo de 2.5 grados desde el principio del banco */
+  const d = +q('input[data-bd="3"][data-k="straight"]').value;
+  if (Math.abs(d) < 0.01) throw new Error('el Δ de la recta marca cero: ' + d);
+  /* y el avance guardado sigue en cero: nadie ha tecleado un avance */
+  near(S().variants[0].deltas[3].feed, 0, 1e-9, 'el Δ de angulo movio un avance');
+});
+
+step('el rojo de la Recta mira la recta de la PIEZA, no la de la base', () => {
+  const v = S().variants[0];
+  const campo = () => q('input[data-st="4"]');
+  if (campo().classList.contains('v-bad')) throw new Error('ya nacia en rojo');
+  /* 35 grados de mas en B5 le comen 26.5 mm de trim a su recta: 47.87 pasa a
+     21.4, por debajo de los 25 de recta minima. El campo sigue enseñando la
+     base, que son 47.87, y aun asi tiene que ponerse rojo. */
+  setval('input[data-bd="4"][data-k="angle"]', '35');
+  const real = Eg().rowLengths(S().model)[4].straight;
+  if (!(real < 25)) throw new Error('la recta efectiva no bajo de 25: ' + real.toFixed(2));
+  near(+campo().value, Eg().straightOf(v.base, 4), 0.006, 'el campo dejo de enseñar la base');
+  if (!campo().classList.contains('v-bad')) {
+    throw new Error('recta efectiva ' + real.toFixed(2) + ' mm y el campo no esta en rojo');
+  }
+  setval('input[data-bd="4"][data-k="angle"]', '0');
+  if (campo().classList.contains('v-bad')) throw new Error('se quedo en rojo');
+});
+
 step('L y Sigma L son de solo lectura', () => {
   const n = document.querySelectorAll('[data-cell="arc"] input,[data-cell="cum"] input').length;
   if (n) throw new Error(n + ' campos en columnas calculadas');
@@ -344,10 +384,36 @@ step('Ctrl+flecha respeta el tercer decimal', () => {
   near(angVisto(1), 18.005, 1e-9, 'paso sobre tres decimales');
 });
 
-step('el pie da la cola y la longitud desarrollada', () => {
-  const M = S().model;
-  near(+q('[data-cell="tstr"]').textContent, Eg().tailStraight(M), 0.006, 'cola');
-  near(+q('[data-cell="dev"]').textContent, Eg().developedLength(M), 0.006, 'desarrollada');
+/* LA COLA SE TECLEA DE TANGENCIA A TANGENCIA, EN EL PIE (2026-09-22). Hasta ese
+   dia se tecleaba de PI a PI en la cabecera de la seccion, asi que la palabra
+   «Cola» nombraba dos numeros: el campo decia 160.00 y el pie 154.66. Estos
+   pasos no pueden pasar sin el arreglo: el primero porque en el pie no habia
+   campo, y el segundo porque la suma se iba 5.34 mm. */
+step('la cola se teclea en el pie, bajo la columna Recta', () => {
+  const v = S().variants[0];
+  const campo = q('[data-cell="tstr"] input');
+  if (campo.dataset.m !== 'tail') throw new Error('el campo del pie no es la cola');
+  near(+campo.value, Eg().tailStraight(v.base), 0.006, 'cola de la base');
+  /* y la celda de al lado es su Δ, que es lo unico que la separa de la pieza */
+  near(+q('[data-cell="tdlt"]').textContent, Eg().tailStraightDelta(v.base, S().model),
+       0.006, 'Δ de la cola');
+  near(+q('[data-cell="dev"]').textContent, Eg().developedLength(S().model), 0.006, 'desarrollada');
+});
+
+step('  Sigma L del ultimo + la cola tecleada = la desarrollada', () => {
+  const M = S().model, L = Eg().rowLengths(M);
+  const cola = +q('input[data-m="tail"]').value;
+  const dt = +q('[data-cell="tdlt"]').textContent;
+  const suma = L[L.length - 1].cum + cola + dt;
+  near(suma, Eg().developedLength(M), 0.02, 'la columna Sigma L no cierra');
+});
+
+step('  y teclear la cola deja la RECTA pedida, no el PI a PI', () => {
+  const v = S().variants[0], antes = +q('input[data-m="tail"]').value;
+  setval('input[data-m="tail"]', '150');
+  near(Eg().tailStraight(v.base), 150, 1e-6, 'recta de salida');
+  if (Math.abs(v.base.tail - 150) < 1e-6) throw new Error('guardo la recta como PI a PI');
+  setval('input[data-m="tail"]', String(antes));
 });
 
 step('teclear Recta deja la recta pedida y mueve Sigma L', () => {
@@ -430,12 +496,12 @@ step('flecha arriba sube de fila', () => {
 });
 
 step('Enter baja de fila y confirma el valor tecleado', () => {
-  const a = q('input[data-bd="1"][data-k="feed"]');
+  const a = q('input[data-bd="1"][data-k="straight"]');
   typeIn(a, '1.5');
   key(a, 'Enter');
   const act = document.activeElement;
   if (act.dataset.bd !== '2') throw new Error('quedo en ' + act.dataset.bd);
-  near(window.BARCOMP.ST.variants[0].deltas[1].feed, 1.5, 1e-9, 'delta confirmado');
+  near(Eg().straightDelta(S().variants[0].base, S().model, 1), 1.5, 1e-9, 'delta confirmado');
 });
 
 step('Tab confirma sin reconstruir el panel', () => {
@@ -481,12 +547,24 @@ step('la rueda sigue subiendo el valor', () => {
   near(angVisto(1), antes + 0.1, 1e-6, 'paso con rueda');
 });
 
-step('el Delta de la Recta sigue funcionando', () => {
-  const antes = celda(3, 'cum');
-  setval('input[data-bd="3"][data-k="feed"]', '0.8');
-  near(S().variants[0].deltas[3].feed, 0.8, 1e-9, 'delta guardado');
-  near(celda(3, 'cum'), antes + 0.8, 0.01, 'Sigma L recoge el delta');
-  setval('input[data-bd="3"][data-k="feed"]', '0');
+/* EL Δ DE LA COLUMNA «RECTA» ES UN Δ DE RECTA (2026-09-22). B4 lleva un Δ de
+   angulo de 2.5 grados desde el principio del banco, y un Δ de angulo mueve la
+   recta sin tocar ningun avance: hasta ese dia la columna enseñaba el Δ del
+   AVANCE, marcaba cero, y Σ L subia menos de lo que sumaba la fila. */
+step('el Δ de la Recta se teclea en mm de RECTA, no de avance', () => {
+  const v = S().variants[0], antes = celda(3, 'cum');
+  /* B4 ya trae Δ de recta por su Δ de angulo: lo que sube Sigma L es la
+     DIFERENCIA, no el 0.8 entero */
+  const d0 = Eg().straightDelta(v.base, S().model, 3);
+  setval('input[data-bd="3"][data-k="straight"]', '0.8');
+  near(Eg().straightDelta(v.base, S().model, 3), 0.8, 1e-9, 'Δ de recta');
+  near(celda(3, 'cum'), antes + (0.8 - d0), 0.01, 'Sigma L recoge el delta');
+  if (Math.abs(v.deltas[3].feed - 0.8) < 1e-6) {
+    throw new Error('el avance guardado salio igual que la recta: ' + v.deltas[3].feed);
+  }
+  /* se devuelve el Δ DE RECTA que habia, que es lo que deja el avance en cero */
+  setval('input[data-bd="3"][data-k="straight"]', String(d0));
+  near(v.deltas[3].feed, 0, 1e-9, 'el avance no volvio a cero');
 });
 
 /* ------------------------------------------------------------- tema ---- */

@@ -135,6 +135,31 @@ Detalle en `CONTEXTO_BARCOMP.md`, «La carga».
       lo dicen** (eran 3 hasta FIS-10c, que movió unas micras dónde se posa la pieza sujeta);
       antes de `PedFit.deep` ese aviso era mudo por encima del radio de la sección.
 
+- [x] **La tabla de longitudes no cuadraba hacia abajo · [O]** — **arreglado el 2026-09-22**,
+      a raíz de «revisa las longitudes de la pestaña de L y sumatoria de L». El motor NO se
+      equivocaba: `developedLength()` contra el camino 3D refinado da 1861.8670 contra
+      1861.8670, y `dev − PIaPI` es exactamente `−Σ(2·trim − arco)`. Lo que no cuadraba era lo
+      que se pintaba, en dos sitios:
+      1. La **cola** se tecleaba de PI a PI en la cabecera y el pie la daba de tangencia a
+         tangencia, las dos llamándose «Cola»: 160.00 arriba, 154.66 abajo. Sumar el último
+         `Σ L` más el campo se iba **5.34 mm**, que es el `trim` del último doblez. Ahora se
+         teclea en el PIE, bajo `Recta`, en la misma unidad que las demás.
+      2. El `Δ` de la columna `Recta` enseñaba el `Δ` del **avance**. La recta no es un campo
+         guardado —sale del avance menos los dos trims— así que un `Δ` de ángulo la mueve sin
+         tocar ningún avance: 1.5° en B5 acorta **0.869 mm** la recta de B5 y otro tanto la de
+         B6, y `Σ L` subía 0.869 menos de lo que sumaba la fila. Pasa a llevar `Δ` de RECTA.
+      Y el rojo de la `Recta` pasa a juzgar la recta EFECTIVA, la misma que juzga
+      `feasNote()`. **No sube el esquema**: no cambia ni un dato guardado.
+      Lo que NO se tocó, porque no da un resultado incorrecto en ninguna pieza que el
+      programa acepte: `trimOf()` topa θ en 170° —para no reventar en la asíntota de
+      `tan(θ/2)`— y el arco usa θ sin topar; a 175° el trim se queda en 342.90 y el arco sigue
+      creciendo hasta 91.63. Las dos mitades de la fila usan θ distinta, pero topar el arco
+      sería dibujar un doblez de 170 donde el modelo dice 175, y esas piezas ya salen
+      listadas por `overBent()`. Y `TRIM_KEYS` incluye `'rot'` aunque el trim no dependa del
+      rodado —`bendDecomp()` saca θ solo del ángulo—: editar el rodado entra al camino de
+      recolocar avances para nada, y sale el mismo avance. Creencia vieja de cuando `rot` era
+      componente de doblez; se quita en una pasada que no cambie comportamiento.
+
 - [x] **El pedestal no gira en Z, y el sembrado lo gira contra la pieza · [O]** — **hecho el
       2026-09-21.** `Pedestal.yaw`, esquema `barcomp/2.5`, y la cuna deja de apuntarse sola.
       Lo que queda de esta entrada es el porqué, que sigue valiendo — pedido por

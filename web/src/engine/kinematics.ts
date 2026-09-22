@@ -398,6 +398,56 @@ export const feedForStraight = (model: Model, i: number, straight: number): numb
 export const tailStraight = (model: Model): number =>
   model.tail - trimAt(model.bends, model.bends.length - 1);
 
+/** `tail` (PI a PI) que produce una recta de salida dada. Inversa exacta de
+ *  tailStraight(), y la gemela de feedForStraight() para la cola: es lo que se
+ *  escribe al teclear la cola en el pie de la tabla.
+ *
+ *  Hasta el 2026-09-22 la cola era el ÚNICO sitio donde se tecleaba un PI a PI
+ *  mientras todo lo demás se tecleaba de tangencia a tangencia, y la palabra
+ *  «Cola» nombraba dos números distintos: el campo decía 160.00 y el pie
+ *  154.66, que es 160 menos el trim del último doblez. Quien sumaba a mano el
+ *  último Σ L más la cola del campo se iba 5.34 mm por encima de la longitud
+ *  desarrollada, sin que nada estuviera mal calculado. */
+export const tailForStraight = (model: Model, straight: number): number =>
+  straight + trimAt(model.bends, model.bends.length - 1);
+
+/* --- el Δ de una RECTA -----------------------------------------------------
+   La recta NO es un campo guardado: sale del avance menos los dos trims, y el
+   trim se mueve con el ángulo y con el radio. Así que un Δ de ÁNGULO mueve dos
+   rectas —la suya y la de al lado— sin tocar ni un avance, y la columna del Δ,
+   si enseñara el Δ del AVANCE, marcaría cero mientras la pieza cambia de largo.
+
+   Medido en la demo con un Δ de 1.5° en B5: la recta de B5 y la de B6 se
+   acortan 0.869 mm cada una, y Σ L subía 0.869 menos de lo que sumaban la
+   recta y la L de esa fila. Por eso la columna enseña y teclea el Δ de la
+   RECTA: base + Δ es la pieza en las cuatro columnas por igual. El avance
+   sigue siendo el estado que se guarda y lo que se manda a la máquina, igual
+   que arriba se teclea una recta y se guarda un avance.
+
+   Tecleando el ángulo en la BASE esto no pasaba: `editBend()` recoloca los
+   avances para dejar las rectas quietas. El camino del Δ no hace eso a
+   propósito —un Δ es una corrección del lazo y no puede ir moviendo avances
+   que nadie pidió— así que la diferencia se ENSEÑA en vez de taparse. */
+
+/** Δ de la RECTA del doblez i: lo que los Δ le hacen de verdad al tramo recto. */
+export const straightDelta = (base: Model, eff: Model, i: number): number =>
+  straightOf(eff, i) - straightOf(base, i);
+
+/** Δ del AVANCE que produce un Δ de RECTA dado. Inversa exacta de
+ *  straightDelta(): los trims no dependen del avance, así que basta una pasada
+ *  y no hay nada que resolver. */
+export const feedDeltaForStraightDelta = (
+  base: Model, eff: Model, i: number, dStraight: number,
+): number =>
+  dStraight + (trimAt(eff.bends, i) - trimAt(base.bends, i))
+            + (trimAt(eff.bends, i - 1) - trimAt(base.bends, i - 1));
+
+/** Δ de la recta de SALIDA. La cola no tiene Δ que teclear —el lazo no la
+ *  corrige— pero un Δ de ángulo en el último doblez se la come igual, y el pie
+ *  tiene que decirlo o la resta de la longitud desarrollada no cierra. */
+export const tailStraightDelta = (base: Model, eff: Model): number =>
+  tailStraight(eff) - tailStraight(base);
+
 /** Por doblez: la recta que lo precede, el arco que genera y el acumulado. */
 export function rowLengths(model: Model): RowLength[] {
   let cum = 0;

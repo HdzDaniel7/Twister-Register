@@ -37,11 +37,18 @@ tiene internet.
 - **La tabla se teclea en rectas.** La primera columna es `Recta`, el tramo
   recto de tangencia a tangencia, que es lo que se mide en la barra. Al final
   van `L` (la longitud del arco que genera el doblez) y `Σ L` (la longitud
-  desarrollada acumulada), las dos de solo lectura, y en el pie la cola y el
-  total. El `Avance` de PI a PI sigue siendo lo que se guarda y lo que se manda
-  a la máquina, pero se calcula por debajo: cambiar un radio o un ángulo **deja
-  las rectas quietas y recoloca los avances**, que es como se piensa en el
-  taller.
+  desarrollada acumulada), las dos de solo lectura, y en el pie la cola —que se
+  teclea ahí, en la misma columna y en la misma unidad— y el total. El `Avance`
+  de PI a PI sigue siendo lo que se guarda y lo que se manda a la máquina, pero
+  se calcula por debajo: cambiar un radio o un ángulo **deja las rectas quietas
+  y recoloca los avances**, que es como se piensa en el taller.
+- **La tabla cuadra hacia abajo.** Cada columna editable va sobre la base con su
+  `Δ` al lado, y la suma de las dos es la pieza que se dibuja. Con la `Recta`
+  eso obliga a que su `Δ` esté en **milímetros de recta y no de avance**: la
+  recta no es un campo guardado, sale del avance menos los dos trims, así que un
+  `Δ` de ángulo la acorta sin tocar ningún avance. Con el `Δ` del avance en esa
+  columna, un `Δ` de 1.5° en B5 marcaba cero mientras `Σ L` subía 0.869 mm menos
+  de lo que sumaba la fila.
 - **La tabla se recorre con el teclado como una hoja de cálculo**: Tab / ⇧Tab en
   horizontal, Enter y ↑ ↓ en vertical, Esc descarta la celda, y el valor sube o
   baja un paso con la rueda del ratón o con Ctrl+↑ ↓. El foco no se pierde al
@@ -285,7 +292,7 @@ web/
   src/app.css       tokens de diseño y layout; la paleta de los DOS temas
   src/shell.html    esqueleto con los marcadores del build
   build.mjs         esbuild: src/ + three  ->  index.html
-  test_motor.js     705 pruebas del motor y del i18n, en Node y sin navegador
+  test_motor.js     721 pruebas del motor y del i18n, en Node y sin navegador
   tools/            banco de interfaz por CDP y las sondas de medición
 index.html          SALIDA GENERADA — no se edita a mano
 ```
@@ -312,7 +319,7 @@ npm run check        # typecheck -> pruebas -> build -> banco de interfaz
 npm run typecheck    # tsc --noEmit, con strict
 npm test             # 605 pruebas del motor y del i18n
 npm run build        # regenera index.html (y web/barcomp_viewer.html en local)
-npm run test:ui      # 296 pasos de interfaz en Edge headless, por CDP
+npm run test:ui      # 301 pasos de interfaz en Edge headless, por CDP
 npm run demo:amarre  # cinco escenarios del amarre, con las cifras a la vista
 npm run demo:carga   # el muelle de contacto contra una solución exacta, y el codo
                      # del hueco que impide cerrar FIS-10b
@@ -448,6 +455,9 @@ Recta(i) = el tramo recto, tangencia a tangencia   ← se teclea
 L(i)     = radius(i) · θ(i)                        ← el arco
 Σ L(i)   = Σ L(i−1) + Recta(i) + L(i)
 feed(i)  = Recta(i) + trim(i) + trim(i−1)          ← por debajo, no en la tabla
+
+Cola     = tail − trim(último)                     ← se teclea, en el pie
+Σ L final = Σ L(último) + Cola                     ← la longitud desarrollada
 ```
 
 `Recta` es el material que de verdad sale recto y es lo único que se teclea de
@@ -458,6 +468,26 @@ trozo de barra que hay que cortar.
 El **avance** de PI a PI ya no está en la tabla. Es la geometría del CAD —donde
 se cruzarían las rectas si el doblez fuera una esquina viva— y el doblez le come
 un `trim` por cada lado; de ahí que no coincida con la recta.
+
+La **cola** se teclea en el pie, bajo `Recta`, y también de tangencia a
+tangencia. Hasta el 2026-09-22 se tecleaba en la cabecera y de PI a PI, así que
+la palabra «Cola» nombraba dos números: el campo decía `160.00` y el pie
+`154.66`, que es la misma cola menos el `trim` del último doblez. Quien sumaba a
+mano el último `Σ L` más la cola del campo se iba **5.34 mm** por encima de la
+longitud desarrollada, sin que nada estuviera mal calculado.
+
+Y la columna del `Δ` de la `Recta` lleva **milímetros de recta**, no de avance.
+La recta no se guarda: sale del avance menos los dos trims, así que un `Δ` de
+ángulo mueve **dos** rectas —la suya y la de al lado— sin tocar ni un avance.
+Con el `Δ` del avance en esa columna, un `Δ` de 1.5° en B5 dejaba la columna en
+cero mientras las rectas de B5 y B6 se acortaban **0.869 mm** cada una, y `Σ L`
+subía 0.869 menos de lo que sumaban la recta y la `L` de esa fila. Se teclea el
+`Δ` de la recta y se guarda el `Δ` del avance, igual que arriba se teclea una
+recta y se guarda un avance. Tecleando el ángulo en la **base** esto no pasa:
+`editBend()` recoloca los avances para dejar las rectas quietas. El camino del
+`Δ` no lo hace a propósito —un `Δ` es una corrección del lazo y no puede ir
+moviendo avances que nadie pidió— así que la diferencia **se enseña** en vez de
+taparse.
 
 **El sentido de giro del ángulo:** un `angle` positivo desvía hacia **+y**. Lo
 decide una sola constante en el motor, `ANG_DIR` (`engine/kinematics.ts`), que
@@ -639,7 +669,11 @@ cero.
 `Recta`, `L` y `Σ L` **no se guardan**: son magnitudes derivadas de `feed`,
 `radius` y los ángulos. El estado sigue siendo `feed`, de PI a PI, que es lo que
 viaja en el JSON — aunque no aparezca en la tabla y sea la recta la que se
-teclea.
+teclea. Lo mismo con la cola: se teclea su recta y se guarda `tail`, de PI a PI.
+Y lo mismo con el `Δ` de la `Recta`: se teclea un `Δ` de recta y se guarda el `Δ`
+de `feed`, que es el que viaja en `deltas`. **Nada de esto cambió el esquema**: el
+2026-09-22 se arregló lo que se pinta y en qué unidad se teclea, no lo que se
+guarda.
 
 ```jsonc
 {
