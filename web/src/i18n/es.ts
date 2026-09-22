@@ -83,6 +83,10 @@ export const es: Record<I18nKey, string> = {
  secOneConst: 'La barra es redonda: una sola constante. Con Iz = Iy no hay «de canto» ni «de plano», así que repartir en dos compensaría un doblez con el retorno del otro.',
  confirmNew: '¿Crear un modelo nuevo vacío? Se perderá lo no guardado.',
  pts: 'Punto', x: 'X', y: 'Y', z: 'Z',
+ gizmoClamp: 'Ejes de la sección en el amarre: X el eje de la barra, Y el espesor,'
+   + ' Z el ancho. Elige un doblez en la tabla para verlos ahí.',
+ gizmoBend: 'Ejes de la sección al salir del doblez %b: X el eje de la barra ahí,'
+   + ' Y el espesor, Z el ancho.',
  variants: 'Modelos', addVar: '+ Modelo', dupVar: 'Duplicar',
  setRef: 'Usar como referencia', isRef: 'REF',
  /* Procedencia de una pieza: sin esto, una pieza inventada por el simulador y

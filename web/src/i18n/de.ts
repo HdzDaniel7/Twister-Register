@@ -91,6 +91,10 @@ export const de: Record<I18nKey, string> = {
  secOneConst: 'Die Stange ist rund: eine einzige Konstante. Bei Iz = Iy gibt es kein »hochkant« und kein »flach«, zwei Werte würden also eine Biegung mit der Rückfederung der anderen kompensieren.',
  confirmNew: 'Ein neues leeres Modell anlegen? Nicht Gespeichertes geht verloren.',
  pts: 'Punkt', x: 'X', y: 'Y', z: 'Z',
+ gizmoClamp: 'Querschnittsachsen an der Einspannung: X die Stabachse, Y die Dicke,'
+   + ' Z die Breite. Für eine Biegung diese in der Tabelle wählen.',
+ gizmoBend: 'Querschnittsachsen beim Verlassen von Biegung %b: X die Stabachse dort,'
+   + ' Y die Dicke, Z die Breite.',
  variants: 'Modelle', addVar: '+ Modell', dupVar: 'Duplizieren',
  setRef: 'Als Referenz verwenden', isRef: 'REF',
  srcSim: 'SIM', srcVerify: 'SIM ✓', srcMeas: 'MESS', srcUnk: 'K.A.',

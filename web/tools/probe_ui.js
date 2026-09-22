@@ -652,6 +652,60 @@ step('el indicador de ejes gira con la colocacion', () => {
   setval('input[data-pl="rz"]', '0');
 });
 
+/* Reportado desde el taller el 2026-09-21: «los ejes no me coinciden con la
+   pieza». Era literal. El indicador prometia «x el eje de la barra, y el
+   espesor, z el ancho» —los ejes de la SECCION— y pintaba el marco del MODELO,
+   que es la estacion 0. En la demo el eje de la barra en la punta forma 175.5
+   grados con el x del modelo, asi que la flecha apuntaba casi al reves que la
+   barra que se estaba mirando.
+
+   Estos tres pasos no se pueden pasar sin el arreglo: antes, elegir un doblez
+   no movia el indicador ni un pixel, y el widget no decia de donde era el
+   marco. */
+step('el indicador de ejes es el del doblez elegido, no el del origen', () => {
+  const pos = () => {
+    window.BARCOMP.drawGizmo();
+    return [...q('#gizmo svg').querySelectorAll('circle')]
+      .map(c => c.getAttribute('cx') + ',' + c.getAttribute('cy')).join('|');
+  };
+  const sel = (i) => { window.BARCOMP.ST.sel = i; window.BARCOMP.rebuildScene(); };
+  sel(-1);
+  const amarre = pos();
+  sel(S().model.bends.length - 1);
+  if (pos() === amarre) throw new Error('el ultimo doblez pinta lo mismo que el amarre: ' + amarre);
+  sel(-1);
+  if (pos() !== amarre) throw new Error('volver a ninguno no devuelve el marco del amarre');
+});
+step('  y dice de que estacion es el marco, que era la mitad del fallo', () => {
+  const titulo = () => { window.BARCOMP.drawGizmo(); return q('#gizmo svg title').textContent; };
+  const sel = (i) => { window.BARCOMP.ST.sel = i; window.BARCOMP.rebuildScene(); };
+  sel(-1);
+  const a = titulo();
+  if (!a) throw new Error('sin rotulo');
+  sel(4);
+  const b = titulo();
+  if (b === a) throw new Error('el rotulo no cambia al elegir un doblez: ' + b);
+  if (!b.includes('5')) throw new Error('no nombra el doblez 5: ' + b);
+  sel(-1);
+});
+step('  y con la pieza girada el marco gira con ella, no contra ella', () => {
+  drawer('view');
+  const ejeX = () => {
+    window.BARCOMP.drawGizmo();
+    /* el brazo X: el circulo que lleva el texto X, en el mismo orden de pintado */
+    const g = q('#gizmo svg');
+    const t = [...g.querySelectorAll('text')].findIndex(e => e.textContent === 'X');
+    const c = g.querySelectorAll('circle')[t];
+    return [+c.getAttribute('cx'), +c.getAttribute('cy')];
+  };
+  const a = ejeX();
+  setval('input[data-pl="rz"]', '90');
+  const b = ejeX();
+  /* girar 90 grados la colocacion tiene que mover el brazo X de sitio */
+  if (Math.hypot(b[0] - a[0], b[1] - a[1]) < 1) throw new Error('el brazo X no se movio');
+  click('[data-a="placereset"]');
+});
+
 step('duplicar modelo', () => { drawer('models'); click('[data-a="vardup"]'); });
 step('hay dos modelos', () => { if (S().variants.length !== 2) throw new Error(S().variants.length); });
 /* Con un CLIC de verdad, no con el `check()` de aquí arriba: `check()` dispara

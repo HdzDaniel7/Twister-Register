@@ -20,7 +20,7 @@ import { esc, safeColor, COLOR_FALLBACK } from './src/safe.ts';
    banco de Edge, que corre entero o no corre. */
 import { ST, loadModel, syncModel, syncTweak, addMark, addPedestal,
          heldOfVariant, heldResult, heldSlots, heldStats, seedFixture, seedPinsFor,
-         placeMatrix, refModelFree } from './src/state.ts';
+         placeMatrix, refModelFree, shownBasis } from './src/state.ts';
 import * as H from './src/app/history.ts';
 
 let fails = 0;
@@ -846,6 +846,112 @@ console.log('\n— colocación en el espacio —');
   ok('girar 0° alrededor de otro PI tampoco mueve nada',
      E.applyMat(E.placeTransform(E.PLACE_DEFAULT, P[7]), P)
       .every((q, i) => q.distanceTo(P[i]) < 1e-12));
+}
+
+/* ---------------------------------------------------------------------- */
+console.log('\n— los ejes que se enseñan en la esquina —');
+
+/* Lo que el indicador PROMETE: «x el eje de la barra, y el espesor, z el
+   ancho». Son los ejes de la SECCIÓN, y eso es una estación concreta de la
+   pieza, no una propiedad de la pieza entera. Hasta el 2026-09-21 pintaba el
+   marco del MODELO —la estación 0— para cualquier doblez que se mirase, y en
+   una barra doblada eso no describe nada: el fallo llegó del taller escrito
+   como «los ejes no me coinciden con la pieza». */
+{
+  const S = E.buildPath(M).samples;
+  const X = new Vector3(1, 0, 0), Y = new Vector3(0, 1, 0), Z = new Vector3(0, 0, 1);
+  const grados = (a, b) => a.angleTo(b) * 180 / Math.PI;
+
+  ok('en la recta de entrada los ejes del modelo SÍ son los de la sección',
+     grados(S[0].x, X) < 1e-9 && grados(S[0].y, Y) < 1e-9 && grados(S[0].z, Z) < 1e-9);
+
+  /* La cifra que justifica el arreglo, y va al commit: en la demo la barra en
+     la punta apunta casi justo al revés que el `x` del modelo. */
+  const punta = grados(S[S.length - 1].x, X);
+  ok('y en la punta de la demo no, ni de lejos: mas de 90° de desvío',
+     punta > 90, `${punta.toFixed(1)}° entre el eje de la barra y el x del modelo`);
+
+  /* stationBasis(): el marco de una estación, ya colocado. Con matriz
+     identidad y el marco del amarre tiene que dar los ejes del modelo. */
+  {
+    const F = E.fk(M).frames;
+    const [x0, y0, z0] = E.stationBasis(new Matrix4(), F[0]);
+    ok('stationBasis en el amarre y sin colocar da los ejes del modelo',
+       grados(x0, X) < 1e-9 && grados(y0, Y) < 1e-9 && grados(z0, Z) < 1e-9);
+    ok('  y son ortonormales y a derechas',
+       Math.abs(x0.length() - 1) < 1e-12 &&
+       Math.abs(x0.clone().cross(y0).dot(z0) - 1) < 1e-12);
+    /* El marco de la ÚLTIMA estación tiene que ser el de la punta, que es la
+       recta de salida: es el mismo marco que arrastra buildPath(). */
+    const [xn] = E.stationBasis(new Matrix4(), F[F.length - 1]);
+    ok('  y el de la última estación es el de la punta, el mismo que buildPath',
+       grados(xn, S[S.length - 1].x) < 1e-9,
+       `${grados(xn, S[S.length - 1].x).toExponential(1)}°`);
+  }
+
+  /* Y lleva la colocación DENTRO: girar la pieza gira los ejes con ella. */
+  {
+    const F = E.fk(M).frames;
+    const W = E.placeTransform({ ...E.PLACE_DEFAULT, rz: 90 }, E.fk(M).pis[0]);
+    const [x1] = E.stationBasis(W, F[0]);
+    ok('la colocación va dentro del marco: rz 90° lleva el eje de la barra a +y',
+       grados(x1, Y) < 1e-9, `${grados(x1, Y).toFixed(6)}°`);
+  }
+
+  /* --- shownBasis(): el marco que de verdad se pinta ------------------- */
+  loadModel(E.demoModel());
+  ST.sel = -1;
+  const a = shownBasis();
+  ok('sin doblez elegido, shownBasis da el marco del amarre',
+     grados(a[0], S[0].x) < 1e-9 && grados(a[2], S[0].z) < 1e-9);
+  ST.sel = ST.model.bends.length - 1;
+  const b = shownBasis();
+  ok('elegir un doblez cambia el marco: es la mitad del arreglo',
+     grados(b[0], a[0]) > 1, `${grados(b[0], a[0]).toFixed(1)}° de diferencia`);
+  ok('  y el del último doblez es el de la punta de la barra',
+     grados(b[0], S[S.length - 1].x) < 1e-6,
+     `${grados(b[0], S[S.length - 1].x).toExponential(1)}°`);
+  ST.sel = 999;
+  ok('un índice fuera de rango se topa y no revienta',
+     shownBasis().every(v => Math.abs(v.length() - 1) < 1e-12));
+
+  /* --- el anclaje, que era la otra mitad ------------------------------ */
+  /* Con «anclar por el extremo LIBRE» la pieza dibujada gira entera para que su
+     punta case con la de la referencia. El indicador llevaba solo la
+     COLOCACIÓN, así que se quedaba girado respecto de la barra que estaba
+     enseñando. Se mide con un doblez movido a propósito. */
+  /* Hacen falta DOS modelos: anclar la referencia contra sí misma es la
+     identidad, y ahí el fallo no se ve. La referencia se queda en el primero y
+     el segundo lleva un doblez movido 6°. */
+  {
+    ST.sel = -1;
+    const v0 = ST.variants[0];
+    const otro = {
+      ...v0, id: 'vEjes', name: 'movido', deltas: [], tailDelta: 0,
+      base: { ...v0.base, bends: v0.base.bends.map((x, i) => i === 2 ? { ...x, angle: x.angle + 6 } : x) },
+    };
+    ST.variants.push(otro);
+    ST.active = 'vEjes';
+    ST.ref = v0.id;
+    E.syncDeltas(otro);
+    syncModel();
+    ST.anchor = 'start';
+    const q0 = shownBasis()[0].clone();
+    ST.anchor = 'end';
+    const q1 = shownBasis()[0].clone();
+    ok('con anclaje por el extremo libre el marco gira con la pieza',
+       grados(q0, q1) > 1, `${grados(q0, q1).toFixed(3)}° entre anclar por un cabo y por el otro`);
+    /* Y gira lo MISMO que la pieza: el marco y la pieza usan la misma matriz.
+       El indicador llevaba solo `placeMatrix()`, o sea `q0` con el anclaje
+       puesto, y por eso se quedaba corto justo en esos grados. */
+    const A = E.anchorTransform(ST.model, refModelFree(), 'end');
+    const esperado = E.stationBasis(placeMatrix().multiply(A), E.fk(ST.model).frames[0])[0];
+    ok('  y gira exactamente lo que gira la pieza, no un poco menos',
+       grados(q1, esperado) < 1e-12);
+    ST.anchor = 'start';
+  }
+  loadModel(E.demoModel());
+  ST.sel = -1;
 }
 
 /* ---------------------------------------------------------------------- */

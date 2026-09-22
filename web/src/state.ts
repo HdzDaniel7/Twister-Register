@@ -284,6 +284,29 @@ export const anchoredShownPis = (): Vector3[] =>
 export const shownPis = (): Vector3[] =>
   E.applyMat(placeMatrix(), anchoredShownPis());
 
+/** Los tres ejes de la sección DE LA PIEZA QUE SE VE, en coordenadas del
+ *  taller: del doblez seleccionado si hay uno, y del amarre si no.
+ *
+ *  Es lo que pinta el indicador de la esquina, y lleva las DOS matrices que
+ *  lleva la pieza dibujada —el anclaje de la variante y la colocación—, igual
+ *  que `anchoredShownPis()` y por lo mismo. Hasta el 2026-09-21 el indicador
+ *  llevaba solo la colocación, así que con el anclaje por el extremo LIBRE se
+ *  quedaba girado respecto de la barra que estaba enseñando: 6.000° en un caso
+ *  de un doblez movido 6°, porque ese anclaje gira la pieza entera.
+ *
+ *  Y del doblez SELECCIONADO, que es la otra mitad del arreglo: el marco del
+ *  origen no describe una barra doblada. Ver `stationBasis()`.
+ *
+ *  `ST.sel` es el índice del doblez y `frames[0]` es el amarre, así que el
+ *  marco del doblez `i` es `frames[i + 1]` —el de SALIR de él, que es el de la
+ *  recta que se ve a continuación— y con nada seleccionado sale `frames[0]`. */
+export const shownBasis = (): [Vector3, Vector3, Vector3] => {
+  const F = E.fk(shownModel()).frames;
+  return E.stationBasis(
+    placeMatrix().multiply(E.anchorTransform(ST.model!, refModelFree(), ST.anchor)),
+    F[E.clamp(ST.sel + 1, 0, F.length - 1)]);
+};
+
 export function addPedestal(p: Partial<Pedestal> = {}): Pedestal {
   pedSeq += 1;
   const d: Pedestal = {

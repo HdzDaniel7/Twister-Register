@@ -247,7 +247,7 @@ web/
     engine/model.ts       variantes, deltas, edición de puntos PI
     engine/feasible.ts    lo que la máquina NO puede hacer aunque cierre la geometría
     engine/lims.ts        los umbrales que juzgan un dato, y por qué son provisionales
-    engine/fitting.ts     Kabsch, anclaje entre modelos, colocación
+    engine/fitting.ts     Kabsch, anclaje entre modelos, colocación y el marco de una estación
     engine/compensate.ts  pieza simulada, lazo, desviaciones, lote, resorte
     engine/expr.ts        la celda de compensación (parser propio, sin eval)
     engine/machine.ts     el comando que sale a la dobladora: columnas, unidades, signos
@@ -285,7 +285,7 @@ web/
   src/app.css       tokens de diseño y layout; la paleta de los DOS temas
   src/shell.html    esqueleto con los marcadores del build
   build.mjs         esbuild: src/ + three  ->  index.html
-  test_motor.js     675 pruebas del motor y del i18n, en Node y sin navegador
+  test_motor.js     687 pruebas del motor y del i18n, en Node y sin navegador
   tools/            banco de interfaz por CDP y las sondas de medición
 index.html          SALIDA GENERADA — no se edita a mano
 ```
@@ -312,7 +312,7 @@ npm run check        # typecheck -> pruebas -> build -> banco de interfaz
 npm run typecheck    # tsc --noEmit, con strict
 npm test             # 605 pruebas del motor y del i18n
 npm run build        # regenera index.html (y web/barcomp_viewer.html en local)
-npm run test:ui      # 286 pasos de interfaz en Edge headless, por CDP
+npm run test:ui      # 292 pasos de interfaz en Edge headless, por CDP
 npm run demo:amarre  # cinco escenarios del amarre, con las cifras a la vista
 npm run demo:carga   # el muelle de contacto contra una solución exacta, y el codo
                      # del hueco que impide cerrar FIS-10b

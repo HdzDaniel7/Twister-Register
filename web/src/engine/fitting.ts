@@ -4,7 +4,7 @@
    ========================================================================= */
 import { Matrix4, Vector3, Quaternion } from 'three';
 import type { Model, AnchorMode, Place } from '../types.ts';
-import { D2R, eye, trans, rotX, rotY, rotZ, applyMat } from './math.ts';
+import { D2R, basisOf, eye, trans, rotX, rotY, rotZ, applyMat } from './math.ts';
 import { fk } from './kinematics.ts';
 
 /* --------------------------------------------------------------- alineación */
@@ -120,6 +120,25 @@ export function placeTransform(place: Partial<Place> | null | undefined, pivotPo
     .multiply(R)
     .multiply(trans(-p.x, -p.y, -p.z));
 }
+/** Los tres ejes de la SECCIÓN en una estación, en coordenadas del taller.
+ *
+ *  `M` es la matriz que lleva la pieza a donde se ve —el anclaje más la
+ *  colocación— y `F` el marco de esa estación, de los que devuelve `fk()`.
+ *  Salen normalizados y en el orden de la convención: `x` la dirección de la
+ *  barra AHÍ, `y` el espesor, `z` el ancho.
+ *
+ *  Existe porque el marco del ORIGEN no describe una barra doblada. El
+ *  indicador de ejes prometía «x el eje de la barra, y el espesor, z el ancho»
+ *  y enseñaba los ejes del MODELO, que son el marco de la estación 0: en la
+ *  demo, el eje de la barra en la punta forma **175.5°** con el `x` del modelo,
+ *  o sea que la flecha apuntaba casi justo al revés que la barra que se estaba
+ *  mirando. Los tres nombres solo valen a la vez en la recta de entrada.
+ */
+export function stationBasis(M: Matrix4, F: Matrix4): [Vector3, Vector3, Vector3] {
+  const [x, y, z] = basisOf(new Matrix4().extractRotation(M).multiply(F));
+  return [x.normalize(), y.normalize(), z.normalize()];
+}
+
 export const isPlaced = (place: Partial<Place> | null | undefined): boolean => {
   const q: Place = { ...PLACE_DEFAULT, ...(place || {}) };
   return !!(q.x || q.y || q.z || q.rx || q.ry || q.rz);

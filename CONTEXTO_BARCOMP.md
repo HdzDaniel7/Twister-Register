@@ -570,7 +570,12 @@ punteada. Deja ver de un vistazo cuál doblez está fuera. Es clicable.
 
     Mover o girar la colocación mueve la PIEZA sobre un suelo quieto, con la cámara donde estaba.
     Lo que dibujes va a `root` salvo que sea referencia del taller, y todo lo que proyectes a mano
-    (etiquetas, encuadre, el indicador de ejes) se multiplica por `placeMatrix()`. Los pedestales
+    (etiquetas, encuadre, el indicador de ejes) se multiplica por `placeMatrix()` **y por el
+    anclaje de la variante**. Son DOS matrices y hacen falta las dos: el indicador de ejes llevaba
+    solo la colocación hasta el 2026-09-21, así que con «anclar por el extremo libre» se quedaba
+    girado 4.867° respecto de la barra que estaba enseñando. La matriz completa se lee en un solo
+    sitio, `placeAt()`, y quien la necesite parcial la compone igual que `anchoredShownPis()`.
+    Los pedestales
     son la excepción que confirma la regla: viven en `world` pero se levantan desde los PI **ya
     colocados**, para seguir a la pieza sin despegarse del suelo. `groupHost(capa)` dice de cuál
     de los dos cuelga cada capa, y el banco de pruebas lo vigila.
@@ -698,7 +703,7 @@ cd web && npm run check            # typecheck -> pruebas -> build -> banco, de 
 cd web && npm run typecheck        # tsc --noEmit, con strict
 cd web && node test_motor.js       # 605 pruebas; todas deben pasar
 cd web && node build.mjs           # regenera index.html y barcomp_viewer.html
-cd web && node tools/ui_test.mjs   # 286 pasos de interfaz en Edge headless
+cd web && node tools/ui_test.mjs   # 292 pasos de interfaz en Edge headless
 cd web && node tools/demo_carga.mjs # κ contra una solución exacta, y el codo del hueco
 cd web && node tools/demo_escala.mjs # dónde el solver de la carga deja de caber
 ```
@@ -1153,6 +1158,19 @@ lo único que ese contador puede decir, y un aviso de no meter nada entre `f0` y
 
 ### Decisiones que siguen gobernando el código
 
+- **El indicador de ejes es el marco de UNA ESTACIÓN, no del modelo** (2026-09-21). Reportado
+  desde el taller como «los ejes no me coinciden con la pieza», y era literal: el widget prometía
+  «x el eje de la barra, y el espesor, z el ancho» —los ejes de la SECCIÓN— y pintaba el marco del
+  modelo, que es la estación 0. Esos tres nombres solo valen a la vez en la recta de entrada: en
+  la demo el eje de la barra **en la punta forma 175.5°** con el `x` del modelo, o sea que la
+  flecha llamada «eje de la barra» apuntaba casi justo al revés que la barra. Ahora es el marco
+  del doblez SELECCIONADO —`frames[sel + 1]`, el de salir de él, que es el de la recta que se ve a
+  continuación— y el del amarre cuando no hay ninguno, que es exactamente lo que se enseñaba
+  antes. El widget lo dice en su rótulo, que es la otra mitad del arreglo: tres nombres sin decir
+  dónde valen no son información. La cuenta vive en `stationBasis()` (motor) y `shownBasis()`
+  (estado), y cuesta **0.035 ms por fotograma con 15 dobleces y 0.064 con 30 y anclaje por mejor
+  ajuste**, que es el peor caso porque ese anclaje corre `kabsch()`. Sobre 16.7 ms de fotograma
+  son cuatro décimas del 1 %.
 - **Lo que sale a CAD es un SÓLIDO, y se puede escribir a mano** (2026-09-20, tarde).
   Corrige lo que se decidió esa misma mañana. Un `geometric_curve_set` es mala mercancía:
   FreeCAD lo abre pero no lo deja barrer, y **SolidWorks ignora la geometría de curvas al

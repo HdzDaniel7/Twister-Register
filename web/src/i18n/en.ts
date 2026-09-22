@@ -83,6 +83,10 @@ export const en: Record<I18nKey, string> = {
  secOneConst: 'The bar is round: one single constant. With Iz = Iy there is no «hard way» or «easy way», so splitting it in two would compensate one bend with the other one’s springback.',
  confirmNew: 'Create a new empty model? Unsaved work will be lost.',
  pts: 'Point', x: 'X', y: 'Y', z: 'Z',
+ gizmoClamp: 'Section axes at the clamp: X the bar axis, Y the thickness, Z the width.'
+   + ' Pick a bend in the table to see them there.',
+ gizmoBend: 'Section axes leaving bend %b: X the bar axis there, Y the thickness,'
+   + ' Z the width.',
  variants: 'Models', addVar: '+ Model', dupVar: 'Duplicate',
  setRef: 'Use as reference', isRef: 'REF',
  srcSim: 'SIM', srcVerify: 'SIM ✓', srcMeas: 'MEAS', srcUnk: 'N/A',

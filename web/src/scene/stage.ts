@@ -14,7 +14,7 @@ import {
 import type { Object3D } from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import * as E from '../engine.ts';
-import { ST, anchoredShownPis, placeMatrix } from '../state.ts';
+import { ST, anchoredShownPis, placeMatrix, shownBasis } from '../state.ts';
 import { T } from '../i18n.ts';
 import { esc, safeColor } from '../safe.ts';
 import { $ } from '../dom.ts';
@@ -244,28 +244,39 @@ function pick(ev: PointerEvent | MouseEvent) {
 }
 
 /* ------------------------------------------------------------------ ejes --
-   Indicador de orientación en la esquina. Gira con la cámara Y con la
-   colocación de la pieza, así que siempre dice hacia dónde apunta cada eje DEL
-   MODELO: `x` el eje de la barra, `y` el espesor, `z` el ancho.
+   Indicador de orientación en la esquina. Gira con la cámara Y con la pieza,
+   así que dice hacia dónde apunta cada eje de la SECCIÓN: `x` la dirección de
+   la barra, `y` el espesor, `z` el ancho.
+
+   DE QUÉ ESTACIÓN, que es la corrección del 2026-09-21: del doblez
+   seleccionado, y del amarre cuando no hay ninguno. Hasta entonces pintaba los
+   ejes del MODELO —el marco de la estación 0— mientras prometía esos tres
+   nombres, y esos tres nombres solo valen a la vez en la recta de entrada: en
+   la demo el eje de la barra en la punta forma **175.5°** con el `x` del
+   modelo, así que la flecha llamada «eje de la barra» apuntaba casi justo al
+   revés que la barra. Reportado desde el taller como «los ejes no me coinciden
+   con la pieza», y era literal.
+
+   Y lleva las DOS matrices de la pieza dibujada, no solo la colocación: ver
+   `shownBasis()` en state.ts.
 
    Los colores no son los rojo/verde/azul de costumbre: en este programa el rojo
    ya significa fuera de tolerancia. Se reusan los de las insignias W/T, así que
    el eje del espesor se lee del mismo color que un doblez de plano y el del
    ancho del mismo color que uno de canto. */
-const GIZMO_AXES: [GizmoArm['k'], Vector3, string][] = [
-  ['x', new Vector3(1, 0, 0), '--txt'],
-  ['y', new Vector3(0, 1, 0), '--oriT'],
-  ['z', new Vector3(0, 0, 1), '--oriW'],
+const GIZMO_AXES: [GizmoArm['k'], string][] = [
+  ['x', '--txt'], ['y', '--oriT'], ['z', '--oriW'],
 ];
 
 export function drawGizmo() {
-  if (!gizmoHost || !camera) return;
-  /* solo la rotación: es un widget de tamaño fijo, sin perspectiva ni traslación */
-  const M = new Matrix4().extractRotation(camera.matrixWorldInverse)
-    .multiply(new Matrix4().extractRotation(placeMatrix()));
+  if (!gizmoHost || !camera || !ST.model) return;
+  /* solo la rotación de la cámara: es un widget de tamaño fijo, sin
+     perspectiva ni traslación. La de la pieza ya viene dentro del marco. */
+  const M = new Matrix4().extractRotation(camera.matrixWorldInverse);
+  const base = shownBasis();
   const c = 34, len = 23;
-  const arms = GIZMO_AXES.map(([k, v, tok]) => {
-    const d = v.clone().applyMatrix4(M);      // en vista: +x derecha, +y arriba
+  const arms = GIZMO_AXES.map(([k, tok], i) => {
+    const d = base[i].clone().applyMatrix4(M);   // en vista: +x derecha, +y arriba
     return { k, tok, x: c + d.x * len, y: c - d.y * len, z: d.z };
   }).sort((a, b) => a.z - b.z);               // pintor: primero lo que queda atrás
   const arm = (a: GizmoArm) => {
@@ -278,7 +289,13 @@ export function drawGizmo() {
       <text x="${x}" y="${(a.y + 3.2).toFixed(1)}" text-anchor="middle" font-size="9"
         font-weight="600" fill="var(--bg)" opacity="${op}">${T(a.k)}</text>`;
   };
-  const html = `<svg width="68" height="68" viewBox="0 0 68 68">${arms.map(arm).join('')}</svg>`;
+  /* El rótulo dice DE DÓNDE es el marco. Sin él el widget vuelve a prometer
+     tres nombres sin decir dónde valen, que es el fallo que se acaba de
+     arreglar. */
+  const est = ST.sel >= 0 && ST.sel < ST.model.bends.length
+    ? T('gizmoBend').replace('%b', String(ST.sel + 1)) : T('gizmoClamp');
+  const html = `<svg width="68" height="68" viewBox="0 0 68 68"
+      role="img" aria-label="${esc(est)}"><title>${esc(est)}</title>${arms.map(arm).join('')}</svg>`;
   /* se dibuja en cada fotograma que cambia algo: si los ejes no se han movido
      —se ha tocado una capa, no la cámara— no hay SVG que rehacer */
   if (html !== gizmoHtml) { gizmoHost.innerHTML = html; gizmoHtml = html; }
