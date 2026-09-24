@@ -261,6 +261,16 @@ el tema y el idioma se van detrás de un **☰** a un cajón a todo el ancho, co
 botón de volver. Los controles suben a 34 px de alto, que es el mínimo con el
 que un dedo no falla.
 
+**Y el teclado no se lleva la pantalla por delante.** Al abrirse, el teclado de un
+teléfono no encoge la página: la tapa y el navegador panea hasta el campo enfocado, con
+lo que la cabecera con la barra de menús se iba por arriba en cuanto tocabas una celda.
+El `<meta name="viewport">` lleva `interactive-widget=resizes-content` y `#app` mide
+`var(--appH,100dvh)`, con `--appH` puesto desde el `visualViewport` donde esa bandera no
+se entiende: la página cabe en lo que deja el teclado y no hay nada que panear. Y como
+el teclado de cifras no trae signo menos —sin él no hay compensación negativa, que es la
+mitad del oficio—, sobre un campo que admita negativo sale una tecla **±** que le cambia
+el signo.
+
 Lo decide `ST.phone`, que pone un `matchMedia('(max-width:760px)')`, y no una
 `@media` del CSS: lo que cambia no es solo el reparto sino lo que se pinta —los
 menús pasan a un cajón—, y una consulta de medios no se puede forzar desde

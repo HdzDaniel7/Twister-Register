@@ -4626,4 +4626,153 @@ step('en telefono el overlay del reporte llena la ventana', () => {
   }
 });
 
+/* --- cabecera fija y tecla de signo en telefono, 2026-09-24 -----------------
+   Dos defectos del diseno de telefono, medidos a 390x844:
+
+   (A) La cabecera se esconde al entrar en una celda. El primer campo numerico
+   de #panes esta en y=596..630 y el ultimo en y=1323..1357; con un teclado de
+   420 px queda una banda visible de 424 px, y el navegador panea 206 px para
+   el primero y 933 px para el ultimo. #hd mide 44 px: desaparece en cuanto el
+   paneo pasa de 44. El arreglo es doble -el <meta name="viewport"> lleva
+   interactive-widget=resizes-content, y #app deja el 100vh fijo por
+   height:var(--appH,100dvh), con --appH puesto en :root desde JS cuando el
+   viewport visual encoge.
+
+   (B) El teclado numerico de un telefono no trae signo menos: de los 140
+   campos de #panes, 125 no tienen tope inferior y admiten negativo sin forma
+   de escribirlo. El arreglo es un boton flotante #signk, dentro de #app,
+   pintado SOLO con #app.phone, oculto salvo cuando el foco cae en un
+   input[type=number] que admite negativo (min==='' o +min<0), y que al
+   pulsarse cambia el signo del campo enfocado disparando un change que
+   burbujea, igual que stepField().
+
+   Los seis pasos fallan contra el index.html de b540eb1, que es el de antes
+   del arreglo, y ninguno es guarda.                                        */
+
+step('la pagina le dice al navegador que el teclado encoge el contenido', () => {
+  const meta = document.querySelector('meta[name=viewport]');
+  const content = meta ? meta.content : '';
+  if (!/interactive-widget=resizes-content/.test(content)) {
+    throw new Error('el viewport dice: "' + content + '" y le falta interactive-widget=resizes-content');
+  }
+});
+
+step('con el alto forzado la aplicacion entera cabe y la cabecera sigue arriba', () => {
+  try {
+    telOn();
+    document.documentElement.style.setProperty('--appH', '424px');
+    const hd = q('#hd').getBoundingClientRect();
+    const st = q('#st').getBoundingClientRect();
+    if (Math.abs(hd.top) > 1) {
+      throw new Error('#hd quedo en top = ' + hd.top.toFixed(0) + ' px y con --appH:424px deberia quedar en 0');
+    }
+    if (st.bottom > 424 + 1) {
+      throw new Error('#st termina en y = ' + st.bottom.toFixed(0)
+        + ' px con --appH:424px, y deberia caer dentro de 424 px: el #app no esta leyendo --appH');
+    }
+  } finally {
+    document.documentElement.style.removeProperty('--appH');
+    telOff();
+  }
+});
+
+step('en telefono un campo numerico enfocado saca la tecla de signo', () => {
+  const modo = S().mode;
+  try {
+    click('[data-md="model"]'); click('#tabs [data-t="model"]');
+    telOn();
+    /* el primer campo de #panes sin tope inferior: de los 140 campos de la
+       tabla, 125 no llevan `min` y admiten negativo */
+    const campo = [...document.querySelectorAll('#panes input[type=number]')]
+      .find(el => el.min === '');
+    if (!campo) throw new Error('no hay en #panes ningun input[type=number] sin tope inferior con que probar');
+    campo.focus();
+    const v = seVe('#signk');
+    if (!v.ok) {
+      throw new Error('#signk no se ve tras enfocar un campo sin tope inferior: display:' + v.display
+        + ' y ' + v.ancho.toFixed(0) + ' px de ancho');
+    }
+  } finally {
+    telOff();
+    click(`[data-md="${modo}"]`);
+  }
+});
+
+step('la tecla de signo cambia el signo del campo enfocado', () => {
+  const modo = S().mode;
+  /* es la Δ del angulo: no tiene tope inferior y admite negativo */
+  const sel = '#panes input[data-bd][data-k="angle"]';
+  let original = null;
+  try {
+    click('[data-md="model"]'); click('#tabs [data-t="model"]');
+    telOn();
+    original = q(sel).value;
+    setval(sel, '2');   // valor positivo conocido; confirmarlo puede repintar #panes
+    q(sel).focus();     // se vuelve a buscar el nodo: el repintado pudo tirar el de antes
+    click('#signk');
+    const ahora = q(sel).value;   // otra vez: pulsar la tecla tambien puede repintar
+    if (!(parseFloat(ahora) < 0)) {
+      throw new Error('tras pulsar #signk el campo se sigue leyendo "' + ahora + '" y deberia ser negativo');
+    }
+  } finally {
+    if (original !== null) setval(sel, original);
+    telOff();
+    click(`[data-md="${modo}"]`);
+  }
+});
+
+step('la tecla de signo no sale en un campo que no admite negativo', () => {
+  const modo = S().mode;
+  try {
+    click('[data-md="model"]'); click('#tabs [data-t="model"]');
+    telOn();
+    /* contra HEAD #signk ni existe: si el paso empezara buscando un campo con
+       tope y mirando si #signk "no se ve", pasaria de vacio por la razon
+       equivocada. Se comprueba primero que el boton esta en el documento. */
+    if (!document.getElementById('signk')) {
+      throw new Error('no existe #signk en el documento');
+    }
+    const campo = [...document.querySelectorAll('#panes input[type=number]')]
+      .find(el => el.min !== '' && +el.min >= 0);
+    if (!campo) throw new Error('no hay en #panes ningun input[type=number] con tope inferior >= 0 con que probar');
+    campo.focus();
+    const v = seVe('#signk');
+    if (v.ok) {
+      throw new Error('#signk se ve sobre un campo con min="' + campo.min + '": display:' + v.display
+        + ' y ' + v.ancho.toFixed(0) + ' px de ancho');
+    }
+  } finally {
+    telOff();
+    click(`[data-md="${modo}"]`);
+  }
+});
+
+/* No es guarda: contra HEAD falla porque #signk no existe, y contra un
+   arreglo con la regla de CSS mal colgada -pintando #signk fuera de
+   `#app.phone`, o un `sync()` que no mirase ST.phone en absoluto- este paso
+   pillaria el boton visible sin telefono y fallaria por la razon correcta. Lo
+   que prueba es la mitad que el paso de arriba no toca: no basta con que el
+   boton se ESCONDA con un campo que no admite negativo, tiene que quedar
+   escondido TAMBIEN fuera de telefono aunque el foco si admita negativo. */
+step('sin telefono la tecla de signo no se pinta nunca', () => {
+  const modo = S().mode;
+  try {
+    click('[data-md="model"]'); click('#tabs [data-t="model"]');
+    telOff();
+    if (!document.getElementById('signk')) {
+      throw new Error('no existe #signk en el documento');
+    }
+    const campo = [...document.querySelectorAll('#panes input[type=number]')]
+      .find(el => el.min === '');
+    if (!campo) throw new Error('no hay en #panes ningun input[type=number] sin tope inferior con que probar');
+    campo.focus();
+    const v = seVe('#signk');
+    if (v.ok) {
+      throw new Error('#signk se ve sin telefono: display:' + v.display + ' y ' + v.ancho.toFixed(0) + ' px de ancho');
+    }
+  } finally {
+    click(`[data-md="${modo}"]`);
+  }
+});
+
 return log.join('\n');

@@ -28,6 +28,37 @@ export function detectPhone(): boolean {
   return w.matchMedia ? matchMedia(PHONE_MQ).matches : innerWidth <= 760;
 }
 
+/** El alto de la aplicación con el teclado del teléfono abierto.
+ *
+ *  Al abrirse el teclado, el viewport de DISEÑO no cambia: solo se encoge el
+ *  VISIBLE, y el navegador panea hasta el campo enfocado. Medido a 390×844: el
+ *  primer campo numérico de la tabla está en y=596 y el último en y=1323, así
+ *  que con un teclado de 420 px el paneo va de 206 a 933 px. La cabecera mide
+ *  44, o sea que se va con el primer toque en cualquier celda — que es
+ *  exactamente lo que se reportó.
+ *
+ *  El arreglo de oficio es `interactive-widget=resizes-content` en el <meta>,
+ *  y ahí este código no hace nada: el navegador ya encoge el contenido y
+ *  `visualViewport.height` coincide con `innerHeight`. Esto es para los
+ *  navegadores que no entienden esa bandera, donde la diferencia entre los dos
+ *  altos ES el teclado: se le da a `--appH` la medida del visible, con lo que
+ *  la página entera cabe en la banda que queda y no hay nada que panear.
+ *
+ *  El umbral de 80 px separa el teclado de las barras del navegador, que
+ *  aparecen y desaparecen con el desplazamiento y mueven unas decenas. */
+function syncAppH(): void {
+  const el = document.documentElement;
+  const vv = (window as { visualViewport?: VisualViewport }).visualViewport;
+  if (!vv || !ST.phone || innerHeight - vv.height < 80) {
+    el.style.removeProperty('--appH');
+    return;
+  }
+  el.style.setProperty('--appH', Math.round(vv.height) + 'px');
+  /* El paneo que el navegador ya hizo no se deshace solo: sin esto la página
+     cabría entera pero seguiría enseñada por la mitad de abajo. */
+  scrollTo(0, 0);
+}
+
 /** Engancha el umbral. Solo repinta al CRUZARLO: un `resize` de escritorio
  *  —arrastrar el borde de la ventana— no puede costar un `renderAll()` por
  *  fotograma. El lienzo WebGL ya se entera solo, por el ResizeObserver de
@@ -35,6 +66,14 @@ export function detectPhone(): boolean {
  *  pantalla a una banda ancha y baja y la pieza se queda descentrada. */
 export function bindPhone(): void {
   ST.phone = detectPhone();
+  const vv = (window as { visualViewport?: VisualViewport }).visualViewport;
+  if (vv) {
+    /* `scroll` además de `resize`: en algún navegador el paneo llega después
+       del cambio de alto, y sin el segundo oyente --appH se quedaría puesto
+       con la página ya movida. */
+    vv.addEventListener('resize', syncAppH);
+    vv.addEventListener('scroll', syncAppH);
+  }
   const w = window as { matchMedia?: typeof matchMedia };
   if (!w.matchMedia) return;
   const mq = matchMedia(PHONE_MQ);
@@ -42,6 +81,7 @@ export function bindPhone(): void {
     const v = mq.matches;
     if (v === ST.phone) return;
     ST.phone = v;
+    syncAppH();
     renderAll();
     onResize();
     fitView();

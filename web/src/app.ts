@@ -13,6 +13,7 @@
      app/events/change.ts  confirmación de celda (`change`) y deslizadores
      app/events/keyboard.ts  la tabla como hoja de cálculo, y la rueda
      app/events/grips.ts   los dos tiradores y el ResizeObserver
+     app/events/sign.ts    la tecla de signo del teléfono
 
    El motor vive en engine.ts, que desde el 2026-09-08 es el único, y el resto
    está repartido en i18n · state · scene · ribbon · panels · report · io.
@@ -52,6 +53,7 @@ import { bindClick } from './app/events/click.ts';
 import { bindChange } from './app/events/change.ts';
 import { bindKeyboard } from './app/events/keyboard.ts';
 import { bindGrips } from './app/events/grips.ts';
+import { bindSignKey } from './app/events/sign.ts';
 
 /* Todas las escuchas son por delegación sobre document.body, así que da igual
    cuántas veces se reconstruyan los paneles: se enganchan una sola vez, aquí,
@@ -61,6 +63,7 @@ function bind(): void {
   bindChange();
   bindKeyboard();
   bindGrips();
+  bindSignKey();
   bindScheme();
   bindPhone();
 

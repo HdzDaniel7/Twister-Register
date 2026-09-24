@@ -20,8 +20,11 @@
   --h:44px; --ribbon:74px; --statusH:26px; --rtW:360px; --lfW:250px; --btH:340px;
   /* MODELAR: ancho de la tabla a la derecha. COMPENSAR: alto de la banda 3D. */
   --btW:760px; --compVP:250px;
-  /* el alto del 3D en un teléfono: ver el bloque TELÉFONO más abajo */
-  --vpPhone:40vh;
+  /* El alto del 3D en un teléfono: ver el bloque TELÉFONO más abajo. Es el 40 % del alto de la APLICACIÓN y no el de la ventana, que con el
+     teclado abierto no son lo mismo: 40vh de una ventana de 844 px son 338 px
+     de los 424 que deja el teclado, la cabecera y la barra de estado se llevan
+     el resto y la tabla se queda en CERO. Medido. */
+  --vpPhone:calc(var(--appH,100dvh) * .4);
 
   /* Todo lo que antes iba en crudo dentro del CSS, de scene/ y de ribbon.ts.
      El 3D y la cinta LEEN estos tokens en tiempo de ejecución, así que aquí
@@ -125,7 +128,16 @@ tbody tr[tabindex]:focus-visible{outline:2px solid var(--nominal);outline-offset
 
    Lo que un modo no usa se oculta con `display:none`, y su render se salta:
    ver renderPanels() en panels/render.ts.                                  */
-#app{display:grid;height:100vh}
+/* El alto no es 100vh a secas. Con el teclado del teléfono abierto, el viewport
+   de diseño sigue midiendo lo mismo y solo se encoge el visible: el navegador
+   PANEA hasta el campo enfocado y la cabecera se va por arriba. Medido a
+   390×844: el primer campo de la tabla está en y=596 y el último en y=1323, y
+   con un teclado de 420 px el paneo va de 206 a 933 px — la cabecera mide 44.
+   `100dvh` y el `interactive-widget=resizes-content` del <meta> arreglan eso
+   donde se entienden; `--appH` es la misma medida puesta a mano desde el
+   visualViewport, para donde no (ver app/phone.ts). La línea de 100vh se queda
+   debajo como respaldo de un navegador sin dvh. */
+#app{display:grid;height:100vh;height:var(--appH,100dvh)}
 #hd{grid-area:hd}#ct{grid-area:ct}#rt{grid-area:rt}
 #rb{grid-area:rb}#bt{grid-area:bt}#st{grid-area:st}
 
@@ -240,6 +252,25 @@ tbody tr[tabindex]:focus-visible{outline:2px solid var(--nominal);outline-offset
 #app.phone input[type=text],#app.phone input[type=number],#app.phone select,
 #app.phone td input{min-height:34px;font-size:13px}
 #app.phone input[type=checkbox],#app.phone .layer input[type=radio]{width:18px;height:18px}
+
+/* --- la tecla de signo ---
+   El teclado de cifras de un teléfono no trae «-», así que una compensación
+   negativa no se puede teclear: 125 de los 140 campos numéricos no tienen tope
+   inferior, entre ellos las tres columnas de Δ. Este botón cambia el signo del
+   campo enfocado; sale solo en teléfono y solo sobre un campo que admita
+   negativo (ver app/events/sign.ts).
+
+   Flota sobre la esquina, encima de la barra de estado, porque el sitio que
+   queda libre con el teclado abierto es ese y ninguno más. 52 px: es una tecla,
+   y se pulsa con el pulgar sin mirar. z-index 40 — por encima del cajón, que
+   es 30, y por debajo del reporte, que es 60. */
+#signk{display:none}
+#app.phone #signk{display:flex;align-items:center;justify-content:center;
+  position:fixed;right:12px;bottom:calc(var(--statusH) + 12px);z-index:40;
+  width:52px;height:52px;border-radius:50%;font-size:22px;line-height:1;
+  background:var(--sel);color:var(--selTxt);border:1px solid var(--selBd);
+  box-shadow:0 3px 12px #0007;cursor:pointer}
+#app.phone #signk[hidden]{display:none}
 
 /* --- el reporte, encima de todo ---
    Va dentro de la página y no en una ventana nueva, que el navegador de un

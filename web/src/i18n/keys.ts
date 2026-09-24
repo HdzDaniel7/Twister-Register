@@ -6,7 +6,7 @@
    ========================================================================= */
 export type Lang = 'es' | 'en' | 'de';
 
-/** Las 501 claves que deben existir en LOS TRES diccionarios.
+/** Las 502 claves que deben existir en LOS TRES diccionarios.
  *
  *  El número iba a la deriva: decía 458 cuando ya eran 486, porque se suma
  *  a mano y a veces se olvida. Lo que de verdad sujeta la paridad no es este
@@ -81,7 +81,7 @@ export type I18nKey =
   | 'modeModel' | 'modeMeas' | 'modeComp'
   | 'modeModelTip' | 'modeMeasTip' | 'modeCompTip'
   | 'mnFile' | 'mnModel' | 'mnView' | 'mnPieces' | 'expPts' | 'expStep' | 'expStepTip'
-  | 'mnMenu' | 'mnClose'
+  | 'mnMenu' | 'mnClose' | 'signKey'
   | 'soloOn' | 'soloOff' | 'soloTip' | 'rotAxisTip' | 'rotHeadTip'
   | 'history' | 'undo' | 'redo' | 'histNote'
   | 'srcSimTip' | 'srcVerifyTip' | 'srcMeasTip' | 'srcUnkTip'

@@ -2,7 +2,16 @@
 <html lang="es">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
+<!-- `interactive-widget` es el que impide que la cabecera se vaya de la
+     pantalla al entrar en una celda: sin el, el teclado del telefono tapa
+     media pagina SIN encogerla, y el navegador panea el viewport visual hasta
+     el campo enfocado. Medido a 390x844: el primer campo numerico de la tabla
+     esta en y=596, el ultimo en y=1323, y con un teclado de 420 px el paneo va
+     de 206 a 933 px -- la cabecera mide 44. Con `resizes-content` el teclado
+     encoge el contenido, no hay nada que panear y la barra de menus se queda
+     donde esta. Ver tambien --appH en app/phone.ts, que cubre lo mismo donde
+     esa bandera no se entiende. -->
+<meta name="viewport" content="width=device-width,initial-scale=1,interactive-widget=resizes-content">
 <title>BARCOMP α — Compensación de dobleces</title>
 <style>/*__CSS__*/</style>
 </head>

@@ -860,6 +860,9 @@ Ninguna de estas se vuelve a sacar leyendo el código.
 | La tabla de Modelar en un teléfono de 390 px, antes del diseño de móvil | arrancaba en **x = 320 con 760 px de ancho**: 690 px fuera de alcance, y el documento no desplaza en X | `probe_mob.js`, 09-24 |
 | Controles de la cabecera fuera de pantalla a 390 px, y controles de menos de 32 px de alto | **16 → 0** y **166 → 16** | `probe_mob.js`, 09-24 |
 | El reporte con las ventanas emergentes bloqueadas | `window.open` llamado **1 vez**, un `alert` con «Reporte de modelo» —el rótulo, no un mensaje— y **cero reporte** en la página | `probe_rep.js`, 09-24 |
+| El paneo del teclado del teléfono, a 390×844 | el primer campo numérico de la tabla está en **y = 596** y el último en **y = 1323**; con un teclado de 420 px el navegador tiene que panear de **206 a 933 px**, y la cabecera mide **44** | `probe_kb.js`, 09-24 |
+| Campos numéricos que admiten negativo | **125 de 140** no tienen tope inferior, entre ellos las tres columnas de Δ; los 15 restantes tienen `min>=0` | `probe_min.js`, 09-24 |
+| El 3D en `40vh` con el teclado abierto | se lleva **338 px de los 424** que quedan y la tabla se queda en **0**; atado a `--appH` baja a 170 y la tabla sube a **142** | `probe_new.js`, 09-24 |
 | Bundle: parte de three.js | **71.5 %**, sin grasa | `tools/bundle_report.mjs` |
 | Ruido del lazo: σ=1.0° | el lazo **empeora** la pieza, 0.38° → 0.80°; con n=5 y mediana, 0.10° | validación |
 | Corrigiendo solo ángulos | ángulos a 0.15°, punta estancada en **~5 mm**; con rodado y avance, **0.17 mm** | validación |
@@ -985,6 +988,52 @@ Medido y descartado en esta misma pasada:
   200 a unas pocas, pero cambia el picking, que hoy lee `userData.pi` de cada malla. Las
   llamadas de dibujo NO eran el cuello: el coste estaba en construir y destruir geometrías, y
   eso ya está resuelto.
+
+**El teclado del teléfono ya no se lleva la cabecera, y trae signo (2026-09-24).**
+Dos defectos reportados desde el taller, los dos solo en móvil.
+
+EL PRIMERO: al entrar en una celda de la tabla desaparecía la cabecera con la barra de
+menús. La causa no es el desplazamiento sino el PANEO. Al abrirse el teclado el
+viewport de diseño no cambia —`#app` sigue midiendo 100vh de 844 px— y solo se encoge
+el visible; el navegador entonces panea hasta el campo enfocado. Medido a 390×844: el
+primer campo numérico de la tabla está en y = 596 y el último en y = 1323, así que con
+un teclado de 420 px el paneo va de 206 a 933 px. La cabecera mide 44: se va con el
+primer toque en cualquier celda, siempre, no a veces.
+
+Se arregla por dos caminos que no se pisan. El `<meta name="viewport">` pasa a llevar
+`interactive-widget=resizes-content`, con lo que el teclado ENCOGE el contenido y no
+hay nada que panear; y `#app` deja de medir `height:100vh` fijo y pasa a
+`height:var(--appH,100dvh)`, con `--appH` puesto desde `visualViewport` en
+`app/phone.ts` para los navegadores que no entienden esa bandera. Donde sí la
+entienden, `visualViewport.height` coincide con `innerHeight` y ese código no hace
+nada; el umbral de 80 px separa el teclado de las barras del navegador, que van y
+vienen con el desplazamiento.
+
+`--vpPhone` tuvo que atarse a `--appH`, y eso lo enseñó la medida y no el razonamiento:
+un `40vh` se sigue calculando sobre la ventana de 844 px, así que con el alto forzado a
+424 el 3D se llevaba 338 de los 424, la cabecera y la barra de estado el resto, y la
+tabla se quedaba en CERO. Con `calc(var(--appH,100dvh) * .4)` el 3D baja a 170 y la
+tabla sube a 142 px. Que el 3D siga pidiendo el 40 % de la pantalla mientras se teclea
+es lo que queda pendiente: esconderlo obliga a dejar el lienzo WebGL en 0 px de alto,
+que es otro asunto y no se mezcla con este.
+
+EL SEGUNDO: el teclado de cifras de un teléfono no trae «-», y sin menos no hay
+compensación negativa. Los 140 campos numéricos son `<input type="number">` y ninguno
+llevaba `inputmode`; 125 de los 140 no tienen tope inferior, entre ellos las tres
+columnas de Δ, o sea que el negativo no es un caso raro sino la mitad del oficio. No se
+cambia el `type`: un `type="text"` con `inputmode="decimal"` saca el mismo teclado sin
+menos en iOS y de paso tira la validación, las flechas y el `valueAsNumber` de los que
+vive media aplicación. Lo que entra es una tecla aparte, `#signk`, que cambia el signo
+del campo enfocado. Sale solo con `#app.phone` y solo sobre un campo que ADMITA
+negativo —enseñarla encima de un `min="0"` es ofrecer algo que no va a pasar—, y el
+cuerpo es el de `stepField()`: escribir el valor y disparar un `change` que burbujee,
+con lo que el signo entra por el mismo camino que teclear y se apila igual en el
+deshacer. El `pointerdown` va con el efecto quitado, o tocarla sacaría el foco del campo
+y no habría a quién cambiarle el signo.
+
+El banco pasa de 332 a 338 pasos y los SEIS nuevos fallan contra el `index.html`
+anterior. i18n pasa de 501 a 502 claves (entra `signKey`). `test_motor.js` no cambia de
+cuenta: 773.
 
 **El reporte se abre DENTRO de la página (2026-09-24).**
 `makeReport()` sacaba el reporte por `window.open('', '_blank')`. Medido con las
