@@ -157,9 +157,12 @@ tiene internet.
   columnas, de modo que dos modelos se leen lado a lado en las tres. Cuando todos
   pintan lo mismo —lo normal en la primera, porque las variantes son Δ sobre una
   base común— esa tabla colapsa a un solo bloque en vez de repetir la misma
-  columna una vez por modelo. Se lee igual
-  en un teléfono que en el PC, y el botón de arriba lo manda a la impresora o a
-  «Guardar como PDF». No habla de máquina ni de la pieza medida: el comando sale
+  columna una vez por modelo. Se abre a pantalla completa SOBRE la aplicación, no
+  en una ventana nueva: en un teléfono el navegador bloquea la emergente y no
+  quedaba forma de ver el reporte. Se lee igual en un teléfono que en el PC, y su
+  barra —que se queda pegada arriba— cierra, manda a la impresora o a «Guardar
+  como PDF», y guarda el HTML con las fotos dentro, que es como se lleva a otra
+  parte desde el móvil. No habla de máquina ni de la pieza medida: el comando sale
   por su botón, en CSV, que es lo que come la dobladora.
 - Exportar CSV de puntos, y todo en **español, inglés y alemán**. La paridad de los
   tres idiomas es un error de compilación, no una prueba en tiempo de ejecución.

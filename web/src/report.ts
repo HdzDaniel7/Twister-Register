@@ -25,9 +25,11 @@
    la pieza medida. El comando sale por su botón, en CSV, que es el formato que
    come la dobladora.
 
-   Se abre en una ventana nueva; las imágenes van empotradas como data URI, así
-   que el archivo se puede guardar y llevar tal cual, y el botón de arriba lo
-   manda a la impresora o a «Guardar como PDF».
+   Se pinta a pantalla completa SOBRE la aplicación, en un iframe: una ventana
+   nueva la bloquea el navegador de un teléfono. Las imágenes van empotradas
+   como data URI, así que el archivo que saca «Guardar HTML» se lleva tal cual
+   y se abre en cualquier parte, y el de imprimir lo manda a la impresora o a
+   «Guardar como PDF». Ver `makeReport()` al final.
 
    Las capturas se reescalan a `ANCHO_VISTA` y salen en JPEG. Suena mal en un
    dibujo técnico y por eso está medido: un render 3D lleva degradado, sombreado
@@ -41,6 +43,7 @@ import type { Model, Orientation, RowLength, Variant } from './types.ts';
 import { ST, REF } from './state.ts';
 import { captureViews } from './scene.ts';
 import { fx, esc, buildTag } from './panels.ts';
+import { download, safeName } from './io.ts';
 
 /** Ancho al que se reescala cada captura, px. Llena una A4 a 300 ppp con
  *  margen de sobra y es donde la curva de bytes deja de pagar. */
@@ -325,7 +328,14 @@ export function reportHtml(): string {
   .z{color:#b6bcc6}
   .d{color:#8a4b00;font-weight:600}
   .sw{display:inline-block;width:9px;height:9px;border-radius:2px;margin-right:6px}
-  .bar{display:flex;gap:10px;align-items:center;margin:0 0 14px}
+  /* La barra se queda PEGADA arriba. En un teléfono el reporte son varias
+     pantallas de tabla, y si la barra se va con el scroll no queda salida:
+     Escape no existe en un teclado que no está. Los márgenes negativos son
+     los del padding del body, para que lo que pasa por debajo no asome por
+     los lados. */
+  .bar{display:flex;gap:10px;align-items:center;position:sticky;top:0;z-index:2;
+       background:#fff;margin:0 -18px 14px;padding:10px 18px;border-bottom:1px solid var(--ln)}
+  .bar button{white-space:nowrap}
   button{font:600 12px system-ui,sans-serif;padding:7px 14px;border:1px solid var(--ln);
          border-radius:5px;background:#f6f7f9;cursor:pointer}
   @media print{
@@ -339,6 +349,12 @@ export function reportHtml(): string {
     body{padding:14px 12px 30px}
     h1{font-size:23px}
     figure{flex:1 1 100%}
+    /* los tres botones en UN renglón: partidos en dos líneas quedan de
+       alturas distintas y el rótulo del documento sobra, que el nombre del
+       modelo va en el h1 justo debajo */
+    .bar{margin:0 -12px 12px;padding:8px 12px}
+    .bar .sub{display:none}
+    .bar button{min-height:34px}
   }
   </style>
   <div class="bar noprint"><button onclick="print()">${T('repPrint')}</button>
@@ -375,11 +391,88 @@ export function reportHtml(): string {
   return html;
 }
 
-/** El reporte en una ventana nueva. Es lo que cuelga del botón. */
+/* ---------------------------------------------------------- la ventanilla --
+   El reporte se pinta DENTRO de la página. Antes salía por `window.open()`, y
+   eso en un teléfono se cae: el navegador bloquea la emergente, `w` queda en
+   null y lo único que aparecía era un `alert` con «Reporte de modelo» —el
+   rótulo del documento, no un mensaje— y ningún reporte. Medido con las
+   emergentes bloqueadas: `window.open` llamado 1 vez, ese alert, cero reporte
+   en la página.
+
+   Va en un `<iframe>` y no en un `<div>` con el HTML dentro, porque el reporte
+   trae su propia hoja de estilo con reglas sobre `body`, `table` y `button`:
+   soltarla en el documento de la aplicación se llevaría la interfaz por
+   delante. Medido: dentro del iframe el `body` sale blanco y el de la
+   aplicación sigue en rgb(11,14,19).
+
+   Se escribe con `document.write()` y no con `srcdoc` porque write es
+   SÍNCRONO —al volver, el documento ya está parseado— y así el banco lo lee
+   sin esperar ningún `load`. Bajo `file://` el iframe hereda el origen, de
+   modo que el padre puede meterle sus dos botones en la barra que el reporte
+   ya trae, en vez de pintarle otra barra encima: dos barras apiladas en la
+   pantalla de un teléfono son 90 px gastados en decir lo mismo.             */
+
+/** Cierra el reporte si está abierto. Idempotente: lo llaman el botón, la
+ *  tecla y el propio `makeReport()` antes de abrir otro. */
+export function closeReport(): void {
+  document.getElementById('repov')?.remove();
+  document.removeEventListener('keydown', onEsc, true);
+}
+
+/** Escape cierra. Va en captura y en LOS DOS documentos: con el foco dentro
+ *  del iframe la tecla no burbujea al padre, así que un solo oyente dejaría el
+ *  reporte sin salida por teclado justo cuando se está leyendo. */
+function onEsc(ev: KeyboardEvent): void {
+  if (ev.key !== 'Escape' || !document.getElementById('repov')) return;
+  ev.stopPropagation();
+  closeReport();
+}
+
+/** Un botón para la barra del reporte. El documento es el del iframe, así que
+ *  el elemento se crea con SU `createElement` y no con el del padre. */
+function barBtn(d: Document, k: string, lab: string, fn: () => void): HTMLButtonElement {
+  const b = d.createElement('button');
+  b.setAttribute('data-rep', k);
+  b.textContent = lab;
+  b.onclick = fn;
+  return b;
+}
+
+/** El reporte, a pantalla completa sobre la aplicación. Es lo que cuelga del
+ *  botón. */
 export function makeReport(): void {
+  closeReport();
   const html = reportHtml();
-  const w = window.open('', '_blank');
-  if (!w) { alert(T('repModel')); return; }
-  w.document.write(html);
-  w.document.close();
+  const archivo = (): void => download(safeName(REF().name) + '.html', html, 'text/html');
+
+  const ov = document.createElement('div');
+  ov.id = 'repov';
+  const fr = document.createElement('iframe');
+  fr.id = 'repfr';
+  fr.title = T('repModel');
+  ov.appendChild(fr);
+  document.body.appendChild(ov);
+
+  const d = fr.contentDocument;
+  /* Sin documento no hay dónde pintar, y un recuadro vacío es peor que nada:
+     el reporte se entrega como archivo, que es para lo que sirve igual. */
+  if (!d) { ov.remove(); archivo(); return; }
+  d.open();
+  d.write(html);
+  d.close();
+
+  /* Los dos botones van en la barra que el reporte ya trae, alrededor del de
+     imprimir: cerrar primero, porque es la salida, y guardar al lado. El HTML
+     que se guarda es el de antes de tocar nada, así que el archivo no se lleva
+     un botón «Cerrar» que fuera de aquí no cierra nada. */
+  const bar = d.querySelector('.bar');
+  if (bar) {
+    bar.insertBefore(barBtn(d, 'close', T('mnClose'), closeReport), bar.firstChild);
+    bar.insertBefore(barBtn(d, 'save', T('repSave'), archivo), bar.querySelector('.sub'));
+  }
+  d.addEventListener('keydown', onEsc, true);
+  document.addEventListener('keydown', onEsc, true);
+  /* El foco al reporte: sin él, Ctrl+P manda a la impresora la aplicación que
+     queda debajo. */
+  fr.contentWindow?.focus();
 }

@@ -859,6 +859,7 @@ Ninguna de estas se vuelve a sacar leyendo el código.
 | La misma vista ISO a 1100 px, PNG contra JPEG q=0.92 | **498 KB contra 92 KB**; reescalar a PNG lo EMPEORA (363 KB a 900 px contra 294 KB sin tocar) | `captureViews()`, 09-24 |
 | La tabla de Modelar en un teléfono de 390 px, antes del diseño de móvil | arrancaba en **x = 320 con 760 px de ancho**: 690 px fuera de alcance, y el documento no desplaza en X | `probe_mob.js`, 09-24 |
 | Controles de la cabecera fuera de pantalla a 390 px, y controles de menos de 32 px de alto | **16 → 0** y **166 → 16** | `probe_mob.js`, 09-24 |
+| El reporte con las ventanas emergentes bloqueadas | `window.open` llamado **1 vez**, un `alert` con «Reporte de modelo» —el rótulo, no un mensaje— y **cero reporte** en la página | `probe_rep.js`, 09-24 |
 | Bundle: parte de three.js | **71.5 %**, sin grasa | `tools/bundle_report.mjs` |
 | Ruido del lazo: σ=1.0° | el lazo **empeora** la pieza, 0.38° → 0.80°; con n=5 y mediana, 0.10° | validación |
 | Corrigiendo solo ángulos | ángulos a 0.15°, punta estancada en **~5 mm**; con rodado y avance, **0.17 mm** | validación |
@@ -985,6 +986,44 @@ Medido y descartado en esta misma pasada:
   llamadas de dibujo NO eran el cuello: el coste estaba en construir y destruir geometrías, y
   eso ya está resuelto.
 
+**El reporte se abre DENTRO de la página (2026-09-24).**
+`makeReport()` sacaba el reporte por `window.open('', '_blank')`. Medido con las
+emergentes bloqueadas, que es lo normal en un teléfono: `window.open` llamado 1 vez,
+`w` en null, un `alert` con «Reporte de modelo» —que es el RÓTULO del documento, no un
+mensaje— y cero reporte en ninguna parte. El botón no llevaba a nada y lo único que se
+leía era un título suelto.
+
+Ahora se pinta a pantalla completa sobre la aplicación, en un `<iframe>` dentro de un
+`#repov`. En un iframe y no en un `<div>` con el HTML dentro porque el reporte trae su
+propia hoja de estilo con reglas sobre `body`, `table` y `button`: soltarla en el
+documento de la aplicación se llevaría la interfaz por delante. Medido: dentro del
+iframe el `body` sale blanco y el de la aplicación sigue en rgb(11,14,19).
+
+Se escribe con `document.write()` y no con `srcdoc` porque write es SÍNCRONO —al volver,
+el documento ya está parseado—, y así el banco lo lee sin esperar ningún `load` y sin
+promesas: el guion del banco es síncrono entero. Bajo `file://` el iframe hereda el
+origen, de modo que el padre le mete sus dos botones en la barra que el reporte ya trae
+—cerrar y «Guardar HTML»— en vez de pintarle otra barra encima: dos barras apiladas en
+la pantalla de un teléfono son 90 px gastados en decir lo mismo. El HTML que guarda el
+botón es el de antes de inyectar nada, así que el archivo no se lleva un «Cerrar» que
+fuera de aquí no cierra nada. Escape también cierra, y el oyente va en LOS DOS
+documentos: con el foco dentro del iframe la tecla no burbujea al padre.
+
+Dos defectos que las cifras no vieron y sí vio la captura a 390×844: la barra se iba con
+el scroll —y un reporte de 15 dobleces son varias pantallas de tabla, o sea que te
+quedabas sin salida, porque Escape no existe en un teclado que no está— y los tres
+rótulos partían en dos líneas dejando botones de alturas distintas. La barra pasa a
+`position:sticky` con márgenes negativos del ancho del padding del body, para que lo que
+pasa por debajo no asome por los lados; en `@media (max-width:560px)` se esconde el
+rótulo del documento —el nombre del modelo va en el `h1` justo debajo— y los botones van
+a un renglón con `min-height:34px`. Medido después: barra de 390 px de ancho, los tres
+botones a 32 px en una línea, y tras bajar 1 500 px la barra sigue en y = 0.
+
+El banco pasa de 326 a 332 pasos y los SEIS nuevos fallan contra el `index.html`
+anterior, sin ninguna guarda: los seis dependen de que exista `#repov`, que antes no se
+creaba nunca. i18n pasa de 500 a 501 claves (entra `repSave`). `test_motor.js` no cambia
+de cuenta: 773.
+
 **La aplicación cabe en un teléfono (2026-09-24).**
 El visor se escribió para un monitor y en un teléfono no se podía usar: la rejilla de
 MODELAR pide 320 px de 3D MÁS 760 px de tabla, así que en 390 px la tabla arrancaba en
@@ -1018,10 +1057,8 @@ son GUARDAS, y es lo que corresponde. `test_motor.js` no cambia de cuenta: `data
 entra en la lista de atributos compartidos a propósito, que es lo que esa prueba pide
 —no prohíbe compartir, obliga a decidirlo y a escribirlo.
 
-Lo que NO se tocó y sigue pendiente: `makeReport()` abre el reporte con `window.open()`,
-y un navegador de teléfono suele bloquear esa ventana. El reporte ya se lee bien en un
-móvil —tiene su `@media (max-width:560px)`—, pero llegar a él desde el teléfono es otra
-pasada.
+Lo que quedó fuera de esa pasada —`makeReport()` abría el reporte con `window.open()`— se
+arregló en la siguiente, la entrada de aquí abajo.
 
 **El reporte pasa a hablar del MODELO, y en tres tablas que suman (2026-09-24).**
 El reporte era «de inspección y compensación»: mezclaba la pieza medida, el comando a la
@@ -1080,8 +1117,9 @@ bytes del data URI siguen siendo los mismos.
 |---|---|---|
 | 5 imágenes PNG (4 vistas + cinta) contra 3 JPEG a 1100 px | 1 405 KB | **222 KB** |
 
-`makeReport()` se parte en dos: `reportHtml()` arma el texto y `makeReport()` abre la ventana.
-`window.open()` es lo único de ahí que un navegador headless no puede ejercitar, y sin la
+`makeReport()` se parte en dos: `reportHtml()` arma el texto y `makeReport()` lo saca a la
+pantalla —entonces con `window.open()`; hoy en un iframe, ver la entrada de más arriba—.
+`window.open()` era lo único de ahí que un navegador headless no podía ejercitar, y sin la
 separación el reporte entero —qué tablas salen, qué columnas llevan y de qué modelos hablan—
 quedaba fuera del banco. Es lo mismo que se hizo con `importCsvText()` y por lo mismo. El
 bloque de columnas de cada modelo lleva `data-mod` con el id, que es el gancho con el que el

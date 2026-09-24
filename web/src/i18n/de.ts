@@ -93,6 +93,7 @@ export const de: Record<I18nKey, string> = {
  repModel: 'Modellbericht', repPrint: 'Drucken / PDF', repTotal: 'Summe',
  repBase: 'Modell ohne Kompensation', repAdjust: 'Kompensationen', repTotals: 'Summen',
  repSameAll: 'Für alle Modelle gleich',
+ repSave: 'HTML sichern',
  ok: 'In Toleranz', bad: 'Außer Toleranz', piece: 'Teil',
  orW: 'Hochkantbiegung (gegen die Breite)', orT: 'Flachbiegung (gegen die Dicke)',
  orR: 'Runder Querschnitt: es gibt kein Hochkant und kein Flach. Beide Trägheitsmomente sind gleich, also biegt sie gegen jede Fläche gleich, und es gibt eine Konstante, nicht zwei.',

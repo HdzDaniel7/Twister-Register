@@ -85,6 +85,7 @@ export const en: Record<I18nKey, string> = {
  repModel: 'Model report', repPrint: 'Print / PDF', repTotal: 'Total',
  repBase: 'Model, no compensation', repAdjust: 'Compensations', repTotals: 'Totals',
  repSameAll: 'Same for every model',
+ repSave: 'Save HTML',
  ok: 'In tolerance', bad: 'Out of tolerance', piece: 'Part',
  orW: 'Hard way (across width)', orT: 'Easy way (across thickness)',
  orR: 'Round section: there is no hard or easy way. Both inertias are equal, so it bends the same against any face and there is one constant, not two.',

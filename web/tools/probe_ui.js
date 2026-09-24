@@ -4483,4 +4483,147 @@ step('el cajon de menu trae los cuatro menus, el tema y el idioma', () => {
   }
 });
 
+/* --- el reporte se pinta en la pagina, ya no en ventana aparte, 2026-09-24 --
+   Medido: `window.open('', '_blank')` vuelve `null` en cuanto el navegador
+   bloquea la ventana emergente, y lo unico que pasaba entonces era un alert
+   con el TITULO «Reporte de modelo» -no un mensaje- mientras el reporte no
+   aparecia por ningun lado. Un telefono bloquea esa ventana a menudo, asi que
+   el camino de siempre era justo el que fallaba en un telefono.
+
+   Ahora `makeReport()` no llama a `window.open`: mete un `#repov` en el body,
+   `position:fixed;inset:0`, con un `#repfr` adentro que llena el overlay y
+   lleva el reporte escrito por `contentDocument.open()/write()/close()`, que
+   es sincrono -no hace falta esperar ningun `load`. Un solo camino, igual en
+   telefono que en escritorio. */
+const contarOpen = () => {
+  /* la cabecera ya puso un doble de window.open (linea 7); aqui se envuelve
+     ESE doble con un contador y se devuelve el mismo doble en el finally,
+     para no dejarle a los pasos de mas abajo un window.open distinto del que
+     arranco el guion */
+  const doble = window.open;
+  let n = 0;
+  window.open = (...a) => { n++; return doble(...a); };
+  return { cuenta: () => n, deshacer: () => { window.open = doble; } };
+};
+/* genera el reporte UNA vez -tarda, porque captura tres vistas del 3D en
+   JPEG- y abre el cajon Archivo, que es por donde cuelga el boton */
+const abreReporte = () => { drawer('file'); click('[data-a="report"]'); };
+/* quita el overlay si quedo abierto, sin pasar por su boton de cerrar: es lo
+   que usan los `finally` para no envenenar los pasos siguientes */
+const cierraReporte = () => {
+  const v = document.getElementById('repov');
+  if (v) v.remove();
+};
+
+step('el reporte se pinta en la pagina: no llama a window.open y aparece #repov con su iframe', () => {
+  const c = contarOpen();
+  try {
+    abreReporte();
+    const v = document.getElementById('repov');
+    if (!v || c.cuenta() > 0) {
+      throw new Error('el reporte no esta en la pagina: '
+        + (v ? 'existe #repov' : 'no existe #repov') + ', y window.open se llamo '
+        + c.cuenta() + (c.cuenta() === 1 ? ' vez' : ' veces'));
+    }
+    const fr = v.querySelector('#repfr');
+    if (!fr || fr.tagName !== 'IFRAME') {
+      throw new Error('#repov no trae un iframe#repfr, trae: ' + (fr ? fr.tagName : 'nada'));
+    }
+  } finally {
+    c.deshacer();
+    cierraReporte();
+  }
+});
+
+step('el iframe trae el reporte de verdad: h1 con texto y tablas con filas', () => {
+  try {
+    abreReporte();
+    const d = q('#repov #repfr').contentDocument;
+    if (!d) throw new Error('el iframe no tiene contentDocument');
+    const h1 = d.querySelector('h1');
+    if (!h1 || !h1.textContent.trim()) {
+      throw new Error('el h1 del reporte viene vacio: "' + (h1 && h1.textContent) + '"');
+    }
+    const tablas = d.querySelectorAll('table').length;
+    const filas = d.querySelectorAll('table tbody tr').length;
+    if (!(tablas > 0) || !(filas > 0)) {
+      throw new Error('el reporte trae ' + tablas + ' tablas y ' + filas + ' filas, y las dos cifras tienen que ser mayores que 0');
+    }
+  } finally { cierraReporte(); }
+});
+
+step('[data-rep="close"] cierra el reporte y deja la aplicacion intacta', () => {
+  const cajonInicial = S().drawer;
+  try {
+    abreReporte();
+    const modo = S().mode, cajon = S().drawer;
+    /* el boton vive en el documento del IFRAME, no en el del padre: un
+       selector desde aqui no lo alcanza nunca */
+    const d = q('#repov #repfr').contentDocument;
+    const x = d && d.querySelector('.bar [data-rep="close"]');
+    if (!x) throw new Error('no existe [data-rep="close"] en la barra del reporte');
+    x.click();
+    if (document.getElementById('repov')) {
+      throw new Error('#repov sigue en el documento tras pulsar [data-rep="close"]');
+    }
+    if (!document.getElementById('app')) {
+      throw new Error('#app desaparecio de la pagina al cerrar el reporte');
+    }
+    if (S().mode !== modo) throw new Error('ST.mode paso de ' + modo + ' a ' + S().mode + ' al cerrar el reporte');
+    if (S().drawer !== cajon) throw new Error('ST.drawer paso de ' + cajon + ' a ' + S().drawer + ' al cerrar el reporte');
+  } finally {
+    cierraReporte();
+    S().drawer = cajonInicial;
+  }
+});
+
+step('Escape tambien cierra el reporte', () => {
+  const cajonInicial = S().drawer;
+  try {
+    abreReporte();
+    if (!document.getElementById('repov')) {
+      throw new Error('el reporte no se abrio: no existe #repov con que probar Escape');
+    }
+    hotkey('Escape');
+    if (document.getElementById('repov')) {
+      throw new Error('#repov sigue en el documento tras pulsar Escape');
+    }
+  } finally {
+    cierraReporte();
+    S().drawer = cajonInicial;
+  }
+});
+
+step('la barra del reporte trae los tres botones: imprimir, cerrar y guardar', () => {
+  try {
+    abreReporte();
+    const d = q('#repov #repfr').contentDocument;
+    const botones = d.querySelectorAll('.bar button').length;
+    if (botones !== 3) throw new Error('la barra del reporte trae ' + botones + ' botones y deberian ser 3');
+    if (!d.querySelector('.bar [data-rep="close"]')) throw new Error('falta [data-rep="close"] en la barra');
+    if (!d.querySelector('.bar [data-rep="save"]')) throw new Error('falta [data-rep="save"] en la barra');
+  } finally { cierraReporte(); }
+});
+
+step('en telefono el overlay del reporte llena la ventana', () => {
+  const cajonInicial = S().drawer;
+  try {
+    telOn();
+    abreReporte();
+    const r = q('#repov').getBoundingClientRect();
+    if (Math.abs(r.left) > 1 || Math.abs(r.top) > 1) {
+      throw new Error('el overlay arranca en (' + r.left.toFixed(0) + ',' + r.top.toFixed(0)
+        + ') y deberia arrancar en (0,0)');
+    }
+    if (Math.abs(r.width - innerWidth) > 1 || Math.abs(r.height - innerHeight) > 1) {
+      throw new Error('el overlay mide ' + r.width.toFixed(0) + 'x' + r.height.toFixed(0)
+        + ' px en una ventana de ' + innerWidth + 'x' + innerHeight + ' px');
+    }
+  } finally {
+    telOff();
+    cierraReporte();
+    S().drawer = cajonInicial;
+  }
+});
+
 return log.join('\n');
