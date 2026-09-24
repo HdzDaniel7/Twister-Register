@@ -84,6 +84,7 @@ export const es: Record<I18nKey, string> = {
  note: 'La cadena completa se regenera tras cada corrección: el arrastre entre dobleces ya está contenido en el modelo.',
  repModel: 'Reporte de modelo', repPrint: 'Imprimir / PDF', repTotal: 'Total',
  repBase: 'Modelo sin compensación', repAdjust: 'Compensaciones', repTotals: 'Totales',
+ repSameAll: 'Igual en todos los modelos',
  ok: 'En tolerancia', bad: 'Fuera de tolerancia', piece: 'Pieza',
  orW: 'Canto (contra el ancho)', orT: 'Plano (contra el espesor)',
  orR: 'Sección redonda: no hay canto ni plano. Las dos inercias son iguales, así que se dobla igual contra cualquier cara y hay una sola constante, no dos.',

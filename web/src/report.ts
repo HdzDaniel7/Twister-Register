@@ -15,7 +15,11 @@
    `straightDelta()`, que es lo que enseña la tabla de la aplicación.
 
    Cada modelo ENCENDIDO se lleva su bloque de columnas, así que dos modelos se
-   leen lado a lado en las tres tablas.
+   leen lado a lado en las tres tablas —salvo cuando todos pintan lo MISMO, que
+   es lo normal en la primera: las variantes son Δ sobre una base común, y
+   repetir cuatro veces la misma columna es ancho gastado en decir lo mismo.
+   Entonces se pinta un solo bloque rotulado «igual en todos», y la suma sigue
+   cuadrando: base común + Δ del modelo = total del modelo.
 
    Lo que NO lleva, y es deliberado desde el 2026-09-24: el perfil de máquina y
    la pieza medida. El comando sale por su botón, en CSV, que es el formato que
@@ -176,40 +180,77 @@ export function reportHtml(): string {
          + celda(c.cum, 2, modo, r && r.cum);
   };
 
-  /* la cabecera de dos pisos, común a las tres tablas. `data-mod` es el gancho
-     del banco: cuenta bloques sin depender del idioma ni del nombre. */
   const anchoBloque = conTwist ? 6 : 5;
-  const cab = mods.map(({ v: x }) =>
-    `<th scope="col" colspan="${anchoBloque}" class="grp" data-mod="${esc(x.id)}"
-       style="border-bottom:3px solid ${esc(x.color)}">${esc(x.name)}</th>`).join('');
-  const sub = mods.map(() =>
-    `<th scope="col" class="grp">${T('ang')}</th><th scope="col">${T('rot')}</th>`
-    + (conTwist ? `<th scope="col">${T('twist')}</th>` : '')
-    + `<th scope="col">${T('rad')}</th><th scope="col">${T('straight')}</th>`
-    + `<th scope="col">${T('cumL')}</th>`).join('');
+
+  /* --- UNA SOLA COLUMNA CUANDO TODOS PINTAN LO MISMO ------------------------
+     Las variantes son Δ sobre una base común, así que lo normal es que la
+     tabla 1 —el modelo SIN compensar— salga idéntica en todos los modelos
+     encendidos, y repetirla cuatro veces es ancho gastado en decir lo mismo.
+     Cuando eso pasa se pinta UN bloque y se rotula «igual en todos».
+
+     La comparación se hace sobre las cifras TAL COMO SE IMPRIMEN y no sobre
+     los números crudos: lo que se está preguntando es «¿estas dos columnas se
+     ven iguales?», y con el número crudo un resto de 1e-13 mantendría dos
+     columnas idénticas en pantalla. Se pregunta por tabla y no de una vez, así
+     que la 1 puede colapsar mientras la 3 sigue abierta —que es justo el caso
+     de siempre— y sigue cuadrando: base común + Δ del modelo = total del
+     modelo. */
+  const firma = (d: Encendido, modo: Modo): string => {
+    const p: string[] = [];
+    for (let i = 0; i < nMax; i++) {
+      const c = filaDe(d, i, modo);
+      p.push(c ? [fx(c.ang, 1), fx(c.rot, 1), fx(c.tw, 1),
+                  fx(c.rad, 1), fx(c.str, 2), fx(c.cum, 2)].join('|') : '-');
+    }
+    const t = totalDe(d, modo);
+    p.push(fx(colaDe(d, modo), 2));
+    p.push([fx(t.ang, 1), fx(t.rot, 1), fx(t.tw, 1), fx(t.str, 2), fx(t.cum, 2)].join('|'));
+    return p.join(';');
+  };
 
   /** Una de las tres tablas. El modelo de REFERENCIA no se marca contra sí
    *  mismo, y en la tabla de Δ no se marca nada: ahí el resalte ya lo lleva
    *  tener un Δ distinto de cero. */
   const tabla = (modo: Modo): string => {
-    const iRef = mods.findIndex(d => d.v.id === ST.ref);
+    const uno = mods.length > 1
+      && mods.every(d => firma(d, modo) === firma(mods[0], modo));
+    /* colapsada se enseña la de la REFERENCIA, que es la que ancla todo lo
+       demás; si la referencia estuviera apagada, la primera encendida */
+    const cols = uno ? [mods.find(d => d.v.id === ST.ref) || mods[0]] : mods;
+
+    /* `data-mod` va solo cuando el bloque habla de UN modelo. Colapsado no hay
+       a quién atribuirlo, y el banco cuenta modelos por las filas de la tabla
+       de arriba (`data-mrow`), que están siempre. */
+    const cab = uno
+      ? `<th scope="col" colspan="${anchoBloque}" class="grp">${T('repSameAll')}</th>`
+      : cols.map(({ v: x }) =>
+          `<th scope="col" colspan="${anchoBloque}" class="grp" data-mod="${esc(x.id)}"
+             style="border-bottom:3px solid ${esc(x.color)}">${esc(x.name)}</th>`).join('');
+    const sub = cols.map(() =>
+      `<th scope="col" class="grp">${T('ang')}</th><th scope="col">${T('rot')}</th>`
+      + (conTwist ? `<th scope="col">${T('twist')}</th>` : '')
+      + `<th scope="col">${T('rad')}</th><th scope="col">${T('straight')}</th>`
+      + `<th scope="col">${T('cumL')}</th>`).join('');
+
+    const iRef = cols.findIndex(d => d.v.id === ST.ref);
+    /* colapsada no se marca nada: todas las columnas son la misma */
     const refFila = (i: number): Cifras | null =>
-      (modo === 'delta' || iRef < 0 ? null : filaDe(mods[iRef], i, modo));
+      (uno || modo === 'delta' || iRef < 0 ? null : filaDe(cols[iRef], i, modo));
     const filas = Array.from({ length: nMax }, (_, i) => {
-      const cels = mods.map(d => bloque(filaDe(d, i, modo),
+      const cels = cols.map(d => bloque(filaDe(d, i, modo),
                                         d.v.id === ST.ref ? null : refFila(i), modo)).join('');
       const o = i < R.bends.length ? orLabel(orient[i], redonda) : '';
       return `<tr><td>B${i + 1}</td><td>${o}</td>${cels}</tr>`;
     }).join('');
     /* la cola y el TOTAL son filas, no un pie aparte: se tienen que poder
        sumar con la vista, que es para lo que están las tres tablas */
-    const cola = mods.map(d => {
+    const cola = cols.map(d => {
       const v = colaDe(d, modo);
       return `<td class="grp z">—</td><td class="z">—</td>${conTwist ? '<td class="z">—</td>' : ''}`
            + '<td class="z">—</td>'
            + celda(v, 2, modo, null) + '<td class="z">—</td>';
     }).join('');
-    const tot = mods.map(d => {
+    const tot = cols.map(d => {
       const c = totalDe(d, modo);
       return celda(c.ang, 1, modo, null, 'grp ')
            + celda(c.rot, 1, modo, null)
@@ -235,7 +276,9 @@ export function reportHtml(): string {
       const sh = E.piShift(eff, R, ST.anchor);
       shift = ST.anchor === 'end' ? sh[0] : sh[sh.length - 1];
     }
-    return `<tr><td><span class="sw" style="background:${esc(x.color)}"></span>${esc(x.name)}${
+    /* `data-mrow` es el gancho del banco: esta tabla lista EXACTAMENTE los
+       modelos encendidos, una fila cada uno, colapsen o no las de abajo. */
+    return `<tr data-mrow="${esc(x.id)}"><td><span class="sw" style="background:${esc(x.color)}"></span>${esc(x.name)}${
       x.id === ST.ref ? ' · ' + T('isRef') : ''}</td>
       <td>${eff.bends.length}</td>
       <td>${fx(E.developedLength(eff), 1)}</td>

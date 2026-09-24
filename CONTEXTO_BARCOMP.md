@@ -998,7 +998,15 @@ tres veces**:
 3. **la suma de las dos**, con su fila TOTAL.
 
 Las tres llevan las mismas columnas y las mismas filas, y cada modelo encendido se lleva su
-bloque, así que dos modelos se leen lado a lado en las tres. Ese es el punto entero: quien lee
+bloque, así que dos modelos se leen lado a lado en las tres — **salvo cuando todos pintan lo
+mismo**, que es lo normal en la primera: las variantes son Δ sobre una base común, y repetir
+esa columna una vez por modelo es ancho gastado en decir lo mismo. Entonces esa tabla colapsa
+a un solo bloque rotulado «igual en todos los modelos», y la suma sigue cuadrando: base común
++ Δ del modelo = total del modelo. Se decide POR TABLA y no de una vez, así que la 1 colapsa
+mientras la 3 sigue abierta, que es el caso de siempre. La comparación se hace sobre las
+cifras TAL COMO SE IMPRIMEN y no sobre los números crudos: lo que se pregunta es «¿estas dos
+columnas se ven iguales?», y con el número crudo un resto de 1e-13 mantendría abiertas dos
+columnas idénticas en pantalla. Ese es el punto entero: quien lee
 suma la fila TOTAL de la primera con la de la segunda y le tiene que salir la de la tercera.
 Por eso **cada Δ se calcula como `total − base`** y no por caminos distintos según la columna
 —si cada una llegara por su lado, las tablas podrían dejar de cuadrar y nadie lo notaría
@@ -1037,7 +1045,9 @@ bytes del data URI siguen siendo los mismos.
 separación el reporte entero —qué tablas salen, qué columnas llevan y de qué modelos hablan—
 quedaba fuera del banco. Es lo mismo que se hizo con `importCsvText()` y por lo mismo. El
 bloque de columnas de cada modelo lleva `data-mod` con el id, que es el gancho con el que el
-banco cuenta bloques sin depender del idioma.
+banco cuenta bloques sin depender del idioma; y como una tabla colapsada no tiene a quién
+atribuir el bloque, la lista de modelos de arriba lleva `data-mrow` con el id en cada fila,
+que es lo que el banco cuenta para saber de cuántos modelos habla el reporte.
 
 Los números de doblez **ya coincidían** y no se tocó nada: el 3D y la tabla del modelo dicen
 los dos `B1..Bn`. Lo único con otro prefijo es la pestaña Puntos, que numera `P0 · PI1..PIn ·
@@ -1049,9 +1059,9 @@ notara.
 `tsc --noEmit` limpio; `test_motor.js` en 773 aserciones, sin cambios porque el motor no se
 toca; i18n pasa de 495 a 497 claves (se van `repTitle`, `repDate`, `repPiece` y `engine`, que
 quedaron muertas al reescribir, y entran `repModel`, `repPrint`, `repBase`, `repAdjust`,
-`repTotals` y `repTotal`); `tools/ui_test.mjs` sube de 312 a 318 pasos. Cinco de los seis
-nuevos fallan contra el HEAD anterior; el sexto es la guarda de los números B y pasa en las
-dos versiones, como corresponde.
+`repTotals` y `repTotal`); `tools/ui_test.mjs` sube de 312 a 319 pasos. De los siete
+nuevos, seis fallan contra el HEAD previo a este trabajo; el séptimo es la guarda de los
+números B y pasa en las dos versiones, como corresponde.
 
 **La torsión contada dos veces (2026-09-18).** `ik()` leía el rodado con el marco sin rodar,
 así que la torsión se le colaba dentro del rodado, y `measuredModel()`/`migrateModel()` le

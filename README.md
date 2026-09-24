@@ -154,7 +154,10 @@ tiene internet.
   veces** — el modelo sin compensar, solo las compensaciones, y la suma de las dos.
   Cada una acaba en una fila TOTAL, así que la de la primera más la de la segunda
   tiene que dar la de la tercera; y cada modelo encendido se lleva su bloque de
-  columnas, de modo que dos modelos se leen lado a lado en las tres. Se lee igual
+  columnas, de modo que dos modelos se leen lado a lado en las tres. Cuando todos
+  pintan lo mismo —lo normal en la primera, porque las variantes son Δ sobre una
+  base común— esa tabla colapsa a un solo bloque en vez de repetir la misma
+  columna una vez por modelo. Se lee igual
   en un teléfono que en el PC, y el botón de arriba lo manda a la impresora o a
   «Guardar como PDF». No habla de máquina ni de la pieza medida: el comando sale
   por su botón, en CSV, que es lo que come la dobladora.

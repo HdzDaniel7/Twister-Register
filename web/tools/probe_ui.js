@@ -4084,21 +4084,23 @@ step('el reporte compara SOLO los modelos encendidos', () => {
       throw new Error('no se pudo volver a activar el modelo original');
     }
     const nombreNuevo = escRep(nuevo.name);
-    /* Las TRES tablas salen siempre; lo que cambia con los modelos encendidos
-       es cuantos BLOQUES de columnas lleva cada una. `data-mod` es el gancho
-       que pone report.ts justo para esto: cuenta bloques sin depender del
-       idioma ni de que dos modelos se llamen parecido. */
-    const bloques = h => new Set(h.match(/data-mod="[^"]*"/g) || []).size;
+    /* Se cuenta por `data-mrow`, la fila de la tabla de modelos de arriba, y no
+       por los bloques de columnas de las tres tablas anchas: cuando todos los
+       modelos pintan lo MISMO esas tablas colapsan a un solo bloque -que es
+       justo lo que pasa con una copia recien hecha, que no tiene ningun delta-
+       y entonces la copia no tiene bloque propio en ninguna. La tabla de
+       modelos, en cambio, lista siempre exactamente los encendidos. */
+    const modelos = h => new Set(h.match(/data-mrow="[^"]*"/g) || []).size;
     const encendidos = () => S().variants.filter(v => v.visible).length;
     let html = B.reportHtml();
     if (!html.includes(nombreNuevo)) {
       throw new Error('con la copia encendida no sale su nombre "' + nuevo.name + '" en el reporte');
     }
-    if (!html.includes('data-mod="' + nuevoId + '"')) {
-      throw new Error('la copia encendida no tiene bloque de columnas en las tablas');
+    if (!html.includes('data-mrow="' + nuevoId + '"')) {
+      throw new Error('la copia encendida no aparece en la tabla de modelos');
     }
-    if (bloques(html) !== encendidos()) {
-      throw new Error('hay ' + encendidos() + ' modelos encendidos y ' + bloques(html) + ' bloques');
+    if (modelos(html) !== encendidos()) {
+      throw new Error('hay ' + encendidos() + ' modelos encendidos y ' + modelos(html) + ' en el reporte');
     }
     drawer('models');
     click(`#lf input[data-vv="${nuevoId}"]`);      // se apaga la copia
@@ -4109,11 +4111,11 @@ step('el reporte compara SOLO los modelos encendidos', () => {
     if (html.includes(nombreNuevo)) {
       throw new Error('apagada, el nombre "' + nuevo.name + '" sigue saliendo en el reporte');
     }
-    if (html.includes('data-mod="' + nuevoId + '"')) {
-      throw new Error('apagada, la copia sigue teniendo bloque de columnas');
+    if (html.includes('data-mrow="' + nuevoId + '"')) {
+      throw new Error('apagada, la copia sigue en la tabla de modelos');
     }
-    if (bloques(html) !== encendidos()) {
-      throw new Error('apagada: ' + encendidos() + ' modelos encendidos y ' + bloques(html) + ' bloques');
+    if (modelos(html) !== encendidos()) {
+      throw new Error('apagada: ' + encendidos() + ' modelos encendidos y ' + modelos(html) + ' en el reporte');
     }
   } finally {
     // se borra la copia devolviendo la lista, no filtrandola: asi vuelve
@@ -4177,35 +4179,102 @@ step('las B del 3D dicen lo mismo que las de la tabla', () => {
    suma la fila TOTAL de la primera con la de la segunda y le tiene que salir
    la de la tercera. Si alguna columna dejara de calcularse como `total - base`
    y se fuera por su lado, las tres tablas dejarian de cuadrar y nadie lo
-   notaria mirandolas. Aqui se comprueba celda a celda. */
+   notaria mirandolas. Aqui se comprueba celda a celda.
+
+   Una tabla puede venir COLAPSADA a un solo bloque cuando todos los modelos
+   pintan lo mismo -lo normal en la primera, porque las variantes son delta
+   sobre una base comun-. Ese bloque unico vale para todos, asi que cuando una
+   tabla trae menos bloques que otra se reutiliza el ultimo que tiene. */
 step('TOTAL de la tabla 1 mas la 2 da la de la 3', () => {
   const B = window.BARCOMP;
   const doc = new DOMParser().parseFromString(B.reportHtml(), 'text/html');
-  /* las tres anchas son las que llevan bloques por modelo; la de resumen no */
-  const anchas = [...doc.querySelectorAll('table')].filter(t => t.querySelector('[data-mod]'));
-  if (anchas.length !== 3) throw new Error('hay ' + anchas.length + ' tablas anchas y deberian ser 3');
-  const tot = t => {
-    const tr = t.querySelector('tr.tot');
-    if (!tr) throw new Error('una de las tablas no tiene fila TOTAL');
-    /* se salta la primera celda, que es el rotulo; el guion es un cero */
-    return [...tr.querySelectorAll('td')].slice(2)
-      .map(td => { const s = td.textContent.trim(); return s === '—' ? 0 : parseFloat(s.replace('+', '')); });
+  /* las tres anchas son las que tienen fila TOTAL; la de resumen no */
+  const anchas = [...doc.querySelectorAll('table')].filter(t => t.querySelector('tr.tot'));
+  if (anchas.length !== 3) throw new Error('hay ' + anchas.length + ' tablas con fila TOTAL y deberian ser 3');
+  const leer = t => {
+    const nb = t.querySelectorAll('thead tr:first-child th[colspan]').length;
+    if (!nb) throw new Error('una tabla no tiene bloques de columnas');
+    /* se saltan las dos primeras celdas, que son el rotulo y la columna Or.;
+       el guion es un cero */
+    const cel = [...t.querySelector('tr.tot').querySelectorAll('td')].slice(2)
+      .map(td => { const x = td.textContent.trim(); return x === '—' ? 0 : parseFloat(x.replace('+', '')); });
+    if (cel.length % nb) throw new Error('la fila TOTAL tiene ' + cel.length + ' celdas y ' + nb + ' bloques');
+    const ancho = cel.length / nb;
+    const bloques = [];
+    for (let i = 0; i < nb; i++) bloques.push(cel.slice(i * ancho, (i + 1) * ancho));
+    return bloques;
   };
-  const [a, b, c] = anchas.map(tot);
-  if (a.length !== b.length || b.length !== c.length) {
-    throw new Error('las tres filas TOTAL tienen ' + a.length + '/' + b.length + '/' + c.length + ' celdas');
+  const [A, Bq, C] = anchas.map(leer);
+  const n = Math.max(A.length, Bq.length, C.length);
+  if (!n || !A[0].length) throw new Error('la fila TOTAL vino vacia: el paso no prueba nada');
+  const bloque = (t, k) => t[Math.min(k, t.length - 1)];
+  for (let k = 0; k < n; k++) {
+    const a = bloque(A, k), b = bloque(Bq, k), c = bloque(C, k);
+    if (a.length !== b.length || b.length !== c.length) {
+      throw new Error('bloque ' + k + ': ' + a.length + '/' + b.length + '/' + c.length + ' celdas');
+    }
+    for (let i = 0; i < a.length; i++) {
+      if (Number.isNaN(a[i]) || Number.isNaN(b[i]) || Number.isNaN(c[i])) {
+        throw new Error('bloque ' + k + ' celda ' + i + ' no es un numero: '
+          + a[i] + ' / ' + b[i] + ' / ' + c[i]);
+      }
+      /* 0.011 y no 0.005: las celdas se imprimen redondeadas a dos decimales,
+         asi que dos sumandos redondeados pueden separarse una centesima cada uno */
+      if (Math.abs(a[i] + b[i] - c[i]) > 0.011) {
+        throw new Error('bloque ' + k + ' celda ' + i + ': ' + a[i] + ' + ' + b[i]
+          + ' = ' + (a[i] + b[i]) + ' pero la tabla 3 dice ' + c[i]);
+      }
+    }
   }
-  if (!a.length) throw new Error('la fila TOTAL vino vacia: el paso no prueba nada');
-  for (let i = 0; i < a.length; i++) {
-    if (Number.isNaN(a[i]) || Number.isNaN(b[i]) || Number.isNaN(c[i])) {
-      throw new Error('celda ' + i + ' no es un numero: ' + a[i] + ' / ' + b[i] + ' / ' + c[i]);
+});
+
+/* La primera tabla es el modelo SIN compensar, y las variantes son delta sobre
+   una base comun: lo normal es que salga identica en todos los encendidos.
+   Repetirla una vez por modelo es ancho gastado en decir lo mismo, asi que
+   colapsa a un bloque. Este paso comprueba las dos mitades de la regla -que
+   con bases iguales colapsa, y que en cuanto una base cambia se vuelve a
+   abrir- porque un colapso que no se reabre esconderia una diferencia real. */
+step('con la misma base, la tabla 1 pinta UN bloque y no uno por modelo', () => {
+  const B = window.BARCOMP;
+  const variantesAntes = S().variants.slice();
+  const activoAntes = S().active;
+  const refAntes = S().ref;
+  const bloquesT1 = () => {
+    const doc = new DOMParser().parseFromString(B.reportHtml(), 'text/html');
+    const t = [...doc.querySelectorAll('table')].filter(x => x.querySelector('tr.tot'))[0];
+    if (!t) throw new Error('no hay tabla 1');
+    return t.querySelectorAll('thead tr:first-child th[colspan]').length;
+  };
+  try {
+    drawer('models');
+    click('[data-a="vardup"]');
+    const nuevoId = S().active;
+    const nuevo = S().variants.find(v => v.id === nuevoId);
+    if (!nuevo) throw new Error('la copia no aparecio en variants');
+    if (!nuevo.visible) { drawer('models'); click(`#lf input[data-vv="${nuevoId}"]`); }
+    const encendidos = S().variants.filter(v => v.visible).length;
+    if (encendidos < 2) throw new Error('solo hay ' + encendidos + ' modelo encendido: el paso no prueba nada');
+    /* la copia nace SIN deltas y con la misma base, asi que la tabla 1 de los
+       dos es la misma y tiene que colapsar */
+    const colapsada = bloquesT1();
+    if (colapsada !== 1) {
+      throw new Error('con ' + encendidos + ' modelos de base identica la tabla 1 trae '
+        + colapsada + ' bloques y deberia traer 1');
     }
-    /* 0.011 y no 0.005: las celdas se imprimen redondeadas a dos decimales, asi
-       que dos sumandos redondeados pueden separarse una centesima cada uno */
-    if (Math.abs(a[i] + b[i] - c[i]) > 0.011) {
-      throw new Error('celda ' + i + ': ' + a[i] + ' + ' + b[i] + ' = ' + (a[i] + b[i])
-        + ' pero la tabla 3 dice ' + c[i]);
+    /* y ahora se le cambia la BASE a la copia -no un delta, que no toca la
+       tabla 1- y tiene que volver a abrirse */
+    nuevo.base.bends[0].angle = nuevo.base.bends[0].angle + 7.5;
+    B.renderAll();
+    const abierta = bloquesT1();
+    if (abierta !== encendidos) {
+      throw new Error('con una base distinta la tabla 1 trae ' + abierta
+        + ' bloques y deberia traer ' + encendidos);
     }
+  } finally {
+    S().variants = variantesAntes;
+    S().active = activoAntes;
+    S().ref = refAntes;
+    window.BARCOMP.renderAll();
   }
 });
 
