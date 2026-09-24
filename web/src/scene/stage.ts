@@ -206,6 +206,16 @@ export const setOnResize = (fn: () => void): void => { onResizeExtra = fn; };
 export function onResize(): void {
   /* #vpwrap es el contenedor fijo del viewport; existe siempre que hay canvas. */
   const w = $('#vpwrap')!.clientWidth, h = $('#vpwrap')!.clientHeight;
+  /* Un contenedor de 0 px no es un tamaño, es una banda escondida: en un
+     teléfono con el teclado abierto el 3D se quita de en medio y #vpwrap
+     queda en 0×0. Seguir adelante ahí hace daño y no arregla nada — medido:
+     el lienzo pasa de 390×338 a 0×0, `camera.aspect` se queda en NaN y la
+     matriz de proyección sale ENTERA en NaN, que es la que usan las
+     etiquetas y el gizmo para proyectar. Se recupera al volver, pero entre
+     medias el búfer de dibujo se tira y se reasigna en cada celda que se
+     toca. Con la guarda, la cámara conserva el último tamaño bueno y al
+     reaparecer la banda el observador la vuelve a medir. */
+  if (w === 0 || h === 0) return;
   renderer.setSize(w, h, false);
   camera.aspect = w / h;
   camera.updateProjectionMatrix();

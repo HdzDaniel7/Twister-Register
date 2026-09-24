@@ -266,7 +266,10 @@ teléfono no encoge la página: la tapa y el navegador panea hasta el campo enfo
 lo que la cabecera con la barra de menús se iba por arriba en cuanto tocabas una celda.
 El `<meta name="viewport">` lleva `interactive-widget=resizes-content` y `#app` mide
 `var(--appH,100dvh)`, con `--appH` puesto desde el `visualViewport` donde esa bandera no
-se entiende: la página cabe en lo que deja el teclado y no hay nada que panear. Y como
+se entiende: la página cabe en lo que deja el teclado y no hay nada que panear. Con el
+teclado abierto quedan 424 px, y el 3D se llevaba 170 de ellos dejando la tabla en 142
+—cuatro filas—, así que mientras hay un campo enfocado la banda del 3D no se pinta y la
+tabla se queda con 312. Y como
 el teclado de cifras no trae signo menos —sin él no hay compensación negativa, que es la
 mitad del oficio—, sobre un campo que admita negativo sale una tecla **±** que le cambia
 el signo.

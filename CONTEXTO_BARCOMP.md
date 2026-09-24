@@ -863,6 +863,8 @@ Ninguna de estas se vuelve a sacar leyendo el código.
 | El paneo del teclado del teléfono, a 390×844 | el primer campo numérico de la tabla está en **y = 596** y el último en **y = 1323**; con un teclado de 420 px el navegador tiene que panear de **206 a 933 px**, y la cabecera mide **44** | `probe_kb.js`, 09-24 |
 | Campos numéricos que admiten negativo | **125 de 140** no tienen tope inferior, entre ellos las tres columnas de Δ; los 15 restantes tienen `min>=0` | `probe_min.js`, 09-24 |
 | El 3D en `40vh` con el teclado abierto | se lleva **338 px de los 424** que quedan y la tabla se queda en **0**; atado a `--appH` baja a 170 y la tabla sube a **142** | `probe_new.js`, 09-24 |
+| La tabla con el teclado abierto, escondiendo el 3D | **142 → 312 px**: de cuatro filas a siete | `probe_kbd.js`, 09-24 |
+| El lienzo WebGL con la banda del 3D escondida, sin guarda | pasa de 390×338 a **0×0**, `camera.aspect` en **NaN** y la matriz de proyección **entera NaN**; con la guarda se queda en 390×338 todo el ciclo | `probe_ct2.js` / `probe_kbd2.js`, 09-24 |
 | Bundle: parte de three.js | **71.5 %**, sin grasa | `tools/bundle_report.mjs` |
 | Ruido del lazo: σ=1.0° | el lazo **empeora** la pieza, 0.38° → 0.80°; con n=5 y mediana, 0.10° | validación |
 | Corrigiendo solo ángulos | ángulos a 0.15°, punta estancada en **~5 mm**; con rodado y avance, **0.17 mm** | validación |
@@ -989,6 +991,35 @@ Medido y descartado en esta misma pasada:
   llamadas de dibujo NO eran el cuello: el coste estaba en construir y destruir geometrías, y
   eso ya está resuelto.
 
+**Con el teclado abierto, el 3D se quita de en medio (2026-09-24).**
+Con el teclado de un teléfono quedan 424 px de alto. La cabecera se lleva 44, la barra
+de estado 26 y el 3D 170 —el 40 % de `--appH`—, así que a la tabla le quedaban 142: cuatro
+filas. Y el 3D ahí no lo mira nadie, que se está TECLEANDO, y media pieza queda además
+debajo del teclado. Con `#app.phone.kbd` la banda del 3D deja de pintarse y la tabla
+pasa a **312 px**, siete filas.
+
+La clase la pone el FOCO y no una medida del alto, y no es un atajo: desde que el
+`<meta>` lleva `interactive-widget=resizes-content`, el teclado encoge `innerHeight` y
+`visualViewport.height` vuelve a coincidir con él, o sea que comparar los dos viewports
+deja de distinguir nada. El foco en un campo de texto o de número es además la
+condición de verdad: es lo que abre el teclado. La regla va con `:not(.solo)` porque en
+pantalla completa no hay tabla que enfocar y esconder las dos bandas dejaría la
+pantalla vacía.
+
+Lo que había que resolver antes era el lienzo. Medido escondiendo `#ct` a mano y
+dejando saltar el `ResizeObserver`: el lienzo pasa de 390×338 a 0×0, `camera.aspect`
+queda en NaN y la matriz de proyección sale ENTERA en NaN —que es la que usan las
+etiquetas y el gizmo para proyectar—; se recupera al volver y no salta ninguna
+excepción, pero con el 3D escondido en cada celda eso pasaría en cada toque, y el búfer
+de dibujo se tiraría y se reasignaría con él. `onResize()` lleva ahora una guarda: un
+contenedor de 0 px no es un tamaño sino una banda escondida, así que no se toca ni el
+renderer ni la cámara y se vuelve. Medido después: el lienzo se queda en 390×338 el
+ciclo entero, entrar y salir del campo, y la proyección no ve un NaN.
+
+`onResize` pasa a estar expuesto en `window.BARCOMP` por esto mismo: el observador que
+lo llama es asíncrono y el guion del banco es síncrono entero, así que sin exponerlo no
+hay forma de probar la guarda.
+
 **El teclado del teléfono ya no se lleva la cabecera, y trae signo (2026-09-24).**
 Dos defectos reportados desde el taller, los dos solo en móvil.
 
@@ -1013,9 +1044,8 @@ vienen con el desplazamiento.
 un `40vh` se sigue calculando sobre la ventana de 844 px, así que con el alto forzado a
 424 el 3D se llevaba 338 de los 424, la cabecera y la barra de estado el resto, y la
 tabla se quedaba en CERO. Con `calc(var(--appH,100dvh) * .4)` el 3D baja a 170 y la
-tabla sube a 142 px. Que el 3D siga pidiendo el 40 % de la pantalla mientras se teclea
-es lo que queda pendiente: esconderlo obliga a dejar el lienzo WebGL en 0 px de alto,
-que es otro asunto y no se mezcla con este.
+tabla sube a 142 px. Que el 3D siguiera pidiendo el 40 % de la pantalla mientras se
+teclea se dejó para la pasada siguiente, que es la entrada de más arriba.
 
 EL SEGUNDO: el teclado de cifras de un teléfono no trae «-», y sin menos no hay
 compensación negativa. Los 140 campos numéricos son `<input type="number">` y ninguno

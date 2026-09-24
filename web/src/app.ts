@@ -38,7 +38,7 @@ import {
   refModel, refModelFree,
 } from './state.ts';
 import {
-  initScene, fitView, setOnPick, setOnResize, markDirty, rebuildScene, renderer, scene, camera,
+  initScene, fitView, setOnPick, setOnResize, onResize, markDirty, rebuildScene, renderer, scene, camera,
   drawGizmo, drawLabels, groupHost, groups, captureViews, showFault,
   edgesRef, edgesGeometry,
 } from './scene.ts';
@@ -179,6 +179,11 @@ type DebugExports = {
   /* el original de three contra el que el banco compara `ghost()` */
   edgesRef: typeof edgesRef;
   edgesGeometry: typeof edgesGeometry;
+  /* el remedimiento del lienzo. Sale aquí porque el ResizeObserver que lo
+     llama es asíncrono y el guion del banco es síncrono entero: sin esto no
+     hay forma de comprobar que con la banda del 3D escondida la cámara no se
+     queda en NaN. */
+  onResize: typeof onResize;
   readonly camera: typeof camera;
 };
 /* `renderer` se lee por getter porque initScene() lo asigna DESPUÉS de que
@@ -187,7 +192,7 @@ if (typeof window !== 'undefined') (window as unknown as { BARCOMP: DebugExports
   ST, E, I18N, LANG, renderAll, refresh, REF, drawGizmo, drawLabels, groupHost, groups,
   rebuildScene, markDirty, importCsvText, importCsvBatch, openError, commandModel,
   placedPath, shownPath, shownModel, heldResult, heldOfVariant, refModel, refModelFree,
-  captureViews, reportHtml,
+  captureViews, reportHtml, onResize,
   edgesRef, edgesGeometry,
   get renderer() { return renderer; },
   get scene() { return scene; },

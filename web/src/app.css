@@ -209,6 +209,21 @@ tbody tr[tabindex]:focus-visible{outline:2px solid var(--nominal);outline-offset
 #app.phone.solo{grid-template-rows:var(--h) minmax(0,1fr) var(--statusH);
   grid-template-areas:"hd" "ct" "st"}
 
+/* Con el teclado abierto, el 3D se quita de en medio. De los 424 px que deja
+   un teclado de 420, la cabecera se lleva 44, la barra de estado 26 y el 3D
+   170 —el 40 % de --appH—: a la tabla le quedaban 142, que son cuatro filas.
+   Y el 3D ahí no sirve: se está TECLEANDO, y la mitad de la pieza queda
+   además debajo del teclado. Escondido, la tabla pasa a 312.
+
+   La clase la pone el foco y no una medida del alto (ver app/phone.ts): con
+   `interactive-widget=resizes-content` el teclado encoge `innerHeight`, así
+   que comparar los dos viewports deja de distinguir nada. `:not(.solo)`
+   porque en pantalla completa no hay tabla que enfocar, y esconder las dos
+   bandas dejaría la pantalla vacía. */
+#app.phone.kbd:not(.solo){grid-template-rows:var(--h) minmax(0,1fr) var(--statusH);
+  grid-template-areas:"hd" "pn" "st"}
+#app.phone.kbd:not(.solo) #ct{display:none}
+
 /* --- la cabecera: marca corta, modos, y todo lo demás detrás del ☰ --- */
 #app.phone #hd{gap:8px;padding:0 8px}
 #app.phone .brand .v,#app.phone .brand .sub{display:none}

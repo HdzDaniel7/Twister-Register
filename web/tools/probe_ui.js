@@ -4775,4 +4775,126 @@ step('sin telefono la tecla de signo no se pinta nunca', () => {
   }
 });
 
+/* --- esconder el 3D con el teclado abierto, 2026-09-24 ---------------------
+   En un telefono con el teclado abierto quedan 424 px de alto: la cabecera
+   ocupa 44, el 3D ocupa 170 (el 40% de --appH) y la barra de estado 26, y a
+   la tabla le quedan 142 px. El 3D no sirve de nada mientras se teclea y
+   ademas queda tapado por el teclado, asi que se esconde y la tabla se lleva
+   su sitio. Dos piezas:
+
+   (1) La clase `kbd` en #app: se pone cuando ST.phone esta encendido y el
+   foco cae en un campo editable (input de texto o numero), y se quita al
+   salirse. El reparto pasa a var(--h) minmax(0,1fr) var(--statusH) con las
+   areas "hd" "pn" "st", y #ct deja de pintarse. Cuelga de
+   `#app.phone.kbd:not(.solo)`: en pantalla completa no hay tabla que
+   enfocar, y esconder las dos bandas dejaria la pantalla vacia.
+
+   (2) Una guarda en onResize(): medido escondiendo #ct a mano y dejando que
+   salte el ResizeObserver, el lienzo pasa de 390x338 a 0x0, camera.aspect
+   queda en NaN y la matriz de proyeccion sale entera NaN (se recupera al
+   volver, y no salta ninguna excepcion). La guarda es: si el contenedor mide
+   0 de ancho o de alto, onResize() no toca ni el renderer ni la camara y
+   vuelve. Para poder probarlo desde aqui -el banco es sincrono y no puede
+   esperar al observador- onResize pasa a estar expuesto en window.BARCOMP,
+   junto a camera, renderer y renderAll.
+
+   Los tres pasos fallan contra el index.html de 0e149d0: el primero porque
+   la clase kbd no esconde nada (no existe la regla), el segundo porque nadie
+   pone ni quita esa clase al enfocar, y el tercero porque
+   window.BARCOMP.onResize ni existe.                                       */
+
+step('en telefono con el teclado abierto el 3D no se pinta y la tabla se lleva su sitio', () => {
+  const modo = S().mode;
+  try {
+    click('[data-md="model"]');
+    telOn();
+    const btAntes = q('#bt').getBoundingClientRect().height;
+    const ctAntes = q('#ct').getBoundingClientRect().height;
+    q('#app').classList.add('kbd');
+    const ctDespues = seVe('#ct');
+    const btDespues = q('#bt').getBoundingClientRect().height;
+    if (ctDespues.ok) {
+      throw new Error('con la clase kbd #ct se sigue viendo: display:' + ctDespues.display
+        + ' y ' + ctDespues.ancho.toFixed(0) + ' px de ancho (antes de la clase media '
+        + ctAntes.toFixed(0) + ' px de alto, y #bt ' + btAntes.toFixed(0) + ' px)');
+    }
+    if (btDespues < btAntes + ctAntes - 1) {
+      throw new Error('#bt paso de ' + btAntes.toFixed(0) + ' a ' + btDespues.toFixed(0)
+        + ' px de alto, y con #ct escondido (que media ' + ctAntes.toFixed(0)
+        + ' px) deberia haber crecido al menos eso');
+    }
+  } finally {
+    q('#app').classList.remove('kbd');
+    telOff();
+    click(`[data-md="${modo}"]`);
+  }
+});
+
+/* Lo que se prueba aqui es solo la mitad de "enfocar pone la clase". El
+   quitado va detras de un setTimeout(…, 0) en la implementacion -el foco
+   pasa por el body entre dos celdas al tabular, y sin el retraso la clase
+   parpadearia en cada salto-, y este banco es sincrono de principio a fin:
+   no hay forma fiable de comprobar aqui que la clase se quita al salir de la
+   celda. Lo que SI se puede comprobar sin esperar a nada es que se pone con
+   el foco en un campo con phone encendido, y que no se pone con phone
+   apagado. */
+step('enfocar una celda en telefono marca el #app con la clase del teclado, y sin telefono no la marca', () => {
+  const modo = S().mode;
+  try {
+    click('[data-md="model"]'); click('#tabs [data-t="model"]');
+    telOn();
+    q('#panes input[type=number]').focus();
+    if (!q('#app').classList.contains('kbd')) {
+      throw new Error('#app no lleva la clase kbd tras enfocar un input[type=number] de #panes con phone encendido');
+    }
+    telOff();
+    /* el repintado de telOff() pudo tirar el nodo de antes: se vuelve a buscar */
+    q('#panes input[type=number]').focus();
+    if (q('#app').classList.contains('kbd')) {
+      throw new Error('#app lleva la clase kbd tras enfocar un campo con phone apagado, y no deberia');
+    }
+  } finally {
+    if (document.activeElement) document.activeElement.blur();
+    q('#app').classList.remove('kbd');
+    telOff();
+    click(`[data-md="${modo}"]`);
+  }
+});
+
+step('con el 3D escondido onResize no deja la camara en NaN', () => {
+  const modo = S().mode;
+  try {
+    if (typeof window.BARCOMP.onResize !== 'function') {
+      throw new Error('window.BARCOMP.onResize no es una funcion: ' + typeof window.BARCOMP.onResize);
+    }
+    click('[data-md="model"]');
+    telOn();
+    const aspectAntes = window.BARCOMP.camera.aspect;
+    const wAntes = window.BARCOMP.renderer.domElement.width;
+    const hAntes = window.BARCOMP.renderer.domElement.height;
+    q('#app').classList.add('kbd');
+    window.BARCOMP.onResize();
+    const aspectDespues = window.BARCOMP.camera.aspect;
+    const wDespues = window.BARCOMP.renderer.domElement.width;
+    const hDespues = window.BARCOMP.renderer.domElement.height;
+    if (!Number.isFinite(aspectDespues)) {
+      throw new Error('camera.aspect quedo en ' + aspectDespues + ' (antes ' + aspectAntes
+        + ') tras onResize() con #ct escondido por la clase kbd');
+    }
+    if (window.BARCOMP.camera.projectionMatrix.elements.some(Number.isNaN)) {
+      throw new Error('la matriz de proyeccion trae algun NaN tras onResize() con #ct escondido: '
+        + window.BARCOMP.camera.projectionMatrix.elements.join(','));
+    }
+    if (wDespues === 0 || hDespues === 0) {
+      throw new Error('el lienzo quedo en ' + wDespues + 'x' + hDespues + ' px (antes '
+        + wAntes + 'x' + hAntes + ') tras onResize() con #ct escondido por la clase kbd');
+    }
+  } finally {
+    q('#app').classList.remove('kbd');
+    telOff();
+    click(`[data-md="${modo}"]`);
+    if (typeof window.BARCOMP.onResize === 'function') window.BARCOMP.onResize();
+  }
+});
+
 return log.join('\n');

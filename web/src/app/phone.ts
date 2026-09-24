@@ -59,6 +59,35 @@ function syncAppH(): void {
   scrollTo(0, 0);
 }
 
+/** Si ese nodo es un campo de los que abren el teclado del teléfono. Las
+ *  casillas, los colores y los botones no lo abren, y un `<select>` saca una
+ *  rueda que no tapa lo mismo. */
+function escribible(el: Element | null): boolean {
+  if (!el) return false;
+  if (el.tagName === 'TEXTAREA') return true;
+  if (el.tagName !== 'INPUT') return false;
+  const t = (el as HTMLInputElement).type;
+  return t === 'text' || t === 'number';
+}
+
+/** La marca de «hay un teclado abierto», que es la que esconde la banda del
+ *  3D (ver `#app.phone.kbd` en app.css).
+ *
+ *  La pone el FOCO y no una medida del alto, y eso no es un atajo: con
+ *  `interactive-widget=resizes-content` el teclado encoge `innerHeight`, de
+ *  modo que `visualViewport.height` y `innerHeight` vuelven a coincidir y
+ *  comparar los dos viewports deja de distinguir nada. El foco en un campo es
+ *  además la condición de verdad: es lo que abre el teclado.
+ *
+ *  Por qué se esconde el 3D: de los 424 px que deja un teclado de 420, la
+ *  cabecera se lleva 44, la barra de estado 26 y el 3D 170, y a la tabla le
+ *  quedaban 142 — cuatro filas. Y el 3D ahí no mira nadie: se está tecleando,
+ *  y media pieza queda debajo del teclado. */
+function syncKbd(): void {
+  const app = document.getElementById('app');
+  if (!app) return;
+  app.classList.toggle('kbd', ST.phone && escribible(document.activeElement));
+}
 /** Engancha el umbral. Solo repinta al CRUZARLO: un `resize` de escritorio
  *  —arrastrar el borde de la ventana— no puede costar un `renderAll()` por
  *  fotograma. El lienzo WebGL ya se entera solo, por el ResizeObserver de
@@ -74,6 +103,10 @@ export function bindPhone(): void {
     vv.addEventListener('resize', syncAppH);
     vv.addEventListener('scroll', syncAppH);
   }
+  document.body.addEventListener('focusin', syncKbd);
+  /* Un turno de espera al salirse: entre dos celdas el foco pasa por el body,
+     y sin él la banda del 3D aparecería y desaparecería en cada salto. */
+  document.body.addEventListener('focusout', () => setTimeout(syncKbd, 0));
   const w = window as { matchMedia?: typeof matchMedia };
   if (!w.matchMedia) return;
   const mq = matchMedia(PHONE_MQ);
@@ -82,6 +115,7 @@ export function bindPhone(): void {
     if (v === ST.phone) return;
     ST.phone = v;
     syncAppH();
+    syncKbd();
     renderAll();
     onResize();
     fitView();
