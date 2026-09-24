@@ -305,6 +305,7 @@ export const de: Record<I18nKey, string> = {
  sbSpreadTip: 'Streuung über Bögen und Teile. Ist sie so groß wie der Wert selbst, ist '
    + 'diese Rückfederung nicht gemessen, sondern geraten.',
  mnFile: 'Datei', mnModel: 'Modelle', mnView: 'Ansicht', mnPieces: 'Teile',
+ mnMenu: 'Menü', mnClose: 'Schließen',
  soloOn: 'Nur 3D', soloOff: 'Zurück',
  rotAxisTip: 'Wie weit sich die Biegeachse an dieser Station dreht. Sie endet bei %e°.',
  rotHeadTip: 'Drehung der Biegeachse gegenüber der vorherigen Station. '

@@ -16,10 +16,26 @@ import type { Mode } from '../types.ts';
 /* Los menús. Lo que abren son cajones (ver DRAWERS en left.ts): la
    columna fija de 250 px se pagaba siempre, y casi todo lo que había ahí
    —capas, colocación, extremo fijo— se toca una vez y se olvida. */
-const MENUS: [string, I18nKey][] = [
+export const MENUS: [string, I18nKey][] = [
   ['file', 'mnFile'], ['models', 'mnModel'],
   ['view', 'mnView'], ['pieces', 'mnPieces'],
 ];
+
+/* Tema e idioma se pintan DOS veces: en la cabecera de escritorio y dentro
+   del cajón de menú del teléfono, donde la cabecera ya no tiene sitio. Salen
+   de aquí y no copiados a mano en los dos, porque son dos listas de las que
+   una se olvidaría al añadir un idioma. */
+export function themeSeg(): string {
+  return `<div class="seg thseg">${
+    ([['system', '◐', 'thSys'], ['light', '☀', 'thLight'], ['dark', '☾', 'thDark']] as const).map(
+      ([k, glifo, lab]) => `<button data-th="${k}" title="${T(lab)}" aria-label="${T(lab)}"
+        class="${ST.theme === k ? 'on' : ''}">${glifo}</button>`).join('')}</div>`;
+}
+export function langSeg(): string {
+  return `<div class="seg langseg">${
+    LANGS.map(l => `<button data-l="${l}" class="${LANG.cur === l ? 'on' : ''}">${l.toUpperCase()}</button>`)
+      .join('')}</div>`;
+}
 
 const MODE_LAB: Record<Mode, I18nKey> = {
   model: 'modeModel', meas: 'modeMeas', comp: 'modeComp',
@@ -40,12 +56,15 @@ export function renderShell(): void {
      ${MENUS.map(([k, lab]) => `<button class="mn ${ST.drawer === k ? 'on' : ''}"
        data-dr="${k}" aria-expanded="${ST.drawer === k}">${T(lab)}</button>`).join('')}
    </div>
-   <div class="seg" style="margin-left:8px">
-     ${[['system', '◐', 'thSys'], ['light', '☀', 'thLight'], ['dark', '☾', 'thDark']].map(
-       ([k, glifo, lab]) => `<button data-th="${k}" title="${T(lab as I18nKey)}" aria-label="${T(lab as I18nKey)}"
-         class="${ST.theme === k ? 'on' : ''}">${glifo}</button>`).join('')}</div>
-   <div class="seg" style="margin-left:6px">
-     ${LANGS.map(l => `<button data-l="${l}" class="${LANG.cur === l ? 'on' : ''}">${l.toUpperCase()}</button>`).join('')}</div>`;
+   <!-- En el teléfono los cuatro menús no caben al lado de los modos, y tema e
+        idioma tampoco: se van los tres a un cajón detrás de este botón. El CSS
+        decide cuál de los dos se ve, la barra o el botón; los dos se pintan
+        siempre para que cambiar de tamaño no tenga que reconstruir nada. -->
+   <button class="mn burger ${ST.drawer === 'menu' ? 'on' : ''}" data-dr="menu"
+     aria-expanded="${ST.drawer === 'menu'}" title="${esc(T('mnMenu'))}"
+     aria-label="${esc(T('mnMenu'))}">☰</button>
+   ${themeSeg()}
+   ${langSeg()}`;
 
   /* los dos tiradores viven en el HTML estático: sus tooltips se ponen aquí,
      que es lo único que se vuelve a correr al cambiar de idioma */
@@ -81,7 +100,9 @@ export function renderShell(): void {
   $('#hint')!.textContent = T('hint');
   /* La clase del #app es la que reparte la pantalla: una rejilla por modo. */
   const app = $('#app');
-  if (app) app.className = 'm-' + ST.mode + (ST.solo ? ' solo' : '');
+  if (app) {
+    app.className = 'm-' + ST.mode + (ST.solo ? ' solo' : '') + (ST.phone ? ' phone' : '');
+  }
 
   /* Sub-pestañas solo donde hay más de una tabla que enseñar: en Medir y en
      Compensar la fila de pestañas sería una etiqueta de una sola opción. */

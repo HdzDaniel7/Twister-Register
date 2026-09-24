@@ -249,6 +249,21 @@ Los dos tiradores cambian de oficio con el modo: `#rtgrip` mueve el ancho de la
 tabla en Modelar y el del lateral en Medir; `#btgrip`, el alto de la cinta, o el
 de la banda 3D en Compensar. **F** pliega todo y deja el 3D solo.
 
+**En un teléfono se apila.** Por debajo de 760 px de ancho los tres modos se
+reparten igual: cabecera, 3D, el panel del modo y la barra de estado, cada uno a
+todo el ancho. La cinta se esconde —en 390 px son cuatro píxeles por doblez— y
+con ella los dos tiradores, que se arrastran con el ratón. La barra de vista y
+la de estado pasan a un renglón que se desliza con el dedo, y los cuatro menús,
+el tema y el idioma se van detrás de un **☰** a un cajón a todo el ancho, con su
+botón de volver. Los controles suben a 34 px de alto, que es el mínimo con el
+que un dedo no falla.
+
+Lo decide `ST.phone`, que pone un `matchMedia('(max-width:760px)')`, y no una
+`@media` del CSS: lo que cambia no es solo el reparto sino lo que se pinta —los
+menús pasan a un cajón—, y una consulta de medios no se puede forzar desde
+dentro de la página, así que el diseño de teléfono se quedaría entero fuera del
+banco. Colgado de la bandera, el banco lo enciende y lo mide.
+
 ### Los archivos
 
 Todo es **TypeScript con `strict`**, y `tsc` solo comprueba: quien empaqueta es

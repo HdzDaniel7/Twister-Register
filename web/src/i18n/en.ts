@@ -296,6 +296,7 @@ export const en: Record<I18nKey, string> = {
  sbSpreadTip: 'Scatter across bends and parts. If it is as large as the value itself, '
    + 'that springback is not measured: it is guessed.',
  mnFile: 'File', mnModel: 'Models', mnView: 'View', mnPieces: 'Parts',
+ mnMenu: 'Menu', mnClose: 'Close',
  soloOn: '3D only', soloOff: 'Back',
  rotAxisTip: 'How much the bending axis turns at this station. It ends at %e°.',
  rotHeadTip: 'Turn of the bending axis relative to the previous station. '

@@ -9,6 +9,7 @@ import type { Place, Variant } from '../types.ts';
 import { ST, LAYER_DEF, refModel, heldOfVariant, heldOn } from '../state.ts';
 import { $, fx, esc, cls, nfield, srcTag } from './fmt.ts';
 import { saveFocus, restoreFocus, commitFocusIn } from './focus.ts';
+import { MENUS, themeSeg, langSeg } from './shell.ts';
 import type { I18nKey } from './fmt.ts';
 
 /* ---------------------------------------------------------------- ayudas -- */
@@ -93,13 +94,35 @@ export function renderLeft(): void {
   commitFocusIn(host);
   if (!ST.drawer) { host.innerHTML = ''; host.hidden = true; return; }
   host.hidden = false;
-  host.innerHTML = DRAWERS[ST.drawer] ? DRAWERS[ST.drawer]() : '';
+  /* En el teléfono se llega a un cajón DESDE el menú, así que hay que poder
+     volver: sin esto el único camino de «Vista» a «Archivo» es cerrar el cajón
+     tocando fuera y abrir el menú otra vez, y tocar fuera en una pantalla que
+     el cajón ocupa casi entera es tocar el 3D y girar la pieza. */
+  const atras = ST.phone && ST.drawer !== 'menu'
+    ? `<div class="drawback"><button class="mn" data-dr="menu">‹ ${T('mnMenu')}</button></div>`
+    : '';
+  host.innerHTML = atras + (DRAWERS[ST.drawer] ? DRAWERS[ST.drawer]() : '');
   restoreFocus(f);
 }
 
 /** Los cajones, uno por entrada de menú. La clave es la misma que va en
  *  `data-dr` y en ST.drawer. */
 const DRAWERS: Record<string, () => string> = {
+  /* El menú del teléfono. No es un quinto menú: es la BARRA de menús, que en
+     la cabecera de un teléfono no cabe al lado de los tres modos. Lleva además
+     el tema y el idioma, que en la cabecera se pagan siempre y se tocan una
+     vez. En el escritorio no se abre nunca: el botón ☰ está escondido. */
+  menu: () => `
+   <div class="grp"><div class="eyebrow">${T('mnMenu')}
+     <button class="xbtn" data-dr="menu" title="${esc(T('mnClose'))}"
+       aria-label="${esc(T('mnClose'))}">✕</button></div>
+   <div class="body">
+     <div class="col">
+       ${MENUS.map(([k, lab]) => `<button class="btn" data-dr="${k}">${T(lab)}</button>`).join('')}
+     </div>
+     <div class="row mt10">${themeSeg()}${langSeg()}</div>
+   </div></div>`,
+
   file: () => `
    <div class="grp"><div class="eyebrow">${T('mnFile')}</div><div class="body">
      <div class="col">

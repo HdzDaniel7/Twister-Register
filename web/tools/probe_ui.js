@@ -4278,4 +4278,209 @@ step('con la misma base, la tabla 1 pinta UN bloque y no uno por modelo', () => 
   }
 });
 
+/* --- el diseno de telefono, 2026-09-24 -------------------------------------
+   La rejilla de MODELAR pide 320 px de 3D MAS 760 px de tabla: en una ventana
+   de 390 px la tabla arranca en x = 320 con 760 px de ancho, y como `#app` es
+   una rejilla de alto 100vh el documento no desplaza en X, asi que 690 px de
+   tabla quedan FUERA DE ALCANCE. Ni tocandola se llega. El diseno de telefono
+   apila la pantalla en una sola columna.
+
+   Estos pasos FUERZAN `ST.phone` a mano en vez de estrechar la ventana: el CSS
+   cuelga de `#app.phone` y no de una `@media` justo para que esto se pueda
+   probar desde dentro de la pagina. Se mide siempre contra innerWidth /
+   innerHeight -el banco corre en una ventana de escritorio- y nunca contra
+   390 px: lo que se comprueba es «llena el ancho», no «mide 390».
+
+   Todo paso que enciende la bandera la apaga en su `finally`, y devuelve el
+   modo que encontro: si no, el resto del guion mediria un telefono.        */
+const telOn = () => { S().phone = true; window.BARCOMP.renderAll(); };
+const telOff = () => { S().phone = false; window.BARCOMP.renderAll(); };
+/* «se ve» es display, visibility Y ancho real: un boton puede estar pintado y
+   medir 0 px, y eso no se ve. Devuelve tambien las cifras, que son las que
+   tiene que llevar el mensaje del fallo. */
+const seVe = sel => {
+  const el = q(sel);
+  const cs = getComputedStyle(el);
+  const r = el.getBoundingClientRect();
+  return {
+    ok: cs.display !== 'none' && cs.visibility !== 'hidden' && r.width > 0,
+    display: cs.display, ancho: r.width,
+  };
+};
+/* las pistas de columna de la rejilla, ya resueltas a px por el navegador */
+const pistas = () => getComputedStyle(q('#app')).gridTemplateColumns
+  .trim().split(/\s+/).filter(Boolean);
+
+step('en telefono el #app es de UNA columna y en escritorio de dos', () => {
+  const modo = S().mode;
+  try {
+    click('[data-md="model"]');
+    const escr = pistas();
+    if (escr.length !== 2) {
+      throw new Error('sin phone, Modelar reparte ' + escr.length + ' pistas de columna ('
+        + escr.join(' + ') + ') y deberian ser 2');
+    }
+    telOn();
+    const tel = pistas();
+    if (tel.length !== 1) {
+      throw new Error('con phone, el #app reparte ' + tel.length + ' pistas de columna ('
+        + tel.join(' + ') + ') y deberia ser 1');
+    }
+  } finally { telOff(); click(`[data-md="${modo}"]`); }
+});
+
+step('en telefono ninguna banda se sale del ancho de la ventana', () => {
+  const modo = S().mode;
+  try {
+    telOn();
+    for (const m of ['model', 'meas', 'comp']) {
+      click(`[data-md="${m}"]`);
+      /* la banda de panel cambia con el modo: en Medir manda el lateral */
+      for (const sel of ['#hd', '#ct', '#st', m === 'meas' ? '#rt' : '#bt']) {
+        const el = q(sel);
+        /* lo que el modo no usa se oculta, y lo oculto no se sale de nada */
+        if (getComputedStyle(el).display === 'none') continue;
+        const r = el.getBoundingClientRect();
+        if (r.right > innerWidth + 1) {
+          throw new Error(m + ': ' + sel + ' llega hasta x = ' + r.right.toFixed(0)
+            + ' px con la ventana en ' + innerWidth + ' px, o sea se sale '
+            + (r.right - innerWidth).toFixed(0) + ' px');
+        }
+      }
+    }
+  } finally { telOff(); click(`[data-md="${modo}"]`); }
+});
+
+/* El fallo que abrio todo esto: la tabla existia, se pintaba y no habia forma
+   humana de llegar a ella. Que empiece en 0 y mida la ventana es LA condicion
+   de que se pueda tocar. */
+step('en telefono la tabla de Modelar se alcanza entera', () => {
+  const modo = S().mode;
+  try {
+    click('[data-md="model"]');
+    telOn();
+    const r = q('#bt').getBoundingClientRect();
+    if (Math.abs(r.left) > 1) {
+      throw new Error('la tabla arranca en x = ' + r.left.toFixed(0)
+        + ' px en vez de 0, y la ventana mide ' + innerWidth + ' px');
+    }
+    if (Math.abs(r.width - innerWidth) > 1) {
+      throw new Error('la tabla mide ' + r.width.toFixed(0) + ' px de ancho en una ventana de '
+        + innerWidth + ' px: se separan ' + Math.abs(r.width - innerWidth).toFixed(0) + ' px');
+    }
+  } finally { telOff(); click(`[data-md="${modo}"]`); }
+});
+
+/* Apilar no puede significar dejar el 3D en una raja: mirar la pieza es la
+   mitad del trabajo tambien en el telefono. */
+step('en telefono el 3D sigue en pantalla', () => {
+  const modo = S().mode;
+  try {
+    telOn();
+    for (const m of ['model', 'meas', 'comp']) {
+      click(`[data-md="${m}"]`);
+      const h = q('#ct').getBoundingClientRect().height;
+      if (!(h > 100)) {
+        throw new Error(m + ': el 3D se quedo en ' + h.toFixed(0) + ' px de alto (ventana de '
+          + innerHeight + ' px) y no puede bajar de 100');
+      }
+    }
+  } finally { telOff(); click(`[data-md="${modo}"]`); }
+});
+
+/* La cinta y los dos tiradores son de raton y de pantalla ancha: en una sola
+   columna no reparten nada y solo comen alto. */
+step('en telefono no se pintan la cinta ni los dos tiradores', () => {
+  const modo = S().mode;
+  try {
+    click('[data-md="model"]');
+    telOn();
+    for (const sel of ['#rb', '#rtgrip', '#btgrip']) {
+      const el = q(sel);
+      const d = getComputedStyle(el).display;
+      if (d !== 'none') {
+        const caja = el.getBoundingClientRect();
+        throw new Error(sel + ' se sigue pintando con display:' + d + ' y ocupa '
+          + caja.height.toFixed(0) + ' px de alto por ' + caja.width.toFixed(0) + ' px de ancho');
+      }
+    }
+  } finally { telOff(); click(`[data-md="${modo}"]`); }
+});
+
+/* Los dos se pintan SIEMPRE -la barra y el boton- y es el CSS el que elige
+   cual se ve. Por eso el paso mira las dos mitades: si solo mirase la del
+   telefono, una regla que dejara los dos puestos pasaria. */
+step('en telefono la cabecera cambia la barra de menus por un boton', () => {
+  const modo = S().mode;
+  try {
+    click('[data-md="model"]');
+    telOff();
+    const bEscr = seVe('#hd [data-dr="menu"]');
+    const barraEscr = seVe('#hd .menubar');
+    if (bEscr.ok) {
+      throw new Error('sin phone el boton de menu se ve: display:' + bEscr.display
+        + ' y ' + bEscr.ancho.toFixed(0) + ' px de ancho');
+    }
+    if (!barraEscr.ok) {
+      throw new Error('sin phone la barra de menus no se ve: display:' + barraEscr.display
+        + ' y ' + barraEscr.ancho.toFixed(0) + ' px de ancho');
+    }
+    telOn();
+    const bTel = seVe('#hd [data-dr="menu"]');
+    const barraTel = seVe('#hd .menubar');
+    if (!bTel.ok) {
+      throw new Error('con phone el boton de menu no se ve: display:' + bTel.display
+        + ' y ' + bTel.ancho.toFixed(0) + ' px de ancho');
+    }
+    if (barraTel.ok) {
+      throw new Error('con phone la barra de menus se sigue viendo: display:' + barraTel.display
+        + ' y ' + barraTel.ancho.toFixed(0) + ' px de ancho');
+    }
+  } finally { telOff(); click(`[data-md="${modo}"]`); }
+});
+
+/* El cajon de menu es la cabecera entera doblada: los cuatro menus, el tema y
+   el idioma. Y desde un cajon cualquiera hay que poder volver a el, que si no
+   el telefono se queda sin barra y sin vuelta. */
+step('el cajon de menu trae los cuatro menus, el tema y el idioma', () => {
+  const modo = S().mode, cajonAntes = S().drawer;
+  try {
+    click('[data-md="model"]');
+    telOn();
+    drawer('menu');
+    if (S().drawer !== 'menu') throw new Error('el boton no abrio el cajon: ST.drawer = ' + S().drawer);
+    const faltan = ['file', 'models', 'view', 'pieces']
+      .filter(k => !document.querySelector(`#lf [data-dr="${k}"]`));
+    if (faltan.length) {
+      throw new Error('al cajon de menu le faltan ' + faltan.length + ' menus de 4: ' + faltan.join(','));
+    }
+    const th = document.querySelectorAll('#lf [data-th]').length;
+    if (th !== 3) throw new Error('el cajon de menu trae ' + th + ' botones de tema y deberia traer 3');
+    const idi = document.querySelectorAll('#lf [data-l]').length;
+    const langs = document.querySelectorAll('#hd [data-l]').length;
+    if (idi !== langs) {
+      throw new Error('el cajon de menu trae ' + idi + ' botones de idioma y hay ' + langs + ' idiomas');
+    }
+    /* el cajon de escritorio es una columna de --lfW sobre el 3D; en telefono
+       no hay 3D al lado que dejar asomando, asi que llena el ancho */
+    const r = q('#lf').getBoundingClientRect();
+    if (r.left > 1 || r.right < innerWidth - 1) {
+      throw new Error('el cajon va de x = ' + r.left.toFixed(0) + ' a ' + r.right.toFixed(0)
+        + ' px en una ventana de ' + innerWidth + ' px: le faltan '
+        + (innerWidth - r.width).toFixed(0) + ' px de ancho');
+    }
+    click('#lf [data-dr="file"]');
+    if (S().drawer !== 'file') throw new Error('el menu Archivo no abrio su cajon: ST.drawer = ' + S().drawer);
+    const volver = document.querySelectorAll('#lf [data-dr="menu"]').length;
+    if (volver !== 1) {
+      throw new Error('el cajon Archivo trae ' + volver
+        + ' botones de volver al menu dentro de #lf y deberia traer 1');
+    }
+  } finally {
+    S().drawer = cajonAntes;
+    telOff();
+    click(`[data-md="${modo}"]`);
+  }
+});
+
 return log.join('\n');

@@ -7,6 +7,7 @@
 
      app/render.ts         renderAll · refresh · refreshTable · selectBend
      app/theme.ts          useTheme · setTheme · el matchMedia del sistema
+     app/phone.ts          el umbral de teléfono: una columna y menús en cajón
      app/actions.ts        editores, variantes, archivos y action()
      app/events/click.ts   pestañas y el despachador de clics por data-*
      app/events/change.ts  confirmación de celda (`change`) y deslizadores
@@ -46,6 +47,7 @@ import { renderAll, refresh, selectBend } from './app/render.ts';
 import { importCsvText, importCsvBatch, openError } from './app/files.ts';
 import { initHistory, markSaved, isDirty } from './app/history.ts';
 import { useTheme, bindScheme } from './app/theme.ts';
+import { bindPhone } from './app/phone.ts';
 import { bindClick } from './app/events/click.ts';
 import { bindChange } from './app/events/change.ts';
 import { bindKeyboard } from './app/events/keyboard.ts';
@@ -60,6 +62,7 @@ function bind(): void {
   bindKeyboard();
   bindGrips();
   bindScheme();
+  bindPhone();
 
   bindRibbon();
   setOnRibbonSelect(selectBend);

@@ -307,6 +307,7 @@ export const es: Record<I18nKey, string> = {
  /* Los menús. Abren cajones que flotan sobre el 3D: la columna fija de 250 px
     se pagaba siempre, y lo que había dentro se toca una vez y se olvida. */
  mnFile: 'Archivo', mnModel: 'Modelos', mnView: 'Vista', mnPieces: 'Piezas',
+ mnMenu: 'Menú', mnClose: 'Cerrar',
  soloOn: 'Solo 3D', soloOff: 'Volver',
  /* el rodado es un GIRO, no una posición: el eje se queda donde lo dejaron */
  rotAxisTip: 'Cuánto gira el eje de doblado en esta estación. Queda en %e°.',

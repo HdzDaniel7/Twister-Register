@@ -20,6 +20,8 @@
   --h:44px; --ribbon:74px; --statusH:26px; --rtW:360px; --lfW:250px; --btH:340px;
   /* MODELAR: ancho de la tabla a la derecha. COMPENSAR: alto de la banda 3D. */
   --btW:760px; --compVP:250px;
+  /* el alto del 3D en un teléfono: ver el bloque TELÉFONO más abajo */
+  --vpPhone:40vh;
 
   /* Todo lo que antes iba en crudo dentro del CSS, de scene/ y de ribbon.ts.
      El 3D y la cinta LEEN estos tokens en tiempo de ejecución, así que aquí
@@ -166,6 +168,78 @@ tbody tr[tabindex]:focus-visible{outline:2px solid var(--nominal);outline-offset
    Sin esto el tirador de la izquierda movía --rtW en un modo donde el lateral
    no existe, y no pasaba nada al arrastrarlo. */
 #app.m-comp #rtgrip{display:none}
+
+/* ---------- TELÉFONO ----------
+   La rejilla de MODELAR pide 320 px de 3D MÁS 760 px de tabla. En un teléfono
+   de 390 px eso no se veía apretado: `#app` es una rejilla de alto 100vh y el
+   documento no desplaza en X, así que la tabla arrancaba en x = 320 con 760 px
+   de ancho y 690 px de ella quedaban FUERA DE ALCANCE. Ni tocándola se llegaba.
+
+   Cuelga de `#app.phone` y no de una `@media` a propósito: el cambio no es solo
+   de reparto —los menús pasan a un cajón, o sea que cambia lo que se PINTA— y
+   una consulta de medios no se puede forzar desde dentro de la página, así que
+   con el diseño colgado de ella el banco no podría probar nada de esto. La
+   bandera la pone un matchMedia; ver app/phone.ts.
+
+   Se apila en una columna: cabecera, 3D, el panel que toque, estado. `#bt` y
+   `#rt` comparten área porque cada modo enseña UNO de los dos; el que sobra lo
+   sigue apagando su regla de modo, que es la que manda. */
+#app.phone.m-model,#app.phone.m-meas,#app.phone.m-comp{
+  grid-template-columns:1fr;
+  grid-template-rows:var(--h) var(--vpPhone) minmax(0,1fr) var(--statusH);
+  grid-template-areas:"hd" "ct" "pn" "st"}
+#app.phone #bt,#app.phone #rt{grid-area:pn}
+/* La cinta mide 1 700 mm a lo ancho: en 390 px son cuatro píxeles por doblez y
+   no se lee ninguno. Los dos tiradores tampoco: son de 7 px y se arrastran con
+   el ratón — con un dedo encima no hay nada que agarrar. */
+#app.phone #rb,#app.phone #rtgrip,#app.phone #btgrip{display:none}
+/* después del bloque de arriba, y con la misma especificidad, para ganarle */
+#app.phone.solo{grid-template-rows:var(--h) minmax(0,1fr) var(--statusH);
+  grid-template-areas:"hd" "ct" "st"}
+
+/* --- la cabecera: marca corta, modos, y todo lo demás detrás del ☰ --- */
+#app.phone #hd{gap:8px;padding:0 8px}
+#app.phone .brand .v,#app.phone .brand .sub{display:none}
+#app.phone .brand b{font-size:12px;letter-spacing:.1em}
+#app.phone .seg.modes{margin-left:0}
+#app.phone .seg.modes button{padding:7px 7px;font-size:11px}
+#app.phone .menubar,#app.phone #hd .thseg,#app.phone #hd .langseg{display:none}
+.burger{display:none;font-size:15px;line-height:1;padding:7px 11px}
+#app.phone .burger{display:block}
+
+/* --- el cajón, a todo el ancho, con su camino de vuelta --- */
+#app.phone #lf{width:100%;border-right:0}
+.drawback{position:sticky;top:0;z-index:3;background:var(--panel2);
+  border-bottom:1px solid var(--line);padding:3px 5px}
+.drawback .mn{font-size:13px;padding:8px 10px}
+
+/* --- el 3D: fuera los rótulos, que el sitio es para la pieza ---
+   `#hint` habla de la rueda y de shift+arrastrar, que en un teléfono no
+   existen. La leyenda dice de qué color es cada modelo y eso ya está en el
+   cajón «Modelos», con su muestra de color al lado del nombre. */
+#app.phone #hint,#app.phone #vplegend{display:none}
+/* La barra de vista se envuelve por naturaleza, y envuelta en 390 px salían
+   tres renglones: 150 px de los 338 que tiene el 3D, casi la mitad de la
+   pieza. En un renglón que se desliza con el dedo cuesta 36 px y no se pierde
+   ningún botón. Lo mismo la barra de estado, que salía cortada por «Extremo
+   fijo» sin manera de leer el resto. */
+#app.phone #vptool{left:8px;right:8px;max-width:none;gap:4px;padding:4px 5px;
+  flex-wrap:nowrap;overflow-x:auto;overscroll-behavior-x:contain}
+#app.phone #vptool > *{flex:none}
+#app.phone #vptool .tag{display:none}
+#app.phone #st{overflow-x:auto}
+#app.phone #st .c{flex:none}
+
+/* --- objetivos de dedo ---
+   Un botón de 22 px de alto se falla con el dedo. 34 px es el mínimo que
+   recomiendan las dos plataformas, y es además lo que pide WCAG 2.5.8. */
+#app.phone .btn{padding:9px 12px;font-size:13px}
+#app.phone .btn.sm{padding:7px 9px;font-size:12px}
+#app.phone .seg button{padding:8px 10px}
+#app.phone #tabs button{padding:12px 14px;font-size:10.5px}
+#app.phone input[type=text],#app.phone input[type=number],#app.phone select,
+#app.phone td input{min-height:34px;font-size:13px}
+#app.phone input[type=checkbox],#app.phone .layer input[type=radio]{width:18px;height:18px}
 
 /* ---------- header ---------- */
 #hd{display:flex;align-items:center;gap:14px;padding:0 12px;
@@ -516,7 +590,6 @@ button.chip{font:inherit;font-size:10px;color:inherit;background:none;cursor:poi
 .warnbox{border:1px solid var(--warnBd);background:var(--warnBg);border-radius:4px;padding:6px 8px;
   font-size:10.5px;color:var(--warnTxt);line-height:1.45}
 
-@media (max-width:1180px){#app{grid-template-columns:206px 1fr 300px}}
 
 /* ---------- modelos (variantes) ---------- */
 .refbadge{font-family:var(--sans);font-size:8px;font-weight:700;letter-spacing:.12em;

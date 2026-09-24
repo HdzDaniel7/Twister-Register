@@ -63,6 +63,15 @@ export type State = {
   /** el 3D a pantalla completa: se pliega lo demás sin perder el modo ni el
    *  sitio en la tabla. Estado de pantalla, no del documento. */
   solo: boolean;
+  /** la pantalla es de TELÉFONO: una sola columna y los menús en un cajón.
+   *
+   *  Estado de pantalla como `solo`, no del documento: no viaja en el JSON ni
+   *  entra en el deshacer. Lo pone un `matchMedia` al arrancar y al cruzar el
+   *  umbral (ver app/phone.ts), pero vive aquí y no en una `@media` porque el
+   *  CSS solo no basta: el cajón de menú cambia lo que se PINTA, no solo cómo
+   *  se ve, y una consulta de medios no se puede forzar desde dentro de la
+   *  página, así que el diseño de teléfono se quedaría entero fuera del banco. */
+  phone: boolean;
   /** cajón abierto ('file', 'models', 'view', 'pieces') o null.
    *  Es estado de pantalla, no del documento: no viaja en el JSON ni entra en
    *  el deshacer, igual que la selección o la cámara. */

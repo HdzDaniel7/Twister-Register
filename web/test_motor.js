@@ -4135,6 +4135,7 @@ console.log('\n— atributos de los paneles —');
     cell: 'celda derivada: nadie la despacha, focus.ts solo la busca para reescribirla',
     c: 'ST.comp: las guardas del lazo se editan desde Umbrales con el mismo manejador que en Compensar',
     t: 'pestañas (click, solo dentro de #tabs) y tolerancias (change, solo type=number): ni el evento ni el elemento coinciden',
+    dr: 'abrir un cajón: shell.ts lo emite en la barra de menús y en el ☰, left.ts en el menú del teléfono y en su botón de volver. Un solo despachador y un solo significado: el valor es el cajón',
   };
   const dir = new URL('./src/panels/', import.meta.url);
   const quien = {};

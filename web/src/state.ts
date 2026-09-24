@@ -46,7 +46,7 @@ export const ST: State = {
   layers: Object.fromEntries(LAYER_DEF.map(([k, , c]) =>
     [k, { on: !OFF_BY_DEFAULT.includes(k), color: c }])) as State['layers'],
   view: { exag: 25, cmode: 'dev' },
-  datum: 'start', mode: 'model', tab: 'model', drawer: null, solo: false, pred: null,
+  datum: 'start', mode: 'model', tab: 'model', drawer: null, solo: false, phone: false, pred: null,
   /* lo escribe history.ts; ver por qué en types/state.ts */
   hist: { undo: 0, redo: 0 },
   /* 'system' | 'light' | 'dark'. Sin localStorage: viaja en el JSON. */

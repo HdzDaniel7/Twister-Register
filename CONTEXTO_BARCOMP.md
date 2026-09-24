@@ -857,6 +857,8 @@ Ninguna de estas se vuelve a sacar leyendo el código.
 | Etiquetas 3D por fotograma (15 etiquetas) | **0.13 → 0.07 ms** | PERF-03 |
 | Reporte imprimible, lienzo 2000×1200 | **222 KB** (3 vistas JPEG a 1100 px) contra **1 405 KB** del anterior (4 vistas + cinta, PNG) | `reportHtml()`, 09-24 |
 | La misma vista ISO a 1100 px, PNG contra JPEG q=0.92 | **498 KB contra 92 KB**; reescalar a PNG lo EMPEORA (363 KB a 900 px contra 294 KB sin tocar) | `captureViews()`, 09-24 |
+| La tabla de Modelar en un teléfono de 390 px, antes del diseño de móvil | arrancaba en **x = 320 con 760 px de ancho**: 690 px fuera de alcance, y el documento no desplaza en X | `probe_mob.js`, 09-24 |
+| Controles de la cabecera fuera de pantalla a 390 px, y controles de menos de 32 px de alto | **16 → 0** y **166 → 16** | `probe_mob.js`, 09-24 |
 | Bundle: parte de three.js | **71.5 %**, sin grasa | `tools/bundle_report.mjs` |
 | Ruido del lazo: σ=1.0° | el lazo **empeora** la pieza, 0.38° → 0.80°; con n=5 y mediana, 0.10° | validación |
 | Corrigiendo solo ángulos | ángulos a 0.15°, punta estancada en **~5 mm**; con rodado y avance, **0.17 mm** | validación |
@@ -982,6 +984,44 @@ Medido y descartado en esta misma pasada:
   200 a unas pocas, pero cambia el picking, que hoy lee `userData.pi` de cada malla. Las
   llamadas de dibujo NO eran el cuello: el coste estaba en construir y destruir geometrías, y
   eso ya está resuelto.
+
+**La aplicación cabe en un teléfono (2026-09-24).**
+El visor se escribió para un monitor y en un teléfono no se podía usar: la rejilla de
+MODELAR pide 320 px de 3D MÁS 760 px de tabla, así que en 390 px la tabla arrancaba en
+x = 320 con 760 px de ancho. Y no es que se viera apretada — `#app` es una rejilla de
+alto `100vh` y el documento no desplaza en X, de modo que **690 px de tabla quedaban
+fuera de alcance**: ni tocándola se llegaba. La cabecera dejaba 16 de sus 14 controles
+fuera de pantalla (los segmentos cuentan como uno y como sus botones) y 166 controles
+medían menos de 32 px de alto, que es fallar con el dedo.
+
+Ahora, por debajo de 760 px, se apila en una columna: cabecera, 3D, el panel del modo,
+estado. `#bt` y `#rt` comparten área porque cada modo enseña UNO de los dos; el que
+sobra lo sigue apagando su regla de modo. La cinta se esconde —mide 1 700 mm a lo ancho
+y en 390 px son cuatro píxeles por doblez, no se lee ninguno— y con ella los dos
+tiradores, que son de 7 px y se arrastran con el ratón. La barra de vista y la de estado
+pasan a un renglón que se desliza: envuelta, la de vista se comía 150 px de los 338 que
+le quedan al 3D. Los cuatro menús, el tema y el idioma se van detrás de un ☰, a un cajón
+a todo el ancho con su camino de vuelta.
+
+**Por qué cuelga de una clase y no de una `@media`.** Lo que cambia no es solo el
+reparto: los menús pasan a un cajón, o sea que cambia lo que se PINTA. Y una consulta de
+medios no se puede forzar desde dentro de la página, así que con el diseño colgado de
+ella el banco no habría podido probar nada de esto. La bandera es `ST.phone`, la pone un
+`matchMedia('(max-width:760px)')` al arrancar y al cruzar el umbral (`app/phone.ts`), y
+el banco la enciende y mide. El umbral es 760 y no 480 porque a 760 ya no caben el 3D y
+la tabla lado a lado, que es la razón entera del cambio.
+
+El banco pasa de 319 a 326 pasos. Cinco de los siete fallan contra el `index.html`
+anterior; los otros dos —que ninguna banda se salga del ancho y que el 3D siga en
+pantalla— pasan en las dos versiones porque la ventana del banco es de escritorio: ahí
+son GUARDAS, y es lo que corresponde. `test_motor.js` no cambia de cuenta: `data-dr`
+entra en la lista de atributos compartidos a propósito, que es lo que esa prueba pide
+—no prohíbe compartir, obliga a decidirlo y a escribirlo.
+
+Lo que NO se tocó y sigue pendiente: `makeReport()` abre el reporte con `window.open()`,
+y un navegador de teléfono suele bloquear esa ventana. El reporte ya se lee bien en un
+móvil —tiene su `@media (max-width:560px)`—, pero llegar a él desde el teléfono es otra
+pasada.
 
 **El reporte pasa a hablar del MODELO, y en tres tablas que suman (2026-09-24).**
 El reporte era «de inspección y compensación»: mezclaba la pieza medida, el comando a la
