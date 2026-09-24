@@ -855,6 +855,8 @@ Ninguna de estas se vuelve a sacar leyendo el código.
 | Solver del amarre, una pieza | **3–26 ms** | banco del amarre |
 | Amarre con 6 modelos, antes → después de PERF-02 | Node **73 → 51 ms**; Edge **82 → 55 ms**; repintado **122 → 86 ms** | PERF-02 |
 | Etiquetas 3D por fotograma (15 etiquetas) | **0.13 → 0.07 ms** | PERF-03 |
+| Reporte imprimible, lienzo 2000×1200 | **222 KB** (3 vistas JPEG a 1100 px) contra **1 405 KB** del anterior (4 vistas + cinta, PNG) | `reportHtml()`, 09-24 |
+| La misma vista ISO a 1100 px, PNG contra JPEG q=0.92 | **498 KB contra 92 KB**; reescalar a PNG lo EMPEORA (363 KB a 900 px contra 294 KB sin tocar) | `captureViews()`, 09-24 |
 | Bundle: parte de three.js | **71.5 %**, sin grasa | `tools/bundle_report.mjs` |
 | Ruido del lazo: σ=1.0° | el lazo **empeora** la pieza, 0.38° → 0.80°; con n=5 y mediana, 0.10° | validación |
 | Corrigiendo solo ángulos | ángulos a 0.15°, punta estancada en **~5 mm**; con rodado y avance, **0.17 mm** | validación |
@@ -980,6 +982,76 @@ Medido y descartado en esta misma pasada:
   200 a unas pocas, pero cambia el picking, que hoy lee `userData.pi` de cada malla. Las
   llamadas de dibujo NO eran el cuello: el coste estaba en construir y destruir geometrías, y
   eso ya está resuelto.
+
+**El reporte pasa a hablar del MODELO, y en tres tablas que suman (2026-09-24).**
+El reporte era «de inspección y compensación»: mezclaba la pieza medida, el comando a la
+máquina y el modelo en una sola hoja, y no servía para ninguna de las tres. Ahora habla del
+modelo y nada más. El comando sigue saliendo por su botón, en CSV, que es el formato que come
+la dobladora.
+
+Lo que lleva, por orden: el nombre en grande, la ficha de la REFERENCIA, tres vistas (ISO a
+ancho completo, planta y frente), la lista de modelos encendidos, y luego **la misma tabla
+tres veces**:
+
+1. el modelo tal como se diseñó, **sin compensar**;
+2. **solo las compensaciones** —los Δ—, con su fila TOTAL;
+3. **la suma de las dos**, con su fila TOTAL.
+
+Las tres llevan las mismas columnas y las mismas filas, y cada modelo encendido se lleva su
+bloque, así que dos modelos se leen lado a lado en las tres. Ese es el punto entero: quien lee
+suma la fila TOTAL de la primera con la de la segunda y le tiene que salir la de la tercera.
+Por eso **cada Δ se calcula como `total − base`** y no por caminos distintos según la columna
+—si cada una llegara por su lado, las tablas podrían dejar de cuadrar y nadie lo notaría
+mirándolas—. Para la recta eso da exactamente lo mismo que `straightDelta()`, que es lo que
+enseña la tabla de la aplicación. Hay un paso de banco que lo comprueba celda a celda con
+tolerancia 0.011, que es lo que pueden separarse dos sumandos impresos a dos decimales.
+
+La cabecera habla de la REFERENCIA y no del modelo activo: es lo que ancla el 3D, la columna
+«Δ punta» y las celdas marcadas, y no puede cambiar porque alguien pinche otra variante antes
+de imprimir. En la tabla 3 se marca la celda que se separa de la referencia, comparando el
+TEXTO ya redondeado y no el número: con el número crudo, dos celdas que imprimen 90.0 salían
+marcadas por un resto de 1e-13. La columna de torsión solo aparece si algún modelo la usa.
+
+**Y el hallazgo que paga el cambio: PNG es un mal formato para un render 3D.** Un render lleva
+degradado de fondo, sombreado y bordes suavizados, o sea miles de colores que el PNG no puede
+agrupar. Medido con el lienzo a 2400×1350 y la vista ISO del demo:
+
+| Vista ISO | PNG | JPEG q=0.88 | JPEG q=0.92 |
+|---|---|---|---|
+| sin reescalar | 877 KB | 291 KB | — |
+| reescalada a 1100 px | **498 KB** | 72 KB | **92 KB** |
+
+Y **reescalar EMPEORA el PNG**: en el lienzo chico del banco, 363 KB a 900 px contra 294 KB
+sin tocar, porque el suavizado inventa colores intermedios donde antes había planos. Se queda
+en 0.92 y no en 0.88: los 20 KB se pagan porque a 0.88 el alambre de las aristas empieza a
+repicar contra el fondo oscuro, y el alambre es justo lo que se mira en la planta. El reescalado
+va en `captureViews()` y no con CSS en el reporte, porque el CSS solo cambia cómo se ve: los
+bytes del data URI siguen siendo los mismos.
+
+| Reporte entero, lienzo 2000×1200 | antes | después |
+|---|---|---|
+| 5 imágenes PNG (4 vistas + cinta) contra 3 JPEG a 1100 px | 1 405 KB | **222 KB** |
+
+`makeReport()` se parte en dos: `reportHtml()` arma el texto y `makeReport()` abre la ventana.
+`window.open()` es lo único de ahí que un navegador headless no puede ejercitar, y sin la
+separación el reporte entero —qué tablas salen, qué columnas llevan y de qué modelos hablan—
+quedaba fuera del banco. Es lo mismo que se hizo con `importCsvText()` y por lo mismo. El
+bloque de columnas de cada modelo lleva `data-mod` con el id, que es el gancho con el que el
+banco cuenta bloques sin depender del idioma.
+
+Los números de doblez **ya coincidían** y no se tocó nada: el 3D y la tabla del modelo dicen
+los dos `B1..Bn`. Lo único con otro prefijo es la pestaña Puntos, que numera `P0 · PI1..PIn ·
+PE`, y `PI k` es el mismo punto que `B k`. Se deja como está y se clava con una GUARDA en el
+banco, porque los dos números salen de sitios distintos del código —`drawLabels()` por un
+lado, la fila de la tabla por otro— y nada impedía que se separaran sin que ningún paso lo
+notara.
+
+`tsc --noEmit` limpio; `test_motor.js` en 773 aserciones, sin cambios porque el motor no se
+toca; i18n pasa de 495 a 497 claves (se van `repTitle`, `repDate`, `repPiece` y `engine`, que
+quedaron muertas al reescribir, y entran `repModel`, `repPrint`, `repBase`, `repAdjust`,
+`repTotals` y `repTotal`); `tools/ui_test.mjs` sube de 312 a 318 pasos. Cinco de los seis
+nuevos fallan contra el HEAD anterior; el sexto es la guarda de los números B y pasa en las
+dos versiones, como corresponde.
 
 **La torsión contada dos veces (2026-09-18).** `ik()` leía el rodado con el marco sin rodar,
 así que la torsión se le colaba dentro del rodado, y `measuredModel()`/`migrateModel()` le

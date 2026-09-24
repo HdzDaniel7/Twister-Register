@@ -6,7 +6,7 @@
    ========================================================================= */
 export type Lang = 'es' | 'en' | 'de';
 
-/** Las 495 claves que deben existir en LOS TRES diccionarios.
+/** Las 497 claves que deben existir en LOS TRES diccionarios.
  *
  *  El número iba a la deriva: decía 458 cuando ya eran 486, porque se suma
  *  a mano y a veces se olvida. Lo que de verdad sujeta la paridad no es este
@@ -90,8 +90,9 @@ export type I18nKey =
   | 'stUnits' | 'stVer' | 'stVerTip'
   | 'schemaAmbiguous' | 'schemaMigrated' | 'schemaUnknown'
   | 'jsonNotJson' | 'jsonNotDoc' | 'jsonBroken' | 'cellBad'
-  | 'engine' | 'dStart' | 'dBest' | 'formula' | 'note' | 'repTitle' | 'repDate'
-  | 'repPiece' | 'ok' | 'bad' | 'piece' | 'orW' | 'orT' | 'confirmNew' | 'pts'
+  | 'repModel' | 'repPrint' | 'repBase' | 'repAdjust' | 'repTotals' | 'repTotal'
+  | 'dStart' | 'dBest' | 'formula' | 'note'
+  | 'ok' | 'bad' | 'piece' | 'orW' | 'orT' | 'confirmNew' | 'pts'
   | 'x' | 'y' | 'z' | 'gizmoClamp' | 'gizmoBend' | 'pedYaw' | 'pedYawTip'
   | 'pedDYaw' | 'pedDYawTip' | 'pedSlipTip' | 'variants' | 'addVar' | 'dupVar' | 'setRef' | 'isRef'
   | 'anchor' | 'aStart' | 'aEnd' | 'aBest' | 'insPt' | 'delPt' | 'ptNote' | 'bake'

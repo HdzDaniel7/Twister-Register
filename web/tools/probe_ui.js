@@ -4000,4 +4000,213 @@ step('el alambre saca las MISMAS aristas que three, vertice a vertice', () => {
   if (n < 5) throw new Error('solo se compararon ' + n + ' mallas: el paso no prueba nada');
 });
 
+/* --- el reporte reescrito, 2026-09-24 --------------------------------------
+   report.ts dejo de abrir ventana: reportHtml() devuelve el HTML entero como
+   cadena y por eso se puede leer aqui, headless. Estos cinco pasos van al
+   final a proposito, igual que la seccion y el id repetido de arriba: leen el
+   modelo y los modelos encendidos tal como los dejo el resto del banco, y el
+   que toca variants (el tercero) tiene que devolverlos exactamente como los
+   encontro o rompe cualquier paso de mas arriba que cuenta variantes. */
+
+/* un escape minimo, igual al de src/safe.ts: el reporte pasa el nombre del
+   modelo por esc() antes de meterlo en el <h1>, asi que compararlo contra el
+   nombre crudo fallaria si alguna vez lleva &, <, > o ". */
+const escRep = s => String(s).replace(/[&<>"]/g,
+  c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
+
+step('el reporte se titula con el NOMBRE del modelo', () => {
+  const B = window.BARCOMP;
+  const nombre = escRep(S().model.name);
+  const html = B.reportHtml();
+  if (!html.includes(`<h1>${nombre}</h1>`)) {
+    throw new Error('el <h1> no es "' + nombre + '": '
+      + ((html.match(/<h1>[^<]*<\/h1>/) || [])[0] || 'sin h1'));
+  }
+  if (!html.includes(`<title>${nombre}</title>`)) {
+    throw new Error('el <title> no es "' + nombre + '": '
+      + ((html.match(/<title>[^<]*<\/title>/) || [])[0] || 'sin title'));
+  }
+});
+
+step('el reporte NO habla de compensacion ni de maquina', () => {
+  const B = window.BARCOMP;
+  // el reporte ya no habla de compensar, de maquina ni de la pieza medida
+  // (ver la cabecera de report.ts): esto vigila que ninguna de las cuatro
+  // claves de ese vocabulario se cuele de vuelta
+  const txt = B.I18N[B.LANG.cur];
+  const html = B.reportHtml();
+  for (const k of ['cNew', 'formula', 'cmdTbl', 'cNow']) {
+    if (!txt[k]) continue;                       // clave que no existe en este idioma
+    if (html.includes(txt[k])) {
+      throw new Error('sale el texto de "' + k + '": ' + txt[k]);
+    }
+  }
+});
+
+step('el reporte compara SOLO los modelos encendidos', () => {
+  const B = window.BARCOMP;
+  // se guarda TODO lo que hace falta para devolver el documento igual que
+  // estaba: variants es la lista que cuentan los pasos de mas arriba, y
+  // active/ref son los que activa vardup() y no los toca nadie mas aqui
+  const variantesAntes = S().variants.slice();
+  const activoAntes = S().active;
+  const refAntes = S().ref;
+  try {
+    drawer('models');
+    click('[data-a="vardup"]');
+    const nuevoId = S().active;                  // vardup() activa la copia
+    if (!S().variants.find(v => v.id === nuevoId)) throw new Error('la copia no aparecio en variants');
+    /* nombre UNICO a proposito: vardup() nombra la copia «‹nombre› · N», y con
+       varios modelos sobrantes de pasos anteriores ese nombre puede coincidir
+       con el de OTRO modelo que sigue encendido -era justo lo que rompia este
+       paso, «sigue saliendo» por un nombre ajeno, no por el de la copia-. */
+    drawer('models');
+    setval(`#lf input[data-vn="${nuevoId}"]`, 'PROBE_COMPARATIVA_UNICA');
+    const nuevo = S().variants.find(v => v.id === nuevoId);
+    if (nuevo.name !== 'PROBE_COMPARATIVA_UNICA') {
+      throw new Error('el renombrado no cuajo: quedo "' + nuevo.name + '"');
+    }
+    if (!nuevo.visible) {
+      drawer('models');
+      click(`#lf input[data-vv="${nuevoId}"]`);
+      if (!S().variants.find(v => v.id === nuevoId).visible) {
+        throw new Error('la copia nacio apagada y el clic no la encendio');
+      }
+    }
+    /* vardup() deja la copia como MODELO ACTIVO, y el <h1>/tabla de arriba del
+       reporte son siempre los del activo -visible o no-: apagar la copia sin
+       moverse de ella no la quita del reporte, la deja de ACTIVA e invisible
+       a la vez, y el <h1> la sigue enseñando. Se vuelve al modelo de antes
+       para que "apagar" signifique lo que este paso quiere comprobar. */
+    drawer('models');
+    click(`[data-vsel="${activoAntes}"]`);
+    if (S().active !== activoAntes) {
+      throw new Error('no se pudo volver a activar el modelo original');
+    }
+    const nombreNuevo = escRep(nuevo.name);
+    /* Las TRES tablas salen siempre; lo que cambia con los modelos encendidos
+       es cuantos BLOQUES de columnas lleva cada una. `data-mod` es el gancho
+       que pone report.ts justo para esto: cuenta bloques sin depender del
+       idioma ni de que dos modelos se llamen parecido. */
+    const bloques = h => new Set(h.match(/data-mod="[^"]*"/g) || []).size;
+    const encendidos = () => S().variants.filter(v => v.visible).length;
+    let html = B.reportHtml();
+    if (!html.includes(nombreNuevo)) {
+      throw new Error('con la copia encendida no sale su nombre "' + nuevo.name + '" en el reporte');
+    }
+    if (!html.includes('data-mod="' + nuevoId + '"')) {
+      throw new Error('la copia encendida no tiene bloque de columnas en las tablas');
+    }
+    if (bloques(html) !== encendidos()) {
+      throw new Error('hay ' + encendidos() + ' modelos encendidos y ' + bloques(html) + ' bloques');
+    }
+    drawer('models');
+    click(`#lf input[data-vv="${nuevoId}"]`);      // se apaga la copia
+    if (S().variants.find(v => v.id === nuevoId).visible) {
+      throw new Error('el clic no apago la copia');
+    }
+    html = B.reportHtml();
+    if (html.includes(nombreNuevo)) {
+      throw new Error('apagada, el nombre "' + nuevo.name + '" sigue saliendo en el reporte');
+    }
+    if (html.includes('data-mod="' + nuevoId + '"')) {
+      throw new Error('apagada, la copia sigue teniendo bloque de columnas');
+    }
+    if (bloques(html) !== encendidos()) {
+      throw new Error('apagada: ' + encendidos() + ' modelos encendidos y ' + bloques(html) + ' bloques');
+    }
+  } finally {
+    // se borra la copia devolviendo la lista, no filtrandola: asi vuelve
+    // tambien el orden y cualquier otro campo que este paso no toco
+    S().variants = variantesAntes;
+    S().active = activoAntes;
+    S().ref = refAntes;
+    window.BARCOMP.renderAll();
+  }
+});
+
+step('las capturas del reporte pesan menos que el lienzo entero', () => {
+  const B = window.BARCOMP;
+  // 700 y no 1100: el lienzo del banco headless anda por los 900px de ancho,
+  // y con un maxW mayor que el lienzo captureViews() no reescala nada y la
+  // comparacion no probaria el reescalado, solo el cambio de formato
+  const entero = B.captureViews(['iso'], {})[0][1].length;
+  const chico = B.captureViews(['iso'], { maxW: 700, tipo: 'image/jpeg', calidad: .92 })[0][1].length;
+  log.push('     iso: ' + (entero / 1024).toFixed(1) + ' KB entero vs '
+    + (chico / 1024).toFixed(1) + ' KB a 700px jpeg');
+  if (!(chico < entero)) {
+    throw new Error('el PNG entero pesa ' + (entero / 1024).toFixed(1)
+      + ' KB y el JPEG a 700px pesa ' + (chico / 1024).toFixed(1) + ' KB: no bajo');
+  }
+});
+
+/* GUARDA, no prueba: hoy el numero que pinta el 3D y el de la tabla ya
+   coinciden. Se escribe porque salen de dos sitios distintos del codigo
+   -drawLabels() por un lado, la fila de la tabla por otro- y nada impide que
+   algun dia se separen sin que ningun otro paso lo note. */
+step('las B del 3D dicen lo mismo que las de la tabla', () => {
+  const B = window.BARCOMP;
+  const lblAntes = S().layers.lbl.on;
+  try {
+    S().layers.lbl.on = true;
+    B.rebuildScene();
+    B.renderer.render(B.scene, B.camera);
+    B.drawLabels();                                // el render es bajo demanda
+    const del3D = [...document.querySelectorAll('#labels .lbl')]
+      .map(el => el.textContent.trim())
+      .filter(t => /^B\d+$/.test(t))
+      .sort((a, b) => +a.slice(1) - +b.slice(1));
+    click('[data-md="model"]');
+    click('#tabs [data-t="model"]');               // la tabla de dobleces vive aqui
+    const deLaTabla = [...document.querySelectorAll('#panes table.lra tbody tr td:first-child')]
+      .map(td => td.textContent.trim())
+      .filter(t => /^B\d+$/.test(t))
+      .sort((a, b) => +a.slice(1) - +b.slice(1));
+    if (!del3D.length || !deLaTabla.length) {
+      throw new Error('3D: ' + del3D.length + ' B, tabla: ' + deLaTabla.length + ' B: el paso no prueba nada');
+    }
+    if (del3D.join(',') !== deLaTabla.join(',')) {
+      throw new Error('el 3D dice [' + del3D.join(',') + '] y la tabla [' + deLaTabla.join(',') + ']');
+    }
+  } finally {
+    S().layers.lbl.on = lblAntes;
+  }
+});
+
+/* EL PUNTO ENTERO de que sean tres tablas con las mismas columnas: quien lee
+   suma la fila TOTAL de la primera con la de la segunda y le tiene que salir
+   la de la tercera. Si alguna columna dejara de calcularse como `total - base`
+   y se fuera por su lado, las tres tablas dejarian de cuadrar y nadie lo
+   notaria mirandolas. Aqui se comprueba celda a celda. */
+step('TOTAL de la tabla 1 mas la 2 da la de la 3', () => {
+  const B = window.BARCOMP;
+  const doc = new DOMParser().parseFromString(B.reportHtml(), 'text/html');
+  /* las tres anchas son las que llevan bloques por modelo; la de resumen no */
+  const anchas = [...doc.querySelectorAll('table')].filter(t => t.querySelector('[data-mod]'));
+  if (anchas.length !== 3) throw new Error('hay ' + anchas.length + ' tablas anchas y deberian ser 3');
+  const tot = t => {
+    const tr = t.querySelector('tr.tot');
+    if (!tr) throw new Error('una de las tablas no tiene fila TOTAL');
+    /* se salta la primera celda, que es el rotulo; el guion es un cero */
+    return [...tr.querySelectorAll('td')].slice(2)
+      .map(td => { const s = td.textContent.trim(); return s === '—' ? 0 : parseFloat(s.replace('+', '')); });
+  };
+  const [a, b, c] = anchas.map(tot);
+  if (a.length !== b.length || b.length !== c.length) {
+    throw new Error('las tres filas TOTAL tienen ' + a.length + '/' + b.length + '/' + c.length + ' celdas');
+  }
+  if (!a.length) throw new Error('la fila TOTAL vino vacia: el paso no prueba nada');
+  for (let i = 0; i < a.length; i++) {
+    if (Number.isNaN(a[i]) || Number.isNaN(b[i]) || Number.isNaN(c[i])) {
+      throw new Error('celda ' + i + ' no es un numero: ' + a[i] + ' / ' + b[i] + ' / ' + c[i]);
+    }
+    /* 0.011 y no 0.005: las celdas se imprimen redondeadas a dos decimales, asi
+       que dos sumandos redondeados pueden separarse una centesima cada uno */
+    if (Math.abs(a[i] + b[i] - c[i]) > 0.011) {
+      throw new Error('celda ' + i + ': ' + a[i] + ' + ' + b[i] + ' = ' + (a[i] + b[i])
+        + ' pero la tabla 3 dice ' + c[i]);
+    }
+  }
+});
+
 return log.join('\n');

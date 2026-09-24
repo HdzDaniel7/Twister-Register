@@ -41,6 +41,7 @@ import {
   edgesRef, edgesGeometry,
 } from './scene.ts';
 import { drawRibbon, bindRibbon, setOnRibbonSelect } from './ribbon.ts';
+import { reportHtml } from './report.ts';
 import { renderAll, refresh, selectBend } from './app/render.ts';
 import { importCsvText, importCsvBatch, openError } from './app/files.ts';
 import { initHistory, markSaved, isDirty } from './app/history.ts';
@@ -163,9 +164,12 @@ type DebugExports = {
   /* tampoco puede provocar un archivo roto desde el disco: la clasificacion
      del fallo al abrir se ejercita llamando aqui con el error ya construido. */
   openError: typeof openError;
-  /* las cuatro vistas del reporte: desde que el lienzo no conserva el búfer,
-     el banco comprueba que la captura no sale en blanco */
+  /* las vistas del reporte: desde que el lienzo no conserva el búfer, el
+     banco comprueba que la captura no sale en blanco */
   captureViews: typeof captureViews;
+  /* el reporte COMO TEXTO. Lo único que no se puede ejercitar headless es la
+     ventana que lo enseña, así que el armado sale por aquí y el banco lo lee. */
+  reportHtml: typeof reportHtml;
   /* el original de three contra el que el banco compara `ghost()` */
   edgesRef: typeof edgesRef;
   edgesGeometry: typeof edgesGeometry;
@@ -177,7 +181,7 @@ if (typeof window !== 'undefined') (window as unknown as { BARCOMP: DebugExports
   ST, E, I18N, LANG, renderAll, refresh, REF, drawGizmo, drawLabels, groupHost, groups,
   rebuildScene, markDirty, importCsvText, importCsvBatch, openError, commandModel,
   placedPath, shownPath, shownModel, heldResult, heldOfVariant, refModel, refModelFree,
-  captureViews,
+  captureViews, reportHtml,
   edgesRef, edgesGeometry,
   get renderer() { return renderer; },
   get scene() { return scene; },

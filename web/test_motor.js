@@ -1520,7 +1520,10 @@ console.log('\n— idiomas —');
                  'fixture', 'addPed', 'addPin', 'pinNo',
                  /* «Rectangular» se escribe igual en español y en inglés. En
                     alemán es Rechteckig y ahí la prueba la sigue vigilando. */
-                 'secRect']),
+                 'secRect',
+                 /* «Total» se escribe igual en español y en inglés; en alemán es
+                    Summe y ahí la prueba lo sigue vigilando. */
+                 'repTotal']),
     de: new Set(COMUNES),
   };
   for (const l of ['en', 'de']) {

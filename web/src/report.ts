@@ -1,91 +1,342 @@
 /* ---------------------------------------------------------------- reporte --
-   Imprimible: capturas de las 4 vistas + la cinta + la tabla por doblez.
-   Se abre en una ventana nueva; las imágenes van empotradas como data URI,
-   así que el archivo se puede guardar y llevar tal cual.                    */
+   EL MODELO, imprimible. Nombre grande arriba, la ficha de la REFERENCIA, tres
+   vistas, y luego LA MISMA TABLA TRES VECES:
+
+     1. el modelo tal como se diseñó, SIN compensar;
+     2. solo las compensaciones —los Δ—, con su fila TOTAL;
+     3. la suma de las dos, con su fila TOTAL.
+
+   Que las tres tengan las mismas columnas y las mismas filas es el punto
+   entero: quien lee puede sumar la fila TOTAL de la primera con la de la
+   segunda y tiene que salirle la de la tercera. Por eso el Δ de cada celda se
+   calcula como `total − base` y no por caminos distintos según la columna: si
+   cada columna llegara por su lado, las tres tablas podrían dejar de cuadrar y
+   nadie lo notaría. Para la recta eso da exactamente lo mismo que
+   `straightDelta()`, que es lo que enseña la tabla de la aplicación.
+
+   Cada modelo ENCENDIDO se lleva su bloque de columnas, así que dos modelos se
+   leen lado a lado en las tres tablas.
+
+   Lo que NO lleva, y es deliberado desde el 2026-09-24: el perfil de máquina y
+   la pieza medida. El comando sale por su botón, en CSV, que es el formato que
+   come la dobladora.
+
+   Se abre en una ventana nueva; las imágenes van empotradas como data URI, así
+   que el archivo se puede guardar y llevar tal cual, y el botón de arriba lo
+   manda a la impresora o a «Guardar como PDF».
+
+   Las capturas se reescalan a `ANCHO_VISTA` y salen en JPEG. Suena mal en un
+   dibujo técnico y por eso está medido: un render 3D lleva degradado, sombreado
+   y bordes suavizados, así que el PNG no puede agrupar nada. Medido con el
+   lienzo a 2400×1350 y la vista ISO del demo, reescalada a 1100 px, el PNG pesa
+   498 KB y el JPEG a 0.92 pesa 92 KB. Con tres vistas eso es un reporte de
+   1.5 MB contra uno de 280 KB. Ver `captureViews()` y CONTEXTO §11.          */
 import * as E from './engine.ts';
 import { T } from './i18n.ts';
-import { ST, activeDataset, REF, heldResult, heldOn } from './state.ts';
-import { captureViews, devCssColor } from './scene.ts';
-import { fx, esc } from './panels.ts';
+import type { Model, Orientation, RowLength, Variant } from './types.ts';
+import { ST, REF } from './state.ts';
+import { captureViews } from './scene.ts';
+import { fx, esc, buildTag } from './panels.ts';
 
-/* Solo se llega aquí desde el botón de reporte, con un modelo ya cargado: por
-   eso `ST.model` y el lienzo de la cinta se dan por existentes. */
-export function makeReport(): void {
-  const M = ST.model!, D = activeDataset(), ori = E.orientations(M);
-  const shots = captureViews();
-  const rb = document.querySelector<HTMLCanvasElement>('#rbc')!.toDataURL('image/png');
-  const dv = D ? D.dev : null;
+/** Ancho al que se reescala cada captura, px. Llena una A4 a 300 ppp con
+ *  margen de sobra y es donde la curva de bytes deja de pagar. */
+const ANCHO_VISTA = 1100;
+/** Calidad del JPEG. A 0.88 son 72 KB y a 0.92 son 92 KB: los 20 KB se pagan
+ *  porque a 0.88 el alambre de las aristas empieza a repicar contra el fondo
+ *  oscuro, y el alambre es justo lo que se mira en una vista de planta. */
+const CALIDAD = .92;
 
-  const rows = M.bends.map((b, i) => {
-    const has = dv && i < dv.angle.length;
-    const col = has ? devCssColor(Math.abs(dv!.theta[i]), M.tol.angle) : '#888';
-    return `<tr><td>B${i + 1}</td><td>${ori[i]}</td>
-      <td>${fx(E.bendTheta(b), 3)}</td>
-      <td>${has ? fx(E.bendTheta(D!.model.bends[i]), 3) : '—'}</td>
-      <td style="color:${col}">${has ? (dv!.theta[i] > 0 ? '+' : '') + fx(dv!.theta[i], 3) : '—'}</td>
-      <td>${ST.command[i] ? fx(ST.command[i].angle, 3) : '—'}</td>
-      <td>${has ? fx(dv!.point[i + 1], 2) : '—'}</td></tr>`;
-  }).join('');
+/** La orientación como TEXTO PELADO, no como la insignia de la interfaz:
+ *  `oriTag()` emite un `<span class="ori W">` que se colorea con la hoja de
+ *  estilo de la aplicación, y esta ventana no la tiene. */
+const orLabel = (o: Orientation, redonda: boolean): string => (redonda ? 'Ø' : o);
 
-  const varRows = ST.variants.map(v => {
-    const vm = E.effectiveModel(v);
+/** Un modelo encendido, con su base y su efectivo ya resueltos. Se calcula una
+ *  vez y lo comen las tres tablas. */
+type Encendido = {
+  v: Variant;
+  /** lo diseñado, sin Δ */
+  base: Model;
+  /** base + Δ, que es lo que se dibuja */
+  eff: Model;
+  BL: RowLength[];
+  EL: RowLength[];
+};
+
+/** Cuál de las tres tablas se está pintando. */
+type Modo = 'base' | 'delta' | 'total';
+
+/** Las cifras de una fila. `rad` va aparte porque en la tabla de totales no se
+ *  suma: sumar radios de herramental no significa nada. */
+type Cifras = { ang: number; rot: number; tw: number; rad: number; str: number; cum: number };
+
+/* Solo se llega aquí con un modelo cargado: por eso `ST.model` se da por
+   existente. */
+export function reportHtml(): string {
+  /* LA CABECERA HABLA DE LA REFERENCIA, no del modelo activo. Es lo que ancla
+     todo lo demás —el 3D, la columna «Δ punta», las celdas marcadas— y no
+     cambia porque alguien pinche otra variante antes de imprimir. */
+  const R = E.effectiveModel(REF());
+  const redonda = R.section.kind === 'round';
+  const shots = captureViews(['iso', 'top', 'front'],
+                             { maxW: ANCHO_VISTA, tipo: 'image/jpeg', calidad: CALIDAD });
+  const orient = E.orientations(R);
+
+  /* LOS MODELOS ENCENDIDOS, en el orden del documento. Es la misma lista que
+     decide qué se dibuja en el 3D —`visible`— así que lo que sale en las fotos
+     y lo que sale en las tablas es la misma pieza. */
+  const mods: Encendido[] = ST.variants.filter(x => x.visible).map(x => {
+    const eff = E.effectiveModel(x);
+    return { v: x, base: x.base, eff, BL: E.fibreLengths(x.base), EL: E.fibreLengths(eff) };
+  });
+  /* El número de dobleces puede diferir entre modelos —se agregan y se borran
+     por variante— así que las tablas llegan hasta el MÁXIMO y la celda que no
+     existe sale vacía, no a cero: un cero ahí sería un ángulo de cero grados,
+     que es un doblez de verdad. */
+  const nMax = mods.reduce((a, d) => Math.max(a, d.eff.bends.length), R.bends.length);
+
+  /* La columna de TORSIÓN solo aparece si alguien la usa. Una columna de
+     guiones en tres tablas seguidas no informa de nada y se lleva el ancho que
+     necesitan las que sí. */
+  const conTwist = mods.some(d =>
+    d.base.bends.some(b => b.twist) || d.eff.bends.some(b => b.twist));
+
+  const filaDe = (d: Encendido, i: number, modo: Modo): Cifras | null => {
+    if (i >= d.base.bends.length || i >= d.eff.bends.length) return null;
+    const b = d.base.bends[i], e = d.eff.bends[i], BL = d.BL[i], EL = d.EL[i];
+    if (modo === 'base') {
+      return { ang: b.angle, rot: b.rot, tw: b.twist, rad: b.radius, str: BL.straight, cum: BL.cum };
+    }
+    if (modo === 'total') {
+      return { ang: e.angle, rot: e.rot, tw: e.twist, rad: e.radius, str: EL.straight, cum: EL.cum };
+    }
+    return {
+      ang: e.angle - b.angle, rot: e.rot - b.rot, tw: (e.twist || 0) - (b.twist || 0),
+      rad: e.radius - b.radius, str: EL.straight - BL.straight, cum: EL.cum - BL.cum,
+    };
+  };
+
+  /** La cola: es una recta más y entra en la desarrollada, así que tiene fila
+   *  propia en las tres tablas. No tiene arco, así que no lleva Σ L. */
+  const colaDe = (d: Encendido, modo: Modo): number => {
+    const b = E.tailStraight(d.base), e = E.tailStraight(d.eff);
+    return modo === 'base' ? b : modo === 'total' ? e : e - b;
+  };
+
+  /** La fila TOTAL. `str` suma las rectas MÁS la cola, y `cum` es la
+   *  desarrollada: así la última columna se lee de arriba abajo y el total de
+   *  la tabla 1 más el de la 2 da el de la 3. */
+  const totalDe = (d: Encendido, modo: Modo): Cifras => {
+    const suma = (m: Model) => m.bends.reduce((a, b) => ({
+      ang: a.ang + b.angle, rot: a.rot + b.rot, tw: a.tw + (b.twist || 0),
+    }), { ang: 0, rot: 0, tw: 0 });
+    const rect = (L: RowLength[], m: Model) =>
+      L.reduce((a, r) => a + r.straight, 0) + E.tailStraight(m);
+    const sb = suma(d.base), se = suma(d.eff);
+    const cb = { ...sb, rad: 0, str: rect(d.BL, d.base), cum: E.developedLength(d.base) };
+    const ce = { ...se, rad: 0, str: rect(d.EL, d.eff), cum: E.developedLength(d.eff) };
+    if (modo === 'base') return cb;
+    if (modo === 'total') return ce;
+    return {
+      ang: ce.ang - cb.ang, rot: ce.rot - cb.rot, tw: ce.tw - cb.tw, rad: 0,
+      str: ce.str - cb.str, cum: ce.cum - cb.cum,
+    };
+  };
+
+  /* --- una celda ------------------------------------------------------------
+     En la tabla de Δ el cero se apaga y el resto lleva signo: la columna solo
+     debe cantar donde hay corrección. En la de totales se marca lo que se
+     separa de la REFERENCIA, y se compara el TEXTO ya redondeado y no el
+     número: con el número crudo, dos celdas que imprimen 90.0 y 90.0 salían
+     marcadas por un resto de 1e-13, que es una diferencia que nadie puede ver
+     ni fabricar. */
+  const celda = (v: number | null, n: number, modo: Modo, ref: number | null,
+                 cls = ''): string => {
+    if (v === null) return `<td class="${cls}z">—</td>`;
+    if (modo === 'delta') {
+      const z = +v.toFixed(n) === 0;
+      return `<td class="${cls}${z ? 'z' : 'd'}">${z ? '—' : (v > 0 ? '+' : '') + fx(v, n)}</td>`;
+    }
+    const t = fx(v, n);
+    return `<td class="${cls}${ref !== null && t !== fx(ref, n) ? 'd' : ''}">${t}</td>`;
+  };
+
+  /** El bloque de columnas de un modelo en una fila, o el hueco si no llega. */
+  const bloque = (c: Cifras | null, r: Cifras | null, modo: Modo): string => {
+    const g = 'grp ';
+    if (!c) {
+      return `<td class="${g}z">—</td><td class="z">—</td>${conTwist ? '<td class="z">—</td>' : ''}`
+           + '<td class="z">—</td><td class="z">—</td><td class="z">—</td>';
+    }
+    return celda(c.ang, 1, modo, r && r.ang, g)
+         + celda(c.rot, 1, modo, r && r.rot)
+         + (conTwist ? celda(c.tw, 1, modo, r && r.tw) : '')
+         + celda(c.rad, 1, modo, r && r.rad)
+         + celda(c.str, 2, modo, r && r.str)
+         + celda(c.cum, 2, modo, r && r.cum);
+  };
+
+  /* la cabecera de dos pisos, común a las tres tablas. `data-mod` es el gancho
+     del banco: cuenta bloques sin depender del idioma ni del nombre. */
+  const anchoBloque = conTwist ? 6 : 5;
+  const cab = mods.map(({ v: x }) =>
+    `<th scope="col" colspan="${anchoBloque}" class="grp" data-mod="${esc(x.id)}"
+       style="border-bottom:3px solid ${esc(x.color)}">${esc(x.name)}</th>`).join('');
+  const sub = mods.map(() =>
+    `<th scope="col" class="grp">${T('ang')}</th><th scope="col">${T('rot')}</th>`
+    + (conTwist ? `<th scope="col">${T('twist')}</th>` : '')
+    + `<th scope="col">${T('rad')}</th><th scope="col">${T('straight')}</th>`
+    + `<th scope="col">${T('cumL')}</th>`).join('');
+
+  /** Una de las tres tablas. El modelo de REFERENCIA no se marca contra sí
+   *  mismo, y en la tabla de Δ no se marca nada: ahí el resalte ya lo lleva
+   *  tener un Δ distinto de cero. */
+  const tabla = (modo: Modo): string => {
+    const iRef = mods.findIndex(d => d.v.id === ST.ref);
+    const refFila = (i: number): Cifras | null =>
+      (modo === 'delta' || iRef < 0 ? null : filaDe(mods[iRef], i, modo));
+    const filas = Array.from({ length: nMax }, (_, i) => {
+      const cels = mods.map(d => bloque(filaDe(d, i, modo),
+                                        d.v.id === ST.ref ? null : refFila(i), modo)).join('');
+      const o = i < R.bends.length ? orLabel(orient[i], redonda) : '';
+      return `<tr><td>B${i + 1}</td><td>${o}</td>${cels}</tr>`;
+    }).join('');
+    /* la cola y el TOTAL son filas, no un pie aparte: se tienen que poder
+       sumar con la vista, que es para lo que están las tres tablas */
+    const cola = mods.map(d => {
+      const v = colaDe(d, modo);
+      return `<td class="grp z">—</td><td class="z">—</td>${conTwist ? '<td class="z">—</td>' : ''}`
+           + '<td class="z">—</td>'
+           + celda(v, 2, modo, null) + '<td class="z">—</td>';
+    }).join('');
+    const tot = mods.map(d => {
+      const c = totalDe(d, modo);
+      return celda(c.ang, 1, modo, null, 'grp ')
+           + celda(c.rot, 1, modo, null)
+           + (conTwist ? celda(c.tw, 1, modo, null) : '')
+           + '<td class="z">—</td>'
+           + celda(c.str, 2, modo, null)
+           + celda(c.cum, 2, modo, null);
+    }).join('');
+    return `<div class="tw"><table><thead>
+      <tr><th scope="col" rowspan="2">${T('nBend')}</th>
+          <th scope="col" rowspan="2">${T('ori')}</th>${cab}</tr>
+      <tr>${sub}</tr></thead>
+      <tbody>${filas}
+        <tr class="foot"><td>${T('tailRow')}</td><td></td>${cola}</tr>
+        <tr class="tot"><td>${T('repTotal')}</td><td></td>${tot}</tr>
+      </tbody></table></div>`;
+  };
+
+  /* --- resumen por modelo: cuánto mide y cuánto se separa de la referencia -- */
+  const resumen = mods.map(({ v: x, eff }) => {
     let shift = 0;
-    if (v.id !== ST.ref) {
-      const sh = E.piShift(vm, E.effectiveModel(REF()), ST.anchor);
+    if (x.id !== ST.ref) {
+      const sh = E.piShift(eff, R, ST.anchor);
       shift = ST.anchor === 'end' ? sh[0] : sh[sh.length - 1];
     }
-    return `<tr><td>${esc(v.name)}${v.id === ST.ref ? ' · ' + T('isRef') : ''}</td>
-      <td>${vm.bends.length}</td><td>${fx(E.buildPath(vm).total, 1)}</td>
-      <td>${v.id === ST.ref ? '—' : fx(shift, 2)}</td></tr>`;
+    return `<tr><td><span class="sw" style="background:${esc(x.color)}"></span>${esc(x.name)}${
+      x.id === ST.ref ? ' · ' + T('isRef') : ''}</td>
+      <td>${eff.bends.length}</td>
+      <td>${fx(E.developedLength(eff), 1)}</td>
+      <td>${x.id === ST.ref ? '—' : fx(shift, 2)}</td></tr>`;
   }).join('');
 
   const anchorLab = { start: T('aStart'), end: T('aEnd'), best: T('aBest') }[ST.anchor];
-  const html = `<!doctype html><meta charset="utf-8"><title>${T('repTitle')}</title>
-  <style>body{font:12px ui-monospace,monospace;background:#fff;color:#111;margin:26px;max-width:1000px}
-  h1{font:600 17px system-ui;letter-spacing:.04em;margin:0 0 2px}
-  h2{font:600 10px system-ui;letter-spacing:.12em;text-transform:uppercase;color:#666;margin:16px 0 4px}
-  .sub{color:#666;margin-bottom:16px;font-size:11px}
-  .kv{display:flex;gap:22px;flex-wrap:wrap;border:1px solid #ddd;padding:9px 12px;border-radius:4px;margin-bottom:14px}
-  .kv div span{color:#777}
-  img{width:48%;border:1px solid #ddd;border-radius:4px;margin:0 1% 8px 0;background:#080A0E}
-  img.wide{width:98%}
-  table{border-collapse:collapse;width:100%;margin-top:4px;font-size:11px}
-  th{background:#f2f4f7;text-align:right;padding:5px 6px;border:1px solid #ddd;font:600 9px system-ui;letter-spacing:.08em;text-transform:uppercase}
-  td{text-align:right;padding:3px 6px;border:1px solid #e6e6e6}
-  th:first-child,td:first-child{text-align:left}
-  @media print{body{margin:0}}</style>
-  <h1>${T('repTitle')}</h1>
-  <div class="sub">BARCOMP α · ${esc(M.name)}</div>
-  <div class="kv">
-    <div><span>${T('repDate')}</span> ${new Date().toLocaleString()}</div>
-    <div><span>${T('repPiece')}</span> ${D ? esc(D.name) : '—'}</div>
-    <div><span>${T('stBends')}</span> ${M.bends.length}</div>
-    <div><span>${T('stLen')}</span> ${fx(E.buildPath(M).total, 1)} mm</div>
-    <div><span>${T('tolA')}</span> ±${M.tol.angle}°</div>
-    <div><span>${T('anchor')}</span> ${anchorLab}</div>
-    <div><span>${T('statMaxA')}</span> ${D ? fx(D.dev!.maxA, 3) + '°' : '—'}</div>
-    <div><span>${T('statTip')}</span> ${D ? fx(D.dev!.tip, 2) + ' mm' : '—'}</div>
-    <div><span>${T('statOut')}</span> ${D ? D.dev!.out + '/' + M.bends.length : '—'}</div>
-    <div><span>${T('engine')}</span> JavaScript · three.js</div>
-    <!-- El amarre va en la CABECERA del reporte, no en una nota al pie: un
-         reporte impreso que no diga que la barra estaba sujeta describe una
-         pieza que no es la que se midió. -->
-    <div><span>${T('pinOn')}</span> ${heldOn()
-      ? `${T('pinYes')} · ${heldResult().held.length} · ${fx(heldResult().worst * 100, 0)}% ${T('pinOfYield')}`
-      : T('pinNo')}</div></div>
-  ${shots.map(([, u]) => `<img src="${u}">`).join('')}
-  <img class="wide" src="${rb}">
-  ${ST.variants.length > 1 ? `<h2>${T('variants')}</h2>
-  <table><thead><tr><th scope="col">${T('name')}</th><th scope="col">${T('stBends')}</th>
-  <th scope="col">${T('stLen')} mm</th><th scope="col">${T('dTip')} mm</th></tr></thead><tbody>${varRows}</tbody></table>` : ''}
-  <h2>${T('bends')}</h2>
-  <table><thead><tr><th scope="col">${T('nBend')}</th><th scope="col">${T('ori')}</th><th scope="col">Nom °</th><th scope="col">${T('meas')} °</th>
-  <th scope="col">Δ °</th><th scope="col">${T('cNew')} °</th><th scope="col">${T('dP')} mm</th></tr></thead>
-  <tbody>${rows}</tbody></table>
-  <p style="color:#666;font-size:10px;margin-top:14px">${T('formula')} · ${T('note')}</p>`;
+  const seccion = redonda
+    ? `Ø ${fx(R.section.width, 1)}`
+    : `${fx(R.section.width, 1)} × ${fx(R.section.thickness, 1)}`;
+  const capt: Record<string, string> = { iso: T('vIso'), top: T('vTop'), front: T('vFront') };
 
+  const html = `<!doctype html><html lang="${esc(document.documentElement.lang || 'es')}">
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>${esc(R.name)}</title>
+  <style>
+  :root{--ln:#dcdfe4;--dim:#6b7280}
+  *{box-sizing:border-box}
+  body{font:12px/1.45 ui-monospace,SFMono-Regular,Menlo,monospace;background:#fff;color:#111;
+       margin:0 auto;padding:22px 18px 40px;max-width:1180px}
+  h1{font:700 30px/1.15 system-ui,sans-serif;letter-spacing:-.01em;margin:0 0 3px;word-break:break-word}
+  h2{font:600 10px system-ui,sans-serif;letter-spacing:.14em;text-transform:uppercase;
+     color:var(--dim);margin:22px 0 5px;border-top:1px solid var(--ln);padding-top:9px}
+  .sub{color:var(--dim);font-size:11px;margin:0 0 14px}
+  .kv{display:flex;gap:6px 20px;flex-wrap:wrap;border:1px solid var(--ln);
+      padding:9px 12px;border-radius:5px;margin:0 0 16px}
+  .kv span{color:var(--dim)}
+  .shots{display:flex;flex-wrap:wrap;gap:8px}
+  figure{margin:0;flex:1 1 300px}
+  figure.wide{flex:1 1 100%}
+  img{width:100%;display:block;border:1px solid var(--ln);border-radius:5px;background:#080A0E}
+  figcaption{font:600 9px system-ui,sans-serif;letter-spacing:.12em;text-transform:uppercase;
+             color:var(--dim);padding-top:3px}
+  .tw{overflow-x:auto}
+  table{border-collapse:collapse;width:100%;font-size:11px}
+  th{background:#f2f4f7;text-align:right;padding:5px 6px;border:1px solid var(--ln);
+     font:600 9px system-ui,sans-serif;letter-spacing:.07em;text-transform:uppercase;white-space:nowrap}
+  td{text-align:right;padding:3px 6px;border:1px solid #ebedf0;white-space:nowrap}
+  th:first-child,td:first-child{text-align:left}
+  tr.foot td{background:#fafbfc}
+  tr.tot td{background:#eef1f5;font-weight:700;border-top:2px solid #b9c0ca}
+  .grp{border-left:2px solid #c3c8d0}
+  .z{color:#b6bcc6}
+  .d{color:#8a4b00;font-weight:600}
+  .sw{display:inline-block;width:9px;height:9px;border-radius:2px;margin-right:6px}
+  .bar{display:flex;gap:10px;align-items:center;margin:0 0 14px}
+  button{font:600 12px system-ui,sans-serif;padding:7px 14px;border:1px solid var(--ln);
+         border-radius:5px;background:#f6f7f9;cursor:pointer}
+  @media print{
+    body{padding:0;max-width:none}
+    .noprint{display:none}
+    h2{break-after:avoid}
+    table,figure{break-inside:avoid}
+    @page{margin:12mm}
+  }
+  @media(max-width:560px){
+    body{padding:14px 12px 30px}
+    h1{font-size:23px}
+    figure{flex:1 1 100%}
+  }
+  </style>
+  <div class="bar noprint"><button onclick="print()">${T('repPrint')}</button>
+    <span class="sub" style="margin:0">${T('repModel')}</span></div>
+  <h1>${esc(R.name)}</h1>
+  <div class="sub">BARCOMP ${buildTag()} · ${new Date().toLocaleString()}</div>
+  <div class="kv">
+    <div><span>${T('stBends')}</span> ${R.bends.length}</div>
+    <div><span>${T('stLen')}</span> ${fx(E.developedLength(R), 1)} mm</div>
+    <div><span>${T('section')}</span> ${T(redonda ? 'secRound' : 'secRect')} ${seccion} mm</div>
+    <div><span>${T('tolA')}</span> ±${R.tol.angle}°</div>
+    <div><span>${T('tolP')}</span> ±${R.tol.point} mm</div>
+    <div><span>${T('anchor')}</span> ${anchorLab}</div>
+  </div>
+  <div class="shots">${shots.map(([n, u], i) =>
+    `<figure class="${i === 0 ? 'wide' : ''}"><img src="${u}" alt="${capt[n] || n}">
+     <figcaption>${capt[n] || n}</figcaption></figure>`).join('')}</div>
+
+  <h2>${T('variants')}</h2>
+  <div class="tw"><table><thead><tr><th scope="col">${T('name')}</th>
+    <th scope="col">${T('stBends')}</th><th scope="col">${T('stLen')} mm</th>
+    <th scope="col">${T('dTip')} mm</th></tr></thead><tbody>${resumen}</tbody></table></div>
+
+  <h2>1 · ${T('repBase')}</h2>
+  ${tabla('base')}
+
+  <h2>2 · ${T('repAdjust')}</h2>
+  ${tabla('delta')}
+
+  <h2>3 · ${T('repTotals')}</h2>
+  ${tabla('total')}
+  </html>`;
+
+  return html;
+}
+
+/** El reporte en una ventana nueva. Es lo que cuelga del botón. */
+export function makeReport(): void {
+  const html = reportHtml();
   const w = window.open('', '_blank');
-  if (!w) { alert(T('repTitle')); return; }
+  if (!w) { alert(T('repModel')); return; }
   w.document.write(html);
   w.document.close();
 }

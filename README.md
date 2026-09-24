@@ -149,9 +149,17 @@ tiene internet.
 - **Tema claro y oscuro**, con un tercer estado que sigue la preferencia del
   sistema. El 3D y la cinta leen sus colores del CSS, así que cambian con el
   resto: no hay una segunda paleta escondida en el código.
-- Reporte imprimible con las cuatro vistas, exportar CSV de puntos, y todo en
-  **español, inglés y alemán**. La paridad de los tres idiomas es un error de
-  compilación, no una prueba en tiempo de ejecución.
+- **Reporte del modelo**, imprimible y guardable: el nombre en grande, la ficha de
+  la referencia, tres vistas (ISO, planta y frente) y luego **la misma tabla tres
+  veces** — el modelo sin compensar, solo las compensaciones, y la suma de las dos.
+  Cada una acaba en una fila TOTAL, así que la de la primera más la de la segunda
+  tiene que dar la de la tercera; y cada modelo encendido se lleva su bloque de
+  columnas, de modo que dos modelos se leen lado a lado en las tres. Se lee igual
+  en un teléfono que en el PC, y el botón de arriba lo manda a la impresora o a
+  «Guardar como PDF». No habla de máquina ni de la pieza medida: el comando sale
+  por su botón, en CSV, que es lo que come la dobladora.
+- Exportar CSV de puntos, y todo en **español, inglés y alemán**. La paridad de los
+  tres idiomas es un error de compilación, no una prueba en tiempo de ejecución.
 
 ---
 
