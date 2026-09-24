@@ -4897,4 +4897,153 @@ step('con el 3D escondido onResize no deja la camara en NaN', () => {
   }
 });
 
+/* --- dos marcas, dos colores en el reporte, 2026-09-24 ---------------------
+   Las tres tablas anchas resaltan celdas, pero no todas dicen lo mismo: en la
+   de compensaciones la marca significa «aqui hay correccion» y en la de base y
+   la de totales «este modelo se separa de la referencia». Las dos iban por la
+   misma clase `d` y el mismo #8a4b00, asi que el reporte del demo imprimia 26
+   celdas marcadas en la de compensaciones y 22 en la de totales, todas del
+   mismo color, y quien lo lee no tiene como saber que son dos preguntas
+   distintas. Ahora la de compensaciones lleva clase `k` y va en verde.
+
+   El gancho de estos pasos es `data-tab="base|delta|total"` en el `div.tw` de
+   cada tabla: sin el, la unica manera de dar con la de compensaciones seria
+   contar bloques por su orden, que se rompe en cuanto se mueva una seccion.
+   Eso hace que contra un build sin el arreglo los tres fallen por el gancho
+   que falta y no por el color, asi que el mensaje de ese fallo lleva ademas
+   las dos cuentas del documento entero -td.d y td.k-: la linea FALLA dice la
+   cifra del defecto y no solo que no encontro donde mirar.
+
+   Los tres ponen Δ a mano en un modelo encendido -sin Δ no hay nada que
+   marcar- y devuelven el estado tal como lo encontraron, igual que los pasos
+   del reporte de mas arriba: el resto del guion cuenta variantes y mide el
+   modelo activo.                                                            */
+/* pone Δ en el primer modelo ENCENDIDO -que es el que sale en el reporte-,
+   corre `fn` y devuelve los Δ intactos, copia a copia */
+const conCompensacion = fn => {
+  const v = S().variants.find(x => x.visible);
+  if (!v) throw new Error('no hay ningun modelo encendido: el paso no prueba nada');
+  if (!v.deltas.length) throw new Error('el modelo encendido trae ' + v.deltas.length
+    + ' columnas de delta: el paso no prueba nada');
+  const antes = v.deltas.map(d => ({ ...d }));
+  try {
+    v.deltas[0].angle = -2.5;
+    if (v.deltas[1]) v.deltas[1].rot = 1.5;
+    window.BARCOMP.renderAll();
+    return fn(v);
+  } finally {
+    v.deltas = antes;
+    window.BARCOMP.renderAll();
+  }
+};
+/* cuantas `.tw` hay y cuantas traen el gancho: es la cifra que tiene que
+   llevar el fallo cuando la tabla pedida no aparece */
+const ganchos = doc => doc.querySelectorAll('.tw').length + ' bloques .tw y '
+  + doc.querySelectorAll('.tw[data-tab]').length + ' con data-tab; en el documento entero hay '
+  + doc.querySelectorAll('td.d').length + ' celdas td.d y '
+  + doc.querySelectorAll('td.k').length + ' td.k';
+
+step('las celdas con Δ de la tabla de compensaciones llevan la marca verde (td.k) y ninguna la de «se separa de la referencia» (td.d)', () => {
+  conCompensacion(() => {
+    const doc = new DOMParser().parseFromString(window.BARCOMP.reportHtml(), 'text/html');
+    const t = doc.querySelector('.tw[data-tab="delta"]');
+    if (!t) throw new Error('no hay ninguna tabla con data-tab="delta": el reporte trae ' + ganchos(doc));
+    const k = t.querySelectorAll('td.k').length;
+    const d = t.querySelectorAll('td.d').length;
+    if (!k) throw new Error('con Δ puestos la tabla de compensaciones trae ' + k
+      + ' celdas td.k (y ' + d + ' td.d): no marca la compensacion');
+    if (d) throw new Error('la tabla de compensaciones trae ' + d
+      + ' celdas td.d -la marca de «se separa de la referencia»- y deberia traer 0; td.k: ' + k);
+  });
+});
+
+step('el verde de la compensacion aguanta en la fila TOTAL: «tr.tot td» no le quita el fondo', () => {
+  /* aqui NO vale leer la clase: lo que se prueba es la ESPECIFICIDAD, o sea
+     que «tr td.k» -0-1-2, y escrito despues- le gane a «tr.tot td{background}»
+     -0-1-2 tambien- justo en la fila TOTAL. Eso solo se ve en el estilo
+     CALCULADO, y para tenerlo hace falta un iframe de verdad con la hoja
+     aplicada: se usa el del propio reporte, que ya es uno -#repov > #repfr- y
+     se escribe con contentDocument.open()/write()/close(), que es sincrono. */
+  const cajonInicial = S().drawer;
+  try {
+    conCompensacion(() => {
+      abreReporte();
+      const fr = q('#repov #repfr');
+      const d = fr.contentDocument;
+      if (!d) throw new Error('el iframe del reporte no tiene contentDocument');
+      const t = d.querySelector('.tw[data-tab="delta"]');
+      if (!t) throw new Error('no hay ninguna tabla con data-tab="delta": el reporte trae ' + ganchos(d));
+      const cels = [...t.querySelectorAll('tr.tot td.k')];
+      if (!cels.length) throw new Error('la fila TOTAL de la tabla de compensaciones trae '
+        + cels.length + ' celdas td.k de las ' + t.querySelectorAll('td.k').length
+        + ' de la tabla entera: no hay nada verde que medir ahi');
+      const cs = fr.contentWindow.getComputedStyle(cels[0]);
+      const fondo = cs.backgroundColor, color = cs.color, peso = cs.fontWeight;
+      if (fondo !== 'rgb(234, 247, 238)') {
+        throw new Error('la celda verde de la fila TOTAL calcula el fondo ' + fondo
+          + ' y deberia calcular rgb(234, 247, 238): «tr.tot td» se lo come');
+      }
+      if (color !== 'rgb(10, 107, 45)') {
+        throw new Error('la celda verde de la fila TOTAL calcula el color ' + color
+          + ' y deberia calcular rgb(10, 107, 45)');
+      }
+      if (+peso < 700) {
+        throw new Error('la celda verde de la fila TOTAL calcula font-weight ' + peso
+          + ' y deberia calcular 700: sin negrita la marca no llega a una impresion en blanco y negro');
+      }
+    });
+  } finally {
+    cierraReporte();
+    S().drawer = cajonInicial;
+  }
+});
+
+step('el verde es SOLO de las compensaciones: las tablas de base y de totales no traen ninguna td.k y siguen marcando con td.d', () => {
+  const variantesAntes = S().variants.slice();
+  const activoAntes = S().active;
+  const refAntes = S().ref;
+  try {
+    /* la tabla de totales solo marca cuando hay un modelo que COMPARAR contra
+       la referencia: con uno solo encendido no hay nada que se separe de nada
+       y el paso no probaria que ahi la marca sigue siendo `d` */
+    drawer('models');
+    click('[data-a="vardup"]');
+    const nuevoId = S().active;
+    const nuevo = S().variants.find(x => x.id === nuevoId);
+    if (!nuevo) throw new Error('la copia no aparecio en variants');
+    if (!nuevo.visible) { drawer('models'); click(`#lf input[data-vv="${nuevoId}"]`); }
+    if (!S().variants.find(x => x.id === S().ref && x.visible)) {
+      throw new Error('la referencia no esta encendida: sin ella la tabla de totales no marca nada');
+    }
+    /* la copia nace identica y las tres tablas colapsarian a un bloque: se le
+       mueve un Δ -no la base, que es la que pinta la tabla 1- para que su
+       TOTAL se separe del de la referencia y la tabla 3 tenga que marcar */
+    if (!nuevo.deltas.length) throw new Error('la copia trae 0 columnas de delta: el paso no prueba nada');
+    nuevo.deltas[0].angle = nuevo.deltas[0].angle + 7.5;
+    window.BARCOMP.renderAll();
+    const doc = new DOMParser().parseFromString(window.BARCOMP.reportHtml(), 'text/html');
+    const t1 = doc.querySelector('.tw[data-tab="base"]');
+    const t3 = doc.querySelector('.tw[data-tab="total"]');
+    if (!t1 || !t3) {
+      throw new Error('faltan tablas con data-tab: base ' + (t1 ? 'si' : 'no')
+        + ', total ' + (t3 ? 'si' : 'no') + '; el reporte trae ' + ganchos(doc));
+    }
+    const d3 = t3.querySelectorAll('td.d').length;
+    if (!d3) throw new Error('con dos modelos distintos encendidos la tabla de totales marca '
+      + d3 + ' celdas td.d: el paso no prueba nada');
+    const k1 = t1.querySelectorAll('td.k').length;
+    const k3 = t3.querySelectorAll('td.k').length;
+    if (k1 || k3) {
+      throw new Error('el verde se salio de las compensaciones: ' + k1
+        + ' celdas td.k en la tabla de base y ' + k3 + ' en la de totales, y las dos deberian ser 0'
+        + ' (la de totales marca ' + d3 + ' td.d)');
+    }
+  } finally {
+    S().variants = variantesAntes;
+    S().active = activoAntes;
+    S().ref = refAntes;
+    window.BARCOMP.renderAll();
+  }
+});
+
 return log.join('\n');

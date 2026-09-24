@@ -991,6 +991,35 @@ Medido y descartado en esta misma pasada:
   llamadas de dibujo NO eran el cuello: el coste estaba en construir y destruir geometrías, y
   eso ya está resuelto.
 
+**La compensación se lee en verde en el reporte (2026-09-24).**
+Pedido del taller: «solo en la sección de compensaciones quiero que salgan de un color
+diferente las compensaciones que cambien». Lo que había: las tres tablas resaltaban con la
+MISMA clase `d`, color `#8a4b00`, dos cosas que no son la misma. En la tabla 2 la marca
+significa «aquí hay compensación»; en la 1 y la 3, «este modelo se separa de la referencia».
+Medido con el demo, un Δ de −2.5° en B1 y de 1.5 de rodado en B2, y una copia del modelo
+encendida para que la tabla 3 marque: **26 celdas marcadas en la tabla 2 y 22 en la 3, todas
+en el mismo color**. Quien lee no tiene cómo saber que son dos preguntas distintas.
+
+Ahora el Δ distinto de cero va por una clase propia, `k`, en **`#0a6b2d` sobre `#eaf7ee`**,
+y la marca de referencia se queda en el color tierra de siempre. Lo que NO cambia: el cero
+sigue apagado y con guion, el signo sigue delante, y las tablas 1 y 3 no pintan ni una celda
+verde.
+
+Tres detalles que costaron y no se ven:
+
+- **El verde no viaja solo.** Lleva negrita Y fondo porque el color por sí mismo no llega a
+  todas partes: una impresora en blanco y negro lo tira, y para un ojo deuterán el `#0a6b2d`
+  contra el `#111` del resto de la tabla es casi el mismo gris. Contraste del verde sobre su
+  fondo: **6.04:1**, por encima del 4.5 de WCAG AA; sobre el blanco de las filas normales,
+  6.66:1, y sobre el gris de la fila TOTAL, 5.88:1.
+- **La regla se escribe `tr td.k` y no `.k`.** La fila TOTAL lleva `tr.tot td{background:…}`,
+  que es especificidad 0-1-2, y un `.k` de 0-1-0 habría perdido el fondo justo en la fila que
+  más se mira de las tres tablas. Empatado a 0-1-2 y escrito después, gana el verde: medido
+  en el estilo CALCULADO, las 4 celdas de la fila TOTAL salen en `rgb(234, 247, 238)`.
+- **Las tres tablas salen con `data-tab="base|delta|total"`.** Sin ese gancho el banco tendría
+  que contar `<div class="tw">` y confiar en el orden, y el reporte trae una cuarta tabla
+  —la lista de modelos— delante de las tres.
+
 **Con el teclado abierto, el 3D se quita de en medio (2026-09-24).**
 Con el teclado de un teléfono quedan 424 px de alto. La cabecera se lleva 44, la barra
 de estado 26 y el 3D 170 —el 40 % de `--appH`—, así que a la tabla le quedaban 142: cuatro

@@ -156,13 +156,22 @@ export function reportHtml(): string {
      separa de la REFERENCIA, y se compara el TEXTO ya redondeado y no el
      número: con el número crudo, dos celdas que imprimen 90.0 y 90.0 salían
      marcadas por un resto de 1e-13, que es una diferencia que nadie puede ver
-     ni fabricar. */
+     ni fabricar.
+
+     DOS MARCAS, DOS CLASES. Las dos cosas que se resaltan no son la misma:
+     `k` es «aquí hay compensación» y sale en la tabla 2; `d` es «este modelo
+     se separa de la referencia» y sale en las tablas 1 y 3. Iban las dos por
+     `d`, o sea con el mismo color, y el reporte del demo con dos modelos
+     encendidos imprimía 26 celdas marcadas en la tabla 2 y 22 en la 3, todas
+     en el mismo #8a4b00: quien lo lee no tiene cómo saber que son dos
+     preguntas distintas. La de compensación va en verde, que es lo que se
+     pidió y es además la que se busca. */
   const celda = (v: number | null, n: number, modo: Modo, ref: number | null,
                  cls = ''): string => {
     if (v === null) return `<td class="${cls}z">—</td>`;
     if (modo === 'delta') {
       const z = +v.toFixed(n) === 0;
-      return `<td class="${cls}${z ? 'z' : 'd'}">${z ? '—' : (v > 0 ? '+' : '') + fx(v, n)}</td>`;
+      return `<td class="${cls}${z ? 'z' : 'k'}">${z ? '—' : (v > 0 ? '+' : '') + fx(v, n)}</td>`;
     }
     const t = fx(v, n);
     return `<td class="${cls}${ref !== null && t !== fx(ref, n) ? 'd' : ''}">${t}</td>`;
@@ -262,7 +271,7 @@ export function reportHtml(): string {
            + celda(c.str, 2, modo, null)
            + celda(c.cum, 2, modo, null);
     }).join('');
-    return `<div class="tw"><table><thead>
+    return `<div class="tw" data-tab="${modo}"><table><thead>
       <tr><th scope="col" rowspan="2">${T('nBend')}</th>
           <th scope="col" rowspan="2">${T('ori')}</th>${cab}</tr>
       <tr>${sub}</tr></thead>
@@ -327,6 +336,17 @@ export function reportHtml(): string {
   .grp{border-left:2px solid #c3c8d0}
   .z{color:#b6bcc6}
   .d{color:#8a4b00;font-weight:600}
+  /* La compensación, en verde. Va con NEGRITA y con fondo, y no solo con el
+     color, por dos razones medidas: en una impresora en blanco y negro el
+     color no llega, y para un ojo deuterán el #0a6b2d contra el #111 del
+     resto de la tabla es casi el mismo gris. El contraste del verde sobre su
+     fondo es 6.0:1, por encima del 4.5 que pide WCAG AA.
+
+     Se escribe «tr td.k» y no «.k» a secas por la especificidad: la fila
+     TOTAL lleva «tr.tot td{background:#eef1f5}», que es 0-1-2, y un «.k» de
+     0-1-0 perdería contra ella — justo en la fila que más se mira de las tres
+     tablas. Empatado a 0-1-2 y escrito después, gana este. */
+  tr td.k{color:#0a6b2d;font-weight:700;background:#eaf7ee}
   .sw{display:inline-block;width:9px;height:9px;border-radius:2px;margin-right:6px}
   /* La barra se queda PEGADA arriba. En un teléfono el reporte son varias
      pantallas de tabla, y si la barra se va con el scroll no queda salida:

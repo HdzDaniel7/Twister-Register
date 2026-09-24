@@ -154,7 +154,10 @@ tiene internet.
   veces** — el modelo sin compensar, solo las compensaciones, y la suma de las dos.
   Cada una acaba en una fila TOTAL, así que la de la primera más la de la segunda
   tiene que dar la de la tercera; y cada modelo encendido se lleva su bloque de
-  columnas, de modo que dos modelos se leen lado a lado en las tres. Cuando todos
+  columnas, de modo que dos modelos se leen lado a lado en las tres. En la de
+  compensaciones, la celda con Δ sale en **verde y con fondo**: es lo que se va a
+  buscar a esa hoja, y es una pregunta distinta de la marca color tierra de las
+  otras dos, que dice «este modelo se separa de la referencia». Cuando todos
   pintan lo mismo —lo normal en la primera, porque las variantes son Δ sobre una
   base común— esa tabla colapsa a un solo bloque en vez de repetir la misma
   columna una vez por modelo. Se abre a pantalla completa SOBRE la aplicación, no
