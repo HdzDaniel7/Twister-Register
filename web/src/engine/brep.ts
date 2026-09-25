@@ -55,26 +55,41 @@ export type StepEmit = {
   num: (v: number, dec?: number) => string;
 };
 
+/** Los cinco motivos por los que una pieza puede no tener sólido.
+ *
+ *  El código va APARTE del texto porque los dos sitios donde acaba el motivo
+ *  quieren cosas distintas: el encabezado del `.stp` quiere la frase en español
+ *  —el archivo no cambia de idioma, y quien lo abra con un editor dentro de dos
+ *  años lo lee igual— y la pantalla quiere una clave de i18n, porque aquí todo
+ *  texto visible pasa por `T()`. Sin el código, la pantalla tendría que reconocer
+ *  el motivo por su texto, que es atarse el inglés y el alemán a una cadena
+ *  española que además viaja dentro de un archivo. */
+export type SolidBlockCode = 'sec' | 'thick' | 'twist' | 'kink' | 'neg';
+
 /** Por qué NO se puede emitir un sólido de esta pieza, o `null` si sí se puede.
  *
  *  Devuelve el motivo en vez de un booleano a propósito: quien llama lo escribe
  *  en el encabezado del archivo y en la pantalla. «No hay sólido» sin decir por
  *  qué es exactamente lo que deja a alguien mirando un archivo vacío. */
-export function solidBlocker(model: Model): string | null {
+export function solidBlocker(model: Model): { code: SolidBlockCode; why: string } | null {
+  const no = (code: SolidBlockCode, why: string): { code: SolidBlockCode; why: string } =>
+    ({ code, why });
   const sec = model.section;
-  if (!(sec.width > 0)) return 'la seccion no tiene medidas';
-  if (sec.kind !== 'round' && !(sec.thickness > 0)) return 'la seccion no tiene espesor';
+  if (!(sec.width > 0)) return no('sec', 'la seccion no tiene medidas');
+  if (sec.kind !== 'round' && !(sec.thickness > 0)) {
+    return no('thick', 'la seccion no tiene espesor');
+  }
   if (sec.kind !== 'round' && model.bends.some(b => !!b.twist)) {
-    return 'la pieza lleva torsion y la seccion no es redonda: el solido seria'
-      + ' otra barra. Sale solo la geometria de referencia';
+    return no('twist', 'la pieza lleva torsion y la seccion no es redonda: el solido'
+      + ' seria otra barra. Sale solo la geometria de referencia');
   }
   /* Un doblez de radio cero es un PLIEGUE: el eje cambia de direccion sin arco,
      y el barrido no existe — no hay superficie que una las dos secciones. Se
      descarta el tramo al escribir las curvas, pero un casco al que le falta un
      trozo no cierra, y un solido que no cierra no es un solido. */
   if (model.bends.some(b => b.angle !== 0 && !(b.radius > 0))) {
-    return 'hay un doblez de radio cero, o sea un pliegue: no hay superficie'
-      + ' barrida que lo describa';
+    return no('kink', 'hay un doblez de radio cero, o sea un pliegue: no hay'
+      + ' superficie barrida que lo describa');
   }
   /* Una recta NEGATIVA es un avance que se queda corto —lo avisa la pestana de
      modelo— y aqui deja una barra que se mete dentro de si misma: no hay solido.
@@ -99,7 +114,7 @@ export function solidBlocker(model: Model): string | null {
   const rectas = model.bends.map((_, i) => straightOf(model, i))
     .concat(tailStraight(model));
   if (rectas.some(v => v < -1e-9)) {
-    return 'hay una recta de longitud negativa: el avance se queda corto';
+    return no('neg', 'hay una recta de longitud negativa: el avance se queda corto');
   }
   return null;
 }

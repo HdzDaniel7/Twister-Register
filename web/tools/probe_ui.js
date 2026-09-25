@@ -41,6 +41,15 @@ function drawer(k) {
   if (window.BARCOMP.ST.drawer !== k) q(`[data-dr="${k}"]`).click();
 }
 
+/* El motivo de `solidBlocker()` como texto, sea cual sea la forma en que lo
+   devuelva el bundle que se este midiendo. Hoy devuelve `{code, why}`; hasta el
+   2026-09-24 devolvia la frase suelta. El banco se corre A PROPOSITO contra
+   builds viejos —es asi como se comprueba que un paso falla ANTES del arreglo—
+   y con `bl.code` a secas esa falla decia «undefined / undefined» en vez de
+   nombrar el defecto, que es justo lo que la linea FALLA tiene que decir. */
+const motivoStp = bl => !bl ? 'null'
+  : typeof bl === 'string' ? bl : bl.code + ' / ' + bl.why;
+
 const click = sel => q(sel).click();
 const setval = (sel, v) => {
   const el = q(sel);
@@ -2318,7 +2327,7 @@ step('y la demo sale como SOLIDO, que es lo unico que importa todo CAD', () => {
   const m = S().model;
   /* la demo es rectangular, sin torsion y sin pliegues: tiene que haber solido */
   const motivo = B.E.solidBlocker(m);
-  if (motivo) throw new Error('se bloqueo el solido: ' + motivo);
+  if (motivo) throw new Error('se bloqueo el solido: ' + motivoStp(motivo));
   const txt = B.E.stepText(m, { name: m.name, build: 'banco', date: '2026-01-01T00:00:00' });
   if (!txt.includes('ADVANCED_BREP_SHAPE_REPRESENTATION(')) {
     throw new Error('salio sin solido');
@@ -2363,7 +2372,9 @@ step('una recta de longitud cero -la cola justo en la tangencia- no bloquea el s
     throw new Error('la copia no quedo con la cola en cero: tailStraight = ' + cola);
   }
   const motivo = B.E.solidBlocker(copia);
-  if (motivo) throw new Error('se bloqueo el solido con la cola en cero: ' + motivo);
+  if (motivo) {
+    throw new Error('se bloqueo el solido con la cola en cero: ' + motivoStp(motivo));
+  }
   const txt = B.E.stepText(copia, { name: copia.name, build: 'banco', date: '2026-01-01T00:00:00' });
   if (!txt.includes('ADVANCED_BREP_SHAPE_REPRESENTATION(')) {
     throw new Error('salio sin solido con la cola en cero');
@@ -2390,6 +2401,62 @@ step('una recta de longitud cero -la cola justo en la tangencia- no bloquea el s
    Una recta NEGATIVA sigue siendo un defecto real -el avance se queda corto y
    la barra se meteria dentro de si misma-, y eso lo tiene que seguir
    bloqueando la version de hoy tanto como la de antes de tocar brep.ts. */
+/* EL AVISO DE «ESTE .stp VA A SALIR SIN SOLIDO».
+
+   Lo que se prueba aqui no es el motor —eso ya esta en test_motor.js— sino que
+   el visor lo DICE. El 2026-09-24 alguien del taller exporto una pieza, el
+   archivo salio sin solido, y la pantalla no dijo nada: el motivo solo viajaba
+   dentro del `.stp`. El aviso vive junto al boton, o sea antes de exportar,
+   para que se lea mientras la pieza todavia se puede arreglar.
+
+   Se comprueba ademas que el texto sale del diccionario y no de una cadena
+   escrita a mano en el panel: se compara contra `T('stpNoSolid')` con el motivo
+   ya metido en `{r}`. Si alguien escribe el aviso en espanol dentro del HTML,
+   este paso lo caza aunque en pantalla se lea igual. */
+step('sin solido, el panel lo avisa junto al boton y dice el motivo traducido', () => {
+  const B = window.BARCOMP;
+  const m = S().model;
+  const antes = m.bends[0].twist;
+  try {
+    /* torsion con seccion rectangular: el solido seria otra barra */
+    m.bends[0].twist = 5;
+    B.renderAll();
+    drawer('file');
+    const caja = document.querySelector('#lf [data-stp]');
+    if (!caja) {
+      const bl = B.E.solidBlocker(S().model);
+      throw new Error('el panel no avisa: no hay ningun [data-stp] en el cajon,'
+        + ' y el motor dice ' + (bl ? motivoStp(bl) : 'que si hay solido'));
+    }
+    if (caja.getAttribute('data-stp') !== 'twist') {
+      throw new Error('el aviso dice el motivo equivocado: ' + caja.getAttribute('data-stp'));
+    }
+    if (caja.getAttribute('role') !== 'alert') {
+      throw new Error('el aviso no es role=alert: un lector de pantalla no lo lee');
+    }
+    const dic = B.I18N[B.LANG.cur];
+    const esperado = dic.stpNoSolid.replace('{r}', dic.stpTwist);
+    if (caja.textContent.trim() !== esperado) {
+      throw new Error('el texto no sale del diccionario: «' + caja.textContent.trim()
+        + '» en vez de «' + esperado + '»');
+    }
+  } finally {
+    m.bends[0].twist = antes;
+    B.renderAll();
+  }
+});
+/* GUARDA: con la demo, que si sale como solido, no hay aviso. Pasa en las dos
+   versiones —en la vieja no hay aviso NUNCA— y es lo que corresponde: lo que
+   sujeta es que el aviso no se quede pegado despues de arreglar la pieza. */
+step('guarda: con solido no hay aviso ninguno junto al boton', () => {
+  drawer('file');
+  if (window.BARCOMP.E.solidBlocker(S().model)) {
+    throw new Error('la demo dejo de salir como solido: el paso no prueba nada');
+  }
+  if (document.querySelector('#lf [data-stp]')) {
+    throw new Error('el aviso sigue puesto con una pieza que si sale como solido');
+  }
+});
 step('guarda: una recta negativa SI sigue bloqueando el solido', () => {
   const B = window.BARCOMP;
   const base = S().model;
@@ -2400,9 +2467,11 @@ step('guarda: una recta negativa SI sigue bloqueando el solido', () => {
   if (!(recta0 < 0)) {
     throw new Error('el modelo de prueba no quedo con una recta negativa: ' + recta0);
   }
+  /* «negativa» y no el codigo `neg`: asi la guarda vale tambien contra el build
+     viejo, donde el motivo era una frase suelta y no un objeto */
   const motivo = B.E.solidBlocker(copia);
-  if (!motivo || !motivo.includes('negativa')) {
-    throw new Error('la recta negativa no bloqueo el solido: ' + motivo);
+  if (!motivo || !motivoStp(motivo).includes('negativa')) {
+    throw new Error('la recta negativa no bloqueo el solido: ' + motivoStp(motivo));
   }
   const txt = B.E.stepText(copia, { name: copia.name, build: 'banco', date: '2026-01-01T00:00:00' });
   if (txt.includes('ADVANCED_BREP_SHAPE_REPRESENTATION(')) {

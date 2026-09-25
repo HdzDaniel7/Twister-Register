@@ -4293,8 +4293,9 @@ console.log('\n— el eje a STEP —');
       name: 'llana', section: { kind: 'rect', width: 40, thickness: 12 }, tail: 200,
       bends: [{ feed: 300, rot: 0, angle: 90, radius: 60, twist: 0, twistLen: 0 }],
     });
-    ok('una pieza normal sale con solido', E.solidBlocker(llana) === null,
-       String(E.solidBlocker(llana)));
+    const noLlana = E.solidBlocker(llana);
+    ok('una pieza normal sale con solido', noLlana === null,
+       noLlana ? noLlana.code + ': ' + noLlana.why : '');
     const t = E.stepText(llana, meta);
     ok('  y el archivo lo declara como ADVANCED_BREP_SHAPE_REPRESENTATION',
        t.includes('ADVANCED_BREP_SHAPE_REPRESENTATION('));
@@ -4325,17 +4326,20 @@ console.log('\n— el eje a STEP —');
     /* ---- cuando NO se puede, se dice por que y se manda la referencia ---- */
     const casos = [
       ['con torsion y seccion no redonda',
-       { ...llana, bends: [{ ...llana.bends[0], twist: 5 }] }, 'torsion'],
+       { ...llana, bends: [{ ...llana.bends[0], twist: 5 }] }, 'torsion', 'twist'],
       ['con un doblez de radio cero, que es un pliegue',
-       { ...llana, bends: [{ ...llana.bends[0], radius: 0 }] }, 'radio cero'],
+       { ...llana, bends: [{ ...llana.bends[0], radius: 0 }] }, 'radio cero', 'kink'],
       ['con una recta negativa, que es un avance corto',
-       { ...llana, bends: [{ ...llana.bends[0], feed: 10 }] }, 'longitud negativa'],
+       { ...llana, bends: [{ ...llana.bends[0], feed: 10 }] }, 'longitud negativa', 'neg'],
     ];
-    for (const [que, raw, motivo] of casos) {
+    for (const [que, raw, motivo, codigo] of casos) {
       const m = E.normalizeModel(raw);
       const b = E.solidBlocker(m);
+      /* el CODIGO es para la pantalla y el TEXTO para el archivo: se comprueban
+         los dos, porque son los dos sitios donde acaba el motivo */
       ok(`  ${que}: no hay solido, y se dice por que`,
-         !!b && b.includes(motivo), String(b));
+         !!b && b.why.includes(motivo) && b.code === codigo,
+         b ? b.code + ': ' + b.why : 'null');
       const x = E.stepText(m, meta);
       ok('    el archivo no finge llevarlo',
          !x.includes('ADVANCED_BREP_SHAPE_REPRESENTATION('));
@@ -4364,8 +4368,9 @@ console.log('\n— el eje a STEP —');
       ok('  una cola de longitud cero no es un defecto: acaba en la tangencia',
          Math.abs(E.tailStraight(pegada)) < 1e-9,
          `cola ${E.tailStraight(pegada).toExponential(2)} mm`);
-      ok('    y por lo tanto sale CON solido', E.solidBlocker(pegada) === null,
-         String(E.solidBlocker(pegada)));
+      const noPegada = E.solidBlocker(pegada);
+      ok('    y por lo tanto sale CON solido', noPegada === null,
+         noPegada ? noPegada.code + ': ' + noPegada.why : '');
       const tp = E.stepText(pegada, meta);
       const vivos = E.centreSegments(pegada).filter(x => x.kind === 'line'
         ? x.len > 1e-9 : (x.radius > 1e-9 && x.theta > 1e-9));

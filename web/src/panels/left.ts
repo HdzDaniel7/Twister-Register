@@ -12,6 +12,37 @@ import { saveFocus, restoreFocus, commitFocusIn } from './focus.ts';
 import { MENUS, themeSeg, langSeg } from './shell.ts';
 import type { I18nKey } from './fmt.ts';
 
+/* ------------------------------------------------- el .stp sin sólido ----
+   Qué motivo de `solidBlocker()` se enseña con qué clave. El motor devuelve un
+   CÓDIGO además del texto justamente para esto: el texto en español va dentro
+   del archivo —que no cambia de idioma— y aquí hace falta algo que se pueda
+   traducir. Reconocer el motivo por su texto habría atado el inglés y el alemán
+   a una cadena española escrita en `engine/brep.ts`.
+
+   POR QUÉ EXISTE. El botón exporta un sólido B-rep, y cuando no se puede sale en
+   su lugar geometría de referencia: el eje y el perfil. Eso pasaba EN SILENCIO
+   —el motivo solo viajaba en el encabezado del `.stp`, donde lo ve quien abra el
+   archivo con un editor de texto— y el 2026-09-24 alguien del taller abrió el
+   suyo en el CAD, vio una trayectoria y una cara suelta, y dijo «no funciona».
+   Tenía razón, y el visor no había dicho nada.
+
+   Va ANTES de exportar y no en un aviso al pulsar: así se lee mientras todavía se
+   puede arreglar la pieza —quitar la torsión, darle radio al pliegue— y no
+   cuando el archivo ya está descargado. */
+const STP_MOTIVO: Record<E.SolidBlockCode, I18nKey> = {
+  sec: 'stpNoSec', thick: 'stpNoThick', twist: 'stpTwist', kink: 'stpKink', neg: 'stpNeg',
+};
+
+/** El aviso, o cadena vacía si la pieza sí sale como sólido. Mira `ST.model` y
+ *  no `commandModel()` porque es lo que exporta `exportStep()`: el CAD quiere la
+ *  pieza que tiene que salir, no el comando que la produce. */
+function stpAviso(): string {
+  const bl = ST.model ? E.solidBlocker(ST.model) : null;
+  if (!bl) return '';
+  return `<div role="alert" class="warnbox mt6" data-stp="${bl.code}">`
+    + T('stpNoSolid').replace('{r}', T(STP_MOTIVO[bl.code])) + '</div>';
+}
+
 /* ---------------------------------------------------------------- ayudas -- */
 /** Tarjeta de un modelo. La tarjeta entera lo activa: el guardia del `click`
  *  global ignora los campos, así que escribir el nombre no cambia de modelo
@@ -152,6 +183,7 @@ const DRAWERS: Record<string, () => string> = {
      <div class="eyebrow" style="padding-left:0;margin-top:8px">CAD</div>
      <div class="col">
        <button class="btn sm" data-a="expstp" title="${esc(T('expStepTip'))}">${T('expStep')}</button>
+       ${stpAviso()}
      </div>
    </div></div>`,
 

@@ -1021,11 +1021,25 @@ Un cero suele ser una coincidencia legítima —dos cosas que se tocan— y un n
 siempre una inversión. El filtro de degenerados ya distinguía bien; el que no distinguía era
 el que decidía si había sólido.
 
-Queda abierto: cuando NO hay sólido, la pantalla no dice nada — el motivo solo viaja dentro
-del `.stp`, y ahí lo ve quien abre el archivo con un editor. Ponerlo en un aviso pide que
-`solidBlocker()` devuelva además una clave de i18n, porque hoy el motivo es un literal en
-español que va al encabezado del archivo (y el archivo no debe cambiar de idioma). Es una
-pasada aparte.
+**Y cuando NO hay sólido, ahora la pantalla lo dice (2026-09-24, la misma tarde).** Era la
+otra mitad del mismo fallo: el motivo solo viajaba dentro del `.stp`, donde lo ve quien
+abra el archivo con un editor de texto. El aviso va junto al botón y no en un diálogo al
+pulsar, porque así se lee **mientras la pieza todavía se puede arreglar** —quitar la
+torsión, darle radio al pliegue— y no cuando el archivo ya está descargado.
+
+Para eso `solidBlocker()` devuelve ahora **un código además del texto**: `{code, why}`, con
+`code` en `'sec' | 'thick' | 'twist' | 'kink' | 'neg'`. Los dos sitios donde acaba el motivo
+quieren cosas distintas y por eso no puede ser un solo valor: el encabezado del `.stp` quiere
+la frase en español —el archivo no cambia de idioma, y quien lo abra dentro de dos años la
+lee igual— y la pantalla quiere una clave de i18n, porque aquí todo texto visible pasa por
+`T()`. Reconocer el motivo por su texto habría atado el inglés y el alemán a una cadena
+española que además viaja dentro de un archivo. El cambio de firma se hizo en su propia
+pasada y se comprobó **byte a byte**: los cinco `.stp` de los casos de prueba salen idénticos
+a los de antes.
+
+De paso, el banco aprendió a leer las dos formas (`motivoStp()`): se corre a propósito contra
+builds viejos para comprobar que un paso falla ANTES del arreglo, y con `bl.code` a secas esa
+línea `FALLA` decía «undefined / undefined» en vez de nombrar el defecto.
 
 **La compensación se lee en verde en el reporte (2026-09-24).**
 Pedido del taller: «solo en la sección de compensaciones quiero que salgan de un color

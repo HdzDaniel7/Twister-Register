@@ -352,8 +352,19 @@ export function stepText(model: Model, meta: StepMeta): string {
      No siempre se puede: `solidBlocker()` dice por que cuando no, y el motivo
      acaba en el encabezado del archivo. Ademas hace falta que el eje sea UNA
      cadena — con un hueco en medio el casco no cerraria. */
-  const bloqueo = solidBlocker(model)
-    || (cadenas.length === 1 && vivos.length ? null : 'el eje quedo partido en trozos');
+  /* `solidBlocker()` devuelve código Y texto: el código es para la pantalla, que
+     tiene que traducirlo, y el texto es para AQUÍ. En el archivo se escribe la
+     frase en español y no una clave: el `.stp` no cambia de idioma, y quien lo
+     abra con un editor dentro de dos años tiene que poder leer por qué.
+
+     El eje partido no viene del bloqueador porque no se ve desde el modelo: hace
+     falta haber escrito ya los tramos. Con lo que hay hoy no puede pasar —un
+     tramo degenerado tiene `p0 === p1`, así que al quitarlo los vecinos se
+     siguen tocando— y se queda como guarda: si un día pasa, el casco no
+     cerraría y vale más no escribir sólido que escribir uno abierto. */
+  const bl = solidBlocker(model);
+  const bloqueo = bl ? bl.why
+    : (cadenas.length === 1 && vivos.length ? null : 'el eje quedo partido en trozos');
   const solido = bloqueo ? 0 : solidBrep(model, vivos, {
     put, pt, dir, num: NUM,
   });
