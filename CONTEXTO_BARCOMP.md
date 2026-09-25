@@ -991,6 +991,42 @@ Medido y descartado en esta misma pasada:
   llamadas de dibujo NO eran el cuello: el coste estaba en construir y destruir geometrías, y
   eso ya está resuelto.
 
+**Una cola de longitud CERO no es un defecto, y por creer que sí un STEP salió sin sólido
+(2026-09-24).** Reportado desde el taller: «el step me da una trayectoria y una cara
+transversal cuando me debería de dar el modelo». Era literal, y el archivo lo decía en su
+propio encabezado: `SIN SOLIDO (hay una recta de longitud cero o negativa: el avance se
+queda corto)`. La pieza es `240-_M1`, 22 dobleces, sección rect 46.58 × 7.28, exportada con
+el sello `623924c`.
+
+La pieza no tenía ninguna recta corta: la más corta mide **11.685 mm** y ninguna es
+negativa. Lo que valía cero era **la cola** — `tail = 0`, o sea que la barra acaba justo en
+la tangencia del último codo. `solidBlocker()` pedía `v > 0` para TODAS las rectas, así que
+el cero bloqueaba igual que un negativo. Y un corte al final del codo no es un defecto: se
+fabrica.
+
+Geométricamente tampoco había nada que arreglar. El tramo de longitud cero ya se cae solo
+al escribir el archivo —`vivos` pide `len > 1e-9`— y al caerse sus vecinos se siguen
+tocando, porque un tramo de longitud cero tiene `p0 === p1`. La condición pasó a
+`v < -1e-9`: lo que no se perdona es el **negativo**, que mete la barra dentro de sí misma y
+mueve la tapa hacia atrás.
+
+Medido sobre esa misma pieza, ya con el arreglo y con un núcleo geométrico de verdad
+(`tools/check_step_freecad.py` sobre FreeCAD 1.1 / OpenCASCADE): **174 caras**, sólido
+**válido y cerrado**, volumen **822582.079305 mm³** contra los **822582.079654** de Pappus,
+**4.24e-10** relativo. El casco lleva 43 tramos vivos de los 45 del eje: caen el arco de
+radio cero de la última fila y la propia cola.
+
+Lo que esto enseña y vale para el resto del motor: **cero y negativo no son el mismo caso.**
+Un cero suele ser una coincidencia legítima —dos cosas que se tocan— y un negativo es
+siempre una inversión. El filtro de degenerados ya distinguía bien; el que no distinguía era
+el que decidía si había sólido.
+
+Queda abierto: cuando NO hay sólido, la pantalla no dice nada — el motivo solo viaja dentro
+del `.stp`, y ahí lo ve quien abre el archivo con un editor. Ponerlo en un aviso pide que
+`solidBlocker()` devuelva además una clave de i18n, porque hoy el motivo es un literal en
+español que va al encabezado del archivo (y el archivo no debe cambiar de idioma). Es una
+pasada aparte.
+
 **La compensación se lee en verde en el reporte (2026-09-24).**
 Pedido del taller: «solo en la sección de compensaciones quiero que salgan de un color
 diferente las compensaciones que cambien». Lo que había: las tres tablas resaltaban con la

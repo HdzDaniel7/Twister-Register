@@ -76,13 +76,30 @@ export function solidBlocker(model: Model): string | null {
     return 'hay un doblez de radio cero, o sea un pliegue: no hay superficie'
       + ' barrida que lo describa';
   }
-  /* Una recta de longitud cero o negativa es un avance que se queda corto —lo
-     avisa la pestana de modelo— y aqui deja dos secciones en el mismo sitio o
-     una barra que se mete dentro de si misma. */
+  /* Una recta NEGATIVA es un avance que se queda corto —lo avisa la pestana de
+     modelo— y aqui deja una barra que se mete dentro de si misma: no hay solido.
+
+     UNA RECTA DE CERO SI VALE, y esto costo una pieza real. Aqui se pedia
+     `v > 0`, o sea que un cero bloqueaba igual que un negativo, y una pieza del
+     taller —240-_M1, 22 dobleces, seccion 46.58 x 7.28— salia del boton «Pieza a
+     STEP» sin solido: solo el eje y el perfil. Su recta mas corta mide 11.685 mm
+     y ninguna es negativa; lo que valia cero era LA COLA, `tail = 0`, que es una
+     pieza que acaba justo en la tangencia del ultimo doblez. Eso no es un
+     defecto: es un corte al final del codo, y se fabrica.
+
+     Geometricamente tampoco hay nada que arreglar. El tramo de longitud cero ya
+     se cae solo al escribir —`vivos` pide `len > 1e-9`— y al caerse sus vecinos
+     se siguen tocando, porque un tramo de longitud cero tiene `p0 === p1`. El
+     casco se cierra con un anillo menos y una tapa en el mismo sitio. Lo que no
+     se perdona es el negativo, que mueve la tapa HACIA ATRAS.
+
+     El margen de 1e-9 mm es el mismo con el que `stepText()` decide que un tramo
+     es degenerado: por debajo de eso el tramo no llega a escribirse, asi que
+     tratarlo como negativo bloquearia por una cifra que no acaba en el archivo. */
   const rectas = model.bends.map((_, i) => straightOf(model, i))
     .concat(tailStraight(model));
-  if (rectas.some(v => !(v > 0))) {
-    return 'hay una recta de longitud cero o negativa: el avance se queda corto';
+  if (rectas.some(v => v < -1e-9)) {
+    return 'hay una recta de longitud negativa: el avance se queda corto';
   }
   return null;
 }

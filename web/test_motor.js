@@ -4329,7 +4329,7 @@ console.log('\n— el eje a STEP —');
       ['con un doblez de radio cero, que es un pliegue',
        { ...llana, bends: [{ ...llana.bends[0], radius: 0 }] }, 'radio cero'],
       ['con una recta negativa, que es un avance corto',
-       { ...llana, bends: [{ ...llana.bends[0], feed: 10 }] }, 'longitud cero o negativa'],
+       { ...llana, bends: [{ ...llana.bends[0], feed: 10 }] }, 'longitud negativa'],
     ];
     for (const [que, raw, motivo] of casos) {
       const m = E.normalizeModel(raw);
@@ -4344,6 +4344,40 @@ console.log('\n— el eje a STEP —');
       ok('    pero el perfil vuelve: sin solido, hay algo que barrer',
          x.includes("GEOMETRIC_CURVE_SET('perfil'"));
     }
+    /* ---- la COLA A CERO si sale con solido, y costo una pieza real ----
+
+       Aqui se pedia que TODA recta fuera `> 0`, o sea que un cero bloqueaba
+       igual que un negativo. La pieza 240-_M1 del taller --22 dobleces, seccion
+       46.58 x 7.28-- tiene su recta mas corta en 11.685 mm y ninguna negativa:
+       lo que valia cero era la COLA, porque la pieza acaba justo en la
+       tangencia del ultimo codo. Eso es un corte al final del doblez y se
+       fabrica; salia del boton sin solido. Con el arreglo salen 174 caras, y
+       OCCT las lee validas y cerradas con 822582.079305 mm3 contra los
+       822582.079654 de Pappus: 4.24e-10 relativo.
+
+       El tramo de cola desaparece del archivo por degenerado, asi que el casco
+       lleva una frontera menos: la cuenta de caras va sobre los tramos VIVOS y
+       no sobre `centreSegments()`. */
+    {
+      const pegada = E.normalizeModel({ ...llana, name: 'pegada',
+        tail: E.trimOf(llana.bends[llana.bends.length - 1]) });
+      ok('  una cola de longitud cero no es un defecto: acaba en la tangencia',
+         Math.abs(E.tailStraight(pegada)) < 1e-9,
+         `cola ${E.tailStraight(pegada).toExponential(2)} mm`);
+      ok('    y por lo tanto sale CON solido', E.solidBlocker(pegada) === null,
+         String(E.solidBlocker(pegada)));
+      const tp = E.stepText(pegada, meta);
+      const vivos = E.centreSegments(pegada).filter(x => x.kind === 'line'
+        ? x.len > 1e-9 : (x.radius > 1e-9 && x.theta > 1e-9));
+      const sh = tp.match(/CLOSED_SHELL\('',\(([^)]*)\)\)/);
+      ok('    con cuatro caras por tramo VIVO mas las dos tapas',
+         !!sh && sh[1].split(',').length === vivos.length * 4 + 2,
+         `${sh ? sh[1].split(',').length : 0} caras para ${vivos.length} vivos`
+         + ` de ${E.centreSegments(pegada).length} tramos`);
+      ok('    y el archivo dice que omitio el tramo de cola',
+         tp.includes('1 tramo(s) degenerado(s) omitido(s)'));
+    }
+
     ok('  con solido el perfil suelto NO sale: no hay nada que barrer',
        !t.includes("GEOMETRIC_CURVE_SET('perfil'"));
     ok('  pero el eje y los PI se quedan, que son las referencias',

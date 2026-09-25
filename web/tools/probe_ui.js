@@ -2341,6 +2341,74 @@ step('y la demo sale como SOLIDO, que es lo unico que importa todo CAD', () => {
     throw new Error('sin el volumen de Pappus dentro del archivo');
   }
 });
+/* Por que existe este paso: una pieza real del taller, 240-_M1, 22 dobleces,
+   seccion rect 46.58x7.28, tail = 0. Su recta mas corta mide 11.685 mm y
+   ninguna es negativa; lo unico que valia cero era la COLA -tailStraight(),
+   o sea tail menos el trim del ultimo doblez-, que es una pieza que acaba
+   justo en la tangencia del ultimo codo. Eso no es un defecto, es un corte al
+   final del codo, y se fabrica. Antes del arreglo `solidBlocker()` pedia
+   `v > 0` en cada recta, asi que ese cero bloqueaba igual que un negativo y
+   la pieza salia del boton «Pieza a STEP» SIN solido -solo el eje y el
+   perfil-, que es justo lo que reporto el usuario. Aqui se reproduce la misma
+   condicion sobre la demo, tocando solo la cola para que tailStraight() de
+   exactamente 0, y se comprueba que el solido SIGUE saliendo. */
+step('una recta de longitud cero -la cola justo en la tangencia- no bloquea el solido', () => {
+  const B = window.BARCOMP;
+  const base = S().model;
+  const ultimo = base.bends[base.bends.length - 1];
+  /* copia, no se toca ST: tail puesto para que trim(ultimo) se lo coma entero */
+  const copia = B.E.normalizeModel({ ...base, tail: B.E.trimOf(ultimo) });
+  const cola = B.E.tailStraight(copia);
+  if (Math.abs(cola) > 1e-9) {
+    throw new Error('la copia no quedo con la cola en cero: tailStraight = ' + cola);
+  }
+  const motivo = B.E.solidBlocker(copia);
+  if (motivo) throw new Error('se bloqueo el solido con la cola en cero: ' + motivo);
+  const txt = B.E.stepText(copia, { name: copia.name, build: 'banco', date: '2026-01-01T00:00:00' });
+  if (!txt.includes('ADVANCED_BREP_SHAPE_REPRESENTATION(')) {
+    throw new Error('salio sin solido con la cola en cero');
+  }
+  if (!txt.includes('MANIFOLD_SOLID_BREP(') || !txt.includes('CLOSED_SHELL(')) {
+    throw new Error('el solido no cierra ningun casco con la cola en cero');
+  }
+  /* con la cola en cero hay UN tramo degenerado -la cola misma, p0 === p1-,
+     asi que la cuenta del paso anterior (centreSegments().length * 4 + 2)
+     sobra un tramo aqui. Lo que cuenta son los tramos VIVOS, los mismos que
+     filtra stepText() antes de escribir: `len > 1e-9` para una recta,
+     `radius > 1e-9 && theta > 1e-9` para un arco. */
+  const segs = B.E.centreSegments(copia);
+  const vivos = segs.filter(s =>
+    s.kind === 'line' ? s.len > 1e-9 : (s.radius > 1e-9 && s.theta > 1e-9));
+  const shell = txt.match(/CLOSED_SHELL\('',\(([^)]*)\)\)/);
+  const caras = shell ? shell[1].split(',').length : 0;
+  if (caras !== vivos.length * 4 + 2) {
+    throw new Error('caras: ' + caras + ' para ' + vivos.length + ' tramos vivos (de '
+      + segs.length + ' tramos en total)');
+  }
+});
+/* GUARDA, no prueba del arreglo: pasa igual en el codigo viejo y en el nuevo.
+   Una recta NEGATIVA sigue siendo un defecto real -el avance se queda corto y
+   la barra se meteria dentro de si misma-, y eso lo tiene que seguir
+   bloqueando la version de hoy tanto como la de antes de tocar brep.ts. */
+step('guarda: una recta negativa SI sigue bloqueando el solido', () => {
+  const B = window.BARCOMP;
+  const base = S().model;
+  /* el primer doblez con un avance minimo deja su recta corta y negativa */
+  const bends = base.bends.map((b, i) => i === 0 ? { ...b, feed: 1 } : b);
+  const copia = B.E.normalizeModel({ ...base, bends });
+  const recta0 = B.E.straightOf(copia, 0);
+  if (!(recta0 < 0)) {
+    throw new Error('el modelo de prueba no quedo con una recta negativa: ' + recta0);
+  }
+  const motivo = B.E.solidBlocker(copia);
+  if (!motivo || !motivo.includes('negativa')) {
+    throw new Error('la recta negativa no bloqueo el solido: ' + motivo);
+  }
+  const txt = B.E.stepText(copia, { name: copia.name, build: 'banco', date: '2026-01-01T00:00:00' });
+  if (txt.includes('ADVANCED_BREP_SHAPE_REPRESENTATION(')) {
+    throw new Error('salio con solido a pesar de la recta negativa');
+  }
+});
 
 /* -------------------------------------------------------- ACCESIBILIDAD ---
    Lo que se mide aquí es lo que un lector de pantalla o un ratón impreciso
