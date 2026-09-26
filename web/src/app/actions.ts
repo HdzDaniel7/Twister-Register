@@ -42,10 +42,21 @@ function bakeGuard(): boolean {
   return true;
 }
 
-/* Radio, R de canto y ángulo de plano mueven `trim = radio · tan(θ/2)`, que es
-   lo que el doblez le come a la recta POR LOS DOS LADOS. Como ahora la recta es
-   lo que se teclea, es ella la que no se mueve: se recolocan los avances. */
-const TRIM_KEYS = ['radius', 'rot', 'angle'];
+/* Radio y ángulo mueven `trim = radio · tan(θ/2)`, que es lo que el doblez le
+   come a la recta POR LOS DOS LADOS. Como ahora la recta es lo que se teclea, es
+   ella la que no se mueve: se recolocan los avances.
+
+   `rot` ESTUVO en esta lista y se fue el 2026-09-25. Era una creencia de cuando
+   el rodado era una componente del doblez: el trim no depende de él, porque
+   `bendDecomp()` saca theta del ángulo y nada más —`trimOf()` con el mismo
+   doblez a 0°, 45°, 90° y 180° de rodado da 15.450829974269539 las cuatro
+   veces—, así que teclear un rodado entraba por el camino caro, recalculaba
+   `straight + trim + trim` sobre la misma recta y devolvía el avance de vuelta.
+   Medido antes de quitarlo, 135 casos —los 15 dobleces de la demo por nueve
+   rodados de -180 a 180—: el peor cambio de avance es 0.000e+0 mm y el de la
+   cola también, o sea que la ida y vuelta salía bit a bit idéntica. Se va por lo
+   que hacía de más, no porque moviera un número. */
+const TRIM_KEYS = ['radius', 'angle'];
 
 export function editBend(i: number, key: DeltaKey, val: number): void {
   const v = V();

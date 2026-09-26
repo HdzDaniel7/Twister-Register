@@ -991,6 +991,36 @@ Medido y descartado en esta misma pasada:
   llamadas de dibujo NO eran el cuello: el coste estaba en construir y destruir geometrías, y
   eso ya está resuelto.
 
+**Confirmado en el CAD del taller: el `.stp` abre y enseña una pieza de verdad (2026-09-25).**
+Dicho por quien lo abrió: «funciona y muestra un modelo real en 3D en FreeCAD». Hasta hoy eso
+solo estaba comprobado aquí, con `tools/check_step_freecad.py` —el mismo núcleo, OpenCASCADE,
+pero llamado desde una consola y sin interfaz—, y lo que faltaba era exactamente lo que ese
+banco no puede ver: que el archivo llegue a un CAD abierto a mano y se vea la pieza.
+
+Lo que sigue SIN comprobar, y conviene no darlo por hecho: **SolidWorks**. Es el que ignora la
+geometría de curvas al importar STEP, y es la razón entera por la que se escribió el sólido;
+un sólido lo lee, pero eso aquí no lo ha visto nadie todavía.
+
+**El rodado se fue de las listas de claves de trim (2026-09-25).** `trim = radio · tan(θ/2)`
+y `bendDecomp()` saca θ del ángulo y de nada más: el rodado inclina el PLANO en el que se
+dobla, no cuánto se dobla. Estaba en `TRIM_KEYS` (`app/actions.ts`) y, desde que
+`holdStraights()` duplicó la lista, también en `TRIM_DELTA_KEYS` (`engine/model.ts`), así que
+teclear un rodado entraba por el camino caro: recalcular `straight + trim + trim` sobre la
+misma recta y devolver el avance de vuelta.
+
+Medido ANTES de quitarlo, que es lo que permitió quitarlo: **135 casos** —los 15 dobleces de
+la demo por nueve rodados de −180 a 180— y el peor cambio de avance es **0.000e+0 mm**, y el
+de la cola también; la ida y vuelta salía bit a bit idéntica. El mismo doblez a seis rodados
+distintos da **un solo trim, 30.581968420103681 mm**. Y por el camino de los Δ, con un Δ de
+recta de 5 mm y otro de ángulo ya puestos —que es el caso en el que ese camino REESCRIBÍA el
+Δ de avance en vez de dejarlo quieto—, los seis rodados dejan el resto de los Δ y la cola
+donde estaban.
+
+**Ningún paso del banco puede fallar antes de este cambio, y eso es lo correcto**: la pasada
+es neutra en comportamiento por construcción, así que lo que entra es una GUARDA —teclear un
+rodado en la tabla no mueve ningún avance ni la cola— que pasa en las dos versiones. Sujeta
+justo la razón por la que se pudo quitar.
+
 **Una cola de longitud CERO no es un defecto, y por creer que sí un STEP salió sin sólido
 (2026-09-24).** Reportado desde el taller: «el step me da una trayectoria y una cara
 transversal cuando me debería de dar el modelo». Era literal, y el archivo lo decía en su

@@ -223,6 +223,35 @@ step('la celda de rodado dice a qué eje deja', () => {
   if (!cel.title) throw new Error('la celda no explica el giro');
   if (!/[0-9]/.test(cel.title)) throw new Error('no dice el eje resultante: ' + cel.title);
 });
+/* GUARDA, y de las que no se pueden escribir despues: teclear un RODADO en la
+   tabla no puede mover ningun avance ni la cola. El rodado inclina el plano en
+   el que se dobla, no cuanto se dobla, asi que no toca el trim y no hay recta
+   que recolocar.
+
+   Pasa en las dos versiones a proposito. Hasta el 2026-09-25 `rot` estaba en
+   las dos listas de claves de trim y la edicion entraba por el camino caro
+   -recalcular `straight + trim + trim` y devolver el mismo avance-; ahora entra
+   por el corto. Lo que este paso sujeta es que el resultado sigue siendo el
+   mismo, que es la razon entera por la que se pudo quitar. */
+step('guarda: teclear un rodado no mueve ningun avance ni la cola', () => {
+  click('[data-md="model"]');
+  click('#tabs [data-t="model"]');
+  const m = S().model;
+  const antes = m.bends.map(b => b.feed), colaAntes = m.tail;
+  const rotAntes = m.bends[1].rot;
+  try {
+    setval('#panes input[data-b="1"][data-k="rot"]', String(rotAntes === 90 ? -90 : 90));
+    const ahora = S().model;
+    const peor = Math.max(...ahora.bends.map((b, i) => Math.abs(b.feed - antes[i])),
+                          Math.abs(ahora.tail - colaAntes));
+    if (peor !== 0) {
+      throw new Error('el rodado movio avances: peor ' + peor.toExponential(3) + ' mm');
+    }
+    if (ahora.bends[1].rot === rotAntes) throw new Error('el rodado no llego a escribirse');
+  } finally {
+    setval('#panes input[data-b="1"][data-k="rot"]', String(rotAntes));
+  }
+});
 step('la tabla dice Rodado y Angulo, no canto ni plano', () => {
   const th = [...document.querySelectorAll('table.lra thead th')].map(x => x.textContent.trim());
   if (th[4] !== 'Rodado') throw new Error('columna 5 = ' + th[4]);

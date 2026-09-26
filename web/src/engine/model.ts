@@ -143,11 +143,14 @@ export function effectiveModel(v: Variant): Model {
    Lo que se conserva es la recta EFECTIVA, no la de la base: un Δ de recta ya
    tecleado sigue valiendo lo tecleado después de corregir un ángulo.
 
-   `rot` está en la lista por simetría con `editBend()`: el trim no depende del
-   rodado —`bendDecomp()` saca theta solo del ángulo— así que entrar por aquí
-   con un Δ de rodado recalcula el mismo avance y no cambia nada. Se quita de
-   los dos sitios a la vez, en una pasada que no cambie comportamiento. */
-const TRIM_DELTA_KEYS: DeltaKey[] = ['radius', 'rot', 'angle'];
+   `rot` estuvo en la lista por simetría con `editBend()` y se fue el 2026-09-25,
+   de los dos sitios a la vez: el trim no depende del rodado —`bendDecomp()` saca
+   theta solo del ángulo— así que entrar por aquí con un Δ de rodado recalculaba
+   el mismo avance. Medido antes de quitarlo: con un Δ de recta de 5 mm y otro de
+   ángulo ya puestos —que es el caso en el que este camino REESCRIBE el Δ de
+   avance en vez de dejarlo quieto—, poner el rodado a -90, 0, 33.3 y 180 deja el
+   resto de los Δ y la cola exactamente donde estaban, las cuatro veces. */
+const TRIM_DELTA_KEYS: DeltaKey[] = ['radius', 'angle'];
 
 /* Por debajo de esto no hay recta que valga: es ruido de coma flotante, y
    escribirlo encendería la fila entera con un Δ que nadie tecleó. */

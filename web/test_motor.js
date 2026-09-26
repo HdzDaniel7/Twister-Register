@@ -267,6 +267,39 @@ console.log('\n— longitudes por doblez —');
        Math.abs(t.deltas[4].twist - 3) < 1e-12
        && maxAbs(t.deltas.map(d => d.feed)) < 1e-12 && t.tailDelta === 0);
 
+    /* EL RODADO NO MUEVE EL TRIM, y por eso se fue de las dos listas de claves
+       de trim el 2026-09-25. `trimOf()` es `radius * tan(theta/2)` y
+       `bendDecomp()` saca theta del angulo y nada mas: el rodado inclina el
+       PLANO en el que se dobla, no cuanto se dobla. Mientras estuvo en la lista,
+       teclear un rodado recalculaba `straight + trim + trim` sobre la misma
+       recta y devolvia el mismo avance.
+
+       Se prueban las dos mitades. Primero la de abajo: el trim con el mismo
+       doblez a cuatro rodados. Y luego la de arriba: con un Δ de recta ya
+       tecleado —que es el caso en el que ese camino REESCRIBIA el Δ de avance en
+       vez de dejarlo quieto—, poner el rodado no puede mover ni un avance. */
+    const rotaciones = [-180, -90, 0, 33.3, 90, 180];
+    const trims = rotaciones.map(r => E.trimOf({ ...M.bends[4], rot: r }));
+    ok('el trim no depende del rodado: mismo doblez, seis rodados, un solo trim',
+       maxAbs(trims.map(x => x - trims[0])) === 0, `${trims[0].toFixed(15)} mm`);
+
+    {
+      const g = mkv();
+      E.setDelta(g, 2, 'feed', 5);
+      E.setDelta(g, 3, 'angle', 1.5);
+      const feedsAntes = g.deltas.map(d => d.feed), colaAntes = g.tailDelta;
+      let peor = 0;
+      for (const r of rotaciones) {
+        E.setDelta(g, 2, 'rot', r);
+        peor = Math.max(peor, maxAbs(g.deltas.map((d, i) => d.feed - feedsAntes[i])),
+                        Math.abs(g.tailDelta - colaAntes));
+      }
+      ok('un Δ de RODADO no mueve ningun avance, ni con Δ de recta puestos',
+         peor === 0, `peor ${peor.toExponential(3)} mm en ${rotaciones.length} rodados`);
+      ok('  y el rodado si queda escrito', Math.abs(g.deltas[2].rot - 180) < 1e-12,
+         `${g.deltas[2].rot}`);
+    }
+
     /* un radio tambien mueve el trim, y entra por el mismo sitio */
     const r = mkv();
     E.setDelta(r, 4, 'radius', 10);

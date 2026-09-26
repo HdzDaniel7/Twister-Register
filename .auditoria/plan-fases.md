@@ -271,7 +271,11 @@ Detalle en `CONTEXTO_BARCOMP.md`, «La carga».
       toca), `node tools/ui_test.mjs` 309 → 312 pasos. Detalle completo en
       `CONTEXTO_BARCOMP.md` §11.
 
-- [ ] **`'rot'` sigue en DOS listas de claves de trim · [S]** — creencia vieja de cuando
+- [x] **`'rot'` sigue en DOS listas de claves de trim · [S]** — **hecho el 2026-09-25**: fuera
+      de `TRIM_KEYS` y de `TRIM_DELTA_KEYS` a la vez, con la medida delante — 135 casos, peor
+      cambio de avance 0.000e+0 mm; el mismo doblez a seis rodados da un solo trim. Entra una
+      guarda en el banco; ningún paso puede fallar antes, porque la pasada es neutra. El
+      porqué original, que sigue valiendo: creencia vieja de cuando
       `rot` era componente de doblez; el trim no depende del rodado —`bendDecomp()` saca θ
       solo del ángulo—, así que editar `rot` entra al camino de recolocar avances para nada
       y sale el mismo avance de vuelta. Hasta el 2026-09-22 estaba solo en `TRIM_KEYS`
