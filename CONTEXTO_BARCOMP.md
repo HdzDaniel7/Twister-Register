@@ -991,6 +991,57 @@ Medido y descartado en esta misma pasada:
   llamadas de dibujo NO eran el cuello: el coste estaba en construir y destruir geometrías, y
   eso ya está resuelto.
 
+**El punto ciego de los tramos rectos, MEDIDO (2026-09-25).** La tarea llevaba abierta con la
+condición escrita delante: «no se hace mientras no haya una medida que lo exija». Faltaba esa
+medida, y aquí está.
+
+Qué es el punto ciego: el modelo solo sabe describir rectas y arcos de ESTACIÓN, así que lo que
+le pase a la barra entre dos estaciones —la flecha por su propio peso, sobre todo— no se puede
+representar con ninguna combinación de las incógnitas del ajuste. Se mide en dos pasos: cuánto
+se cuelga, y cuánto de eso sobrevive al mejor ajuste posible.
+
+Sobre la demo (1861.9 mm desarrollados, 40 × 12, 6061-T6 provisional, `tol.point` = 1.0 mm) con
+el fixture que siembra `seedPedestals()`, **7 pedestales, 8 vanos, luz peor 327 mm**:
+
+| | flecha peor | punto ciego (residuo a media luz) |
+|---|---|---|
+| 7 pedestales | 0.0020 mm | **0.00105 mm — 0.1 % de `tol.point`** |
+| 4 pedestales | 0.0373 mm (×18.3) | 0.0107 mm (×10.2) — 1.1 % |
+
+El residuo en los PI es 0.00012 mm en el peor caso y no escala con la flecha —crece ×2 mientras
+la flecha crece ×18—, o sea que es ruido de coma flotante de la cadena `ik`→`fk` sobre 1.86 m y
+no un efecto físico: **los PI absorben la flecha prácticamente entera**, y lo que queda fuera es
+lo de media luz.
+
+El barrido de fixture, quitando pedestales, con la flecha peor del motor:
+
+    7 pedestales  luz peor  327 mm   0.0020 mm    0.2 % de tol.point
+    5 pedestales  luz peor  426 mm   0.0059 mm    0.6 %
+    4 pedestales  luz peor  556 mm   0.0373 mm    3.7 %
+    3 pedestales  luz peor  842 mm   0.1087 mm   10.9 %
+    2 pedestales  luz peor 1568 mm   0.0460 mm    4.6 %
+
+**No es monótono, y eso es el hallazgo que vale.** Con 3 pedestales la peor flecha no está en el
+vano más largo: el de 842 mm va DE CANTO —`I` = 46626 mm⁴— y se cuelga 0.0259 mm, mientras que
+uno de 725 mm DE PLANO —`I` = 6112 mm⁴, siete veces menos— se cuelga 0.1087. Y con 2 pedestales
+la luz peor salta a 1568 mm y la flecha BAJA a 0.046, porque ese vano largo va de canto. O sea
+que la orientación manda más que la luz, que es exactamente lo que `engine/sag.ts` dice en su
+encabezado, ahora con cifras del propio motor.
+
+**Veredicto: la tarea se queda documentada y no se hace.** Con el fixture de hoy el punto ciego
+es el 0.1 % de la tolerancia de punto, y en el peor fixture del barrido sigue por debajo del
+4 %. Meter incógnitas dentro de un tramo pide inventar dobleces que no existen —la cinemática
+LRA no sabe describir otra cosa— y sería cambiar el motor para ganar milésimas. Lo que sí queda
+dicho es **cuándo dejaría de valer esta conclusión**: la flecha va con L⁴, así que un vano de
+plano largo la dispara. Si algún día el fixture real deja un vano de plano de más de ~800 mm, se
+vuelve a medir antes de decidir.
+
+Lo que NO es medida del motor, dicho para que nadie lo confunda: la forma «colgada» con la que
+se hizo el ajuste se construyó desplazando cada PI con los mismos dos perfiles de viga que usa
+`sag.ts` —biapoyada y ménsula con carga repartida—, evaluados a lo largo del vano en vez de solo
+en el punto peor, porque no hay función del motor que devuelva la flecha como nube continua. Las
+flechas, el ajuste y los caminos sí salen del motor (`gravitySag`, `measuredModel`, `buildPath`).
+
 **El umbral de tubo también juzga un RECTANGULAR hueco (2026-09-25).** `lims.tubeRfac` solo
 mordía en tubo redondo, y el motivo escrito era que «la regla del diámetro no significa nada
 en un rectangular hueco». Es verdad a medias: lo que no significa nada es el **diámetro**, no

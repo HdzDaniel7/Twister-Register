@@ -124,6 +124,16 @@ Detalle en `CONTEXTO_BARCOMP.md`, «La carga».
       dobleces que no existen. **No se hace mientras no haya una medida que lo
       exija**: el número que falta ya se está dando, en otra columna y con su
       nombre.
+      **MEDIDO el 2026-09-25, y la medida dice que no lo exige.** Sobre la demo con el fixture
+      que siembra `seedPedestals()` —7 pedestales, 8 vanos, luz peor 327 mm— la flecha peor es
+      0.0020 mm y el punto ciego —el residuo a media luz que ninguna incógnita de estación
+      puede tocar— **0.00105 mm, el 0.1 % de `tol.point`**. Con 4 pedestales sube a 0.0107 mm
+      (1.1 %). El residuo en los PI es 0.00012 mm y no escala con la flecha: los PI la absorben
+      entera. En el barrido de fixture la peor flecha de todas es 0.1087 mm con 3 pedestales
+      —10.9 % de la tolerancia— y está en un vano de 725 mm DE PLANO, no en el de 842 mm de
+      canto, porque `I` cambia siete veces con la orientación. Se queda documentado en
+      CONTEXTO §11 con el criterio de cuando habría que volver a medir: un vano de plano de
+      más de ~800 mm en el fixture real.
 - [x] **El apoyo del pedestal solo mira de abajo arriba · [O]** — **cerrado el 2026-09-18**
       con FIS-10b, que era el mismo trabajo. Un apoyo es una CARA y el hueco es la distancia
       con signo de la sección a ella, así que la barra a plomo que roza el costado de la cuna
