@@ -2941,11 +2941,44 @@ console.log('\n— los umbrales configurables (engine/lims.ts) —');
     });
     ok('  pero en una redonda MACIZA no dice nada: la regla es del tubo',
        E.feasibility(macizo, E.normLims({ tubeRfac: 1.5 })).tightTube.length === 0);
+    /* EL RECTANGULAR HUECO TAMBIEN SE JUZGA, desde el 2026-09-25. Antes no: la
+       condicion pedia `kind === 'round'` y el motivo escrito era que «la regla
+       del diametro no significa nada en un rectangular hueco». Es verdad a
+       medias — lo que no significa nada es el DIAMETRO, no la regla. Lo que
+       manda en los dos casos es la medida que queda EN EL PLANO DE DOBLADO, y
+       esa se sabe por estacion: el espesor en un doblez de plano, el ancho en
+       uno de canto. Es la misma distincion de `orientations()` y de `sagI()`.
+
+       Con 40 x 20 de pared 2 y el factor en 1.5: un doblez de plano pide R30 y
+       uno de canto R60, o sea que el MISMO factor da dos radios. Los cuatro
+       dobleces de abajo son, por rodado acumulado, plano/canto/plano/canto, con
+       R25, R45, R35 y R70: los dos primeros se quedan cortos y los dos ultimos
+       pasan. Se comprueba contra `tubeRmin()` y no contra una lista
+       escrita a mano, para que la prueba siga valiendo si cambian las medidas. */
     const rect = E.normalizeModel({
       ...tubo, section: { ...tubo.section, kind: 'rect', thickness: 20 },
+      bends: [E.newBend({ feed: 300, rot: 0, angle: 45, radius: 25 }),
+              E.newBend({ feed: 300, rot: 90, angle: 45, radius: 45 }),
+              E.newBend({ feed: 300, rot: -90, angle: 45, radius: 35 }),
+              E.newBend({ feed: 300, rot: 90, angle: 45, radius: 70 })],
     });
-    ok('  ni en un rectangular hueco, donde un diámetro no es una medida',
-       E.feasibility(rect, E.normLims({ tubeRfac: 1.5 })).tightTube.length === 0);
+    const oriR = E.orientations(rect);
+    ok('  el rectangular de prueba alterna plano y canto',
+       oriR.join('') === 'TWTW', oriR.join(''));
+    ok('  el mismo factor pide DOS radios distintos segun como este puesta',
+       E.tubeRmin(rect.section, 'T', 1.5) === 30 && E.tubeRmin(rect.section, 'W', 1.5) === 60,
+       `plano R${E.tubeRmin(rect.section, 'T', 1.5)}, canto R${E.tubeRmin(rect.section, 'W', 1.5)}`);
+    const jr = E.feasibility(rect, E.normLims({ tubeRfac: 1.5 }));
+    const esperados = rect.bends.reduce((out, b, i) =>
+      (b.radius < E.tubeRmin(rect.section, oriR[i], 1.5) - 1e-9 ? (out.push(i), out) : out), []);
+    ok('  y en un rectangular HUECO tambien marca, contra la medida que se dobla',
+       jr.tightTube.join(',') === esperados.join(',') && jr.tightTube.length === 2,
+       `marcados [${jr.tightTube.join(',')}] de 4; R25/R45/R35/R70 contra R30 de plano y R60 de canto`);
+    ok('  pero en un rectangular MACIZO sigue sin decir nada: la regla es del tubo',
+       E.feasibility(E.normalizeModel({ ...rect, section: { ...rect.section, wall: 0 } }),
+                     E.normLims({ tubeRfac: 1.5 })).tightTube.length === 0);
+    ok('  y en el redondo no cambia nada: el diametro sigue siendo la medida',
+       E.tubeRmin(tubo.section, 'T', 1.5) === 60 && E.tubeRmin(tubo.section, 'W', 1.5) === 60);
     /* Y viaja en el archivo, que es media razón para que el campo exista: un
        JSON guardado dice con qué umbral se juzgó esa pieza. */
     const vuelta = E.normLims(JSON.parse(JSON.stringify(E.normLims({ tubeRfac: 1.5 }))));

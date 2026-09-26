@@ -6,7 +6,7 @@
    ========================================================================= */
 export type Lang = 'es' | 'en' | 'de';
 
-/** Las 508 claves que deben existir en LOS TRES diccionarios.
+/** Las 510 claves que deben existir en LOS TRES diccionarios.
  *
  *  El número iba a la deriva: decía 458 cuando ya eran 486, porque se suma
  *  a mano y a veces se olvida. Lo que de verdad sujeta la paridad no es este
@@ -32,7 +32,7 @@ export type I18nKey =
   | 'pedGap' | 'pedSpan' | 'pedWorst' | 'pedOff' | 'pedOffN' | 'pedOffTip'
   | 'pedLiftTip' | 'addPed' | 'seedPed' | 'clearPed' | 'fixEmpty' | 'fixNote' | 'sbFew'
   | 'sbFewTip' | 'sbFlat' | 'sbFlatTip'
-  | 'fabHead' | 'fabNeg' | 'fabShort' | 'fabTail' | 'fabOver' | 'fabTube'
+  | 'fabHead' | 'fabNeg' | 'fabShort' | 'fabTail' | 'fabOver' | 'fabTube' | 'fabTubeRect'
   | 'pins' | 'lPins' | 'lHeld' | 'pinOn' | 'pinOnTip' | 'pinDoRot' | 'pinRotTip'
   | 'pinTol' | 'pinTolTip' | 'pinDamp' | 'pinDampTip' | 'pinDia' | 'pinGap'
   | 'pinReach' | 'pinReachTip' | 'pinYes' | 'pinNo' | 'pinHold' | 'pinHoldTip'
@@ -70,7 +70,7 @@ export type I18nKey =
   | 'compSim' | 'compHeld' | 'compShort' | 'rowNoMeas' | 'compFewN'
   | 'secKind' | 'secRect' | 'secRound' | 'dia' | 'wall' | 'wallHint'
   | 'secSolid' | 'secHollow' | 'secArea' | 'secInertia' | 'secMass' | 'cutLen'
-  | 'secRoundWarn' | 'secHollowWarn' | 'secHollowJudged' | 'secTip'
+  | 'secRoundWarn' | 'secHollowWarn' | 'secHollowJudged' | 'secHollowJudgedRect' | 'secTip'
   | 'secFig' | 'secChamNote' | 'secChamNone'
   | 'fibre' | 'fibreCenter' | 'fibreDin' | 'fibreFixed' | 'kFac' | 'fibreTip'
   | 'fibreRt' | 'cutLenTip'

@@ -38,11 +38,20 @@ export function feasNote(M: Model): string {
                             .replace('{n}', String(E.BEND_MAX_DEG)));
   }
   /* El radio mínimo del tubo solo llega hasta aquí si alguien tecléó la cifra en
-     Límites: sin ella `tightTube` sale vacío a propósito. Ver `LIMS_DEFAULT`. */
+     Límites: sin ella `tightTube` sale vacío a propósito. Ver `LIMS_DEFAULT`.
+
+     En un rectangular el radio pedido NO es el mismo en todos los dobleces: se
+     mide contra la medida que queda en el plano de doblado, o sea el espesor en
+     los de plano y el ancho en los de canto. Por eso `{r}` puede traer dos
+     cifras. En un redondo sale una sola y el texto se lee igual que siempre. */
   if (f.tightTube.length) {
-    partes.push(T('fabTube').replace('{b}', bs(f.tightTube))
-                            .replace('{n}', String(ST.lims.tubeRfac))
-                            .replace('{r}', (ST.lims.tubeRfac * M.section.width).toFixed(1)));
+    const ori = E.orientations(M);
+    const pedidos = [...new Set(f.tightTube.map(i =>
+      E.tubeRmin(M.section, ori[i], ST.lims.tubeRfac).toFixed(1)))];
+    partes.push(T(M.section.kind === 'round' ? 'fabTube' : 'fabTubeRect')
+      .replace('{b}', bs(f.tightTube))
+      .replace('{n}', String(ST.lims.tubeRfac))
+      .replace('{r}', pedidos.join(' / ')));
   }
   return `<div role="alert" class="warnbox mb6">${T('fabHead')} ${partes.join(' ')}</div>`;
 }

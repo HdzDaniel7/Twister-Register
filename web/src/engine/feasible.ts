@@ -11,9 +11,9 @@
    Vive en su propio archivo y no en kinematics.ts por dos motivos: ese archivo
    ya pasa de las 400 líneas de la regla, y esto no es cinemática —es el juicio
    sobre lo que la cinemática produjo—. La dependencia va en un solo sentido.  */
-import { bendTheta, straightOf, tailStraight, BEND_MAX_DEG } from './kinematics.ts';
+import { bendTheta, orientations, straightOf, tailStraight, BEND_MAX_DEG } from './kinematics.ts';
 import { LIMS_DEFAULT } from './lims.ts';
-import type { Model, Lims } from '../types.ts';
+import type { Model, Lims, Orientation, Section } from '../types.ts';
 
 /* La recta mínima entre tangencias es `lims.straightMin`: se teclea en la
    pestaña «Límites», viaja en el JSON y lo explica engine/lims.ts. Aquí solo se
@@ -31,7 +31,8 @@ export type Feasibility = {
   overBent: number[];
   /** la recta de SALIDA tampoco llega */
   tailShort: boolean;
-  /** tubo redondo: dobleces con menos radio del que el taller admite */
+  /** tubo: dobleces con menos radio del que el taller admite. Redondo o
+   *  rectangular; ver `tubeRmin()` */
   tightTube: number[];
   /** ¿hay algo que impida fabricar la pieza tal como está? */
   ok: boolean;
@@ -43,6 +44,22 @@ export type Feasibility = {
 export const overBent = (model: Model): number[] =>
   model.bends.reduce<number[]>((out, b, i) =>
     (bendTheta(b) > BEND_MAX_DEG + 1e-9 ? (out.push(i), out) : out), []);
+
+/** El radio mínimo que admite un tubo en ESE doblez, en mm.
+ *
+ *  `fac` es `lims.tubeRfac`, y multiplica la medida de la sección que queda en
+ *  el plano de doblado: en un redondo eso es el diámetro pase lo que pase, y en
+ *  un rectangular depende de cómo esté puesta la barra en esa estación — el
+ *  espesor en un doblez de plano («T»), el ancho en uno de canto («W»). Es la
+ *  misma distinción que ya hacen `orientations()` y `sagI()`, y es la que tiene
+ *  sentido físico: lo que ovaliza o pandea es la pared que se estira, o sea la
+ *  cara que mira al radio.
+ *
+ *  Esto NO inventa ningún umbral: `fac` lo teclea el taller y nace en 0, que
+ *  significa no vigilar. Lo único que decide esta función es CONTRA QUÉ MEDIDA
+ *  se multiplica esa cifra. Para un redondo devuelve exactamente lo de antes. */
+export const tubeRmin = (sec: Section, ori: Orientation, fac: number): number =>
+  fac * (sec.kind === 'round' ? sec.width : ori === 'W' ? sec.width : sec.thickness);
 
 /** Qué le impide a esta pieza salir de la máquina. Todo en índices base 0; a
  *  quien lo pinta le toca sumar uno, que es como se numeran los dobleces en la
@@ -56,14 +73,23 @@ export function feasibility(model: Model, lims: Lims = LIMS_DEFAULT): Feasibilit
   });
   const over = overBent(model);
   const tailShort = tailStraight(model) < lims.straightMin;
-  /* El radio mínimo de un TUBO. Tres condiciones, y las tres importan:
-     redondo, con pared, y con una cifra tecleada. Con `tubeRfac` en 0 —que es
-     como nace— esto no mira nada y la pestaña Sección sigue avisando con
-     palabras de que el programa no lo juzga. Ver `LIMS_DEFAULT`. */
+  /* El radio mínimo de un TUBO. Dos condiciones: que tenga pared y que alguien
+     haya tecleado la cifra. Con `tubeRfac` en 0 —que es como nace— esto no mira
+     nada y la pestaña Sección sigue avisando con palabras de que el programa no
+     lo juzga. Ver `LIMS_DEFAULT`.
+
+     Hasta el 2026-09-25 la tercera condición era `kind === 'round'`, y un tubo
+     RECTANGULAR no se juzgaba ni con la cifra puesta. El motivo escrito era que
+     «la regla del diámetro no significa nada en un rectangular hueco», y es
+     verdad a medias: lo que no significa nada es el DIÁMETRO, no la regla. Lo
+     que manda en los dos casos es la medida de la sección que queda EN EL PLANO
+     DE DOBLADO, y esa se sabe por estación —es la misma que decide `sagI()` y la
+     que la tabla llama de plano o de canto—. Ver `tubeRmin()`. */
   const sec = model.section;
-  const tightTube = lims.tubeRfac > 0 && sec.kind === 'round' && sec.wall > 0
+  const ori = orientations(model);
+  const tightTube = lims.tubeRfac > 0 && (sec.wall || 0) > 0
     ? model.bends.reduce<number[]>((out, b, i) =>
-        (b.radius < lims.tubeRfac * sec.width - 1e-9 ? (out.push(i), out) : out), [])
+        (b.radius < tubeRmin(sec, ori[i], lims.tubeRfac) - 1e-9 ? (out.push(i), out) : out), [])
     : [];
   return {
     short, negative, overBent: over, tailShort, tightTube,

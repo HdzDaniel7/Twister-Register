@@ -737,6 +737,12 @@ Abierto, y con su motivo:
       vigilar—** y solo mira tubo REDONDO. Con 0 la pestaña Sección sigue avisando con
       palabras de que el programa no lo juzga; con una cifra, lo dice y marca los dobleces
       cortos. Sigue abierto porque **la cifra la tiene que traer el taller**. · M
+      **Ampliado el 2026-09-25:** ya no solo mira tubo REDONDO. `tubeRmin()` multiplica la
+      cifra tecleada por la medida que queda EN EL PLANO DE DOBLADO —espesor de plano, ancho
+      de canto, diámetro si es redondo—, así que un tubo rectangular también se juzga cuando
+      alguien teclea su norma. Con 40 × 20 de pared 2 y 1.5, plano pide R30 y canto R60. Para
+      redondo no cambia ninguna cifra. Lo que sigue abierto es exactamente lo de antes: **la
+      cifra**, pedida en C.8.
 
 ## Fase 6.1 · La torsión contada dos veces — CERRADA 2026-09-18
 

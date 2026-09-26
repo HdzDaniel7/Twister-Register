@@ -209,8 +209,9 @@ export function paneSection(M: Model): string {
     ${E.isHollow(sec) ? `<div role="alert" class="warnbox mt6">${
       /* Con una cifra tecleada en Límites el programa SÍ juzga el radio, y
          seguir diciendo que no lo juzga sería mentir. Ver `LIMS_DEFAULT`. */
-      ST.lims.tubeRfac > 0 && sec.kind === 'round'
-        ? T('secHollowJudged').replace('{n}', String(ST.lims.tubeRfac))
+      ST.lims.tubeRfac > 0
+        ? T(sec.kind === 'round' ? 'secHollowJudged' : 'secHollowJudgedRect')
+            .replace('{n}', String(ST.lims.tubeRfac))
         : T('secHollowWarn')}</div>` : ''}
   </div></div></div>`;
 }

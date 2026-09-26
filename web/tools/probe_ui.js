@@ -465,6 +465,66 @@ step('una recta imposible saca un aviso que nombra el doblez', () => {
   if (aviso()) throw new Error('el aviso no se fue al arreglarlo');
 });
 
+/* EL UMBRAL DE TUBO EN UN RECTANGULAR HUECO.
+
+   `lims.tubeRfac` es una cifra que teclea el taller y que nace en 0 -no
+   vigiles-. Hasta el 2026-09-25 solo se aplicaba a tubo REDONDO: un tubo
+   rectangular no se juzgaba ni con la cifra puesta, porque la condicion pedia
+   `kind === 'round'`. Lo que no significa nada en un rectangular es el
+   DIAMETRO, no la regla: lo que manda es la medida que queda en el plano de
+   doblado, o sea el espesor en un doblez de plano y el ancho en uno de canto.
+
+   Con 40 x 20 de pared 2 y el factor en 1.5, un doblez de plano pide R30 y uno
+   de canto R60: el MISMO factor da dos radios, y por eso el aviso puede traer
+   las dos cifras. Aqui se mide sobre el modelo de verdad del visor, no sobre
+   uno de laboratorio: se le cambia la seccion a la demo y se devuelve al salir. */
+step('un tubo RECTANGULAR tambien se juzga con el umbral de tubo', () => {
+  const B = window.BARCOMP;
+  click('[data-md="model"]');
+  click('#tabs [data-t="model"]');
+  const m = S().model;
+  const secAntes = { ...m.section }, facAntes = S().lims.tubeRfac;
+  const radios = m.bends.map(b => b.radius);
+  try {
+    m.section = { ...m.section, kind: 'rect', width: 40, thickness: 20, wall: 2 };
+    S().lims.tubeRfac = 1.5;
+    /* radios a proposito por debajo de lo que pide cada orientacion */
+    m.bends.forEach(b => { b.radius = 10; });
+    B.renderAll();
+    const f = B.E.feasibility(S().model, S().lims);
+    if (!f.tightTube.length) {
+      const ori = B.E.orientations(S().model);
+      throw new Error('con R10 en todos los dobleces de un tubo 40x20 pared 2 y factor 1.5'
+        + ' -que pide R30 de plano y R60 de canto- no marco ninguno;'
+        + ' orientaciones ' + ori.join('') + ', marcados ' + f.tightTube.length);
+    }
+    if (f.tightTube.length !== S().model.bends.length) {
+      throw new Error('marco ' + f.tightTube.length + ' de ' + S().model.bends.length
+        + ', y con R10 no llega ninguno');
+    }
+    const w = document.querySelector('#fabnote .warnbox');
+    if (!w) throw new Error('el motor marca ' + f.tightTube.length + ' dobleces y la pestana no avisa');
+    if (!/30\.0/.test(w.textContent) || !/60\.0/.test(w.textContent)) {
+      throw new Error('el aviso no trae los dos radios pedidos: ' + w.textContent);
+    }
+  } finally {
+    m.section = secAntes;
+    S().lims.tubeRfac = facAntes;
+    m.bends.forEach((b, i) => { b.radius = radios[i]; });
+    B.renderAll();
+  }
+});
+/* GUARDA: el umbral en 0 -como nace- no juzga nada, ni redondo ni rectangular.
+   Pasa en las dos versiones; lo que sujeta es que extender la regla no encendio
+   un aviso de fabrica, que seria darle cara de dato a una opinion. */
+step('guarda: con el umbral de tubo en 0 no se marca ningun radio', () => {
+  const B = window.BARCOMP;
+  if (S().lims.tubeRfac !== 0) throw new Error('el banco no dejo el umbral en 0');
+  if (B.E.LIMS_DEFAULT.tubeRfac !== 0) throw new Error('el umbral de fabrica dejo de ser 0');
+  if (B.E.feasibility(S().model, S().lims).tightTube.length) {
+    throw new Error('marca radios de tubo con el umbral apagado');
+  }
+});
 step('entrar en una celda deja su valor seleccionado', () => {
   /* <input type=number> no expone selectionStart, así que se prueba por
      conducta: al enfocar y teclear, lo escrito REEMPLAZA en vez de añadirse. */

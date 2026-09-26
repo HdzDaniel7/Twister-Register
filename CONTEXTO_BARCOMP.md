@@ -991,6 +991,25 @@ Medido y descartado en esta misma pasada:
   llamadas de dibujo NO eran el cuello: el coste estaba en construir y destruir geometrías, y
   eso ya está resuelto.
 
+**El umbral de tubo también juzga un RECTANGULAR hueco (2026-09-25).** `lims.tubeRfac` solo
+mordía en tubo redondo, y el motivo escrito era que «la regla del diámetro no significa nada
+en un rectangular hueco». Es verdad a medias: lo que no significa nada es el **diámetro**, no
+la regla. Lo que manda en los dos casos es la medida de la sección que queda **en el plano de
+doblado**, y eso ya se sabe por estación — es la misma distinción que hacen `orientations()`
+y `sagI()`: el espesor en un doblez de plano, el ancho en uno de canto.
+
+`tubeRmin(sec, ori, fac)` es ahora el único sitio donde vive esa cuenta, y lo consumen el
+motor y las dos pantallas que la enseñan. Con 40 × 20 de pared 2 y el factor en 1.5, un doblez
+de plano pide **R30** y uno de canto **R60**: el mismo número tecleado da dos radios, y por eso
+el aviso puede traer las dos cifras. Para un redondo devuelve exactamente lo de antes — el
+diámetro—, así que **no cambia ni una cifra de lo que ya se juzgaba**.
+
+**Esto no inventa ningún umbral, y ahí está la línea.** La cifra la sigue teclando el taller y
+sigue naciendo en 0, que significa no vigilar; lo único que se decidió aquí es contra qué
+medida se multiplica. SEC-03 sigue abierto por lo que siempre estuvo: la cifra la tiene que
+traer el taller (pedida en C.8). Lo que se cerró es el agujero de que, incluso teniéndola, un
+tubo rectangular no se juzgaba.
+
 **Confirmado en el CAD del taller: el `.stp` abre y enseña una pieza de verdad (2026-09-25).**
 Dicho por quien lo abrió: «funciona y muestra un modelo real en 3D en FreeCAD». Hasta hoy eso
 solo estaba comprobado aquí, con `tools/check_step_freecad.py` —el mismo núcleo, OpenCASCADE,
