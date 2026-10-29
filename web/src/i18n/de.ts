@@ -416,7 +416,7 @@ export const de: Record<I18nKey, string> = {
  angCmd: 'Befehl',
  angCmdTip: 'Am Gerät befohlener Winkel, mit dem das Teil gebogen wurde.',
  angRec: 'Empf.',
- angRecTip: 'Zu befehlender Winkel, um den gemessenen Innenwinkel auf Nennwert zu bringen.',
+ angRecTip: 'Zu befehlender Winkel, um den gemessenen Innenwinkel auf Nennwert zu bringen; darunter die Korrektur zum aktuellen Befehl. Ohne Messung steht der aktuelle Befehl grau.',
  angCorr: 'Korr.',
  angCreate: 'Messung anlegen',
  angApply: 'Empfehlung anwenden',

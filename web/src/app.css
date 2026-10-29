@@ -710,3 +710,10 @@ input[type=text].angname{width:100%;box-sizing:border-box;margin-top:3px;margin-
 .abar i{position:absolute;top:0;bottom:0;border-radius:2px;background:var(--dim)}
 .abar i.ok{background:var(--ok)}.abar i.warn{background:var(--warn)}.abar i.bad{background:var(--bad)}
 .angchart{margin:4px 0}
+/* Cinco columnas y no siete: el comando sin medir se lee en gris en la misma
+   celda de la recomendación, y la corrección va debajo. Así la tabla cabe en el
+   lateral sin desplazarse de lado, que era lo que escondía la recomendación. */
+.angtab th,.angtab td{padding-left:4px;padding-right:4px}
+.angtab td.angrc{text-align:right;font-variant-numeric:tabular-nums;line-height:1.15}
+.angtab td.angrc .corr{display:block;font-size:.85em;color:var(--dim)}
+.angtab .abar{min-width:36px}

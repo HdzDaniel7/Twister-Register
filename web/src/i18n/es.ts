@@ -418,7 +418,7 @@ export const es: Record<I18nKey, string> = {
  angCmd: 'Comando',
  angCmdTip: 'Ángulo comandado a la máquina con el que se dobló la pieza.',
  angRec: 'Recom.',
- angRecTip: 'Ángulo a comandar para llevar el ángulo interno medido al nominal.',
+ angRecTip: 'Ángulo a comandar para llevar el ángulo interno medido al nominal; debajo, la corrección sobre el comando actual. Sin medición se ve en gris el comando actual.',
  angCorr: 'Corr.',
  angCreate: 'Crear medición',
  angApply: 'Aplicar recomendación',

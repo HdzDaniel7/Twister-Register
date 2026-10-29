@@ -135,21 +135,19 @@ export function angPane(M: Model): string {
         value="${vals[i] === null || vals[i] === undefined ? '' : +(+vals[i]!).toFixed(3)}"
         aria-label="${esc(T('angMeasOf').replace('{b}', 'B' + (i + 1)))}"></td>
       <td class="${r.dev === null ? 'v-dim' : cls(r.dev, tol)}">${r.dev === null ? '—' : sgn(r.dev, 3)}${devBar(r.dev, tol)}</td>
-      <td>${fx(r.cmd, 2)}</td>
-      <td>${r.measInt === null ? '—' : fx(r.rec, 2)}</td>
-      <td class="${r.measInt === null ? 'v-dim' : ''}">${r.measInt === null ? '—' : sgn(r.recDelta, 2)}</td></tr>`).join('');
+      <td class="angrc" title="${esc(T('angCmd'))}: ${fx(r.cmd, 2)}°">${r.measInt === null
+        ? `<span class="v-dim">${fx(r.cmd, 2)}</span>`
+        : `${fx(r.rec, 2)}<span class="corr">${sgn(r.recDelta, 2)}</span>`}</td></tr>`).join('');
   return `<div class="grp"><div class="eyebrow">${T('angTitle')}</div><div class="body">
     <div class="hintline">${T('angHint')}</div>
     <div class="hintline v-warn">${T('angOneNote')}</div>
     <label class="tag" for="angname">${T('angName')}</label>
     <input type="text" id="angname" class="angname" data-ann="1" value="${esc(nm)}" maxlength="80">
-    <div class="tw mt6"><table><thead><tr><th scope="col">${T('nBend')}</th>
+    <div class="tw mt6"><table class="angtab"><thead><tr><th scope="col">${T('nBend')}</th>
       <th scope="col" title="${esc(T('angNomTip'))}">${T('angNom')}</th>
       <th scope="col" title="${esc(T('angMeasTip'))}">${T('angMeas')}</th>
       <th scope="col">Δ</th>
-      <th scope="col" title="${esc(T('angCmdTip'))}">${T('angCmd')}</th>
-      <th scope="col" title="${esc(T('angRecTip'))}">${T('angRec')}</th>
-      <th scope="col">${T('angCorr')}</th></tr></thead><tbody>${body}</tbody></table></div>
+      <th scope="col" title="${esc(T('angRecTip'))}">${T('angRec')}</th></tr></thead><tbody>${body}</tbody></table></div>
     <div class="row mt6"><button class="btn sm grow" data-a="angnew" ${countTyped(vals) ? '' : 'disabled'}>${T('angCreate')}</button>
       <button class="btn sm grow" data-a="angrec" ${ds && S.n ? '' : 'disabled'} title="${esc(T('angRecApplyTip'))}">${T('angApply')}</button>
       <button class="btn sm grow" data-a="report">${T('bRep')}</button></div>

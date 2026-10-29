@@ -403,7 +403,7 @@ export const en: Record<I18nKey, string> = {
  angCmd: 'Command',
  angCmdTip: 'Angle commanded to the machine when the part was bent.',
  angRec: 'Rec.',
- angRecTip: 'Angle to command to bring the measured internal angle to nominal.',
+ angRecTip: 'Angle to command to bring the measured internal angle to nominal; below, the correction to the current command. Unmeasured rows show the current command greyed out.',
  angCorr: 'Adj.',
  angCreate: 'Create measurement',
  angApply: 'Apply recommendation',
