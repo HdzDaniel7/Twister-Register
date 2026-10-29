@@ -23,7 +23,7 @@ import { refresh } from '../render.ts';
 import { commit } from '../history.ts';
 import { T } from '../../i18n.ts';
 import { angUI, angleDs, angVals, parseDec } from '../../panels/angles.ts';
-import { setReported, renameDataset } from '../../state.ts';
+import { setReported, renameDataset, syncPlan, setPlanName, setPlanNominal } from '../../state.ts';
 import { drawRibbon } from '../../ribbon.ts';
 import {
   variantById, editBend, editStraight, editStraightDelta, editTail, editDelta, editPoint, editTweak,
@@ -115,6 +115,24 @@ function onAngles(t: HTMLInputElement, d: DOMStringMap): boolean {
     const nm = t.value.trim();
     const ds = angleDs();
     if (ds) { if (nm) renameDataset(ds, nm); renderPanels(); } else angUI.name = nm;
+    return true;
+  }
+  /* el PLANO (CAD): nombre y nominal por doblez. Son del documento, valen antes
+     de que exista la pieza; si hay una activa su Δ se recalcula y se repinta. */
+  if (d.apn !== undefined || d.apv !== undefined) {
+    const n = ST.model ? ST.model.bends.length : 0;
+    const i = +(d.apn ?? d.apv!);
+    if (!Number.isInteger(i) || i < 0 || i >= n) return true;
+    syncPlan(n);
+    if (d.apn !== undefined) setPlanName(i, t.value.trim());
+    else {
+      const v = parseDec(t.value);
+      if (v === null && t.value.trim()) { t.value = d.orig ?? ''; return true; }
+      if (v !== null && (v < 0 || v > 180)) { t.value = d.orig ?? ''; t.title = T('angRange'); alert(T('angRange')); return true; }
+      setPlanNominal(i, v);
+    }
+    renderPanels();
+    if (angleDs()) { rebuildScene(); drawRibbon(); }
     return true;
   }
   if (d.ai === undefined) return false;

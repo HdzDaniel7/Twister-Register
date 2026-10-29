@@ -702,7 +702,7 @@ tr.nomeas td:first-child{border-left:2px solid var(--dim2)}
 td.nomeas{text-align:center;color:var(--dim2);font-weight:600}
 
 /* --- medir por ángulos: campo de la tabla, nombre y la barrita del Δ --- */
-input[type=text].angin{width:50px;padding:3px 4px;text-align:right;font-variant-numeric:tabular-nums}
+input[type=text].angin{width:42px;padding:3px 2px;box-sizing:border-box;text-align:right;font-variant-numeric:tabular-nums}
 input[type=text].angname{width:100%;box-sizing:border-box;margin-top:3px;margin-bottom:2px}
 .abar{display:block;position:relative;height:4px;margin-top:3px;min-width:44px;
   background:var(--panel3);border-radius:2px}
@@ -713,7 +713,19 @@ input[type=text].angname{width:100%;box-sizing:border-box;margin-top:3px;margin-
 /* Cinco columnas y no siete: el comando sin medir se lee en gris en la misma
    celda de la recomendación, y la corrección va debajo. Así la tabla cabe en el
    lateral sin desplazarse de lado, que era lo que escondía la recomendación. */
-.angtab th,.angtab td{padding-left:4px;padding-right:4px}
+.angtab th,.angtab td{padding-left:2px;padding-right:2px;font-size:11px}
 .angtab td.angrc{text-align:right;font-variant-numeric:tabular-nums;line-height:1.15}
 .angtab td.angrc .corr{display:block;font-size:.85em;color:var(--dim)}
-.angtab .abar{min-width:36px}
+.angtab .abar{min-width:28px}
+/* por ángulos: tira de leyenda (Plano · Reporte → Δ → Tablero) y columnas */
+.angflow{display:flex;flex-wrap:wrap;align-items:center;gap:4px;font-size:10.5px;color:var(--dim);padding:2px 0}
+.angchip{display:inline-block;padding:0 6px;border-radius:8px;border:1px solid;font-size:10px;line-height:1.5;cursor:help}
+.angchip.plan{color:#6aa9ff;border-color:#2c4f80;background:#6aa9ff14}
+.angchip.rep{color:var(--warn);border-color:#6b5420;background:#ffb02e14}
+.angchip.brd{color:var(--ok);border-color:#2C6B4C;background:#3FD68C14}
+.angtab td input{min-width:0}
+.angtab th.hplan{color:#6aa9ff}.angtab th.hrep{color:var(--warn)}.angtab th.hbrd{color:var(--ok)}
+input[type=text].angnm{width:50px;padding:3px 2px;box-sizing:border-box;font-size:11px}
+input[type=text].angin.plan::placeholder{color:var(--dim);opacity:.55}
+.nopl{color:var(--warn);cursor:help;margin-left:1px;font-size:10px}
+.angtog{margin-top:6px;width:100%}.angtog button{flex:1}

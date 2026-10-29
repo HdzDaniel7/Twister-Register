@@ -60,7 +60,7 @@ la razón de media docena de decisiones de abajo.
   empaqueta es esbuild y quien corre las pruebas es Node, que borra los tipos por su cuenta.
 - Cuatro archivos son **barriles** —`engine.ts`, `scene.ts`, `panels.ts`, `app.ts`— que
   reexportan su carpeta, así que quien los importa no nota el reparto.
-- `engine/measure.ts` es **MEDIR POR ÁNGULOS**: de un informe externo con el ángulo INTERNO entre rectas consecutivas fabrica el modelo medido y recomienda el ángulo a comandar (`MEAS_METHODS` lista los métodos de medida).
+- `engine/measure.ts` es **MEDIR POR ÁNGULOS**: de un informe externo con el ángulo INTERNO entre rectas consecutivas fabrica el modelo medido y lo compara contra el PLANO (CAD, `ST.plan`, uno por documento), no contra el tablero; la corrección sale como una variante nueva de tablero con el Δ de ángulo (`applyAngleRec`). Cada pieza guarda el tablero que la dobló (`Dataset.board`) para que editar Modelos no la mueva. `MEAS_METHODS` lista los métodos de medida.
 - `engine/lims.ts` son **LOS UMBRALES QUE JUZGAN**: rangos, saneado y por qué cada uno sigue
   siendo provisional. Se pasan por parámetro, nunca por global —`feasibility(model, lims)`,
   `parsePointsCsv(txt, lims)`, `csvScaleOk(pts, nom, lims)`, `measuredModel(nom, pts, lims)`—

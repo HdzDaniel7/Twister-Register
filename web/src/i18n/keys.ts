@@ -6,7 +6,7 @@
    ========================================================================= */
 export type Lang = 'es' | 'en' | 'de';
 
-/** Las 510 claves que deben existir en LOS TRES diccionarios.
+/** Las 558 claves que deben existir en LOS TRES diccionarios.
  *
  *  El número iba a la deriva: decía 458 cuando ya eran 486, porque se suma
  *  a mano y a veces se olvida. Lo que de verdad sujeta la paridad no es este
@@ -109,4 +109,4 @@ export type I18nKey =
   | 'colVis' | 'xyTip' | 'pedHTip' | 'pedPadTip' | 'pedTiltTip' | 'pedWantTip'
   | 'pedD' | 'pedDTip' | 'pedSTip' | 'pedPlanTip' | 'pedGapTip' | 'pedSpanTip'
   | 'pinDiaTip' | 'pinGapTip' | 'pinStateTip' | 'loadRootDown'
-  | 'mmMethod' | 'measCloud' | 'measAngles' | 'angTitle' | 'angHint' | 'angName' | 'angDefName' | 'angNom' | 'angNomTip' | 'angMeas' | 'angMeasTip' | 'angMeasOf' | 'angCmd' | 'angCmdTip' | 'angRec' | 'angRecTip' | 'angCorr' | 'angCreate' | 'angApply' | 'angRecApplyTip' | 'angMaxAbs' | 'angMean' | 'angN' | 'angChart' | 'angChartTip' | 'angNoneTyped' | 'repAngles' | 'repAngPiece' | 'repAngNom' | 'repAngDate' | 'repAngOk' | 'repAngOut' | 'repAngState' | 'angOneNote' | 'angRange';
+  | 'mmMethod' | 'measCloud' | 'measAngles' | 'angTitle' | 'angName' | 'angDefName' | 'angMeasOf' | 'angCorr' | 'angCreate' | 'angApply' | 'angRecApplyTip' | 'angMaxAbs' | 'angMean' | 'angN' | 'angChart' | 'angChartTip' | 'angNoneTyped' | 'repAngles' | 'repAngPiece' | 'repAngDate' | 'repAngOk' | 'repAngOut' | 'repAngState' | 'angOneNote' | 'angRange' | 'angVsPlan' | 'angPlan' | 'angPlanTip' | 'angRep' | 'angRepTip' | 'angBoard' | 'angBoardTip' | 'angBoardNow' | 'angBoardNew' | 'angDeltaTip' | 'angFlowHint' | 'angBoardInfo' | 'angNameOf' | 'angPlanOf' | 'angNoPlanTip' | 'angPiece' | 'angLot' | 'angLotTip' | 'angPlanMissing' | 'angRecDone' | 'repAngIntro' | 'repAngBoard' | 'angNameCol';

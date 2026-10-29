@@ -44,8 +44,8 @@ import { ST, REF } from './state.ts';
 import { captureViews } from './scene.ts';
 import { fx, esc, buildTag } from './panels.ts';
 import { download, safeName } from './io.ts';
-import { activeDataset, angleSummary } from './state.ts';
-import { angleChart } from './panels/angles.ts';
+import { activeDataset, angleSummary, angleLotSummary } from './state.ts';
+import { angleChart, angUI, lotPieces } from './panels/angles.ts';
 import type { ChartPal } from './panels/angles.ts';
 
 /** Ancho al que se reescala cada captura, px. Llena una A4 a 300 ppp con
@@ -97,26 +97,31 @@ const PAL_REPORTE: ChartPal = {
 function seccionAngulos(R: Model): string {
   const D = activeDataset();
   if (!D || D.method !== 'angles') return '';
-  const S = angleSummary(D);
+  const lote = angUI.lot && lotPieces() > 1;
+  const S = (lote ? angleLotSummary(D) : null) || angleSummary(D);
   if (!S) return '';
   const tol = R.tol.angle;
   const sg = (v: number | null, n: number): string => (v === null ? '—' : (v > 0 ? '+' : '') + fx(v, n));
-  const filas = S.rows.map((r, i) => `<tr><td>B${i + 1}</td><td>${fx(r.nomInt, 2)}</td>
+  const tablero = D.board ? D.board.name : R.name;
+  const filas = S.rows.map((r, i) => `<tr><td>${esc(r.name || `B${i + 1}`)}</td>
+    <td>${r.planInt === null ? `${fx(r.boardInt, 2)} <i title="${esc(T('angNoPlanTip'))}">*</i>` : fx(r.planInt, 2)}</td>
     <td>${r.measInt === null ? '—' : fx(r.measInt, 2)}</td><td>${sg(r.dev, 3)}</td>
     <td>${r.ok === null ? '—' : r.ok ? T('repAngOk') : `<b>${T('repAngOut')}</b>`}</td>
-    <td>${fx(r.cmd, 2)}</td><td>${r.measInt === null ? '—' : fx(r.rec, 2)}</td>
+    <td>${fx(r.board, 2)}</td><td>${r.measInt === null ? '—' : fx(r.rec, 2)}</td>
     <td>${r.measInt === null ? '—' : sg(r.recDelta, 2)}</td></tr>`).join('');
   return `<h2>${T('repAngles')}</h2>
+  <p>${T('repAngIntro')}</p>
   <div class="kv">
-    <div><span>${T('repAngPiece')}</span> ${esc(D.name)}</div>
-    <div><span>${T('repAngNom')}</span> ${esc(R.name)}</div>
+    <div><span>${T('repAngPiece')}</span> ${esc(D.name)}${lote ? ` — ${T('angLot').replace('{n}', String(S.pieces))}` : ` — ${T('angPiece')}`}</div>
+    <div><span>${T('repAngBoard')}</span> ${esc(tablero)}</div>
     <div><span>${T('repAngDate')}</span> ${new Date().toLocaleDateString()}</div>
     <div><span>${T('tolA')}</span> ±${tol}°</div>
   </div>
-  <div class="tw"><table><thead><tr><th scope="col">${T('nBend')}</th><th scope="col">${T('angNom')} °</th>
-    <th scope="col">${T('angMeas')} °</th><th scope="col">Δ °</th><th scope="col">${T('repAngState')}</th>
-    <th scope="col">${T('angCmd')} °</th><th scope="col">${T('angRec')} °</th><th scope="col">${T('angCorr')} °</th>
+  <div class="tw"><table><thead><tr><th scope="col">${T('angNameCol')}</th><th scope="col">${T('angPlan')} °</th>
+    <th scope="col">${T('angRep')} °</th><th scope="col">Δ °</th><th scope="col">${T('repAngState')}</th>
+    <th scope="col">${T('angBoardNow')} °</th><th scope="col">${T('angBoardNew')} °</th><th scope="col">${T('angCorr')} °</th>
     </tr></thead><tbody>${filas}</tbody></table></div>
+  ${S.planMissing > 0 ? `<p><b>*</b> ${T('angPlanMissing').replace('{n}', String(S.planMissing))}</p>` : ''}
   <div class="kv">
     <div><span>${T('angMaxAbs')}</span> ${fx(S.maxAbs, 3)}°</div>
     <div><span>${T('statRms')}</span> ${fx(S.rms, 3)}°</div>

@@ -299,7 +299,7 @@ web/
     engine/model.ts       variantes, deltas, edición de puntos PI
     engine/feasible.ts    lo que la máquina NO puede hacer aunque cierre la geometría
     engine/lims.ts        los umbrales que juzgan un dato, y por qué son provisionales
-    engine/measure.ts     medir por ángulos: ángulo interno reportado, modelo medido y corrección del comando
+    engine/measure.ts     medir por ángulos: plano (CAD) vs reporte, modelo medido y tablero compensado
     engine/fitting.ts     Kabsch, anclaje entre modelos, colocación y el marco de una estación
     engine/compensate.ts  pieza simulada, lazo, desviaciones, lote, resorte
     engine/expr.ts        la celda de compensación (parser propio, sin eval)

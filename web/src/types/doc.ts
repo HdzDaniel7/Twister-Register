@@ -135,40 +135,81 @@ export type Pin = {
  *              clave, y por eso es lo que vale cuando falta.
  *  `'angles'`  un informe externo (CMM, brazo) dio solo el ÁNGULO INTERNO entre
  *              rectas en cada doblez. El dato es `Dataset.reported`; la pieza es
- *              el nominal con esos ángulos puestos, y se REHACE en cuanto el
- *              nominal cambia. Ver engine/measure.ts.
+ *              el TABLERO con el que se dobló (`Dataset.board`) con esos
+ *              ángulos puestos. Ver engine/measure.ts.
  *
  *  Es una unión y no un booleano a propósito: vendrán más métodos (rectas
  *  sueltas, radios, …) y cada uno añade un caso aquí y en `MEAS_METHODS`. */
 export type MeasMethod = 'cloud' | 'angles';
 
+/** LAS TRES CIFRAS de una misma pieza, que no hay que confundir:
+ *
+ *  · TABLERO — lo que se teclea en Modelos (la variante activa, `ST.model`).
+ *    Con eso dobla la máquina, y de ahí sale la geometría teórica.
+ *  · PLANO   — los ángulos internos NOMINALES del dibujo de CAD. Es el
+ *    objetivo, y NO es el tablero: el tablero es lo que hay que comandar para
+ *    que la pieza, con su resorte, acabe en el plano.
+ *  · REPORTE — los internos medidos en la pieza física (`Dataset.reported`).
+ *
+ *  El lazo es: doblar con el tablero → medir → comparar reporte contra plano →
+ *  corregir el tablero → otro tablero (una variante nueva).
+ *
+ *  `Plan` es el PLANO, y hay UNO por documento: lo comparten todas las piezas
+ *  medidas y todos los tableros, porque el dibujo es el mismo para todos.
+ *  Además lleva el NOMBRE de cada doblez tal como lo dice el plano o el
+ *  informe —«codo A», «B3'»—, que solo se usa en la ventana de medir y en el
+ *  reporte. Los dos arreglos van por índice de doblez; `''` es «sin nombre»
+ *  (la pantalla pone B{i+1}) y `null` es «el plano no da este ángulo». */
+export type Plan = { names: string[]; nominal: (number | null)[] };
+
+/** El tablero con el que se dobló una pieza medida por ángulos, congelado al
+ *  darla de alta. `vid`/`name` dicen qué variante era; `bends` son sus
+ *  dobleces EFECTIVOS (base + Δ) en ese momento. Se copian porque el tablero
+ *  se sigue editando —es lo que hace el lazo— y la pieza ya está doblada: si
+ *  se rehiciera contra el tablero de ahora, corregirlo movería la pieza. */
+export type Board = { vid: string; name: string; bends: Bend[] };
+
 /** Una fila de «Medir por ángulos»: un doblez, en ÁNGULO INTERNO entre rectas
- *  —que es lo que imprime el informe— y la recomendación en ÁNGULO DE DOBLEZ
- *  —que es lo que se teclea en la máquina—. Ver engine/measure.ts. */
+ *  —que es lo que imprimen el plano y el informe— y la recomendación en
+ *  ÁNGULO DE DOBLEZ —que es lo que se teclea en el tablero—. Ver
+ *  engine/measure.ts. */
 export type AngleRow = {
   /** índice del doblez, desde 0 */
   i: number;
-  /** ángulo interno del nominal, ° */
-  nomInt: number;
-  /** ángulo interno informado, °; null = ese doblez no se midió */
+  /** nombre del doblez según el plano; `''` = sin nombre (la pantalla pone B{i+1}) */
+  name: string;
+  /** interno del PLANO (CAD), °; null = el plano no lo da */
+  planInt: number | null;
+  /** contra qué se mide: `planInt ?? boardInt` */
+  refInt: number;
+  /** true cuando `refInt` cayó al tablero porque el plano no da ese doblez */
+  fromBoard: boolean;
+  /** interno que sale del TABLERO con el que se dobló, ° */
+  boardInt: number;
+  /** interno informado, °; null = ese doblez no se midió */
   measInt: number | null;
-  /** measInt − nomInt, °. Positivo = más abierto que el nominal = le falta
+  /** measInt − refInt, °. Positivo = más abierto que el plano = le falta
    *  doblez */
   dev: number | null;
-  /** |dev| <= M.tol.angle */
+  /** |dev| <= tol.angle */
   ok: boolean | null;
-  /** ángulo de doblez comandado con el que se hizo la pieza, ° */
-  cmd: number;
-  /** ángulo de doblez comandado que se recomienda, ° */
+  /** ángulo de doblez del tablero con el que se hizo la pieza, ° */
+  board: number;
+  /** ángulo de doblez que se recomienda para el tablero nuevo, ° */
   rec: number;
-  /** rec − cmd, ° */
+  /** rec − board, ° */
   recDelta: number;
 };
 
 /** El informe entero: las filas y su resumen sobre las que SÍ tienen lectura.
  *  `n` cuántas, `out` cuántas fuera de tolerancia; `maxAbs`, `rms` y `mean`
- *  de `dev`, en °, y a cero si no hay ninguna. */
-export type AngleSummary = { rows: AngleRow[]; n: number; maxAbs: number; rms: number; mean: number; out: number };
+ *  de `dev`, en °, y a cero si no hay ninguna. `planMissing`: cuántas de las
+ *  medidas no tienen ángulo de plano y se compararon contra el tablero.
+ *  `pieces`: cuántas piezas entraron (1, o las del lote cuya mediana se usó). */
+export type AngleSummary = {
+  rows: AngleRow[]; n: number; maxAbs: number; rms: number; mean: number; out: number;
+  planMissing: number; pieces: number;
+};
 
 /** Una pieza medida tal como viaja en el JSON: solo lo que hace falta para
  *  reconstruirla, sin `dev` ni `pis`. La comparten `Doc` y `LoadedDoc`. */
@@ -181,8 +222,12 @@ export type DocDataset = {
   /** los ángulos internos TAL COMO SE TECLEARON, con `null` donde no hubo
    *  lectura. Los `bends` de al lado también se guardan —una copia anterior
    *  del programa abre la misma pieza, aunque como nube—, pero al abrir manda
-   *  esto: la pieza se rehace contra el nominal del archivo. */
+   *  esto: la pieza se rehace contra su tablero (`board`). */
   reported?: (number | null)[];
+  /** solo con `method === 'angles'`: el tablero con el que se dobló. Un
+   *  archivo anterior no lo trae y la pieza adopta el tablero que haya al
+   *  abrir. Ver `Board`. */
+  board?: Board;
 };
 
 /** Una pieza medida. `model` son sus parámetros; `dev`, su comparación. */
@@ -215,6 +260,10 @@ export type Dataset = {
    *  sale de aquí y del nominal, y se rehace cada vez que el nominal cambia
    *  (ver `recomputeAll()` en state.ts). */
   reported?: (number | null)[];
+  /** con `method === 'angles'`: el tablero con el que se dobló, congelado.
+   *  La pieza es `modelFromInternal(tablero, reported)`, y por eso editar el
+   *  tablero de ahora NO la mueve. Ver `Board`. */
+  board?: Board;
 };
 
 /** Por qué se puede o no creer la recta de tendencia del resorte.
@@ -317,6 +366,10 @@ export type Doc = {
   /** el material, para pasar de deformación a esfuerzo */
   mat: Mat;
   tweak: Tweak[];
+  /** el PLANO: ángulos internos del CAD y nombres de los dobleces. Opcional y
+   *  solo si tiene algo: un documento sin plano sale idéntico al de antes de
+   *  que existiera la clave. Ver `Plan`. */
+  plan?: Plan;
   ui: Required<UiPrefs>;
 };
 
@@ -366,6 +419,8 @@ export type LoadedDoc = {
   load: Load;
   mat: Mat;
   tweak: Tweak[];
+  /** el plano, saneado; vacío si el archivo no lo traía */
+  plan: Plan;
   /** null = el archivo no dijo nada: no se pisa la preferencia actual */
   ui: { theme: string | null; lang: string | null; mode: string | null } | null;
 };

@@ -5,7 +5,9 @@
    el ÁNGULO INTERNO entre las dos rectas de cada doblez. Con eso no se puede
    reconstruir la pieza entera —faltan las rectas y los planos—, pero sí lo que
    el lazo necesita: cuánto dobló cada estación. Así que la pieza medida se arma
-   como el NOMINAL con solo los ángulos cambiados, y se compensa sobre ellos.
+   como el TABLERO con el que se dobló, con solo los ángulos cambiados, y se
+   compara contra el PLANO (los internos del CAD). Las tres cifras —tablero,
+   plano, reporte— y por qué no son la misma: ver `Plan` en types/doc.ts.
 
    La convención, y por qué es esta. El doblez es un solo arco —ver
    `bendDecomp()`— y su desvío total es `θ = |wrapTurn(angle)|`, sin importar el
@@ -16,14 +18,14 @@
 
    que es lo que mide un calibre de ángulo apoyado en las dos rectas. El SIGNO
    del ángulo —el lado al que dobla, o la rama que elige `alignBranch()` en una
-   estación de canto— no lo ve el informe, y por eso la vuelta lo toma del
-   nominal: medir no cambia hacia dónde dobla la pieza, solo cuánto.
+   estación de canto— no lo ve el informe ni el plano, y por eso la vuelta lo
+   toma del tablero: medir no cambia hacia dónde dobla la pieza, solo cuánto.
 
    Es puro: no toca ST ni el DOM. La pieza se da de alta en state.ts.
    ========================================================================= */
-import type { AngleRow, AngleSummary, Bend, Comp, MeasMethod, Model, Orientation } from '../types.ts';
+import type { AngleRow, AngleSummary, Comp, MeasMethod, Model, Orientation, Plan } from '../types.ts';
 import { wrapTurn } from './math.ts';
-import { bendFrom, cloneModel } from './bend.ts';
+import { cloneModel } from './bend.ts';
 import { compensate } from './compensate.ts';
 
 /** Los métodos de medida que conoce el programa, en el orden en que se
@@ -63,11 +65,13 @@ export function bendFromInternal(internal: number, nomAngle: number): number {
   return (nomAngle || 0) + s * (theta - Math.abs(n));
 }
 
-/** El nominal con los ángulos informados puestos: una copia, y SOLO `angle`
- *  cambia, y solo donde hay lectura. Rectas, rodados, radios, torsiones, cola,
- *  sección y tolerancias son los del nominal, porque el informe no dice nada de
- *  ellos — y por eso la comparación PI a PI de esta pieza mide el efecto de los
- *  ángulos y nada más. */
+/** Un modelo —el tablero con el que se dobló, o el que sea— con los internos
+ *  dados puestos: una copia, y SOLO `angle` cambia, y solo donde hay lectura.
+ *  Rectas, rodados, radios, torsiones, cola, sección y tolerancias son los de
+ *  `M`, porque ni el informe ni el plano dicen nada de ellos — y por eso la
+ *  comparación PI a PI de esta pieza mide el efecto de los ángulos y nada más.
+ *  Sirve igual para la pieza medida (internos del reporte) que para la del
+ *  plano (internos del CAD): ver `planModel()`. */
 export function modelFromInternal(M: Model, reported: (number | null)[]): Model {
   const out = cloneModel(M);
   out.bends.forEach((b, i) => {
@@ -77,42 +81,83 @@ export function modelFromInternal(M: Model, reported: (number | null)[]): Model 
   return out;
 }
 
-/** El informe por doblez y la recomendación de comando.
+/** El PLANO puesto sobre un tablero: una copia del tablero con el ángulo de
+ *  cada doblez cambiado al que da el interno del CAD, donde el plano lo da.
+ *  Es la geometría de la pieza del dibujo en lo que toca a ángulos —rectas,
+ *  rodados y radios siguen siendo los del tablero, porque el plano que se
+ *  teclea aquí no dice nada de ellos— y por eso es la referencia contra la que
+ *  se colorea una pieza medida por ángulos. La rama y el lado salen del
+ *  tablero, igual que en `modelFromInternal()`, que es lo que hace esto. */
+export function planModel(board: Model, plan: Plan): Model {
+  return modelFromInternal(board, plan.nominal || []);
+}
+
+/** Mediana por doblez de varios reportes, ignorando las celdas sin lectura.
+ *  El largo es el del más largo; un doblez que ninguna pieza midió sale
+ *  `null`. Con un número par de lecturas, el promedio de las dos centrales.
+ *
+ *  Es la versión por ángulos de `medianPart()`: con varias piezas del mismo
+ *  tablero, la mediana separa lo sistemático —el resorte, que es lo que hay
+ *  que compensar— de la dispersión de una pieza suelta. */
+export function medianReported(list: (number | null)[][]): (number | null)[] {
+  const len = list.reduce((m, r) => Math.max(m, r ? r.length : 0), 0);
+  const out: (number | null)[] = [];
+  for (let i = 0; i < len; i++) {
+    const v = list.map(r => (r ? r[i] : null)).filter(hasReading).sort((a, b) => a - b);
+    const k = v.length;
+    out.push(!k ? null : k % 2 ? v[(k - 1) / 2] : (v[k / 2 - 1] + v[k / 2]) / 2);
+  }
+  return out;
+}
+
+/** El informe por doblez y la recomendación para el TABLERO siguiente.
+ *
+ *  Tres juegos de cifras (ver `Plan` en types/doc.ts): `board` es el tablero
+ *  con el que se dobló la pieza, `plan` el CAD y `reported` lo medido. La
+ *  desviación es REPORTE − PLANO; donde el plano no da el ángulo se cae al
+ *  tablero (`fromBoard`), que es lo único que hay, y el resumen lo cuenta en
+ *  `planMissing` para que la pantalla lo diga.
  *
  *  La recomendación es `compensate()` tal cual —ganancia por orientación,
- *  banda muerta, tope por paso— pero SOLO sobre el ángulo: el informe no trae
- *  rodado ni rectas, y compensarlos contra el nominal copiado sería corregir
- *  cero con ganancia. Por eso `doAngle` se fuerza y `doRot`/`doFeed` se
- *  apagan, sea cual sea la configuración del lazo.
+ *  banda muerta, tope por paso— con el tablero como «comando», el plano como
+ *  «nominal» y la pieza como «medida», y SOLO sobre el ángulo: el informe no
+ *  trae rodado ni rectas, así que `doAngle` se fuerza y `doRot`/`doFeed` se
+ *  apagan, sea cual sea la configuración del lazo. El signo sale solo: el
+ *  doblez es `180 − interno` en la rama del tablero, así que una pieza que se
+ *  quedó corta (interno medido > plano) tiene menos |doblez| que el plano, la
+ *  diferencia plano − medida tiene el signo de la rama, y la corrección
+ *  AUMENTA |doblez|. Una pasada de doblez, al revés. El banco lo comprueba en
+ *  las dos ramas.
  *
- *  `cmd` es el comando con el que se HIZO la pieza (lo que guarda
- *  `Dataset.cmd`): la corrección es un incremento sobre ese, no sobre el de
- *  ahora. Si viene más corto que el modelo, la fila que falta usa el nominal.
- *
- *  Un doblez sin lectura sale con `measInt`, `dev` y `ok` a null y `rec = cmd`:
- *  donde no se midió no hay nada que corregir. El resumen cuenta solo los
- *  medidos. */
-export function angleReport(M: Model, cmd: Bend[], reported: (number | null)[], comp: Comp,
+ *  Un doblez sin lectura sale con `measInt`, `dev` y `ok` a null y
+ *  `rec = board`: donde no se midió no hay nada que corregir. El resumen
+ *  cuenta solo los medidos, y `pieces` sale a 1: el lote lo pone quien hace la
+ *  mediana (`angleLotSummary()` en state.ts). */
+export function angleReport(board: Model, plan: Plan, reported: (number | null)[], comp: Comp,
                             ori: Orientation[]): AngleSummary {
-  const nomInt = internalAngles(M);
-  const meas = modelFromInternal(M, reported).bends;
-  const cmdB = M.bends.map((b, i) => bendFrom(cmd[i] || b));
-  /* el nominal hace de medida donde no hay lectura: error cero, y aun así se
-     enmascara abajo por si la banda muerta estuviera a 0 y el redondeo no */
-  const rec = compensate(cmdB, M.bends, meas,
+  const boardInt = internalAngles(board);
+  const nominal = plan.nominal || [], names = plan.names || [];
+  const target = planModel(board, plan).bends;
+  const meas = modelFromInternal(board, reported).bends;
+  const rec = compensate(board.bends, target, meas,
                          { ...comp, doAngle: true, doRot: false, doFeed: false }, ori);
-  const rows: AngleRow[] = M.bends.map((_, i) => {
+  const rows: AngleRow[] = board.bends.map((b, i) => {
+    const p = nominal[i];
+    const planInt = hasReading(p) ? p : null;
+    const refInt = planInt ?? boardInt[i];
+    const head = { i, name: names[i] || '', planInt, refInt, fromBoard: planInt === null,
+                   boardInt: boardInt[i], board: b.angle };
     const r = reported[i];
-    const c = cmdB[i].angle;
     if (!hasReading(r)) {
-      return { i, nomInt: nomInt[i], measInt: null, dev: null, ok: null, cmd: c, rec: c, recDelta: 0 };
+      return { ...head, measInt: null, dev: null, ok: null, rec: b.angle, recDelta: 0 };
     }
-    const dev = r - nomInt[i];
+    const dev = r - refInt;
     const a = rec[i].angle;
-    return { i, nomInt: nomInt[i], measInt: r, dev, ok: Math.abs(dev) <= M.tol.angle,
-             cmd: c, rec: a, recDelta: a - c };
+    return { ...head, measInt: r, dev, ok: Math.abs(dev) <= board.tol.angle,
+             rec: a, recDelta: a - b.angle };
   });
-  const devs = rows.filter(x => x.dev !== null).map(x => x.dev as number);
+  const medidas = rows.filter(x => x.dev !== null);
+  const devs = medidas.map(x => x.dev as number);
   const n = devs.length;
   return {
     rows, n,
@@ -120,5 +165,7 @@ export function angleReport(M: Model, cmd: Bend[], reported: (number | null)[], 
     rms: n ? Math.sqrt(devs.reduce((a, d) => a + d * d, 0) / n) : 0,
     mean: n ? devs.reduce((a, d) => a + d, 0) / n : 0,
     out: rows.filter(x => x.ok === false).length,
+    planMissing: medidas.filter(x => x.fromBoard).length,
+    pieces: 1,
   };
 }

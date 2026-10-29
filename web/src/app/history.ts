@@ -12,7 +12,8 @@
      parámetros del simulador, las piezas medidas, el extremo fijo, la
      colocación, las cotas, los pines laterales con su amarre y su material
      —mover un pin con el amarre puesto cambia la FORMA de la pieza—, el
-     ajuste manual de la compensación y los umbrales
+     ajuste manual de la compensación, el PLANO (internos del CAD y nombres
+     de los dobleces, ver Plan) y los umbrales
      de la pestaña «Límites» — estos últimos porque cambian qué se rechaza y
      qué se avisa, o sea el resultado, y no cómo se ve la pantalla.
 
@@ -30,7 +31,7 @@
    ========================================================================= */
 import * as E from '../engine.ts';
 import type { ToDocExtra } from '../engine/doc.ts';
-import { ST, loadModel, setMarks, setPedestals, setPins, syncTweak, addDataset, setReported } from '../state.ts';
+import { ST, loadModel, setMarks, setPedestals, setPins, syncTweak, addDataset, setReported, syncPlan } from '../state.ts';
 import type { Doc, DocIn, LoadedDoc } from '../types.ts';
 
 /** 50 pasos: con ~20 KB por documento son 1 MB largo, y nadie deshace más de
@@ -64,6 +65,7 @@ export function currentDoc(ui?: ToDocExtra['ui']): Doc {
     place: ST.place, marks: ST.marks, fixture: ST.fixture,
     tweak: hayAjuste ? ST.tweak : [], lims: ST.lims, mach: ST.mach,
     pins: ST.pins, restraint: ST.restraint, load: ST.load, mat: ST.mat,
+    plan: ST.plan,
   };
   return E.toDoc(ST.model!, ST.command, ST.comp, ST.proc, ST.datasets,
                  ST.variants, ST.ref, ST.anchor, { ...extra, ui });
@@ -113,6 +115,11 @@ export function applyDoc(d: LoadedDoc): void {
   setPedestals(d.fixture);
   ST.tweak = d.tweak || [];
   syncTweak(ST.model!.bends.length);
+  /* el plano antes que las piezas: las piezas por ángulos se comparan contra
+     él en cuanto se dan de alta */
+  ST.plan = d.plan ? { names: d.plan.names.slice(), nominal: d.plan.nominal.slice() }
+                   : { names: [], nominal: [] };
+  syncPlan(ST.model!.bends.length);
   for (const x of d.datasets) {
     const ds = addDataset({ ...d.model, bends: (x.bends || []).map(E.bendFrom),
                             tail: x.tail ?? d.model.tail },
@@ -120,10 +127,14 @@ export function applyDoc(d: LoadedDoc): void {
     ds.color = x.color || ds.color;
     /* Una pieza por ángulos se rehace desde lo TECLEADO y no desde los `bends`
        guardados: esos son una copia para las versiones que no conocen el
-       método, y lo que manda es el dato. Contra el nominal de este documento,
-       que es contra el que se tecleó. */
+       método, y lo que manda es el dato. Contra SU tablero, el que viaja en
+       `board`; un archivo anterior a la clave no lo trae y la pieza adopta el
+       tablero activo al abrir (ver ensureBoard() en state.ts), que es contra
+       el que se comparaba cuando se guardó. */
     if (x.method === 'angles') {
       ds.method = 'angles';
+      ds.board = x.board ? { vid: x.board.vid, name: x.board.name,
+                             bends: x.board.bends.map(E.bendFrom) } : undefined;
       setReported(ds, x.reported || []);
     }
   }

@@ -9,7 +9,7 @@
 import * as E from './engine.ts';
 import type {
   AnchorMode, Bend, Comp, Dataset, DatumMode, Mark, Model, PathSample, Pedestal, Pin, Place, Proc,
-  Lims, Mat, Restraint, State, Tweak, Variant, Springback, AngleSummary,
+  Lims, Mat, Restraint, State, Tweak, Variant, Springback, AngleSummary, Plan,
 } from './types.ts';
 import type { Matrix4, Vector3 } from 'three';
 import type { Settled } from './engine/load.ts';
@@ -59,6 +59,8 @@ export const ST: State = {
   fixture: [],
   /* ajuste manual sobre lo que calcula el lazo, por doblez */
   tweak: [],
+  /* el PLANO: internos del CAD y nombres de los dobleces, uno por documento */
+  plan: { names: [], nominal: [] },
 };
 
 let varSeq = 1, dsSeq = 0, markSeq = 0, pedSeq = 0, pinSeq = 0;
@@ -113,6 +115,7 @@ export function syncModel(): Model {
   const v = V();
   E.syncDeltas(v);
   ST.model = E.effectiveModel(v);
+  syncPlan(ST.model.bends.length);
   return ST.model;
 }
 /** El siguiente id de modelo, y que no sea el de ninguno de los que ya hay.
@@ -165,6 +168,9 @@ export function loadModel(
      apuntando a una barra que ya no está encima */
   ST.fixture = [];
   ST.place = { ...E.PLACE_DEFAULT };
+  /* el plano es del DOCUMENTO: otra pieza, otro dibujo. Quien abre un archivo
+     pone el suyo después (ver applyDoc() en app/history.ts) */
+  ST.plan = { names: [], nominal: [] };
   syncModel();
   ST.command = ST.model!.bends.map(b => E.bendFrom(b));
   zeroTweak();
@@ -628,23 +634,54 @@ export function compensatedCommand(meas: Bend[]): Bend[] {
 export const activeDataset = (): Dataset | null =>
   ST.datasets.find(d => d.id === ST.dsActive) || null;
 
+/** Compara una pieza contra su referencia y deja el resultado en `dev`/`pis`.
+ *
+ *  Una NUBE se compara contra el modelo activo, como siempre. Una pieza por
+ *  ÁNGULOS se compara contra el PLANO puesto sobre el tablero con el que se
+ *  dobló (`planModel(boardModel(ds), ST.plan)`): lo que se quiere ver en los
+ *  colores de la escena y en la desviación por PI es cuánto se separa la pieza
+ *  del CAD, no del tablero —el tablero ya se sabe que no es el plano: lleva el
+ *  resorte compensado—. Donde el plano no da un ángulo se usa el del tablero,
+ *  igual que en el informe. */
 export function computeDev(ds: Dataset): Dataset {
-  ds.dev = E.deviations(ST.model!, ds.model, ST.datum);
+  const ref = ds.method === 'angles' && ST.model
+    ? E.planModel(boardModel(ds), ST.plan) : ST.model!;
+  ds.dev = E.deviations(ref, ds.model, ST.datum);
   ds.pis = ds.dev.pis;
   return ds;
 }
-/** Una pieza medida por ángulos no tiene forma propia: es el nominal con los
- *  ángulos informados puestos. Cuando el nominal cambia —otra variante activa,
- *  una recta editada, un doblez insertado— la pieza tiene que cambiar con él, o
- *  se compararía el nominal de ahora contra el de antes y la desviación diría
- *  lo que se editó, no lo que se midió. Por eso se rehace aquí, que es por
- *  donde pasa todo repintado (ver `refresh()`), y no en cada sitio que toca el
- *  modelo: son muchos y basta con olvidar uno.
+/** El tablero de una pieza por ángulos. Si no lo tiene —un archivo anterior a
+ *  la clave— adopta el de AHORA y se queda con él: es lo único que hay, y a
+ *  partir de ahí ya no se mueve con el tablero. */
+function ensureBoard(ds: Dataset): void {
+  if (ds.board || !ST.model) return;
+  const v = V();
+  ds.board = { vid: v ? v.id : '', name: v ? v.name : ST.model.name,
+               bends: ST.model.bends.map(b => E.bendFrom(b)) };
+}
+/** El tablero de una pieza por ángulos como modelo entero: sus dobleces
+ *  congelados con la sección, la cola y las tolerancias del modelo activo,
+ *  que el informe por ángulos no ve. */
+export function boardModel(ds: Dataset): Model {
+  ensureBoard(ds);
+  const bends = ds.board ? ds.board.bends : ST.model!.bends;
+  return E.normalizeModel({ ...ST.model!, bends: bends.map(b => E.bendFrom(b)) });
+}
+/** Una pieza medida por ángulos no tiene forma propia: es el TABLERO con el
+ *  que se dobló con los internos informados puestos. Se rehace desde ese
+ *  tablero congelado y no desde `ST.model`, y esa es toda la diferencia con la
+ *  primera versión, que la rehacía contra el modelo de ahora: el tablero se
+ *  edita —corregirlo es el lazo entero— y la pieza ya está doblada; si
+ *  siguiera al tablero, crear el tablero compensado movería la pieza que lo
+ *  pidió. Lo que sí sigue al modelo activo es la sección, la cola y las
+ *  tolerancias (ver `boardModel()`), que el informe no ve.
  *
- *  Sale barato: una copia del modelo, y `computeDev()` iba a correr igual. */
+ *  Se hace aquí, que es por donde pasa todo repintado (ver `refresh()`), y no
+ *  en cada sitio que toca el modelo: son muchos y basta con olvidar uno. Sale
+ *  barato: una copia del modelo, y `computeDev()` iba a correr igual. */
 function rebuildAngles(ds: Dataset): void {
   if (ds.method !== 'angles' || !ST.model) return;
-  ds.model = E.modelFromInternal(ST.model, ds.reported || []);
+  ds.model = E.modelFromInternal(boardModel(ds), ds.reported || []);
 }
 export const recomputeAll = (): void => {
   ST.datasets.forEach(ds => { rebuildAngles(ds); computeDev(ds); });
@@ -711,21 +748,65 @@ export function activeShift(): number {
 }
 
 /* -------------------------------------------------- medir por ángulos */
+/** Mantiene el plano del largo de los dobleces: rellena con «sin nombre» y
+ *  «sin ángulo» y corta lo que sobra. Lo llama `syncModel()`, así que toda
+ *  edición que cambia el número de dobleces lo arrastra. El relleno no gasta
+ *  un paso de deshacer: `toDoc()` escribe el plano sin las filas vacías del
+ *  final (ver engine/doc.ts). */
+export function syncPlan(n: number): Plan {
+  const p = E.normPlan(ST.plan);
+  const k = Math.max(0, n | 0);
+  p.names = p.names.slice(0, k);
+  p.nominal = p.nominal.slice(0, k);
+  while (p.names.length < k) p.names.push('');
+  while (p.nominal.length < k) p.nominal.push(null);
+  ST.plan = p;
+  return p;
+}
+/** Las piezas por ángulos se comparan contra el plano: cambiarlo cambia su
+ *  desviación, y la escena la lee de `dev`. Las nubes no lo miran. */
+function recomputeAngles(): void {
+  ST.datasets.forEach(ds => { if (ds.method === 'angles') computeDev(ds); });
+}
+/** El interno del PLANO para el doblez `i`, °; `null` o algo que no sea un
+ *  número finito lo borra («el plano no da este ángulo»). Se topa a [0, 180]
+ *  como cualquier interno: ver `bendFromInternal()`. */
+export function setPlanNominal(i: number, v: number | null): void {
+  const n = ST.model ? ST.model.bends.length : 0;
+  syncPlan(n);
+  if (!(i >= 0 && i < n)) return;
+  ST.plan.nominal[i] = typeof v === 'number' && isFinite(v) ? Math.min(180, Math.max(0, v)) : null;
+  recomputeAngles();
+}
+/** El nombre del doblez `i` según el plano. Vacío vuelve al de fábrica
+ *  (B{i+1}, lo pone la pantalla). */
+export function setPlanName(i: number, name: string): void {
+  const n = ST.model ? ST.model.bends.length : 0;
+  syncPlan(n);
+  if (!(i >= 0 && i < n)) return;
+  ST.plan.names[i] = String(name ?? '').trim();
+}
+
 /** Da de alta una pieza medida por ÁNGULOS INTERNOS. Pasa por `addDataset()`
  *  como cualquier otra —número, color, comando con el que se hizo, activa—, y
- *  lo único propio es que guarda lo TECLEADO: `reported` es el dato y `model`
- *  se deriva de él. La copia es a propósito: el borrador del panel sigue vivo y
- *  no debe poder tocar una pieza ya dada de alta. Ver engine/measure.ts. */
+ *  lo propio es que guarda lo TECLEADO y el TABLERO con el que se dobló: la
+ *  variante activa y sus dobleces efectivos de ahora. `model` se deriva de los
+ *  dos. Las copias son a propósito: el borrador del panel sigue vivo y el
+ *  tablero se va a seguir editando, y ninguno de los dos debe poder tocar una
+ *  pieza ya dada de alta. Ver engine/measure.ts. */
 export function addAngleDataset(name: string, reported: (number | null)[]): Dataset {
   const r = reported.slice();
   const ds = addDataset(E.modelFromInternal(ST.model!, r), name, 'angles');
   ds.method = 'angles';
   ds.reported = r;
+  ensureBoard(ds);
+  rebuildAngles(ds);
+  computeDev(ds);
   return ds;
 }
 
-/** Cambia los ángulos informados de una pieza y la rehace contra el nominal
- *  de AHORA. Una pieza de nube no tiene ángulos informados: se ignora. */
+/** Cambia los ángulos informados de una pieza y la rehace contra SU tablero.
+ *  Una pieza de nube no tiene ángulos informados: se ignora. */
 export function setReported(ds: Dataset, reported: (number | null)[]): void {
   if (ds.method !== 'angles') return;
   ds.reported = reported.slice();
@@ -740,34 +821,91 @@ export function renameDataset(ds: Dataset, name: string): void {
   if (n) ds.name = n;
 }
 
-/** El informe de una pieza por ángulos, contra el nominal de ahora y con el
- *  comando con el que se HIZO la pieza —el de ahora si es de un archivo que no
- *  lo guardó—. `null` si la pieza no es por ángulos. */
+/** El informe de UNA pieza por ángulos: su reporte contra el plano del
+ *  documento, y la recomendación sobre el tablero con el que se dobló. `null`
+ *  si la pieza no es por ángulos. */
 export function angleSummary(ds: Dataset): AngleSummary | null {
   if (ds.method !== 'angles' || !ST.model) return null;
-  const M = ST.model;
-  return E.angleReport(M, ds.cmd && ds.cmd.length ? ds.cmd : ST.command, ds.reported || [],
-                       ST.comp, E.orientations(M));
+  const B = boardModel(ds);
+  return E.angleReport(B, ST.plan, ds.reported || [], ST.comp, E.orientations(B));
 }
 
-/** Escribe en el comando el ángulo recomendado, SOLO en los dobleces que se
- *  midieron: donde no hubo lectura no hay corrección que inventar, y el comando
- *  de esa fila se queda como estaba. Rodado y avance no se tocan.
+/** ¿Se doblaron las dos piezas con el MISMO tablero? Misma variante y mismos
+ *  ángulos: una variante editada entre una pieza y la siguiente conserva el
+ *  id, pero ya no es el tablero que dobló a la primera, y meter sus reportes
+ *  en una misma mediana mezclaría dos resortes distintos. */
+function sameBoard(a: Dataset, b: Dataset): boolean {
+  ensureBoard(a); ensureBoard(b);
+  const A = a.board, B = b.board;
+  if (!A || !B) return false;
+  return A.vid === B.vid && A.bends.length === B.bends.length
+    && A.bends.every((x, i) => Math.abs(x.angle - B.bends[i].angle) < 1e-9);
+}
+
+/** Las piezas del LOTE de `ds`: ella misma y las demás por ángulos VISIBLES
+ *  dobladas con su mismo tablero (ver `sameBoard()`), en el orden de la lista. */
+export function angleLot(ds: Dataset): Dataset[] {
+  if (ds.method !== 'angles') return [];
+  return ST.datasets.filter(d => d === ds
+    || (d.method === 'angles' && d.visible && sameBoard(d, ds)));
+}
+
+/** El informe del LOTE: la mediana por doblez de los reportes de las piezas
+ *  de `angleLot(ds)` contra el plano, sobre el tablero común. Con una sola
+ *  pieza da lo mismo que `angleSummary(ds)`. `pieces` dice cuántas entraron. */
+export function angleLotSummary(ds: Dataset): AngleSummary | null {
+  if (ds.method !== 'angles' || !ST.model) return null;
+  const lot = angleLot(ds);
+  const B = boardModel(ds);
+  const S = E.angleReport(B, ST.plan, E.medianReported(lot.map(d => d.reported || [])),
+                          ST.comp, E.orientations(B));
+  S.pieces = lot.length;
+  return S;
+}
+
+/** Crea el TABLERO COMPENSADO: una variante nueva, copia del tablero que dobló
+ *  la pieza, con el ángulo recomendado en cada doblez medido. Queda activa, y
+ *  la de origen se queda como estaba para poder seguir el rastro de qué
+ *  tablero dio qué pieza. Devuelve el id de la nueva, o `''` si no había nada
+ *  que aplicar.
  *
- *  La misma contabilidad que «Aplicar» del lazo (`apply` en app/actions.ts):
- *  el ajuste a mano se pone a cero —el comando nuevo es el punto de partida— y
- *  la predicción se tira, porque era la del comando anterior. No apila el paso
- *  de deshacer: eso lo hace el `commit()` del clic que llamó a esto. */
-export function applyAngleRec(ds: Dataset): void {
-  const S = angleSummary(ds);
-  if (!S || !S.n) return;
-  syncCommand();
-  ST.command = ST.command.map((b, i) => {
-    const r = S.rows[i];
-    const o = E.bendFrom(b);
-    if (r && r.measInt !== null && isFinite(r.rec)) o.angle = r.rec;
-    return o;
-  });
-  zeroTweak();
-  ST.pred = null;
+ *  Cómo se escribe la corrección: como Δ DE ÁNGULO sobre la base de la copia
+ *  (`setDelta()`), que es la columna que ya existe para eso —«la compensación
+ *  al lado del dato sin perder el valor original», ver engine/model.ts—, y así
+ *  en Modelos se ve QUÉ se corrigió y cuánto. El Δ es `rec − base`, no
+ *  `Δ anterior + recDelta`: el ángulo efectivo de la copia sale exactamente
+ *  `rec`, que se calculó sobre el tablero con el que se DOBLÓ aunque la
+ *  variante se haya editado después. Un Δ de ángulo que ya tuviera la variante
+ *  queda absorbido en el nuevo. `setDelta()` recoloca los Δ de avance para que
+ *  las rectas de la pieza no se muevan, igual que al teclear un Δ a mano. Los
+ *  dobleces sin lectura conservan lo que tuviera la variante.
+ *
+ *  Si la variante de origen ya no existe se copia la activa: los dobleces
+ *  medidos salen igual en `rec`, y lo demás es lo único que hay.
+ *
+ *  NO toca `ST.command` ni el ajuste a mano: el lazo de Compensar es otro
+ *  camino. No apila el paso de deshacer: eso lo hace el `commit()` del clic. */
+export function applyAngleRec(ds: Dataset, lot = false): string {
+  const S = lot ? angleLotSummary(ds) : angleSummary(ds);
+  if (!S || !S.n || !ds.board) return '';
+  const vid = ds.board.vid;
+  const src = ST.variants.find(v => v.id === vid) || V();
+  const base = ds.board.name || src.name;
+  let k = 1;
+  while (ST.variants.some(v => v.name === `${base} · comp ${k}`)) k += 1;
+  const n = ST.variants.length;
+  const w = E.cloneVariant(src, `${base} · comp ${k}`, VAR_COLORS[n % VAR_COLORS.length], newVid());
+  w.visible = true;
+  E.syncDeltas(w);
+  for (const r of S.rows) {
+    if (r.measInt === null || !isFinite(r.rec) || r.i >= w.base.bends.length) continue;
+    E.setDelta(w, r.i, 'angle', r.rec - w.base.bends[r.i].angle);
+  }
+  ST.variants.push(w);
+  ST.active = w.id; ST.sel = -1;
+  syncModel(); syncCommand();
+  /* las nubes se comparan contra el modelo activo, que acaba de cambiar; las
+     piezas por ángulos no se mueven: van con su tablero */
+  recomputeAll();
+  return w.id;
 }

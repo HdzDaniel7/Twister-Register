@@ -5,7 +5,7 @@
 import type { Bend, Model, Variant, AnchorMode, DatumMode } from './model.ts';
 import type { Comp, Lims, Load, Mat, Proc, Restraint } from './process.ts';
 import type { MachineFmt } from '../engine/machine.ts';
-import type { Dataset, Place, Mark, Pedestal, Pin, Tweak, Mode } from './doc.ts';
+import type { Dataset, Place, Mark, Pedestal, Pin, Tweak, Mode, Plan } from './doc.ts';
 import type { Settled } from '../engine/load.ts';
 
 /* ------------------------------------------------------------ estado global */
@@ -116,4 +116,8 @@ export type State = {
   held: Settled | null;
   /** ajuste manual sobre lo que calcula el lazo, por doblez */
   tweak: Tweak[];
+  /** el PLANO del documento: internos del CAD y nombres de los dobleces. Uno
+   *  solo para todas las piezas y todos los tableros. Entra en el JSON y en el
+   *  deshacer. `syncPlan()` lo mantiene del largo de los dobleces. Ver `Plan`. */
+  plan: Plan;
 };

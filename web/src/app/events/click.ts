@@ -136,7 +136,7 @@ function onClick(e: MouseEvent): void {
          nube a la nube: la pieza que se mira y el método que se enseña no se
          separan */
       const sel = ST.datasets.find(x => x.id === d.dsel);
-      if (sel) angUI.method = sel.method === 'angles' ? 'angles' : 'cloud';
+      if (sel) { angUI.method = sel.method === 'angles' ? 'angles' : 'cloud'; angUI.note = ''; }
       renderPanels(); rebuildScene(); drawRibbon(); return;
     }
     if (d.a !== undefined) { action(d.a); return; }

@@ -22,7 +22,8 @@ import { ST, loadModel, syncModel, syncTweak, addMark, addPedestal,
          heldOfVariant, heldResult, heldSlots, heldStats, seedFixture, seedPinsFor,
          placeMatrix, refModelFree, shownBasis, setPedestals, shownPath,
          addAngleDataset, setReported, renameDataset, angleSummary, applyAngleRec,
-         recomputeAll } from './src/state.ts';
+         recomputeAll, angleLotSummary, angleLot, setPlanNominal, setPlanName,
+         syncPlan } from './src/state.ts';
 import * as H from './src/app/history.ts';
 
 let fails = 0;
@@ -4660,122 +4661,285 @@ console.log('\n— medir por ángulos —');
      && Q.tail === A.tail && JSON.stringify(Q.section) === JSON.stringify(A.section)
      && JSON.stringify(Q.tol) === JSON.stringify(A.tol));
 
-  /* angleReport: signo, ganancia por orientación, banda muerta, tope */
+  /* angleReport: TABLERO (A, con lo que dobló la máquina), PLANO (los internos
+     del CAD) y REPORTE (lo medido). La desviación es reporte − plano; la
+     recomendación es un ángulo de TABLERO nuevo. */
   const comp = { ...E.COMP_DEFAULT, gainW: 0.5, gainT: 1.0, dead: 0.2, maxStep: 3,
                  doAngle: false, doRot: true, doFeed: true };
   const ori = E.orientations(A);
-  const cmd = A.bends.map(b => ({ ...b, angle: b.angle + 1 }));
-  const R = E.angleReport(A, cmd, [92, 150.1, 125, null, 180], comp, ori);
-  const [r0, r1, r2, r3] = R.rows;
   ok('orientaciones del caso: T W W T T', ori.join('') === 'TWWTT', ori.join(''));
-  ok('dev = medido − nominal: 92 contra 90 es +2 (le falta doblez)', r0.dev === 2 && r0.ok === false);
-  ok('le falta doblez → se recomienda MÁS ángulo (de plano, ganancia 1: +2)',
-     Math.abs(r0.rec - (91 + 2)) < 1e-12 && Math.abs(r0.recDelta - 2) < 1e-12, `${r0.rec}`);
-  ok('dentro de la banda muerta no se corrige (0.1 < 0.2)',
-     r1.rec === r1.cmd && r1.recDelta === 0 && r1.ok === true);
-  ok('rama negativa: 125 contra 135 se pasó de doblez → MENOS magnitud, topado a 3',
-     r2.dev === -10 && Math.abs(r2.rec - (-44 + 3)) < 1e-12, `${r2.rec}`);
-  ok('sin lectura: measInt, dev y ok a null, rec = cmd',
-     r3.measInt === null && r3.dev === null && r3.ok === null && r3.rec === r3.cmd && r3.recDelta === 0);
-  ok('el resumen cuenta solo los medidos', R.n === 4 && R.out === 2
-     && Math.abs(R.maxAbs - 10) < 1e-12 && Math.abs(R.mean - (2 + 0.1 - 10 + 0) / 4) < 1e-9
-     && Math.abs(R.rms - Math.sqrt((4 + 0.01 + 100) / 4)) < 1e-9, `mean ${R.mean} rms ${R.rms}`);
-  const Rw = E.angleReport(A, cmd, [null, 154], comp, ori);
-  ok('de canto usa gainW: 154 contra 150 le falta doblez → +4·0.5 = +2',
-     Math.abs(Rw.rows[1].rec - (31 + 2)) < 1e-12, `${Rw.rows[1].rec}`);
-  ok('la recomendación es solo de ángulo aunque el lazo tenga doAngle apagado', r0.rec !== r0.cmd);
-  const R0 = E.angleReport(A, [], [], comp, ori);
-  ok('sin ninguna lectura: n = 0, todo a cero y rec = nominal',
-     R0.n === 0 && R0.rms === 0 && R0.maxAbs === 0 && R0.mean === 0
+  /* el plano NO es el tablero: B1 pide 92 interno (el tablero dobla 90 para
+     que el resorte lo deje en 92), B2 no lo da, B3 pide 130, B4 pide 125 */
+  const plan = { names: ['codo A', '', 'B3 plano'], nominal: [92, null, 130, 125, null] };
+  const R = E.angleReport(A, plan, [93, 150.1, 140, null, null], comp, ori);
+  const [r0, r1, r2, r3] = R.rows;
+  ok('dev = REPORTE − PLANO, no contra el tablero: 93 contra 92 es +1',
+     r0.dev === 1 && r0.planInt === 92 && r0.refInt === 92 && !r0.fromBoard
+     && r0.boardInt === 90 && r0.board === 90 && r0.ok === false);
+  ok('pieza CORTA (interno medido > plano), rama positiva → MÁS |doblez|: 90 → 91',
+     Math.abs(r0.rec - 91) < 1e-12 && Math.abs(r0.recDelta - 1) < 1e-12, `${r0.rec}`);
+  ok('pieza corta en la rama NEGATIVA → también más |doblez|: −45 → −48 (gainW, topado a 3)',
+     r2.dev === 10 && Math.abs(r2.rec + 48) < 1e-12 && Math.abs(r2.recDelta + 3) < 1e-12, `${r2.rec}`);
+  const Rp = E.angleReport(A, plan, [90, null, 128], comp, ori);
+  ok('pieza PASADA (interno medido < plano) → MENOS |doblez|, en las dos ramas: 90 → 88, −45 → −44',
+     Rp.rows[0].dev === -2 && Math.abs(Rp.rows[0].rec - 88) < 1e-12
+     && Rp.rows[2].dev === -2 && Math.abs(Rp.rows[2].rec + 44) < 1e-12,
+     `${Rp.rows[0].rec} ${Rp.rows[2].rec}`);
+  ok('sin ángulo de plano se cae al TABLERO y lo marca: 150.1 contra 150, dentro de banda',
+     r1.planInt === null && r1.fromBoard && r1.refInt === 150 && Math.abs(r1.dev - 0.1) < 1e-9
+     && r1.ok === true && r1.rec === 30 && r1.recDelta === 0);
+  ok('sin lectura: measInt, dev y ok a null, rec = tablero; el plano sí se informa',
+     r3.measInt === null && r3.dev === null && r3.ok === null && r3.rec === -60
+     && r3.recDelta === 0 && r3.planInt === 125 && !r3.fromBoard);
+  ok('los nombres salen del plano; vacío o que falta = \'\'',
+     r0.name === 'codo A' && r1.name === '' && r2.name === 'B3 plano' && R.rows[4].name === '');
+  ok('el resumen cuenta solo los medidos, planMissing los que cayeron al tablero, pieces = 1',
+     R.n === 3 && R.out === 2 && R.planMissing === 1 && R.pieces === 1
+     && Math.abs(R.maxAbs - 10) < 1e-12 && Math.abs(R.mean - (1 + 0.1 + 10) / 3) < 1e-9
+     && Math.abs(R.rms - Math.sqrt((1 + 0.01 + 100) / 3)) < 1e-9, `mean ${R.mean} rms ${R.rms}`);
+  const vacio = { names: [], nominal: [] };
+  const Rb = E.angleReport(A, vacio, [92, 154], comp, ori);
+  ok('plano vacío: todo contra el tablero, como antes (92 contra 90 → +2, rec 92; de canto +4·0.5)',
+     Rb.rows.every(x => x.fromBoard) && Rb.rows[0].dev === 2 && Math.abs(Rb.rows[0].rec - 92) < 1e-12
+     && Math.abs(Rb.rows[1].rec - 32) < 1e-12 && Rb.planMissing === 2, `${Rb.rows[1].rec}`);
+  ok('la recomendación es solo de ángulo aunque el lazo tenga doAngle apagado', r0.rec !== r0.board);
+  const R0 = E.angleReport(A, plan, [], comp, ori);
+  ok('sin ninguna lectura: n = 0, todo a cero y rec = tablero',
+     R0.n === 0 && R0.rms === 0 && R0.maxAbs === 0 && R0.mean === 0 && R0.planMissing === 0
      && R0.rows.every((x, i) => x.rec === A.bends[i].angle));
+  const PM = E.planModel(A, plan);
+  ok('planModel: el tablero con los ángulos del plano donde los da (92 → 88, 130 → −50, 125 → −55)',
+     Math.abs(PM.bends[0].angle - 88) < 1e-12 && PM.bends[1].angle === 30
+     && Math.abs(PM.bends[2].angle + 50) < 1e-12 && Math.abs(PM.bends[3].angle + 55) < 1e-12
+     && PM.bends[4].angle === 0 && PM.bends.every((b, i) => b.feed === A.bends[i].feed));
+  ok('medianReported: por doblez, sin los null, par = promedio de los centrales',
+     JSON.stringify(E.medianReported([[1, null, 3], [2, null, null, 4], [10, null, 5]]))
+       === '[2,null,4,4]'
+     && JSON.stringify(E.medianReported([[1, 2], [3, NaN]])) === '[2,2]'
+     && JSON.stringify(E.medianReported([])) === '[]');
   ok('MEAS_METHODS conoce nube y ángulos', E.MEAS_METHODS.map(x => x.id).join() === 'cloud,angles');
 
-  /* el estado: alta, informe, renombre, recalcular y aplicar */
+  /* el estado: alta, tablero congelado, plano, informe, lote y tablero nuevo */
   /* datum al amarre: con el mejor ajuste, el PI1 también se movería */
   loadModel(E.demoModel()); ST.datum = 'start';
   const n = ST.model.bends.length;
+  ok('el plano arranca vacío y del largo de los dobleces',
+     ST.plan.names.length === n && ST.plan.nominal.length === n
+     && ST.plan.nominal.every(x => x === null) && ST.plan.names.every(x => x === ''));
   const nomI = E.internalAngles(ST.model);
   const lect = nomI.map((v, i) => (i % 4 === 3 ? null : v + (i % 2 ? -0.8 : 0.6)));
   const ds = addAngleDataset('CMM 1', lect);
   ok('addAngleDataset da de alta una pieza por ángulos, activa',
      ds.method === 'angles' && ds.src === 'angles' && ST.dsActive === ds.id && !!ds.dev);
+  ok('y congela el TABLERO: la variante activa y sus dobleces efectivos',
+     ds.board.vid === ST.active && ds.board.name === E.effectiveModel(ST.variants[0]).name
+     && ds.board.bends.every((b, i) => b.angle === ST.model.bends[i].angle
+       && b.feed === ST.model.bends[i].feed));
   lect[0] = 1;
   ok('y guarda una COPIA de lo tecleado', ds.reported[0] !== 1);
-  ok('su modelo es el nominal con los ángulos puestos',
+  ok('su modelo es el tablero con los ángulos puestos',
      ds.model.bends.every((b, i) => b.feed === ST.model.bends[i].feed
        && Math.abs((180 - Math.abs(E.wrapTurn(b.angle))) - (ds.reported[i] ?? nomI[i])) < 1e-9));
   const S = angleSummary(ds);
-  ok('angleSummary da una fila por doblez y cuenta las lecturas',
-     !!S && S.rows.length === n && S.n === n - Math.floor(n / 4));
+  ok('angleSummary da una fila por doblez y cuenta las lecturas; sin plano, todo contra el tablero',
+     !!S && S.rows.length === n && S.n === n - Math.floor(n / 4) && S.planMissing === S.n);
   renameDataset(ds, '   ');
   ok('renombrar a vacío no borra el nombre', ds.name === 'CMM 1');
   renameDataset(ds, '  CMM bis ');
   ok('renombrar recorta', ds.name === 'CMM bis');
 
-  /* el nominal cambia: la pieza por ángulos se rehace contra el nuevo */
-  ST.variants[0].base.bends[2].feed += 25; syncModel(); recomputeAll();
-  ok('editar el nominal rehace la pieza por ángulos (la recta la sigue)',
-     ds.model.bends[2].feed === ST.model.bends[2].feed);
-  ok('y su desviación es la de los ángulos, no la de la edición: PI1 no se mueve',
-     ds.dev.point[1] < 1e-9 && ds.dev.point[ds.dev.point.length - 1] > 0.1);
+  /* el plano: uno por documento */
+  setPlanNominal(0, nomI[0] + 0.6);       // la pieza 1 midió justo el plano en B1
+  setPlanNominal(1, nomI[1] + 1.5);
+  setPlanNominal(2, 999);
+  setPlanNominal(n + 4, 50);              // fuera de rango: no hace nada
+  setPlanName(1, '  codo B ');
+  ok('setPlanNominal guarda, topa a [0, 180] e ignora un índice fuera de rango',
+     ST.plan.nominal[0] === nomI[0] + 0.6 && ST.plan.nominal[2] === 180 && ST.plan.nominal.length === n);
+  setPlanNominal(2, null);
+  ok('y null lo borra; setPlanName recorta', ST.plan.nominal[2] === null && ST.plan.names[1] === 'codo B');
+  const Sp = angleSummary(ds);
+  ok('con plano, la desviación es contra el PLANO y el nombre sale de él',
+     Math.abs(Sp.rows[0].dev) < 1e-9 && Math.abs(Sp.rows[1].dev - (-0.8 - 1.5)) < 1e-9
+     && !Sp.rows[1].fromBoard && Sp.rows[1].name === 'codo B' && Sp.rows[2].fromBoard
+     && Sp.planMissing === S.n - 2);
+  ok('B2 se pasó 2.3° contra el plano → el tablero nuevo dobla MENOS',
+     Sp.rows[1].dev < 0 && Math.abs(Sp.rows[1].rec) < Math.abs(Sp.rows[1].board),
+     `${Sp.rows[1].board} → ${Sp.rows[1].rec}`);
 
-  setReported(ds, nomI.map(() => null));
-  ok('setReported sin lecturas deja la pieza igual al nominal',
-     ds.dev.point.every(x => x < 1e-9) && angleSummary(ds).n === 0);
-  setReported(ds, nomI.map((v, i) => (i === 1 ? v + 2 : null)));
-  const cmd0 = ST.command.map(b => ({ ...b }));
-  const Sx = angleSummary(ds);
+  /* computeDev: los colores de una pieza por ángulos son contra el PLANO */
+  const planI = nomI.map((v, i) => ST.plan.nominal[i] ?? v);
+  const dsP = addAngleDataset('igual al plano', planI);
+  ok('una pieza que mide EXACTAMENTE el plano no tiene desviación por PI, aunque no sea el tablero',
+     dsP.dev.point.every(x => x < 1e-9) && dsP.model.bends[1].angle !== ST.model.bends[1].angle);
+  const dsT = addAngleDataset('igual al tablero', nomI);
+  ok('y una que mide exactamente el TABLERO sí la tiene: el tablero no es el plano',
+     dsT.dev.point[dsT.dev.point.length - 1] > 0.1);
+  ST.datasets = ST.datasets.filter(d => d !== dsP && d !== dsT); ST.dsActive = ds.id;
+
+  /* el tablero cambia: la pieza YA DOBLADA no se mueve */
+  const antes = JSON.stringify(ds.model.bends), boardAntes = JSON.stringify(ds.board);
+  const pisAntes = ds.dev.pis.map(p => p.clone());
+  ST.variants[0].base.bends[2].feed += 25; ST.variants[0].base.bends[3].angle += 3;
+  syncModel(); recomputeAll();
+  ok('editar el tablero NO mueve una pieza por ángulos ya dada de alta',
+     JSON.stringify(ds.model.bends) === antes && JSON.stringify(ds.board) === boardAntes
+     && ds.dev.pis.every((p, i) => p.distanceTo(pisAntes[i]) < 1e-9));
+  ok('ni su informe: sigue contra el tablero con el que se dobló',
+     JSON.stringify(angleSummary(ds)) === JSON.stringify(Sp));
+
+  /* el lote: mismas piezas del MISMO tablero (misma variante y mismos ángulos) */
+  ST.variants[0].base.bends[3].angle -= 3; ST.variants[0].base.bends[2].feed -= 25;
+  syncModel(); recomputeAll();
+  const ds2 = addAngleDataset('CMM 2', nomI.map((v, i) => (i < 3 ? v + 0.2 : null)));
+  const ds3 = addAngleDataset('CMM 3', nomI.map((v, i) => (i < 3 ? v + 1.0 : null)));
+  ST.variants[0].base.bends[0].angle += 1; syncModel(); recomputeAll();
+  const dsOtro = addAngleDataset('otro tablero', nomI.map(v => v + 5));
+  ST.variants[0].base.bends[0].angle -= 1; syncModel(); recomputeAll();
+  const L = angleLotSummary(ds);
+  const med = (a) => a.slice().sort((x, y) => x - y)[1];
+  ok('el lote junta las piezas del mismo tablero (3) y deja fuera la de otro tablero',
+     L.pieces === 3 && angleLot(ds).every(d => d !== dsOtro), `pieces ${L.pieces}`);
+  ok('y su reporte es la MEDIANA por doblez',
+     [0, 1, 2].every(i => Math.abs(L.rows[i].measInt
+       - med([ds.reported[i], ds2.reported[i], ds3.reported[i]])) < 1e-12)
+     && L.rows[4].measInt === ds.reported[4], `${L.rows[0].measInt}`);
+  ds3.visible = false;
+  ok('una pieza oculta no entra en el lote', angleLotSummary(ds).pieces === 2);
+  ok('angleSummary sigue siendo de una pieza', angleSummary(ds).pieces === 1);
+  ST.datasets = ST.datasets.filter(d => d !== dsOtro);
+
+  /* «crear tablero compensado»: una variante NUEVA, la de origen intacta */
   ST.tweak[0].angle = 0.4;
-  applyAngleRec(ds);
-  ok('aplicar escribe el ángulo recomendado SOLO donde hubo lectura',
-     Math.abs(ST.command[1].angle - Sx.rows[1].rec) < 1e-12
-     && ST.command[1].angle !== cmd0[1].angle
-     && ST.command.every((b, i) => i === 1 || b.angle === cmd0[i].angle));
-  ok('y no toca rodado ni avance',
-     ST.command.every((b, i) => b.rot === cmd0[i].rot && b.feed === cmd0[i].feed));
-  ok('el ajuste a mano se pone a cero y la predicción se tira, como en «Aplicar»',
-     ST.tweak.every(t => !t.angle && !t.rot && !t.feed) && ST.pred === null);
+  const cmd0 = JSON.stringify(ST.command), tw0 = JSON.stringify(ST.tweak);
+  const v1 = JSON.stringify(ST.variants[0]);
+  const pieza0 = JSON.stringify(ds.model.bends);
+  const Sx = angleSummary(ds);
+  const nv = ST.variants.length;
+  const id = applyAngleRec(ds);
+  const w = ST.variants.find(v => v.id === id);
+  ok('aplicar crea una variante nueva, activa, con nombre «tablero · comp 1»',
+     !!w && ST.variants.length === nv + 1 && ST.active === id && w.id !== 'v1'
+     && w.name === `${ds.board.name} · comp 1`, w && w.name);
+  const W = E.effectiveModel(w), V1 = E.effectiveModel(ST.variants[0]);
+  ok('sus ángulos EFECTIVOS son la recomendación donde hubo lectura, y el tablero donde no',
+     Sx.rows.every((r, i) => Math.abs(W.bends[i].angle
+       - (r.measInt === null ? V1.bends[i].angle : r.rec)) < 1e-9));
+  ok('la corrección va en la columna Δ de ángulo (base intacta, Δ = rec − base)',
+     w.base.bends.every((b, i) => b.angle === V1.bends[i].angle)
+     && Sx.rows.some(r => r.recDelta !== 0)
+     && Sx.rows.every((r, i) => Math.abs(w.deltas[i].angle
+       - (r.measInt === null ? 0 : r.rec - w.base.bends[i].angle)) < 1e-9));
+  ok('y las rectas de la pieza no se mueven (setDelta recoloca el avance)',
+     W.bends.every((_, i) => Math.abs(E.straightOf(W, i) - E.straightOf(V1, i)) < 1e-9)
+     && Math.abs(E.tailStraight(W) - E.tailStraight(V1)) < 1e-9);
+  ok('la variante de origen, ST.command y el ajuste a mano quedan INTACTOS',
+     JSON.stringify(ST.variants[0]) === v1 && JSON.stringify(ST.command) === cmd0
+     && JSON.stringify(ST.tweak) === tw0);
+  ok('y la pieza que lo pidió no se mueve: sigue con su tablero',
+     JSON.stringify(ds.model.bends) === pieza0 && ds.board.vid === 'v1');
+  const id2 = applyAngleRec(ds);
+  ok('otra vez → «comp 2»', ST.variants.find(v => v.id === id2).name
+     === `${ds.board.name} · comp 2`);
+  ok('sin lecturas no crea nada', applyAngleRec(addAngleDataset('vacía', [])) === '');
+  ST.datasets = ST.datasets.filter(d => d.name !== 'vacía'); ST.dsActive = ds.id;
+  ds3.visible = true;
+  const idL = applyAngleRec(ds, true);
+  const WL = E.effectiveModel(ST.variants.find(v => v.id === idL));
+  const LL = angleLotSummary(ds);
+  ok('con el lote, la recomendación sale de la mediana',
+     LL.pieces === 3 && LL.rows.every((r, i) => r.measInt === null
+       || Math.abs(WL.bends[i].angle - r.rec) < 1e-9));
+  ok('si la variante de origen se borró, copia la activa',
+     (() => {
+       const b = ds.board; ds.board = { ...b, vid: 'v999' };
+       const k = applyAngleRec(ds); ds.board = b;
+       const x = ST.variants.find(v => v.id === k);
+       return !!x && Sx.rows.every((r, i) => r.measInt === null
+         || Math.abs(E.effectiveModel(x).bends[i].angle - r.rec) < 1e-9);
+     })());
   ok('una pieza de nube no tiene informe por ángulos',
-     angleSummary({ model: ST.model, method: undefined }) === null);
+     angleSummary({ model: ST.model, method: undefined }) === null
+     && angleLotSummary({ model: ST.model, method: undefined }) === null);
 
-  /* persistencia: el documento y la pila de deshacer */
+  /* deshacer: crear el tablero compensado es UN paso, y deshacerlo lo quita */
+  ST.active = 'v1'; syncModel(); recomputeAll();
+  H.initHistory();
+  const nv2 = ST.variants.length;
+  applyAngleRec(ds);
+  ok('crear el tablero compensado apila un paso', H.commit() === true);
+  H.undo();
+  ok('y deshacerlo quita la variante', ST.variants.length === nv2);
+
+  /* persistencia: plano y tablero viajan en el JSON y en la pila de deshacer */
   const doc = H.currentDoc();
-  const dd = doc.datasets[doc.datasets.length - 1];
-  ok('el JSON lleva method y reported de la pieza por ángulos',
-     dd.method === 'angles' && dd.reported.length === n && dd.reported[1] === nomI[1] + 2
-     && dd.reported[0] === null);
+  const dsi = ST.datasets.findIndex(d => d.name === 'CMM bis');
+  const dd = doc.datasets[dsi];
+  ok('el JSON lleva method, reported y board de la pieza por ángulos',
+     dd.method === 'angles' && dd.reported.length === n && dd.reported[1] === nomI[1] - 0.8
+     && dd.reported[3] === null && dd.board.vid === 'v1' && dd.board.bends.length === n);
+  ok('y el plano, sin las filas vacías del final',
+     doc.plan && doc.plan.nominal.length === 2 && doc.plan.names[1] === 'codo B'
+     && doc.plan.nominal[0] === nomI[0] + 0.6);
   const txt = JSON.stringify(doc);
   H.applyDoc(E.fromDoc(JSON.parse(txt)));
-  const ds2 = ST.datasets[ST.datasets.length - 1];
-  ok('abrir el JSON recupera la pieza por ángulos con lo tecleado',
-     ds2.method === 'angles' && JSON.stringify(ds2.reported) === JSON.stringify(dd.reported)
-     && ds2.name === 'CMM bis');
+  const dsR = ST.datasets[dsi];
+  ok('abrir el JSON recupera la pieza con lo tecleado y su tablero',
+     dsR.method === 'angles' && JSON.stringify(dsR.reported) === JSON.stringify(dd.reported)
+     && dsR.name === 'CMM bis' && JSON.stringify(dsR.board) === JSON.stringify(dd.board));
+  ok('y el plano, rellenado al largo de los dobleces',
+     ST.plan.nominal.length === n && ST.plan.nominal[1] === nomI[1] + 1.5 && ST.plan.names[1] === 'codo B');
   const { saved: s1, ...d1 } = doc, { saved: s2, ...d2 } = H.currentDoc(); void s1; void s2;
   ok('y vuelve a guardar el mismo documento, carácter por carácter',
      JSON.stringify(d1) === JSON.stringify(d2));
 
   H.initHistory();
-  setReported(ds2, nomI.map((v, i) => (i === 1 ? v + 3 : null)));
-  ok('cambiar una lectura apila un paso', H.commit() === true);
+  setPlanNominal(4, 100);
+  ok('cambiar el plano apila un paso', H.commit() === true);
+  setReported(ST.datasets[dsi], nomI.map((v, i) => (i === 1 ? v + 3 : null)));
+  ok('cambiar una lectura apila otro', H.commit() === true);
   H.undo();
-  const ds3 = ST.datasets[ST.datasets.length - 1];
-  ok('deshacer devuelve la lectura anterior', ds3.method === 'angles' && ds3.reported[1] === nomI[1] + 2);
+  ok('deshacer devuelve la lectura anterior', ST.datasets[dsi].reported[1] === nomI[1] - 0.8);
+  H.undo();
+  ok('y otra vez, el plano anterior', ST.plan.nominal[4] === null && ST.plan.nominal[1] === nomI[1] + 1.5);
   ok('y lo restaurado serializa igual', H.commit() === false);
+  syncPlan(n + 3); syncPlan(n);
+  ok('rellenar el plano no gasta un paso de deshacer', H.commit() === false);
+
+  /* un archivo anterior: sin plano ni tablero */
+  const viejo = JSON.parse(txt);
+  delete viejo.plan;
+  for (const x of viejo.datasets) delete x.board;
+  const lv0 = E.fromDoc(viejo);
+  ok('un archivo sin plano abre con el plano vacío',
+     lv0.plan.names.length === 0 && lv0.plan.nominal.length === 0);
+  H.applyDoc(lv0);
+  ok('y sus piezas por ángulos adoptan el tablero activo al abrir',
+     ST.datasets.filter(d => d.method === 'angles').every(d => d.board && d.board.vid === ST.active
+       && d.board.bends.every((b, i) => b.angle === ST.model.bends[i].angle)));
+  ok('con el plano vacío, todo contra el tablero',
+     angleSummary(ST.datasets[dsi]).rows.every(r => r.fromBoard));
 
   /* un archivo sin la clave es nube; uno con un método desconocido, también */
-  const viejo = JSON.parse(txt);
   const ult = viejo.datasets[viejo.datasets.length - 1];
   delete ult.method; delete ult.reported;
-  viejo.datasets.push({ ...ult, method: 'marciano', reported: [1, 2] });
+  viejo.datasets.push({ ...ult, method: 'marciano', reported: [1, 2], board: { vid: 'v1', bends: [] } });
   const lv = E.fromDoc(viejo);
-  ok('un archivo sin `method`, o con uno desconocido, abre como nube',
-     lv.datasets.every(x => x.method === undefined && x.reported === undefined));
-  H.applyDoc(lv);
+  ok('un archivo sin `method`, o con uno desconocido, abre como nube y sin tablero',
+     lv.datasets.slice(-2).every(x => x.method === undefined && x.reported === undefined
+       && x.board === undefined));
+  viejo.datasets = viejo.datasets.slice(-2);
+  H.applyDoc(E.fromDoc(viejo));
   ok('y sus piezas no tienen informe por ángulos', ST.datasets.every(x => angleSummary(x) === null));
   ok('reported se sanea: lo que no es número finito es null',
      JSON.stringify(E.normReported([1, 'x', null, Infinity, 2.5])) === '[1,null,null,null,2.5]');
-  ok('una nube no escribe method ni reported en el JSON',
-     H.currentDoc().datasets.every(x => !('method' in x) && !('reported' in x)));
+  ok('el plano se sanea: arreglos del mismo largo, texto recortado, null donde no hay número',
+     JSON.stringify(E.normPlan({ names: [' a ', 3, {}], nominal: [1, 'x'] }))
+       === '{"names":["a","3",""],"nominal":[1,null,null]}'
+     && JSON.stringify(E.normPlan('basura')) === '{"names":[],"nominal":[]}');
+  ok('una nube no escribe method, reported ni board en el JSON, y sin plano no hay clave',
+     H.currentDoc().datasets.every(x => !('method' in x) && !('reported' in x) && !('board' in x))
+     && !('plan' in H.currentDoc()));
 }
 
 console.log(`\n${fails ? fails + ' PRUEBA(S) FALLARON' : 'todas las pruebas pasaron'}\n`);

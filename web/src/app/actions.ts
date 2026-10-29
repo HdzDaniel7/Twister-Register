@@ -492,22 +492,28 @@ export function action(a: string): void {
       const nm = (angleDs() ? '' : angUI.name) || `${T('angDefName')} ${ST.datasets.length + 1}`;
       const ds = addAngleDataset(nm, vals);
       ds.visible = true; ST.dsActive = ds.id;
-      angUI.method = 'angles'; angUI.draft = []; angUI.name = '';
+      angUI.method = 'angles'; angUI.draft = []; angUI.name = ''; angUI.note = '';
       renderPanels(); rebuildScene(); drawRibbon();
       return;
     }
-    /* «Aplicar recomendación» escribe en el comando el ángulo que el resumen
-       recomienda, SOLO en los dobleces medidos: donde no hay medida no hay
-       corrección que inventar. Como `apply`, el ajuste a mano ya está dentro
-       del comando y se pone a cero. */
+    /* «Crear tablero compensado»: el ángulo recomendado de los dobleces medidos
+       se escribe en un tablero NUEVO (una variante más, que queda activa) y el
+       viejo se conserva intacto. Donde no hay medida no hay corrección que
+       inventar. Ir a Modelos a verlo es decisión del usuario: aquí solo se
+       avisa cómo se llama. */
     case 'angrec': {
       const ds = angleDs(), S = ds ? angleSummary(ds) : null;
       if (!ds || !S || !S.n) { alert(T('noMeas')); return; }
-      applyAngleRec(ds);
+      const id = applyAngleRec(ds, angUI.lot);
+      const nv = variantById(id);
+      angUI.note = T('angRecDone').replace('{v}', nv ? nv.name : id);
       predict();
-      renderPanels(); rebuildScene(); drawRibbon();
+      renderAll(); rebuildScene(); drawRibbon();
       return;
     }
+    /* Pieza | Lote: qué resumen se mira. Es estado de interfaz. */
+    case 'angpiece': angUI.lot = false; renderPanels(); return;
+    case 'anglote': angUI.lot = true; renderPanels(); return;
     case 'undo': return stepHistory(undo);
     case 'redo': return stepHistory(redo);
     case 'solo': return toggleSolo();

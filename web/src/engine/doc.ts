@@ -16,7 +16,7 @@ import { Vector3 } from 'three';
 import type {
   Bend, Model, Variant, AnchorMode, Place, Mark, Pedestal, Tweak, UiPrefs, Doc, DocIn, LoadedDoc,
   Lims, Pin, Mat, Restraint, Load,
-  Proc, Comp, MeasMethod,
+  Proc, Comp, MeasMethod, Plan, Board,
 } from '../types.ts';
 import { D2R, eye, trans, rotX, rotY, rotZ, posOf } from './math.ts';
 import { bendFrom, normalizeModel } from './bend.ts';
@@ -118,6 +118,8 @@ type ToDocDataset = {
   /** cómo se midió y, si fue por ángulos, lo que se tecleó. Ver MeasMethod */
   method?: MeasMethod;
   reported?: (number | null)[];
+  /** con qué tablero se dobló, si es por ángulos. Ver Board */
+  board?: Board;
 };
 /** Lo demás que lleva el documento: presentación y preferencias, nada de
  *  cinemática. Todo opcional porque toDoc() rellena cualquier falta.
@@ -138,6 +140,8 @@ export type ToDocExtra = {
   tweak?: Tweak[];
   lims?: Lims;
   mach?: MachineFmt;
+  /** el plano del documento (internos del CAD y nombres). Ver Plan */
+  plan?: Plan;
   ui?: { theme?: UiPrefs['theme']; lang?: UiPrefs['lang']; mode?: UiPrefs['mode'] };
 };
 
@@ -183,6 +187,9 @@ export function toDoc(
          no reinterpreta, como pasó con `cmd`. */
       ...(d.method && d.method !== 'cloud'
         ? { method: d.method, reported: normReported(d.reported) } : {}),
+      /* El tablero con el que se dobló: solo en las piezas por ángulos, que
+         son las únicas que se rehacen desde él. */
+      ...(d.method === 'angles' && d.board ? { board: normBoard(d.board) } : {}),
     })),
     // claves opcionales: los archivos viejos siguen abriendo sin ellas
     ref, anchor,
@@ -221,6 +228,14 @@ export function toDoc(
     tweak: (extra.tweak || []).map(t => ({
       angle: +t.angle || 0, rot: +t.rot || 0, feed: +t.feed || 0,
     })),
+    /* El plano, CANÓNICO: sin las filas vacías del final, y sin la clave si no
+       queda ninguna. Lo mismo que el `tweak` a cero en el deshacer: la
+       pantalla rellena el plano hasta el largo de los dobleces (`syncPlan()`)
+       solo con mirarlo, y si ese relleno se escribiera, mirar gastaría un paso
+       de deshacer. Y un documento sin plano sale idéntico al de antes de que
+       existiera la clave, que es por lo que no hace falta subir SCHEMA: la
+       clave añade, no reinterpreta. */
+    ...planOut(extra.plan),
     /* Preferencias de la interfaz. No hay localStorage en este proyecto, así
        que tema e idioma viajan con el documento. Clave opcional: un archivo
        sin `ui` no pisa lo que el usuario tenga puesto. */
@@ -232,6 +247,43 @@ export function toDoc(
       mode: (extra.ui && extra.ui.mode) || 'model',
     },
   };
+}
+
+/** Un plano saneado: dos arreglos del mismo largo, nombres como texto
+ *  recortado y ángulos como número finito o `null`. Lo que no es un plano es
+ *  un plano vacío —«el CAD no dice nada»—, que es lo que tenía todo documento
+ *  anterior a la clave. */
+export function normPlan(p: unknown): Plan {
+  const o = (p && typeof p === 'object' ? p : {}) as { names?: unknown; nominal?: unknown };
+  const nominal = normReported(o.nominal);
+  const rawN = Array.isArray(o.names) ? o.names : [];
+  const len = Math.max(nominal.length, rawN.length);
+  const names: string[] = [];
+  for (let i = 0; i < len; i++) {
+    const x = rawN[i];
+    names.push(typeof x === 'string' || typeof x === 'number' ? String(x).trim() : '');
+  }
+  while (nominal.length < len) nominal.push(null);
+  return { names, nominal };
+}
+
+/** El plano tal como se escribe: saneado y sin las filas vacías del final. Ver
+ *  el comentario en `toDoc()`. Devuelve `{}` si no queda nada. */
+function planOut(p: Plan | undefined): { plan?: Plan } {
+  const q = normPlan(p);
+  let n = q.nominal.length;
+  while (n > 0 && q.nominal[n - 1] === null && !q.names[n - 1]) n--;
+  return n ? { plan: { names: q.names.slice(0, n), nominal: q.nominal.slice(0, n) } } : {};
+}
+
+/** El tablero de una pieza por ángulos venido de un archivo, o `undefined` si
+ *  no es uno: entonces la pieza adopta el tablero que haya al abrir. */
+export function normBoard(b: unknown): Board | undefined {
+  if (!b || typeof b !== 'object') return undefined;
+  const o = b as { vid?: unknown; name?: unknown; bends?: unknown };
+  if (!Array.isArray(o.bends)) return undefined;
+  return { vid: String(o.vid ?? ''), name: String(o.name ?? ''),
+           bends: (o.bends as Bend[]).map(x => bendFrom(x)) };
 }
 
 /** Un método de medida venido de un archivo: lo que no se conoce es nube, que
@@ -398,9 +450,15 @@ export function fromDoc(d: DocIn): LoadedDoc {
          internos no dependen de la cinemática —son el desvío, sin lado—, así
          que un archivo convertido los conserva tal cual: al abrir, la pieza se
          rehace con ellos sobre el nominal ya convertido. */
-      method: undefined, reported: undefined,
+      method: undefined, reported: undefined, board: undefined,
       ...(normMethod(x.method) !== 'cloud'
         ? { method: normMethod(x.method), reported: normReported(x.reported) } : {}),
+      /* El tablero viaja en la cinemática del archivo; uno anterior a la
+         conversión no lo puede traer —la clave es posterior a 2.2—, y si lo
+         trajera se descarta como el `cmd`: la pieza adopta el tablero de
+         ahora, que es lo que hacía antes de que existiera. */
+      ...(!legacy && normMethod(x.method) === 'angles' && normBoard(x.board)
+        ? { board: normBoard(x.board) } : {}),
     })),
     anchor: d.anchor || 'start',
     variants,
@@ -450,6 +508,9 @@ export function fromDoc(d: DocIn): LoadedDoc {
     tweak: (d.tweak || []).map(t => ({
       angle: +t.angle || 0, rot: +t.rot || 0, feed: +t.feed || 0,
     })),
+    /* sin `plan`, plano vacío: el CAD no dice nada y cada pieza se compara
+       contra su tablero, que es lo que hacía antes de que existiera */
+    plan: normPlan(d.plan),
     /* null = el archivo no dijo nada: no se pisa la preferencia actual */
     ui: d.ui ? { theme: d.ui.theme || null, lang: d.ui.lang || null,
                  mode: d.ui.mode || null } : null,
