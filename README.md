@@ -81,6 +81,13 @@ tiene internet.
   plano. No se calcula el arrastre entre dobleces: se regenera la cadena entera.
   Las medidas son fijas y **la compensación es lo único editable**: la celda
   `Δ aplicada` se comporta como la de una hoja de cálculo (ver más abajo).
+- **Medir por ángulos con varios reportes**: una pieza guarda cada lectura
+  (escáner, goniómetro...) como un reporte con casilla «entra en la media». La
+  tabla enseña la **media** de los marcados con su dispersión por doblez
+  (`r máx−mín`); al elegir un reporte de la lista se ve y se teclea ese, con su
+  propio Δ. La compensación sale siempre de la media. Se pueden añadir,
+  renombrar y borrar reportes (con deshacer), y el reporte impreso trae la
+  lista y la dispersión.
 - **El lazo puede leer la mediana del lote** en vez de la última pieza. Con
   piezas reales hay variación, y compensar desde una sola mueve el comando por
   lo que fue dispersión de esa pieza: la siguiente puede salir peor. Con dos

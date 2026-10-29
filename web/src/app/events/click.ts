@@ -1,7 +1,7 @@
 /* ----------------------------------------------------------------- clics --
    Dos escuchas: la de las pestanas y la global. La global es un despachador
    por atributos data-*; para agregar un boton basta con darle el suyo.     */
-import { ST } from '../../state.ts';
+import { ST, removeReport } from '../../state.ts';
 import { setLang } from '../../i18n.ts';
 import { fitView, setView, rebuildScene } from '../../scene.ts';
 import { drawRibbon } from '../../ribbon.ts';
@@ -13,7 +13,7 @@ import { refresh, renderAll, selectBend, setMode, openDrawer } from '../render.t
 import { setTheme } from '../theme.ts';
 import { action, variantById, varActivate, varDuplicate, varDelete, setSecKind, setKMode } from '../actions.ts';
 import { commit } from '../history.ts';
-import { angUI } from '../../panels/angles.ts';
+import { angUI, angleDs } from '../../panels/angles.ts';
 
 export function bindClick(): void {
   $('#tabs')!.addEventListener('click', e => {
@@ -60,7 +60,7 @@ function onClick(e: MouseEvent): void {
     }
     const t = (e.target as HTMLElement).closest(
       '[data-a],[data-v],[data-dm],[data-l],[data-th],[data-md],[data-dr],[data-dx],[data-dsel],[data-cm],[data-mx],[data-px],' +
-      '[data-mm],[data-vsel],[data-vx],[data-vd],[data-vr],[data-r],[data-pnx],[data-hv],[data-sk],[data-km]') as HTMLElement | null;
+      '[data-mm],[data-arv],[data-vsel],[data-vx],[data-vd],[data-vr],[data-r],[data-pnx],[data-hv],[data-sk],[data-km]') as HTMLElement | null;
     if (!t) return;
     const d = t.dataset;
     if (d.l !== undefined) { setLang(d.l); renderAll(); return; }
@@ -74,6 +74,17 @@ function onClick(e: MouseEvent): void {
     /* el método de medida: nube/CSV o por ángulos. Es estado de interfaz, no
        del documento, así que ni toca ST ni apila un paso. */
     if (d.mm !== undefined) { angUI.method = d.mm; renderPanels(); return; }
+    /* reportes de una pieza por ángulos: borrar uno toca el documento (commit
+       lo apila); ver cuál se edita es estado de interfaz y no apila nada. */
+    if (d.a === 'angrdel') {
+      const ds = angleDs(), k = +(d.k ?? -1);
+      if (ds && Number.isInteger(k) && removeReport(ds, k)) {
+        if (angUI.rep === k) angUI.rep = -1; else if (angUI.rep > k) angUI.rep -= 1;
+        renderPanels(); rebuildScene(); drawRibbon();
+      }
+      return;
+    }
+    if (d.arv !== undefined) { angUI.rep = +d.arv; renderPanels(); return; }
     if (d.sk !== undefined) { setSecKind(d.sk); return; }
     if (d.km !== undefined) { setKMode(d.km); return; }
     if (d.vsel !== undefined) { varActivate(d.vsel); return; }
@@ -136,7 +147,7 @@ function onClick(e: MouseEvent): void {
          nube a la nube: la pieza que se mira y el método que se enseña no se
          separan */
       const sel = ST.datasets.find(x => x.id === d.dsel);
-      if (sel) { angUI.method = sel.method === 'angles' ? 'angles' : 'cloud'; angUI.note = ''; }
+      if (sel) { angUI.method = sel.method === 'angles' ? 'angles' : 'cloud'; angUI.note = ''; angUI.rep = -1; }
       renderPanels(); rebuildScene(); drawRibbon(); return;
     }
     if (d.a !== undefined) { action(d.a); return; }

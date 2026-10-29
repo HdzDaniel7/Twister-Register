@@ -22,8 +22,8 @@ import { $ } from '../../dom.ts';
 import { refresh } from '../render.ts';
 import { commit } from '../history.ts';
 import { T } from '../../i18n.ts';
-import { angUI, angleDs, angVals, parseDec } from '../../panels/angles.ts';
-import { setReported, renameDataset, syncPlan, setPlanName, setPlanNominal } from '../../state.ts';
+import { angUI, angleDs, angVals, angRepIdx, parseDec } from '../../panels/angles.ts';
+import { setReportVals, setReportUse, renameReport, reportsOf, renameDataset, syncPlan, setPlanName, setPlanNominal } from '../../state.ts';
 import { drawRibbon } from '../../ribbon.ts';
 import {
   variantById, editBend, editStraight, editStraightDelta, editTail, editDelta, editPoint, editTweak,
@@ -135,6 +135,18 @@ function onAngles(t: HTMLInputElement, d: DOMStringMap): boolean {
     if (angleDs()) { rebuildScene(); drawRibbon(); }
     return true;
   }
+  /* reportes: entra/no entra en la media y el nombre del reporte */
+  if (d.aru !== undefined || d.arn !== undefined) {
+    const ds = angleDs(), k = +(d.aru ?? d.arn!);
+    if (!ds || !Number.isInteger(k) || k < 0 || k >= reportsOf(ds).length) return true;
+    if (d.aru !== undefined) { setReportUse(ds, k, t.checked); renderPanels(); rebuildScene(); drawRibbon(); }
+    else {
+      if (!t.value.trim()) t.value = d.orig ?? '';
+      else renameReport(ds, k, t.value);
+      renderPanels();
+    }
+    return true;
+  }
   if (d.ai === undefined) return false;
   const i = +d.ai, n = ST.model ? ST.model.bends.length : 0;
   if (!Number.isInteger(i) || i < 0 || i >= n) return true;
@@ -146,7 +158,7 @@ function onAngles(t: HTMLInputElement, d: DOMStringMap): boolean {
   if (v !== null && (v < 0 || v > 180)) { t.value = d.orig ?? ''; t.title = T('angRange'); alert(T('angRange')); return true; }
   const ds = angleDs(), cur = angVals(ST.model!).slice();
   cur[i] = v;
-  if (ds) { setReported(ds, cur); renderPanels(); rebuildScene(); drawRibbon(); }
+  if (ds) { setReportVals(ds, angRepIdx(), cur); renderPanels(); rebuildScene(); drawRibbon(); }
   else { angUI.draft = cur; renderPanels(); }
   return true;
 }

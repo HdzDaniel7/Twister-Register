@@ -16,7 +16,7 @@ import { Vector3 } from 'three';
 import type {
   Bend, Model, Variant, AnchorMode, Place, Mark, Pedestal, Tweak, UiPrefs, Doc, DocIn, LoadedDoc,
   Lims, Pin, Mat, Restraint, Load,
-  Proc, Comp, MeasMethod, Plan, Board,
+  Proc, Comp, MeasMethod, Plan, Board, MeasReport,
 } from '../types.ts';
 import { D2R, eye, trans, rotX, rotY, rotZ, posOf } from './math.ts';
 import { bendFrom, normalizeModel } from './bend.ts';
@@ -118,6 +118,7 @@ type ToDocDataset = {
   /** cómo se midió y, si fue por ángulos, lo que se tecleó. Ver MeasMethod */
   method?: MeasMethod;
   reported?: (number | null)[];
+  reports?: MeasReport[];
   /** con qué tablero se dobló, si es por ángulos. Ver Board */
   board?: Board;
 };
@@ -187,6 +188,10 @@ export function toDoc(
          no reinterpreta, como pasó con `cmd`. */
       ...(d.method && d.method !== 'cloud'
         ? { method: d.method, reported: normReported(d.reported) } : {}),
+      /* Los reportes que dan la media. `reported` —la media— se sigue
+         escribiendo al lado: una copia que no conoce `reports` abre la misma
+         pieza con su único reporte. Sin subir SCHEMA, como `board`. */
+      ...(d.method === 'angles' && normReports(d.reports) ? { reports: normReports(d.reports) } : {}),
       /* El tablero con el que se dobló: solo en las piezas por ángulos, que
          son las únicas que se rehacen desde él. */
       ...(d.method === 'angles' && d.board ? { board: normBoard(d.board) } : {}),
@@ -296,6 +301,20 @@ export const normMethod = (m: unknown): MeasMethod =>
  *  JSON.stringify, lo que sea— es «no se midió», nunca un cero. */
 export const normReported = (r: unknown): (number | null)[] =>
   Array.isArray(r) ? r.map(x => (typeof x === 'number' && isFinite(x) ? x : null)) : [];
+
+/** Los reportes de una pieza venidos de un archivo (ver `MeasReport`). Lo que
+ *  no es un objeto se cae; sin nombre, R{k}; `use` solo es false si lo dice
+ *  explícitamente —un reporte guardado sin la clave estaba en la media—.
+ *  `undefined` si no hay ninguno: la pieza nace de `reported` como antes. */
+export function normReports(r: unknown): MeasReport[] | undefined {
+  if (!Array.isArray(r)) return undefined;
+  const out = r.filter(x => x && typeof x === 'object').map((x, k) => {
+    const o = x as { name?: unknown; vals?: unknown; use?: unknown };
+    return { name: String(o.name ?? '').trim() || `R${k + 1}`,
+             vals: normReported(o.vals), use: o.use !== false };
+  });
+  return out.length ? out : undefined;
+}
 
 /* ---------------------------------------------------------- migración ------
    Tres cinemáticas han existido. Los mismos números describen otra pieza en
@@ -450,9 +469,11 @@ export function fromDoc(d: DocIn): LoadedDoc {
          internos no dependen de la cinemática —son el desvío, sin lado—, así
          que un archivo convertido los conserva tal cual: al abrir, la pieza se
          rehace con ellos sobre el nominal ya convertido. */
-      method: undefined, reported: undefined, board: undefined,
+      method: undefined, reported: undefined, board: undefined, reports: undefined,
       ...(normMethod(x.method) !== 'cloud'
         ? { method: normMethod(x.method), reported: normReported(x.reported) } : {}),
+      ...(normMethod(x.method) === 'angles' && normReports(x.reports)
+        ? { reports: normReports(x.reports) } : {}),
       /* El tablero viaja en la cinemática del archivo; uno anterior a la
          conversión no lo puede traer —la clave es posterior a 2.2—, y si lo
          trajera se descarta como el `cmd`: la pieza adopta el tablero de

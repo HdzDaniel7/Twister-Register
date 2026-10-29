@@ -728,4 +728,20 @@ input[type=text].angname{width:100%;box-sizing:border-box;margin-top:3px;margin-
 input[type=text].angnm{width:50px;padding:3px 2px;box-sizing:border-box;font-size:11px}
 input[type=text].angin.plan::placeholder{color:var(--dim);opacity:.55}
 .nopl{color:var(--warn);cursor:help;margin-left:1px;font-size:10px}
-.angtog{margin-top:6px;width:100%}.angtog button{flex:1}
+/* lista de reportes: cabe en el lateral (checkbox · nombre · max|Δ| · borrar) */
+.angreps{margin-top:6px}
+.replist{list-style:none;margin:2px 0 4px;padding:0;display:flex;flex-direction:column;gap:2px}
+.reprow{display:flex;align-items:center;gap:4px;padding:2px 4px;border:1px solid var(--line2);border-radius:6px;cursor:pointer;font-size:11px}
+.reprow:hover{background:var(--inputbg)}
+.reprow.sel{border-color:var(--nominal);background:var(--inputbg);box-shadow:0 0 0 1px var(--nominal) inset}
+.reprow.off{opacity:.55}
+.reprow input[type=checkbox]{flex:none;margin:0}
+.reprow .repnm{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.reprow input[type=text].repnm{min-width:0;width:auto;padding:2px 3px;font-size:11px;box-sizing:border-box}
+.reprow .rmx{flex:none;font-variant-numeric:tabular-nums;font-size:10.5px}
+.reprow .repx{flex:none;width:18px;height:18px;padding:0;line-height:1;border:0;background:transparent;color:var(--dim);cursor:pointer;border-radius:4px}
+.reprow .repx:hover:not(:disabled){color:var(--bad);background:var(--inputbg)}
+.reprow .repx:disabled{opacity:.3;cursor:default}
+.angtab td.angmc{text-align:right;font-variant-numeric:tabular-nums;line-height:1.15}
+.angtab .angmean{display:block;color:var(--txt)}
+.angtab .spr{display:block;font-size:9.5px;color:var(--dim);cursor:help}

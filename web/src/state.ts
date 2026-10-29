@@ -9,7 +9,7 @@
 import * as E from './engine.ts';
 import type {
   AnchorMode, Bend, Comp, Dataset, DatumMode, Mark, Model, PathSample, Pedestal, Pin, Place, Proc,
-  Lims, Mat, Restraint, State, Tweak, Variant, Springback, AngleSummary, Plan,
+  Lims, Mat, Restraint, State, Tweak, Variant, Springback, AngleSummary, Plan, MeasReport,
 } from './types.ts';
 import type { Matrix4, Vector3 } from 'three';
 import type { Settled } from './engine/load.ts';
@@ -787,31 +787,95 @@ export function setPlanName(i: number, name: string): void {
   ST.plan.names[i] = String(name ?? '').trim();
 }
 
+/** Los reportes de una pieza por ángulos (ver `MeasReport`). Una pieza que
+ *  no los tiene —de un archivo anterior a la clave, o recién creada— nace con
+ *  UNO: lo que tuviera en `reported`. Una nube no tiene: `[]`. */
+export function reportsOf(ds: Dataset): MeasReport[] {
+  if (ds.method !== 'angles') return [];
+  if (!ds.reports || !ds.reports.length) {
+    ds.reports = [{ name: 'R1', vals: (ds.reported || []).slice(), use: true }];
+  }
+  return ds.reports;
+}
+/** Los reportes que ENTRAN en la media. */
+export const usedReports = (ds: Dataset): MeasReport[] => reportsOf(ds).filter(r => r.use);
+
+/** Rehace lo DERIVADO de una pieza por ángulos tras tocar sus reportes: la
+ *  media (`reported`), la forma y la desviación. Sin ningún reporte en uso la
+ *  media queda vacía —todo null—: la pieza no tiene lectura, no se inventa. */
+function syncReported(ds: Dataset): void {
+  if (ds.method !== 'angles') return;
+  ds.reported = E.meanReported(usedReports(ds).map(r => r.vals));
+  rebuildAngles(ds);
+  computeDev(ds);
+}
+
 /** Da de alta una pieza medida por ÁNGULOS INTERNOS. Pasa por `addDataset()`
  *  como cualquier otra —número, color, comando con el que se hizo, activa—, y
- *  lo propio es que guarda lo TECLEADO y el TABLERO con el que se dobló: la
- *  variante activa y sus dobleces efectivos de ahora. `model` se deriva de los
- *  dos. Las copias son a propósito: el borrador del panel sigue vivo y el
- *  tablero se va a seguir editando, y ninguno de los dos debe poder tocar una
- *  pieza ya dada de alta. Ver engine/measure.ts. */
+ *  lo propio es que guarda lo TECLEADO como su primer reporte y el TABLERO con
+ *  el que se dobló: la variante activa y sus dobleces efectivos de ahora.
+ *  `model` se deriva de los dos. Las copias son a propósito: el borrador del
+ *  panel sigue vivo y el tablero se va a seguir editando, y ninguno de los dos
+ *  debe poder tocar una pieza ya dada de alta. Ver engine/measure.ts. */
 export function addAngleDataset(name: string, reported: (number | null)[]): Dataset {
   const r = reported.slice();
   const ds = addDataset(E.modelFromInternal(ST.model!, r), name, 'angles');
   ds.method = 'angles';
-  ds.reported = r;
+  ds.reports = [{ name: 'R1', vals: r, use: true }];
   ensureBoard(ds);
-  rebuildAngles(ds);
-  computeDev(ds);
+  syncReported(ds);
   return ds;
 }
 
-/** Cambia los ángulos informados de una pieza y la rehace contra SU tablero.
- *  Una pieza de nube no tiene ángulos informados: se ignora. */
-export function setReported(ds: Dataset, reported: (number | null)[]): void {
+/** Sustituye TODOS los reportes de una pieza (al abrir un archivo). Copia. */
+export function setReports(ds: Dataset, reports: MeasReport[]): void {
   if (ds.method !== 'angles') return;
-  ds.reported = reported.slice();
-  rebuildAngles(ds);
-  computeDev(ds);
+  ds.reports = reports.map(r => ({ name: r.name, vals: r.vals.slice(), use: r.use }));
+  syncReported(ds);
+}
+
+/** Añade un reporte a la pieza —vacío, o con `vals`— y devuelve su índice. El
+ *  nombre por defecto es R{n} con el primer n libre. Entra en la media. */
+export function addReport(ds: Dataset, vals: (number | null)[] = [], name = ''): number {
+  if (ds.method !== 'angles') return -1;
+  const R = reportsOf(ds);
+  let k = R.length + 1;
+  while (R.some(r => r.name === `R${k}`)) k += 1;
+  R.push({ name: String(name).trim() || `R${k}`, vals: vals.slice(), use: true });
+  syncReported(ds);
+  return R.length - 1;
+}
+
+/** Cambia los internos de UN reporte y rehace la pieza. */
+export function setReportVals(ds: Dataset, k: number, vals: (number | null)[]): void {
+  const r = reportsOf(ds)[k];
+  if (!r) return;
+  r.vals = vals.slice();
+  syncReported(ds);
+}
+
+/** Mete o saca un reporte de la media. */
+export function setReportUse(ds: Dataset, k: number, use: boolean): void {
+  const r = reportsOf(ds)[k];
+  if (!r) return;
+  r.use = !!use;
+  syncReported(ds);
+}
+
+/** Nombre de un reporte. Vacío no: un campo borrado deja el que había. */
+export function renameReport(ds: Dataset, k: number, name: string): void {
+  const r = reportsOf(ds)[k], n = String(name ?? '').trim();
+  if (r && n) r.name = n;
+}
+
+/** Borra un reporte. El último no: una pieza por ángulos sin reportes no es
+ *  nada; para eso se borra la pieza. Devuelve si lo borró. */
+export function removeReport(ds: Dataset, k: number): boolean {
+  const R = reportsOf(ds);
+  if (R.length < 2 || !R[k]) return false;
+  R.splice(k, 1);
+  syncReported(ds);
+  return true;
 }
 
 /** Nombre de una pieza medida. Vacío no: una pieza sin nombre no se puede
@@ -821,50 +885,32 @@ export function renameDataset(ds: Dataset, name: string): void {
   if (n) ds.name = n;
 }
 
-/** El informe de UNA pieza por ángulos: su reporte contra el plano del
- *  documento, y la recomendación sobre el tablero con el que se dobló. `null`
- *  si la pieza no es por ángulos. */
+/** El informe de una pieza por ángulos: la MEDIA de sus reportes en uso
+ *  contra el plano del documento, y la recomendación sobre el tablero con el
+ *  que se dobló. Cada fila lleva la dispersión de los reportes promediados, y
+ *  `reports` cuántos fueron. `null` si la pieza no es por ángulos. */
 export function angleSummary(ds: Dataset): AngleSummary | null {
   if (ds.method !== 'angles' || !ST.model) return null;
   const B = boardModel(ds);
-  return E.angleReport(B, ST.plan, ds.reported || [], ST.comp, E.orientations(B));
-}
-
-/** ¿Se doblaron las dos piezas con el MISMO tablero? Misma variante y mismos
- *  ángulos: una variante editada entre una pieza y la siguiente conserva el
- *  id, pero ya no es el tablero que dobló a la primera, y meter sus reportes
- *  en una misma mediana mezclaría dos resortes distintos. */
-function sameBoard(a: Dataset, b: Dataset): boolean {
-  ensureBoard(a); ensureBoard(b);
-  const A = a.board, B = b.board;
-  if (!A || !B) return false;
-  return A.vid === B.vid && A.bends.length === B.bends.length
-    && A.bends.every((x, i) => Math.abs(x.angle - B.bends[i].angle) < 1e-9);
-}
-
-/** Las piezas del LOTE de `ds`: ella misma y las demás por ángulos VISIBLES
- *  dobladas con su mismo tablero (ver `sameBoard()`), en el orden de la lista. */
-export function angleLot(ds: Dataset): Dataset[] {
-  if (ds.method !== 'angles') return [];
-  return ST.datasets.filter(d => d === ds
-    || (d.method === 'angles' && d.visible && sameBoard(d, ds)));
-}
-
-/** El informe del LOTE: la mediana por doblez de los reportes de las piezas
- *  de `angleLot(ds)` contra el plano, sobre el tablero común. Con una sola
- *  pieza da lo mismo que `angleSummary(ds)`. `pieces` dice cuántas entraron. */
-export function angleLotSummary(ds: Dataset): AngleSummary | null {
-  if (ds.method !== 'angles' || !ST.model) return null;
-  const lot = angleLot(ds);
-  const B = boardModel(ds);
-  const S = E.angleReport(B, ST.plan, E.medianReported(lot.map(d => d.reported || [])),
-                          ST.comp, E.orientations(B));
-  S.pieces = lot.length;
+  const used = usedReports(ds).map(r => r.vals);
+  const S = E.angleReport(B, ST.plan, E.meanReported(used), ST.comp, E.orientations(B));
+  const sp = E.spreadReported(used);
+  S.rows.forEach(r => { r.spread = sp[r.i] ?? null; });
+  S.reports = used.length;
   return S;
 }
 
+/** El informe de UN reporte suelto de la pieza (`k`), contra el mismo plano y
+ *  sobre el mismo tablero: para verlo y decidir si entra en la media. */
+export function reportSummary(ds: Dataset, k: number): AngleSummary | null {
+  const r = reportsOf(ds)[k];
+  if (!r || !ST.model) return null;
+  const B = boardModel(ds);
+  return E.angleReport(B, ST.plan, r.vals, ST.comp, E.orientations(B));
+}
+
 /** Crea el TABLERO COMPENSADO: una variante nueva, copia del tablero que dobló
- *  la pieza, con el ángulo recomendado en cada doblez medido. Queda activa, y
+ *  la pieza, con el ángulo recomendado POR LA MEDIA de sus reportes en uso en cada doblez medido. Queda activa, y
  *  la de origen se queda como estaba para poder seguir el rastro de qué
  *  tablero dio qué pieza. Devuelve el id de la nueva, o `''` si no había nada
  *  que aplicar.
@@ -885,8 +931,8 @@ export function angleLotSummary(ds: Dataset): AngleSummary | null {
  *
  *  NO toca `ST.command` ni el ajuste a mano: el lazo de Compensar es otro
  *  camino. No apila el paso de deshacer: eso lo hace el `commit()` del clic. */
-export function applyAngleRec(ds: Dataset, lot = false): string {
-  const S = lot ? angleLotSummary(ds) : angleSummary(ds);
+export function applyAngleRec(ds: Dataset): string {
+  const S = angleSummary(ds);
   if (!S || !S.n || !ds.board) return '';
   const vid = ds.board.vid;
   const src = ST.variants.find(v => v.id === vid) || V();

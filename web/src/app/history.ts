@@ -31,7 +31,7 @@
    ========================================================================= */
 import * as E from '../engine.ts';
 import type { ToDocExtra } from '../engine/doc.ts';
-import { ST, loadModel, setMarks, setPedestals, setPins, syncTweak, addDataset, setReported, syncPlan } from '../state.ts';
+import { ST, loadModel, setMarks, setPedestals, setPins, syncTweak, addDataset, setReports, syncPlan } from '../state.ts';
 import type { Doc, DocIn, LoadedDoc } from '../types.ts';
 
 /** 50 pasos: con ~20 KB por documento son 1 MB largo, y nadie deshace más de
@@ -135,7 +135,10 @@ export function applyDoc(d: LoadedDoc): void {
       ds.method = 'angles';
       ds.board = x.board ? { vid: x.board.vid, name: x.board.name,
                              bends: x.board.bends.map(E.bendFrom) } : undefined;
-      setReported(ds, x.reported || []);
+      /* sin `reports` —archivo anterior— la pieza tiene un solo reporte: lo
+         que guardó en `reported` */
+      setReports(ds, x.reports && x.reports.length ? x.reports
+        : [{ name: 'R1', vals: x.reported || [], use: true }]);
     }
   }
 }

@@ -14,6 +14,7 @@ import {
   addPin, setPins, seedPinsFor,
   syncTweak, zeroTweak, compensatedCommand, loopMeasured, loopPieces,
   measuredSpringback, addAngleDataset, angleSummary, applyAngleRec,
+  addReport,
 } from '../state.ts';
 import { angUI, angVals, angleDs, countTyped } from '../panels/angles.ts';
 import { rebuildScene, fitView } from '../scene.ts';
@@ -504,7 +505,7 @@ export function action(a: string): void {
     case 'angrec': {
       const ds = angleDs(), S = ds ? angleSummary(ds) : null;
       if (!ds || !S || !S.n) { alert(T('noMeas')); return; }
-      const id = applyAngleRec(ds, angUI.lot);
+      const id = applyAngleRec(ds);
       const nv = variantById(id);
       angUI.note = T('angRecDone').replace('{v}', nv ? nv.name : id);
       predict();
@@ -512,8 +513,16 @@ export function action(a: string): void {
       return;
     }
     /* Pieza | Lote: qué resumen se mira. Es estado de interfaz. */
-    case 'angpiece': angUI.lot = false; renderPanels(); return;
-    case 'anglote': angUI.lot = true; renderPanels(); return;
+    /* + Reporte: uno vacío, que queda seleccionado para teclearlo. Tocar los
+       reportes es del documento: commit() lo apila (deshacer). */
+    case 'angradd': {
+      const ds = angleDs();
+      if (!ds) return;
+      angUI.rep = addReport(ds);
+      angUI.note = '';
+      renderPanels(); rebuildScene(); drawRibbon();
+      return;
+    }
     case 'undo': return stepHistory(undo);
     case 'redo': return stepHistory(redo);
     case 'solo': return toggleSolo();

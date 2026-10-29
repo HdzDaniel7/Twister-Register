@@ -92,22 +92,32 @@ export function planModel(board: Model, plan: Plan): Model {
   return modelFromInternal(board, plan.nominal || []);
 }
 
-/** Mediana por doblez de varios reportes, ignorando las celdas sin lectura.
- *  El largo es el del más largo; un doblez que ninguna pieza midió sale
- *  `null`. Con un número par de lecturas, el promedio de las dos centrales.
- *
- *  Es la versión por ángulos de `medianPart()`: con varias piezas del mismo
- *  tablero, la mediana separa lo sistemático —el resorte, que es lo que hay
- *  que compensar— de la dispersión de una pieza suelta. */
-export function medianReported(list: (number | null)[][]): (number | null)[] {
-  const len = list.reduce((m, r) => Math.max(m, r ? r.length : 0), 0);
-  const out: (number | null)[] = [];
-  for (let i = 0; i < len; i++) {
-    const v = list.map(r => (r ? r[i] : null)).filter(hasReading).sort((a, b) => a - b);
-    const k = v.length;
-    out.push(!k ? null : k % 2 ? v[(k - 1) / 2] : (v[k / 2 - 1] + v[k / 2]) / 2);
-  }
-  return out;
+/** Las lecturas de un doblez en varios reportes, sin las celdas vacías. */
+const column = (list: (number | null)[][], i: number): number[] =>
+  list.map(r => (r ? r[i] : null)).filter(hasReading);
+const longest = (list: (number | null)[][]): number =>
+  list.reduce((m, r) => Math.max(m, r ? r.length : 0), 0);
+
+/** MEDIA por doblez de varios reportes, ignorando las celdas sin lectura.
+ *  El largo es el del más largo; un doblez que ningún reporte midió sale
+ *  `null`. Es lo que se compara contra el plano y de donde sale la
+ *  compensación cuando una pieza junta varios reportes: lo sistemático —el
+ *  resorte— queda, la dispersión de una lectura suelta se reparte. Un reporte
+ *  atípico no se amortigua aquí: se desmarca (`MeasReport.use`). */
+export function meanReported(list: (number | null)[][]): (number | null)[] {
+  return Array.from({ length: longest(list) }, (_, i) => {
+    const v = column(list, i);
+    return v.length ? v.reduce((a, x) => a + x, 0) / v.length : null;
+  });
+}
+
+/** DISPERSIÓN por doblez de varios reportes: máx − mín de las lecturas, °.
+ *  `null` donde hay menos de dos: con una sola no hay dispersión que medir. */
+export function spreadReported(list: (number | null)[][]): (number | null)[] {
+  return Array.from({ length: longest(list) }, (_, i) => {
+    const v = column(list, i);
+    return v.length > 1 ? Math.max(...v) - Math.min(...v) : null;
+  });
 }
 
 /** El informe por doblez y la recomendación para el TABLERO siguiente.
@@ -131,8 +141,8 @@ export function medianReported(list: (number | null)[][]): (number | null)[] {
  *
  *  Un doblez sin lectura sale con `measInt`, `dev` y `ok` a null y
  *  `rec = board`: donde no se midió no hay nada que corregir. El resumen
- *  cuenta solo los medidos, y `pieces` sale a 1: el lote lo pone quien hace la
- *  mediana (`angleLotSummary()` en state.ts). */
+ *  cuenta solo los medidos; `reports` sale a 1 y `spread` a null: los pone
+ *  quien promedia varios reportes (`angleSummary()` en state.ts). */
 export function angleReport(board: Model, plan: Plan, reported: (number | null)[], comp: Comp,
                             ori: Orientation[]): AngleSummary {
   const boardInt = internalAngles(board);
@@ -149,12 +159,12 @@ export function angleReport(board: Model, plan: Plan, reported: (number | null)[
                    boardInt: boardInt[i], board: b.angle };
     const r = reported[i];
     if (!hasReading(r)) {
-      return { ...head, measInt: null, dev: null, ok: null, rec: b.angle, recDelta: 0 };
+      return { ...head, measInt: null, dev: null, ok: null, rec: b.angle, recDelta: 0, spread: null };
     }
     const dev = r - refInt;
     const a = rec[i].angle;
     return { ...head, measInt: r, dev, ok: Math.abs(dev) <= board.tol.angle,
-             rec: a, recDelta: a - b.angle };
+             rec: a, recDelta: a - b.angle, spread: null };
   });
   const medidas = rows.filter(x => x.dev !== null);
   const devs = medidas.map(x => x.dev as number);
@@ -166,6 +176,6 @@ export function angleReport(board: Model, plan: Plan, reported: (number | null)[
     mean: n ? devs.reduce((a, d) => a + d, 0) / n : 0,
     out: rows.filter(x => x.ok === false).length,
     planMissing: medidas.filter(x => x.fromBoard).length,
-    pieces: 1,
+    reports: 1,
   };
 }

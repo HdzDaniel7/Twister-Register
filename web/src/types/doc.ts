@@ -169,6 +169,21 @@ export type Plan = { names: string[]; nominal: (number | null)[] };
  *  se rehiciera contra el tablero de ahora, corregirlo movería la pieza. */
 export type Board = { vid: string; name: string; bends: Bend[] };
 
+/** UN reporte de medición de una pieza por ángulos: los internos que dio una
+ *  vuelta del escáner o del goniómetro. Una pieza junta varios —la misma
+ *  pieza medida varias veces, o varias piezas del mismo tablero— y lo que
+ *  manda es la MEDIA por doblez de los que tienen `use` (ver
+ *  `meanReported()` en engine/measure.ts). `use = false` lo deja fuera de la
+ *  media sin borrarlo: un reporte dudoso se aparta y se puede recuperar. */
+export type MeasReport = {
+  /** nombre libre; vacío no (la pantalla y el JSON ponen R{k}) */
+  name: string;
+  /** internos informados, °, uno por doblez; null = sin lectura */
+  vals: (number | null)[];
+  /** entra en la media */
+  use: boolean;
+};
+
 /** Una fila de «Medir por ángulos»: un doblez, en ÁNGULO INTERNO entre rectas
  *  —que es lo que imprimen el plano y el informe— y la recomendación en
  *  ÁNGULO DE DOBLEZ —que es lo que se teclea en el tablero—. Ver
@@ -199,16 +214,19 @@ export type AngleRow = {
   rec: number;
   /** rec − board, ° */
   recDelta: number;
+  /** dispersión de los reportes promediados en este doblez: máx − mín de
+   *  los internos, °. null con menos de dos lecturas */
+  spread: number | null;
 };
 
 /** El informe entero: las filas y su resumen sobre las que SÍ tienen lectura.
  *  `n` cuántas, `out` cuántas fuera de tolerancia; `maxAbs`, `rms` y `mean`
  *  de `dev`, en °, y a cero si no hay ninguna. `planMissing`: cuántas de las
  *  medidas no tienen ángulo de plano y se compararon contra el tablero.
- *  `pieces`: cuántas piezas entraron (1, o las del lote cuya mediana se usó). */
+ *  `reports`: cuántos reportes se promediaron (1 si es uno solo). */
 export type AngleSummary = {
   rows: AngleRow[]; n: number; maxAbs: number; rms: number; mean: number; out: number;
-  planMissing: number; pieces: number;
+  planMissing: number; reports: number;
 };
 
 /** Una pieza medida tal como viaja en el JSON: solo lo que hace falta para
@@ -224,6 +242,10 @@ export type DocDataset = {
    *  del programa abre la misma pieza, aunque como nube—, pero al abrir manda
    *  esto: la pieza se rehace contra su tablero (`board`). */
   reported?: (number | null)[];
+  /** los reportes de la pieza (ver `MeasReport`). `reported` es su media, que
+   *  se sigue escribiendo para las versiones que no conocen la clave; al
+   *  abrir manda esto. Sin la clave, la pieza tiene un solo reporte: `reported`. */
+  reports?: MeasReport[];
   /** solo con `method === 'angles'`: el tablero con el que se dobló. Un
    *  archivo anterior no lo trae y la pieza adopta el tablero que haya al
    *  abrir. Ver `Board`. */
@@ -255,11 +277,14 @@ export type Dataset = {
   cmd?: Bend[];
   /** cómo se midió; sin la clave, `'cloud'`. Ver MeasMethod */
   method?: MeasMethod;
-  /** con `method === 'angles'`: los ángulos internos informados, °, uno por
-   *  doblez y `null` donde no hubo lectura. Es el DATO de la pieza: `model`
-   *  sale de aquí y del nominal, y se rehace cada vez que el nominal cambia
-   *  (ver `recomputeAll()` en state.ts). */
+  /** con `method === 'angles'`: los ángulos internos de la pieza, °, uno por
+   *  doblez y `null` donde no hubo lectura: la MEDIA de los `reports` en uso,
+   *  DERIVADA —se rehace con `syncReported()` en state.ts, nunca se teclea—.
+   *  `model` sale de aquí y del tablero. */
   reported?: (number | null)[];
+  /** con `method === 'angles'`: los reportes de la pieza, el DATO. Ver
+   *  `MeasReport`. */
+  reports?: MeasReport[];
   /** con `method === 'angles'`: el tablero con el que se dobló, congelado.
    *  La pieza es `modelFromInternal(tablero, reported)`, y por eso editar el
    *  tablero de ahora NO la mueve. Ver `Board`. */

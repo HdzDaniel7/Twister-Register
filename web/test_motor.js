@@ -21,8 +21,9 @@ import { esc, safeColor, COLOR_FALLBACK } from './src/safe.ts';
 import { ST, loadModel, syncModel, syncTweak, addMark, addPedestal,
          heldOfVariant, heldResult, heldSlots, heldStats, seedFixture, seedPinsFor,
          placeMatrix, refModelFree, shownBasis, setPedestals, shownPath,
-         addAngleDataset, setReported, renameDataset, angleSummary, applyAngleRec,
-         recomputeAll, angleLotSummary, angleLot, setPlanNominal, setPlanName,
+         addAngleDataset, renameDataset, angleSummary, applyAngleRec,
+         recomputeAll, setPlanNominal, setPlanName, reportsOf, addReport, setReportVals,
+         setReportUse, renameReport, removeReport, reportSummary,
          syncPlan } from './src/state.ts';
 import * as H from './src/app/history.ts';
 
@@ -4694,7 +4695,7 @@ console.log('\n— medir por ángulos —');
   ok('los nombres salen del plano; vacío o que falta = \'\'',
      r0.name === 'codo A' && r1.name === '' && r2.name === 'B3 plano' && R.rows[4].name === '');
   ok('el resumen cuenta solo los medidos, planMissing los que cayeron al tablero, pieces = 1',
-     R.n === 3 && R.out === 2 && R.planMissing === 1 && R.pieces === 1
+     R.n === 3 && R.out === 2 && R.planMissing === 1 && R.reports === 1
      && Math.abs(R.maxAbs - 10) < 1e-12 && Math.abs(R.mean - (1 + 0.1 + 10) / 3) < 1e-9
      && Math.abs(R.rms - Math.sqrt((1 + 0.01 + 100) / 3)) < 1e-9, `mean ${R.mean} rms ${R.rms}`);
   const vacio = { names: [], nominal: [] };
@@ -4712,11 +4713,16 @@ console.log('\n— medir por ángulos —');
      Math.abs(PM.bends[0].angle - 88) < 1e-12 && PM.bends[1].angle === 30
      && Math.abs(PM.bends[2].angle + 50) < 1e-12 && Math.abs(PM.bends[3].angle + 55) < 1e-12
      && PM.bends[4].angle === 0 && PM.bends.every((b, i) => b.feed === A.bends[i].feed));
-  ok('medianReported: por doblez, sin los null, par = promedio de los centrales',
-     JSON.stringify(E.medianReported([[1, null, 3], [2, null, null, 4], [10, null, 5]]))
-       === '[2,null,4,4]'
-     && JSON.stringify(E.medianReported([[1, 2], [3, NaN]])) === '[2,2]'
-     && JSON.stringify(E.medianReported([])) === '[]');
+  ok('meanReported: media por doblez, sin los null, al largo del más largo',
+     JSON.stringify(E.meanReported([[1, null, 3], [2, null, null, 4], [9, null, 6]]))
+       === '[4,null,4.5,4]'
+     && JSON.stringify(E.meanReported([[1, 2], [3, NaN]])) === '[2,2]'
+     && JSON.stringify(E.meanReported([])) === '[]');
+  ok('spreadReported: máx − mín por doblez, null con menos de dos lecturas',
+     JSON.stringify(E.spreadReported([[1, null, 3], [2, null, null, 4], [9, null, 6]]))
+       === '[8,null,3,null]');
+  ok('angleReport de un reporte suelto: reports = 1 y sin dispersión',
+     R0.reports === 1 && R0.rows.every(x => x.spread === null));
   ok('MEAS_METHODS conoce nube y ángulos', E.MEAS_METHODS.map(x => x.id).join() === 'cloud,angles');
 
   /* el estado: alta, tablero congelado, plano, informe, lote y tablero nuevo */
@@ -4788,26 +4794,53 @@ console.log('\n— medir por ángulos —');
   ok('ni su informe: sigue contra el tablero con el que se dobló',
      JSON.stringify(angleSummary(ds)) === JSON.stringify(Sp));
 
-  /* el lote: mismas piezas del MISMO tablero (misma variante y mismos ángulos) */
+  /* varios REPORTES de la misma pieza: la media de los marcados manda */
   ST.variants[0].base.bends[3].angle -= 3; ST.variants[0].base.bends[2].feed -= 25;
   syncModel(); recomputeAll();
-  const ds2 = addAngleDataset('CMM 2', nomI.map((v, i) => (i < 3 ? v + 0.2 : null)));
-  const ds3 = addAngleDataset('CMM 3', nomI.map((v, i) => (i < 3 ? v + 1.0 : null)));
-  ST.variants[0].base.bends[0].angle += 1; syncModel(); recomputeAll();
-  const dsOtro = addAngleDataset('otro tablero', nomI.map(v => v + 5));
-  ST.variants[0].base.bends[0].angle -= 1; syncModel(); recomputeAll();
-  const L = angleLotSummary(ds);
-  const med = (a) => a.slice().sort((x, y) => x - y)[1];
-  ok('el lote junta las piezas del mismo tablero (3) y deja fuera la de otro tablero',
-     L.pieces === 3 && angleLot(ds).every(d => d !== dsOtro), `pieces ${L.pieces}`);
-  ok('y su reporte es la MEDIANA por doblez',
-     [0, 1, 2].every(i => Math.abs(L.rows[i].measInt
-       - med([ds.reported[i], ds2.reported[i], ds3.reported[i]])) < 1e-12)
-     && L.rows[4].measInt === ds.reported[4], `${L.rows[0].measInt}`);
-  ds3.visible = false;
-  ok('una pieza oculta no entra en el lote', angleLotSummary(ds).pieces === 2);
-  ok('angleSummary sigue siendo de una pieza', angleSummary(ds).pieces === 1);
-  ST.datasets = ST.datasets.filter(d => d !== dsOtro);
+  ok('una pieza nace con UN reporte, R1, en uso, con lo tecleado',
+     reportsOf(ds).length === 1 && reportsOf(ds)[0].name === 'R1' && reportsOf(ds)[0].use
+     && JSON.stringify(reportsOf(ds)[0].vals) === JSON.stringify(ds.reported));
+  const rr1 = ds.reported.slice();
+  const k2 = addReport(ds, nomI.map((v, i) => (i < 3 ? v + 0.2 : null)));
+  const k3 = addReport(ds, nomI.map((v, i) => (i < 3 ? v + 1.0 : null)), '  escáner ');
+  ok('addReport añade R2 y el nombre dado, recortado',
+     k2 === 1 && k3 === 2 && reportsOf(ds)[1].name === 'R2' && reportsOf(ds)[2].name === 'escáner');
+  const avg = (a) => a.reduce((x, y) => x + y, 0) / a.length;
+  const Sm = angleSummary(ds);
+  ok('la pieza es la MEDIA por doblez de los reportes en uso',
+     [0, 1, 2].every(i => Math.abs(ds.reported[i]
+       - avg([rr1[i], nomI[i] + 0.2, nomI[i] + 1.0])) < 1e-12)
+     && ds.reported[4] === rr1[4] && ds.reported[3] === null
+     && Sm.reports === 3 && Math.abs(Sm.rows[0].measInt - ds.reported[0]) < 1e-12);
+  ok('y su forma sale de la media',
+     ds.model.bends.every((b, i) => Math.abs((180 - Math.abs(E.wrapTurn(b.angle)))
+       - (ds.reported[i] ?? nomI[i])) < 1e-9));
+  ok('cada fila lleva la dispersión de los reportes; con una sola lectura, null',
+     Math.abs(Sm.rows[2].spread - (Math.max(rr1[2], nomI[2] + 1) - Math.min(rr1[2], nomI[2] + 0.2))) < 1e-12
+     && Sm.rows[4].spread === null);
+  setReportUse(ds, 2, false);
+  ok('desmarcar un reporte lo saca de la media sin borrarlo',
+     reportsOf(ds).length === 3 && angleSummary(ds).reports === 2
+     && Math.abs(ds.reported[0] - avg([rr1[0], nomI[0] + 0.2])) < 1e-12);
+  ok('reportSummary da el informe de un reporte suelto, esté o no en la media',
+     Math.abs(reportSummary(ds, 2).rows[0].measInt - (nomI[0] + 1)) < 1e-12
+     && reportSummary(ds, 2).reports === 1 && reportSummary(ds, 9) === null);
+  setReportVals(ds, 1, nomI.map((v, i) => (i === 0 ? v + 0.4 : null)));
+  ok('editar un reporte rehace la media',
+     Math.abs(ds.reported[0] - avg([rr1[0], nomI[0] + 0.4])) < 1e-12
+     && Math.abs(ds.reported[1] - rr1[1]) < 1e-12);
+  renameReport(ds, 1, '   ');
+  renameReport(ds, 0, ' CMM a ');
+  ok('renombrar un reporte recorta y a vacío no borra',
+     reportsOf(ds)[0].name === 'CMM a' && reportsOf(ds)[1].name === 'R2');
+  setReportUse(ds, 0, false); setReportUse(ds, 1, false);
+  ok('sin ningún reporte en uso, la pieza no tiene lecturas',
+     ds.reported.every(x => x === null) && angleSummary(ds).n === 0 && applyAngleRec(ds) === '');
+  ok('removeReport borra uno', removeReport(ds, 2) && reportsOf(ds).length === 2);
+  ok('pero nunca el último', removeReport(ds, 1) && !removeReport(ds, 0) && reportsOf(ds).length === 1);
+  setReportUse(ds, 0, true); setReportVals(ds, 0, rr1);
+  ok('y con el reporte original de vuelta, el informe es el de antes',
+     JSON.stringify(angleSummary(ds)) === JSON.stringify(Sp));
 
   /* «crear tablero compensado»: una variante NUEVA, la de origen intacta */
   ST.tweak[0].angle = 0.4;
@@ -4843,13 +4876,14 @@ console.log('\n— medir por ángulos —');
      === `${ds.board.name} · comp 2`);
   ok('sin lecturas no crea nada', applyAngleRec(addAngleDataset('vacía', [])) === '');
   ST.datasets = ST.datasets.filter(d => d.name !== 'vacía'); ST.dsActive = ds.id;
-  ds3.visible = true;
-  const idL = applyAngleRec(ds, true);
+  const kM = addReport(ds, nomI.map(v => v - 1));
+  const idL = applyAngleRec(ds);
   const WL = E.effectiveModel(ST.variants.find(v => v.id === idL));
-  const LL = angleLotSummary(ds);
-  ok('con el lote, la recomendación sale de la mediana',
-     LL.pieces === 3 && LL.rows.every((r, i) => r.measInt === null
-       || Math.abs(WL.bends[i].angle - r.rec) < 1e-9));
+  const LL = angleSummary(ds);
+  ok('con varios reportes, la recomendación sale de la media',
+     LL.reports === 2 && LL.rows.every((r, i) => r.measInt === null
+       || Math.abs(WL.bends[i].angle - r.rec) < 1e-9) && LL.rows[3].measInt === nomI[3] - 1);
+  removeReport(ds, kM);
   ok('si la variante de origen se borró, copia la activa',
      (() => {
        const b = ds.board; ds.board = { ...b, vid: 'v999' };
@@ -4860,7 +4894,7 @@ console.log('\n— medir por ángulos —');
      })());
   ok('una pieza de nube no tiene informe por ángulos',
      angleSummary({ model: ST.model, method: undefined }) === null
-     && angleLotSummary({ model: ST.model, method: undefined }) === null);
+     && reportsOf({ model: ST.model, method: undefined }).length === 0);
 
   /* deshacer: crear el tablero compensado es UN paso, y deshacerlo lo quita */
   ST.active = 'v1'; syncModel(); recomputeAll();
@@ -4872,9 +4906,14 @@ console.log('\n— medir por ángulos —');
   ok('y deshacerlo quita la variante', ST.variants.length === nv2);
 
   /* persistencia: plano y tablero viajan en el JSON y en la pila de deshacer */
-  const doc = H.currentDoc();
   const dsi = ST.datasets.findIndex(d => d.name === 'CMM bis');
+  setReportUse(ST.datasets[dsi], addReport(ST.datasets[dsi], nomI.map(v => v + 9), 'dudoso'), false);
+  const doc = H.currentDoc();
   const dd = doc.datasets[dsi];
+  ok('el JSON lleva los reportes, con el apartado fuera de la media',
+     dd.reports.length === 2 && dd.reports[0].use && !dd.reports[1].use
+     && dd.reports[1].name === 'dudoso' && dd.reports[1].vals[0] === nomI[0] + 9
+     && JSON.stringify(dd.reports[0].vals) === JSON.stringify(dd.reported));
   ok('el JSON lleva method, reported y board de la pieza por ángulos',
      dd.method === 'angles' && dd.reported.length === n && dd.reported[1] === nomI[1] - 0.8
      && dd.reported[3] === null && dd.board.vid === 'v1' && dd.board.bends.length === n);
@@ -4886,7 +4925,8 @@ console.log('\n— medir por ángulos —');
   const dsR = ST.datasets[dsi];
   ok('abrir el JSON recupera la pieza con lo tecleado y su tablero',
      dsR.method === 'angles' && JSON.stringify(dsR.reported) === JSON.stringify(dd.reported)
-     && dsR.name === 'CMM bis' && JSON.stringify(dsR.board) === JSON.stringify(dd.board));
+     && dsR.name === 'CMM bis' && JSON.stringify(dsR.board) === JSON.stringify(dd.board)
+     && JSON.stringify(dsR.reports) === JSON.stringify(dd.reports));
   ok('y el plano, rellenado al largo de los dobleces',
      ST.plan.nominal.length === n && ST.plan.nominal[1] === nomI[1] + 1.5 && ST.plan.names[1] === 'codo B');
   const { saved: s1, ...d1 } = doc, { saved: s2, ...d2 } = H.currentDoc(); void s1; void s2;
@@ -4896,7 +4936,7 @@ console.log('\n— medir por ángulos —');
   H.initHistory();
   setPlanNominal(4, 100);
   ok('cambiar el plano apila un paso', H.commit() === true);
-  setReported(ST.datasets[dsi], nomI.map((v, i) => (i === 1 ? v + 3 : null)));
+  setReportVals(ST.datasets[dsi], 0, nomI.map((v, i) => (i === 1 ? v + 3 : null)));
   ok('cambiar una lectura apila otro', H.commit() === true);
   H.undo();
   ok('deshacer devuelve la lectura anterior', ST.datasets[dsi].reported[1] === nomI[1] - 0.8);
@@ -4909,7 +4949,7 @@ console.log('\n— medir por ángulos —');
   /* un archivo anterior: sin plano ni tablero */
   const viejo = JSON.parse(txt);
   delete viejo.plan;
-  for (const x of viejo.datasets) delete x.board;
+  for (const x of viejo.datasets) { delete x.board; delete x.reports; }
   const lv0 = E.fromDoc(viejo);
   ok('un archivo sin plano abre con el plano vacío',
      lv0.plan.names.length === 0 && lv0.plan.nominal.length === 0);
@@ -4917,6 +4957,14 @@ console.log('\n— medir por ángulos —');
   ok('y sus piezas por ángulos adoptan el tablero activo al abrir',
      ST.datasets.filter(d => d.method === 'angles').every(d => d.board && d.board.vid === ST.active
        && d.board.bends.every((b, i) => b.angle === ST.model.bends[i].angle)));
+  ok('y sin `reports` cada pieza tiene uno solo, R1, con lo que guardó en `reported`',
+     ST.datasets.filter(d => d.method === 'angles').every(d => reportsOf(d).length === 1
+       && reportsOf(d)[0].name === 'R1' && reportsOf(d)[0].use)
+     && JSON.stringify(reportsOf(ST.datasets[dsi])[0].vals) === JSON.stringify(dd.reported));
+  ok('los reportes se sanean: sin nombre R{k}, use solo false si lo dice, basura fuera',
+     JSON.stringify(E.normReports([{ vals: [1, 'x'] }, 3, { name: ' a ', vals: [], use: false }]))
+       === '[{"name":"R1","vals":[1,null],"use":true},{"name":"a","vals":[],"use":false}]'
+     && E.normReports([]) === undefined && E.normReports('x') === undefined);
   ok('con el plano vacío, todo contra el tablero',
      angleSummary(ST.datasets[dsi]).rows.every(r => r.fromBoard));
 
@@ -4927,7 +4975,7 @@ console.log('\n— medir por ángulos —');
   const lv = E.fromDoc(viejo);
   ok('un archivo sin `method`, o con uno desconocido, abre como nube y sin tablero',
      lv.datasets.slice(-2).every(x => x.method === undefined && x.reported === undefined
-       && x.board === undefined));
+       && x.board === undefined && x.reports === undefined));
   viejo.datasets = viejo.datasets.slice(-2);
   H.applyDoc(E.fromDoc(viejo));
   ok('y sus piezas no tienen informe por ángulos', ST.datasets.every(x => angleSummary(x) === null));
@@ -4937,8 +4985,9 @@ console.log('\n— medir por ángulos —');
      JSON.stringify(E.normPlan({ names: [' a ', 3, {}], nominal: [1, 'x'] }))
        === '{"names":["a","3",""],"nominal":[1,null,null]}'
      && JSON.stringify(E.normPlan('basura')) === '{"names":[],"nominal":[]}');
-  ok('una nube no escribe method, reported ni board en el JSON, y sin plano no hay clave',
-     H.currentDoc().datasets.every(x => !('method' in x) && !('reported' in x) && !('board' in x))
+  ok('una nube no escribe method, reported, reports ni board en el JSON, y sin plano no hay clave',
+     H.currentDoc().datasets.every(x => !('method' in x) && !('reported' in x) && !('board' in x)
+       && !('reports' in x))
      && !('plan' in H.currentDoc()));
 }
 
