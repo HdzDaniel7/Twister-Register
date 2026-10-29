@@ -15,12 +15,16 @@
 import * as E from '../../engine.ts';
 import { ST, V, syncModel } from '../../state.ts';
 import { rebuildScene } from '../../scene.ts';
-import { renderShell, renderLeft, renderRight, renderStatus } from '../../panels.ts';
+import { renderShell, renderLeft, renderRight, renderStatus, renderPanels } from '../../panels.ts';
 import type { AnchorMode, DeltaKey } from '../../types.ts';
 import { safeColor } from '../../safe.ts';
 import { $ } from '../../dom.ts';
 import { refresh } from '../render.ts';
 import { commit } from '../history.ts';
+import { T } from '../../i18n.ts';
+import { angUI, angleDs, angVals, parseDec } from '../../panels/angles.ts';
+import { setReported, renameDataset } from '../../state.ts';
+import { drawRibbon } from '../../ribbon.ts';
 import {
   variantById, editBend, editStraight, editStraightDelta, editTail, editDelta, editPoint, editTweak,
 } from '../actions.ts';
@@ -96,8 +100,37 @@ function onChange(e: Event): void {
     if (d.orig !== undefined) t.value = d.orig;
     return;
   }
-  void (onScene(t, d) || onModelField(t, d) || onCell(t, d)
+  void (onAngles(t, d) || onScene(t, d) || onModelField(t, d) || onCell(t, d)
         || onPlacement(t, d) || onMark(t, d) || onPedestal(t, d) || onTweak(t, d));
+}
+
+/* --- medir por ángulos: el ángulo interno reportado y el nombre ----------
+   El campo es de TEXTO y se lee con parseDec(), que acepta «17,5». Vacío es
+   «sin medir» (null), no cero: un cero sería un doblez cerrado del todo. Si ya
+   hay una pieza por ángulos activa la edición va directa a ella —y la escena y
+   la cinta se repintan, porque el modelo medido cambió—; si no, es el borrador
+   que «Crear medición» convertirá en pieza. */
+function onAngles(t: HTMLInputElement, d: DOMStringMap): boolean {
+  if (d.ann !== undefined) {
+    const nm = t.value.trim();
+    const ds = angleDs();
+    if (ds) { if (nm) renameDataset(ds, nm); renderPanels(); } else angUI.name = nm;
+    return true;
+  }
+  if (d.ai === undefined) return false;
+  const i = +d.ai, n = ST.model ? ST.model.bends.length : 0;
+  if (!Number.isInteger(i) || i < 0 || i >= n) return true;
+  const v = parseDec(t.value);
+  /* un texto que no es número se descarta y se devuelve lo que había */
+  if (v === null && t.value.trim()) { t.value = d.orig ?? ''; return true; }
+  /* el motor topa el ángulo interno a [0,180]: fuera de eso no es una medida
+     sino un error de dedo, y se rechaza en vez de dejar que se recorte solo */
+  if (v !== null && (v < 0 || v > 180)) { t.value = d.orig ?? ''; t.title = T('angRange'); alert(T('angRange')); return true; }
+  const ds = angleDs(), cur = angVals(ST.model!).slice();
+  cur[i] = v;
+  if (ds) { setReported(ds, cur); renderPanels(); rebuildScene(); drawRibbon(); }
+  else { angUI.draft = cur; renderPanels(); }
+  return true;
 }
 
 /* --- capas, modelos y piezas: lo que se ve y de qué color ---------------- */

@@ -16,7 +16,7 @@ import { Vector3 } from 'three';
 import type {
   Bend, Model, Variant, AnchorMode, Place, Mark, Pedestal, Tweak, UiPrefs, Doc, DocIn, LoadedDoc,
   Lims, Pin, Mat, Restraint, Load,
-  Proc, Comp,
+  Proc, Comp, MeasMethod,
 } from '../types.ts';
 import { D2R, eye, trans, rotX, rotY, rotZ, posOf } from './math.ts';
 import { bendFrom, normalizeModel } from './bend.ts';
@@ -24,6 +24,7 @@ import type { RawModel } from './bend.ts';
 import { syncDeltas } from './model.ts';
 import { ik } from './kinematics.ts';
 import { PROC_DEFAULT, COMP_DEFAULT } from './compensate.ts';
+import { MEAS_METHODS } from './measure.ts';
 import { normLims } from './lims.ts';
 import { normMachineFmt } from './machine.ts';
 import { PIN_DEFAULT, normMat, RESTRAINT_DEFAULT } from './pins.ts';
@@ -114,6 +115,9 @@ type ToDocDataset = {
   name: string; color: string; src?: string; model: Model;
   /** el comando con el que se fabricó, si la pieza lo trae */
   cmd?: Bend[];
+  /** cómo se midió y, si fue por ángulos, lo que se tecleó. Ver MeasMethod */
+  method?: MeasMethod;
+  reported?: (number | null)[];
 };
 /** Lo demás que lleva el documento: presentación y preferencias, nada de
  *  cinemática. Todo opcional porque toDoc() rellena cualquier falta.
@@ -170,6 +174,15 @@ export function toDoc(
       /* el comando con el que se fabricó: clave opcional, y sin ella no se
          puede estimar el resorte de una pieza abierta de un archivo */
       ...(d.cmd && d.cmd.length ? { cmd: d.cmd } : {}),
+      /* El método solo se escribe si NO es nube, y así un documento sin piezas
+         por ángulos sale idéntico al de antes: el deshacer compara texto, y un
+         `method: 'cloud'` nuevo en cada pieza no cambiaría nada y movería todo.
+         Los `bends` de la pieza por ángulos se guardan igual que los de una
+         nube: una copia anterior del programa, que no conoce `reported`, abre
+         la misma pieza. Por eso no hace falta subir SCHEMA — la clave añade,
+         no reinterpreta, como pasó con `cmd`. */
+      ...(d.method && d.method !== 'cloud'
+        ? { method: d.method, reported: normReported(d.reported) } : {}),
     })),
     // claves opcionales: los archivos viejos siguen abriendo sin ellas
     ref, anchor,
@@ -220,6 +233,17 @@ export function toDoc(
     },
   };
 }
+
+/** Un método de medida venido de un archivo: lo que no se conoce es nube, que
+ *  es lo que era toda pieza antes de que existiera la clave. */
+export const normMethod = (m: unknown): MeasMethod =>
+  MEAS_METHODS.some(x => x.id === m) ? (m as MeasMethod) : 'cloud';
+
+/** Los ángulos informados venidos de un archivo: un número finito o `null`.
+ *  Una celda que no es número —texto, NaN escrito como `null` por
+ *  JSON.stringify, lo que sea— es «no se midió», nunca un cero. */
+export const normReported = (r: unknown): (number | null)[] =>
+  Array.isArray(r) ? r.map(x => (typeof x === 'number' && isFinite(x) ? x : null)) : [];
 
 /* ---------------------------------------------------------- migración ------
    Tres cinemáticas han existido. Los mismos números describen otra pieza en
@@ -370,6 +394,13 @@ export function fromDoc(d: DocIn): LoadedDoc {
       /* Un `color` vacio deja que quien crea la pieza elija el siguiente de la
          paleta: eso se conserva, y por eso no se cae al color de reserva. */
       color: x.color ? safeColor(x.color) : x.color,
+      /* El método se sanea y una nube no lleva claves de más. Los ángulos
+         internos no dependen de la cinemática —son el desvío, sin lado—, así
+         que un archivo convertido los conserva tal cual: al abrir, la pieza se
+         rehace con ellos sobre el nominal ya convertido. */
+      method: undefined, reported: undefined,
+      ...(normMethod(x.method) !== 'cloud'
+        ? { method: normMethod(x.method), reported: normReported(x.reported) } : {}),
     })),
     anchor: d.anchor || 'start',
     variants,

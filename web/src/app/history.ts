@@ -30,7 +30,7 @@
    ========================================================================= */
 import * as E from '../engine.ts';
 import type { ToDocExtra } from '../engine/doc.ts';
-import { ST, loadModel, setMarks, setPedestals, setPins, syncTweak, addDataset } from '../state.ts';
+import { ST, loadModel, setMarks, setPedestals, setPins, syncTweak, addDataset, setReported } from '../state.ts';
 import type { Doc, DocIn, LoadedDoc } from '../types.ts';
 
 /** 50 pasos: con ~20 KB por documento son 1 MB largo, y nadie deshace más de
@@ -118,6 +118,14 @@ export function applyDoc(d: LoadedDoc): void {
                             tail: x.tail ?? d.model.tail },
                           x.name || '?', x.src || '', x.cmd);
     ds.color = x.color || ds.color;
+    /* Una pieza por ángulos se rehace desde lo TECLEADO y no desde los `bends`
+       guardados: esos son una copia para las versiones que no conocen el
+       método, y lo que manda es el dato. Contra el nominal de este documento,
+       que es contra el que se tecleó. */
+    if (x.method === 'angles') {
+      ds.method = 'angles';
+      setReported(ds, x.reported || []);
+    }
   }
 }
 

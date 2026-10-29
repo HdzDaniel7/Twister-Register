@@ -44,6 +44,9 @@ import { ST, REF } from './state.ts';
 import { captureViews } from './scene.ts';
 import { fx, esc, buildTag } from './panels.ts';
 import { download, safeName } from './io.ts';
+import { activeDataset, angleSummary } from './state.ts';
+import { angleChart } from './panels/angles.ts';
+import type { ChartPal } from './panels/angles.ts';
 
 /** Ancho al que se reescala cada captura, px. Llena una A4 a 300 ppp con
  *  margen de sobra y es donde la curva de bytes deja de pagar. */
@@ -79,6 +82,50 @@ type Cifras = { ang: number; rot: number; tw: number; rad: number; str: number; 
 
 /* Solo se llega aquí con un modelo cargado: por eso `ST.model` se da por
    existente. */
+/** Colores del gráfico de ángulos en el reporte: hex fijos, porque esta
+ *  ventana no tiene la hoja de la aplicación (ni sus variables). Los verdes y
+ *  rojos son los mismos de contraste medido de las celdas de arriba. */
+const PAL_REPORTE: ChartPal = {
+  ok: '#0a6b2d', warn: '#9a6b00', bad: '#c42133', dim: '#6b7280', line: '#9aa3af', band: '#0a6b2d',
+};
+
+/** «Comparación por ángulos»: solo si la pieza medida ACTIVA se midió así.
+ *  Lleva la tabla por doblez, el resumen y el mismo gráfico de la aplicación.
+ *  Queda al final, después de las tres tablas del modelo, porque habla de otra
+ *  cosa —una pieza física contra el nominal— y no debe romper la suma de las
+ *  tres de arriba. */
+function seccionAngulos(R: Model): string {
+  const D = activeDataset();
+  if (!D || D.method !== 'angles') return '';
+  const S = angleSummary(D);
+  if (!S) return '';
+  const tol = R.tol.angle;
+  const sg = (v: number | null, n: number): string => (v === null ? '—' : (v > 0 ? '+' : '') + fx(v, n));
+  const filas = S.rows.map((r, i) => `<tr><td>B${i + 1}</td><td>${fx(r.nomInt, 2)}</td>
+    <td>${r.measInt === null ? '—' : fx(r.measInt, 2)}</td><td>${sg(r.dev, 3)}</td>
+    <td>${r.ok === null ? '—' : r.ok ? T('repAngOk') : `<b>${T('repAngOut')}</b>`}</td>
+    <td>${fx(r.cmd, 2)}</td><td>${r.measInt === null ? '—' : fx(r.rec, 2)}</td>
+    <td>${r.measInt === null ? '—' : sg(r.recDelta, 2)}</td></tr>`).join('');
+  return `<h2>${T('repAngles')}</h2>
+  <div class="kv">
+    <div><span>${T('repAngPiece')}</span> ${esc(D.name)}</div>
+    <div><span>${T('repAngNom')}</span> ${esc(R.name)}</div>
+    <div><span>${T('repAngDate')}</span> ${new Date().toLocaleDateString()}</div>
+    <div><span>${T('tolA')}</span> ±${tol}°</div>
+  </div>
+  <div class="tw"><table><thead><tr><th scope="col">${T('nBend')}</th><th scope="col">${T('angNom')} °</th>
+    <th scope="col">${T('angMeas')} °</th><th scope="col">Δ °</th><th scope="col">${T('repAngState')}</th>
+    <th scope="col">${T('angCmd')} °</th><th scope="col">${T('angRec')} °</th><th scope="col">${T('angCorr')} °</th>
+    </tr></thead><tbody>${filas}</tbody></table></div>
+  <div class="kv">
+    <div><span>${T('angMaxAbs')}</span> ${fx(S.maxAbs, 3)}°</div>
+    <div><span>${T('statRms')}</span> ${fx(S.rms, 3)}°</div>
+    <div><span>${T('angMean')}</span> ${S.n ? sg(S.mean, 3) : '—'}°</div>
+    <div><span>${T('statOut')}</span> ${S.n ? S.out : '—'}/${S.n}</div>
+  </div>
+  <figure>${angleChart(S.rows, tol, PAL_REPORTE, 150)}<figcaption>${T('angChartTip')}</figcaption></figure>`;
+}
+
 export function reportHtml(): string {
   /* LA CABECERA HABLA DE LA REFERENCIA, no del modelo activo. Es lo que ancla
      todo lo demás —el 3D, la columna «Δ punta», las celdas marcadas— y no
@@ -406,6 +453,7 @@ export function reportHtml(): string {
 
   <h2>3 · ${T('repTotals')}</h2>
   ${tabla('total')}
+  ${seccionAngulos(R)}
   </html>`;
 
   return html;

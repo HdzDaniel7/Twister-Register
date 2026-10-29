@@ -9,7 +9,7 @@
 
    Este archivo es solo un barril: reexporta `engine/*.ts`, partido por
    responsabilidad (matemática de base, doblez/modelo, cinemática, variantes,
-   ajuste y colocación, proceso simulado y compensación, expresiones de celda,
+   ajuste y colocación, proceso simulado y compensación, medida por ángulos, expresiones de celda,
    y esquema/documento). Quien importa `./engine.ts` no nota el reparto.
    ========================================================================= */
 export * from './engine/math.ts';
@@ -22,6 +22,7 @@ export * from './engine/lims.ts';
 export * from './engine/machine.ts';
 export * from './engine/fitting.ts';
 export * from './engine/compensate.ts';
+export * from './engine/measure.ts';
 export * from './engine/expr.ts';
 export * from './engine/doc.ts';
 export * from './engine/csv.ts';

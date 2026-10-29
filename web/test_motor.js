@@ -20,7 +20,9 @@ import { esc, safeColor, COLOR_FALLBACK } from './src/safe.ts';
    banco de Edge, que corre entero o no corre. */
 import { ST, loadModel, syncModel, syncTweak, addMark, addPedestal,
          heldOfVariant, heldResult, heldSlots, heldStats, seedFixture, seedPinsFor,
-         placeMatrix, refModelFree, shownBasis, setPedestals, shownPath } from './src/state.ts';
+         placeMatrix, refModelFree, shownBasis, setPedestals, shownPath,
+         addAngleDataset, setReported, renameDataset, angleSummary, applyAngleRec,
+         recomputeAll } from './src/state.ts';
 import * as H from './src/app/history.ts';
 
 let fails = 0;
@@ -4592,6 +4594,188 @@ console.log('\n— el eje a STEP —');
      modelo tienen que dar el MISMO archivo o no se pueden comparar */
   ok('  el mismo modelo da el mismo archivo byte a byte',
      E.stepText(duro, meta) === txt, `${(txt.length / 1024).toFixed(1)} KB`);
+}
+
+/* ======================================================================== */
+console.log('\n— medir por ángulos —');
+{
+  /* La convención: interno = 180 − |ángulo de doblez|, sin importar el rodado
+     ni el lado. Un 90 es un 90 y un 30 deja las rectas a 150. */
+  const mk = (bends) => E.normalizeModel({ name: 'ANG', tail: 100, bends });
+  const A = mk([
+    { feed: 100, rot: 0, angle: 90, radius: 20 },
+    { feed: 120, rot: 90, angle: 30, radius: 20 },     // de canto
+    { feed: 110, rot: 0, angle: -45, radius: 20 },     // sigue de canto: el eje se sostiene
+    { feed: 130, rot: -90, angle: -60, radius: 20 },   // de plano y negativa
+    { feed: 140, rot: 0, angle: 0, radius: 20 },       // recto
+  ]);
+  const I = E.internalAngles(A);
+  ok('interno = 180 − |ángulo|: 90→90, 30→150, −45→135, −60→120, 0→180',
+     [90, 150, 135, 120, 180].every((v, i) => Math.abs(I[i] - v) < 1e-12), I.join(' '));
+
+  let rt = 0;
+  for (const nom of [90, 30, -45, -60, 0, 170, -170, 180, 200, -200, 12.3]) {
+    const n = E.wrapTurn(nom);
+    for (const d of [-3, -0.5, 0, 0.7, 4]) {
+      const int = 180 - Math.abs(n) + d;
+      if (int < 0 || int > 180) continue;
+      const b = E.bendFromInternal(int, nom);
+      rt = Math.max(rt, Math.abs((180 - Math.abs(E.wrapTurn(b))) - int));
+    }
+    rt = Math.max(rt, Math.abs(E.bendFromInternal(180 - Math.abs(n), nom) - nom));
+  }
+  ok('ida y vuelta interno ↔ doblez exacta, también en la rama negativa', rt < 1e-9,
+     `error máx ${rt.toExponential(2)}`);
+  ok('la vuelta conserva el SIGNO del nominal: −60 con 118 interno da −62',
+     Math.abs(E.bendFromInternal(118, -60) + 62) < 1e-12);
+  ok('y la VUELTA: un nominal de 200 (=−160) medido igual sigue siendo 200, no −160',
+     Math.abs(E.bendFromInternal(20, 200) - 200) < 1e-12);
+  ok('un recto se toma positivo', Math.abs(E.bendFromInternal(178, 0) - 2) < 1e-12);
+  ok('un interno fuera de [0, 180] se topa: no voltea el doblez',
+     E.bendFromInternal(190, 30) === 0 && E.bendFromInternal(-5, 30) === 180);
+
+  /* una estación de canto que alignBranch() dejó en la rama negativa: la
+     pieza por ángulos se queda en ella y no hay nada que volver a voltear */
+  const Mb = E.alignModelBranch(mk([{ feed: 100, rot: -89.65, angle: -40, radius: 20 },
+                                    { feed: 100, rot: 0, angle: 25, radius: 20 }]), A);
+  const Mi = E.modelFromInternal(Mb, [139, 154]);
+  const re = E.alignModelBranch(Mi, Mb);
+  ok('canto en rama negativa: la vuelta sale negativa y alignBranch no la toca',
+     Mb.bends[0].angle < 0 && Math.abs(Mi.bends[0].angle + 41) < 1e-12
+     && re.bends.every((b, i) => b.angle === Mi.bends[i].angle
+       && Math.abs(E.wrap180(b.rot - Mi.bends[i].rot)) < 1e-9),
+     `${Mb.bends[0].rot}/${Mb.bends[0].angle} → ${Mi.bends[0].angle}`);
+
+  /* modelFromInternal: solo cambia `angle`, solo donde hay lectura */
+  const rep = [92, null, 133.5, undefined, NaN];
+  const Q = E.modelFromInternal(A, rep);
+  ok('modelFromInternal no toca el nominal', A.bends[0].angle === 90 && A.bends[2].angle === -45);
+  ok('cambia el ángulo donde hay lectura (92 → 88, 133.5 → −46.5)',
+     Math.abs(Q.bends[0].angle - 88) < 1e-12 && Math.abs(Q.bends[2].angle + 46.5) < 1e-12);
+  ok('y deja el nominal donde no la hay (null, undefined, NaN)',
+     Q.bends[1].angle === 30 && Q.bends[3].angle === -60 && Q.bends[4].angle === 0);
+  ok('rectas, rodados, radios, torsión, cola, sección y tolerancias: intactos',
+     Q.bends.every((b, i) => ['feed', 'rot', 'radius', 'twist', 'twistLen']
+       .every(k => b[k] === A.bends[i][k]))
+     && Q.tail === A.tail && JSON.stringify(Q.section) === JSON.stringify(A.section)
+     && JSON.stringify(Q.tol) === JSON.stringify(A.tol));
+
+  /* angleReport: signo, ganancia por orientación, banda muerta, tope */
+  const comp = { ...E.COMP_DEFAULT, gainW: 0.5, gainT: 1.0, dead: 0.2, maxStep: 3,
+                 doAngle: false, doRot: true, doFeed: true };
+  const ori = E.orientations(A);
+  const cmd = A.bends.map(b => ({ ...b, angle: b.angle + 1 }));
+  const R = E.angleReport(A, cmd, [92, 150.1, 125, null, 180], comp, ori);
+  const [r0, r1, r2, r3] = R.rows;
+  ok('orientaciones del caso: T W W T T', ori.join('') === 'TWWTT', ori.join(''));
+  ok('dev = medido − nominal: 92 contra 90 es +2 (le falta doblez)', r0.dev === 2 && r0.ok === false);
+  ok('le falta doblez → se recomienda MÁS ángulo (de plano, ganancia 1: +2)',
+     Math.abs(r0.rec - (91 + 2)) < 1e-12 && Math.abs(r0.recDelta - 2) < 1e-12, `${r0.rec}`);
+  ok('dentro de la banda muerta no se corrige (0.1 < 0.2)',
+     r1.rec === r1.cmd && r1.recDelta === 0 && r1.ok === true);
+  ok('rama negativa: 125 contra 135 se pasó de doblez → MENOS magnitud, topado a 3',
+     r2.dev === -10 && Math.abs(r2.rec - (-44 + 3)) < 1e-12, `${r2.rec}`);
+  ok('sin lectura: measInt, dev y ok a null, rec = cmd',
+     r3.measInt === null && r3.dev === null && r3.ok === null && r3.rec === r3.cmd && r3.recDelta === 0);
+  ok('el resumen cuenta solo los medidos', R.n === 4 && R.out === 2
+     && Math.abs(R.maxAbs - 10) < 1e-12 && Math.abs(R.mean - (2 + 0.1 - 10 + 0) / 4) < 1e-9
+     && Math.abs(R.rms - Math.sqrt((4 + 0.01 + 100) / 4)) < 1e-9, `mean ${R.mean} rms ${R.rms}`);
+  const Rw = E.angleReport(A, cmd, [null, 154], comp, ori);
+  ok('de canto usa gainW: 154 contra 150 le falta doblez → +4·0.5 = +2',
+     Math.abs(Rw.rows[1].rec - (31 + 2)) < 1e-12, `${Rw.rows[1].rec}`);
+  ok('la recomendación es solo de ángulo aunque el lazo tenga doAngle apagado', r0.rec !== r0.cmd);
+  const R0 = E.angleReport(A, [], [], comp, ori);
+  ok('sin ninguna lectura: n = 0, todo a cero y rec = nominal',
+     R0.n === 0 && R0.rms === 0 && R0.maxAbs === 0 && R0.mean === 0
+     && R0.rows.every((x, i) => x.rec === A.bends[i].angle));
+  ok('MEAS_METHODS conoce nube y ángulos', E.MEAS_METHODS.map(x => x.id).join() === 'cloud,angles');
+
+  /* el estado: alta, informe, renombre, recalcular y aplicar */
+  /* datum al amarre: con el mejor ajuste, el PI1 también se movería */
+  loadModel(E.demoModel()); ST.datum = 'start';
+  const n = ST.model.bends.length;
+  const nomI = E.internalAngles(ST.model);
+  const lect = nomI.map((v, i) => (i % 4 === 3 ? null : v + (i % 2 ? -0.8 : 0.6)));
+  const ds = addAngleDataset('CMM 1', lect);
+  ok('addAngleDataset da de alta una pieza por ángulos, activa',
+     ds.method === 'angles' && ds.src === 'angles' && ST.dsActive === ds.id && !!ds.dev);
+  lect[0] = 1;
+  ok('y guarda una COPIA de lo tecleado', ds.reported[0] !== 1);
+  ok('su modelo es el nominal con los ángulos puestos',
+     ds.model.bends.every((b, i) => b.feed === ST.model.bends[i].feed
+       && Math.abs((180 - Math.abs(E.wrapTurn(b.angle))) - (ds.reported[i] ?? nomI[i])) < 1e-9));
+  const S = angleSummary(ds);
+  ok('angleSummary da una fila por doblez y cuenta las lecturas',
+     !!S && S.rows.length === n && S.n === n - Math.floor(n / 4));
+  renameDataset(ds, '   ');
+  ok('renombrar a vacío no borra el nombre', ds.name === 'CMM 1');
+  renameDataset(ds, '  CMM bis ');
+  ok('renombrar recorta', ds.name === 'CMM bis');
+
+  /* el nominal cambia: la pieza por ángulos se rehace contra el nuevo */
+  ST.variants[0].base.bends[2].feed += 25; syncModel(); recomputeAll();
+  ok('editar el nominal rehace la pieza por ángulos (la recta la sigue)',
+     ds.model.bends[2].feed === ST.model.bends[2].feed);
+  ok('y su desviación es la de los ángulos, no la de la edición: PI1 no se mueve',
+     ds.dev.point[1] < 1e-9 && ds.dev.point[ds.dev.point.length - 1] > 0.1);
+
+  setReported(ds, nomI.map(() => null));
+  ok('setReported sin lecturas deja la pieza igual al nominal',
+     ds.dev.point.every(x => x < 1e-9) && angleSummary(ds).n === 0);
+  setReported(ds, nomI.map((v, i) => (i === 1 ? v + 2 : null)));
+  const cmd0 = ST.command.map(b => ({ ...b }));
+  const Sx = angleSummary(ds);
+  ST.tweak[0].angle = 0.4;
+  applyAngleRec(ds);
+  ok('aplicar escribe el ángulo recomendado SOLO donde hubo lectura',
+     Math.abs(ST.command[1].angle - Sx.rows[1].rec) < 1e-12
+     && ST.command[1].angle !== cmd0[1].angle
+     && ST.command.every((b, i) => i === 1 || b.angle === cmd0[i].angle));
+  ok('y no toca rodado ni avance',
+     ST.command.every((b, i) => b.rot === cmd0[i].rot && b.feed === cmd0[i].feed));
+  ok('el ajuste a mano se pone a cero y la predicción se tira, como en «Aplicar»',
+     ST.tweak.every(t => !t.angle && !t.rot && !t.feed) && ST.pred === null);
+  ok('una pieza de nube no tiene informe por ángulos',
+     angleSummary({ model: ST.model, method: undefined }) === null);
+
+  /* persistencia: el documento y la pila de deshacer */
+  const doc = H.currentDoc();
+  const dd = doc.datasets[doc.datasets.length - 1];
+  ok('el JSON lleva method y reported de la pieza por ángulos',
+     dd.method === 'angles' && dd.reported.length === n && dd.reported[1] === nomI[1] + 2
+     && dd.reported[0] === null);
+  const txt = JSON.stringify(doc);
+  H.applyDoc(E.fromDoc(JSON.parse(txt)));
+  const ds2 = ST.datasets[ST.datasets.length - 1];
+  ok('abrir el JSON recupera la pieza por ángulos con lo tecleado',
+     ds2.method === 'angles' && JSON.stringify(ds2.reported) === JSON.stringify(dd.reported)
+     && ds2.name === 'CMM bis');
+  const { saved: s1, ...d1 } = doc, { saved: s2, ...d2 } = H.currentDoc(); void s1; void s2;
+  ok('y vuelve a guardar el mismo documento, carácter por carácter',
+     JSON.stringify(d1) === JSON.stringify(d2));
+
+  H.initHistory();
+  setReported(ds2, nomI.map((v, i) => (i === 1 ? v + 3 : null)));
+  ok('cambiar una lectura apila un paso', H.commit() === true);
+  H.undo();
+  const ds3 = ST.datasets[ST.datasets.length - 1];
+  ok('deshacer devuelve la lectura anterior', ds3.method === 'angles' && ds3.reported[1] === nomI[1] + 2);
+  ok('y lo restaurado serializa igual', H.commit() === false);
+
+  /* un archivo sin la clave es nube; uno con un método desconocido, también */
+  const viejo = JSON.parse(txt);
+  const ult = viejo.datasets[viejo.datasets.length - 1];
+  delete ult.method; delete ult.reported;
+  viejo.datasets.push({ ...ult, method: 'marciano', reported: [1, 2] });
+  const lv = E.fromDoc(viejo);
+  ok('un archivo sin `method`, o con uno desconocido, abre como nube',
+     lv.datasets.every(x => x.method === undefined && x.reported === undefined));
+  H.applyDoc(lv);
+  ok('y sus piezas no tienen informe por ángulos', ST.datasets.every(x => angleSummary(x) === null));
+  ok('reported se sanea: lo que no es número finito es null',
+     JSON.stringify(E.normReported([1, 'x', null, Infinity, 2.5])) === '[1,null,null,null,2.5]');
+  ok('una nube no escribe method ni reported en el JSON',
+     H.currentDoc().datasets.every(x => !('method' in x) && !('reported' in x)));
 }
 
 console.log(`\n${fails ? fails + ' PRUEBA(S) FALLARON' : 'todas las pruebas pasaron'}\n`);

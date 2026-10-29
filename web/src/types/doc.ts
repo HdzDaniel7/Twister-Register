@@ -126,6 +126,65 @@ export type Pin = {
   side: number;
 };
 
+/** CÓMO se midió una pieza. No es de dónde salió el archivo —eso es `src`—
+ *  sino qué pasó por el instrumento, y por lo tanto qué es DATO y qué es
+ *  derivado:
+ *
+ *  `'cloud'`   la pieza entera viene de puntos (CSV, simulación, escaneo): sus
+ *              dobleces SON el dato. Es lo que había antes de que existiera la
+ *              clave, y por eso es lo que vale cuando falta.
+ *  `'angles'`  un informe externo (CMM, brazo) dio solo el ÁNGULO INTERNO entre
+ *              rectas en cada doblez. El dato es `Dataset.reported`; la pieza es
+ *              el nominal con esos ángulos puestos, y se REHACE en cuanto el
+ *              nominal cambia. Ver engine/measure.ts.
+ *
+ *  Es una unión y no un booleano a propósito: vendrán más métodos (rectas
+ *  sueltas, radios, …) y cada uno añade un caso aquí y en `MEAS_METHODS`. */
+export type MeasMethod = 'cloud' | 'angles';
+
+/** Una fila de «Medir por ángulos»: un doblez, en ÁNGULO INTERNO entre rectas
+ *  —que es lo que imprime el informe— y la recomendación en ÁNGULO DE DOBLEZ
+ *  —que es lo que se teclea en la máquina—. Ver engine/measure.ts. */
+export type AngleRow = {
+  /** índice del doblez, desde 0 */
+  i: number;
+  /** ángulo interno del nominal, ° */
+  nomInt: number;
+  /** ángulo interno informado, °; null = ese doblez no se midió */
+  measInt: number | null;
+  /** measInt − nomInt, °. Positivo = más abierto que el nominal = le falta
+   *  doblez */
+  dev: number | null;
+  /** |dev| <= M.tol.angle */
+  ok: boolean | null;
+  /** ángulo de doblez comandado con el que se hizo la pieza, ° */
+  cmd: number;
+  /** ángulo de doblez comandado que se recomienda, ° */
+  rec: number;
+  /** rec − cmd, ° */
+  recDelta: number;
+};
+
+/** El informe entero: las filas y su resumen sobre las que SÍ tienen lectura.
+ *  `n` cuántas, `out` cuántas fuera de tolerancia; `maxAbs`, `rms` y `mean`
+ *  de `dev`, en °, y a cero si no hay ninguna. */
+export type AngleSummary = { rows: AngleRow[]; n: number; maxAbs: number; rms: number; mean: number; out: number };
+
+/** Una pieza medida tal como viaja en el JSON: solo lo que hace falta para
+ *  reconstruirla, sin `dev` ni `pis`. La comparten `Doc` y `LoadedDoc`. */
+export type DocDataset = {
+  name: string; color: string; src: string; bends: Bend[]; tail: number;
+  cmd?: Bend[];
+  /** solo si no es `'cloud'`: un archivo sin la clave es una nube, como
+   *  todos los anteriores a «Medir por ángulos» */
+  method?: MeasMethod;
+  /** los ángulos internos TAL COMO SE TECLEARON, con `null` donde no hubo
+   *  lectura. Los `bends` de al lado también se guardan —una copia anterior
+   *  del programa abre la misma pieza, aunque como nube—, pero al abrir manda
+   *  esto: la pieza se rehace contra el nominal del archivo. */
+  reported?: (number | null)[];
+};
+
 /** Una pieza medida. `model` son sus parámetros; `dev`, su comparación. */
 export type Dataset = {
   /** cadena, siempre: 'ds1', 'ds2'... */
@@ -149,6 +208,13 @@ export type Dataset = {
    *  compensación. Opcional: los archivos anteriores no lo traen y ahí solo
    *  queda suponer el comando actual. */
   cmd?: Bend[];
+  /** cómo se midió; sin la clave, `'cloud'`. Ver MeasMethod */
+  method?: MeasMethod;
+  /** con `method === 'angles'`: los ángulos internos informados, °, uno por
+   *  doblez y `null` donde no hubo lectura. Es el DATO de la pieza: `model`
+   *  sale de aquí y del nominal, y se rehace cada vez que el nominal cambia
+   *  (ver `recomputeAll()` en state.ts). */
+  reported?: (number | null)[];
 };
 
 /** Por qué se puede o no creer la recta de tendencia del resorte.
@@ -231,8 +297,7 @@ export type Doc = {
   /** el perfil con el que se exporta el comando de máquina. Ver engine/machine.ts */
   mach: MachineFmt;
   /** piezas medidas: solo lo que hace falta para reconstruirlas, sin `dev` */
-  datasets: { name: string; color: string; src: string; bends: Bend[]; tail: number;
-              cmd?: Bend[] }[];
+  datasets: DocDataset[];
   ref: string | null;
   anchor: AnchorMode;
   variants: Variant[];
@@ -285,8 +350,7 @@ export type LoadedDoc = {
   lims: Lims;
   /** el perfil de exportación, saneado */
   mach: MachineFmt;
-  datasets: { name: string; color: string; src: string; bends: Bend[]; tail: number;
-              cmd?: Bend[] }[];
+  datasets: DocDataset[];
   anchor: AnchorMode;
   variants: Variant[];
   ref: string | null;

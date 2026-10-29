@@ -108,4 +108,5 @@ export type I18nKey =
   | 'glLost' | 'faultMsg' | 'faultClose'
   | 'colVis' | 'xyTip' | 'pedHTip' | 'pedPadTip' | 'pedTiltTip' | 'pedWantTip'
   | 'pedD' | 'pedDTip' | 'pedSTip' | 'pedPlanTip' | 'pedGapTip' | 'pedSpanTip'
-  | 'pinDiaTip' | 'pinGapTip' | 'pinStateTip' | 'loadRootDown';
+  | 'pinDiaTip' | 'pinGapTip' | 'pinStateTip' | 'loadRootDown'
+  | 'mmMethod' | 'measCloud' | 'measAngles' | 'angTitle' | 'angHint' | 'angName' | 'angDefName' | 'angNom' | 'angNomTip' | 'angMeas' | 'angMeasTip' | 'angMeasOf' | 'angCmd' | 'angCmdTip' | 'angRec' | 'angRecTip' | 'angCorr' | 'angCreate' | 'angApply' | 'angRecApplyTip' | 'angMaxAbs' | 'angMean' | 'angN' | 'angChart' | 'angChartTip' | 'angNoneTyped' | 'repAngles' | 'repAngPiece' | 'repAngNom' | 'repAngDate' | 'repAngOk' | 'repAngOut' | 'repAngState' | 'angOneNote' | 'angRange';

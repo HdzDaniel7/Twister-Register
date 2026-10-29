@@ -13,8 +13,9 @@ import {
   anchoredShownPis,
   addPin, setPins, seedPinsFor,
   syncTweak, zeroTweak, compensatedCommand, loopMeasured, loopPieces,
-  measuredSpringback,
+  measuredSpringback, addAngleDataset, angleSummary, applyAngleRec,
 } from '../state.ts';
+import { angUI, angVals, angleDs, countTyped } from '../panels/angles.ts';
 import { rebuildScene, fitView } from '../scene.ts';
 import { drawRibbon } from '../ribbon.ts';
 import {
@@ -481,6 +482,31 @@ export function action(a: string): void {
       if (sb.W.stat.n) ST.proc.sbW = +sb.W.stat.med.toFixed(3);
       if (sb.T.stat.n) ST.proc.sbT = +sb.T.stat.med.toFixed(3);
       renderSide(); renderRight(); return;
+    }
+    /* MEDIR POR ÁNGULOS. «Crear» convierte lo tecleado en una pieza medida
+       más —queda activa y visible, y el panel se queda en su método— y deja el
+       borrador vacío para la siguiente. */
+    case 'angnew': {
+      const vals = angVals(M);
+      if (!countTyped(vals)) { alert(T('angNoneTyped')); return; }
+      const nm = (angleDs() ? '' : angUI.name) || `${T('angDefName')} ${ST.datasets.length + 1}`;
+      const ds = addAngleDataset(nm, vals);
+      ds.visible = true; ST.dsActive = ds.id;
+      angUI.method = 'angles'; angUI.draft = []; angUI.name = '';
+      renderPanels(); rebuildScene(); drawRibbon();
+      return;
+    }
+    /* «Aplicar recomendación» escribe en el comando el ángulo que el resumen
+       recomienda, SOLO en los dobleces medidos: donde no hay medida no hay
+       corrección que inventar. Como `apply`, el ajuste a mano ya está dentro
+       del comando y se pone a cero. */
+    case 'angrec': {
+      const ds = angleDs(), S = ds ? angleSummary(ds) : null;
+      if (!ds || !S || !S.n) { alert(T('noMeas')); return; }
+      applyAngleRec(ds);
+      predict();
+      renderPanels(); rebuildScene(); drawRibbon();
+      return;
     }
     case 'undo': return stepHistory(undo);
     case 'redo': return stepHistory(redo);

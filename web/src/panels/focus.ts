@@ -38,7 +38,7 @@ import { feasNote } from './model.ts';
      · `px`, `pnx`, `rh` y `hv` — son botones, y cellKey() solo mira <input> y
        <select>: aquí no harían nada. */
 const CELL_ATTRS = ['b', 'bd', 'st', 'p', 'mk', 'tw', 'm', 's', 't', 'c', 'pr', 'pl', 'plp',
-                    'pd', 'pn', 'pns', 'rs', 'mt', 'ld'];
+                    'pd', 'pn', 'pns', 'rs', 'mt', 'ld', 'ai'];
 
 /** Selector estable de una celda editable, o null si el nodo no lo es. */
 export function cellKey(el: Element | null): string | null {

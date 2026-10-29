@@ -9,7 +9,7 @@
 import * as E from './engine.ts';
 import type {
   AnchorMode, Bend, Comp, Dataset, DatumMode, Mark, Model, PathSample, Pedestal, Pin, Place, Proc,
-  Lims, Mat, Restraint, State, Tweak, Variant, Springback,
+  Lims, Mat, Restraint, State, Tweak, Variant, Springback, AngleSummary,
 } from './types.ts';
 import type { Matrix4, Vector3 } from 'three';
 import type { Settled } from './engine/load.ts';
@@ -633,7 +633,22 @@ export function computeDev(ds: Dataset): Dataset {
   ds.pis = ds.dev.pis;
   return ds;
 }
-export const recomputeAll = (): void => { ST.datasets.forEach(computeDev); };
+/** Una pieza medida por ángulos no tiene forma propia: es el nominal con los
+ *  ángulos informados puestos. Cuando el nominal cambia —otra variante activa,
+ *  una recta editada, un doblez insertado— la pieza tiene que cambiar con él, o
+ *  se compararía el nominal de ahora contra el de antes y la desviación diría
+ *  lo que se editó, no lo que se midió. Por eso se rehace aquí, que es por
+ *  donde pasa todo repintado (ver `refresh()`), y no en cada sitio que toca el
+ *  modelo: son muchos y basta con olvidar uno.
+ *
+ *  Sale barato: una copia del modelo, y `computeDev()` iba a correr igual. */
+function rebuildAngles(ds: Dataset): void {
+  if (ds.method !== 'angles' || !ST.model) return;
+  ds.model = E.modelFromInternal(ST.model, ds.reported || []);
+}
+export const recomputeAll = (): void => {
+  ST.datasets.forEach(ds => { rebuildAngles(ds); computeDev(ds); });
+};
 
 export function addDataset(model: Model, name: string, src: string, cmd?: Bend[]): Dataset {
   dsSeq += 1;
@@ -693,4 +708,66 @@ export function activeShift(): number {
     const sh = E.piShift(shownModel(), refModel(), ST.anchor);
     return ST.anchor === 'end' ? sh[0] : sh[sh.length - 1];
   } catch { return 0; }
+}
+
+/* -------------------------------------------------- medir por ángulos */
+/** Da de alta una pieza medida por ÁNGULOS INTERNOS. Pasa por `addDataset()`
+ *  como cualquier otra —número, color, comando con el que se hizo, activa—, y
+ *  lo único propio es que guarda lo TECLEADO: `reported` es el dato y `model`
+ *  se deriva de él. La copia es a propósito: el borrador del panel sigue vivo y
+ *  no debe poder tocar una pieza ya dada de alta. Ver engine/measure.ts. */
+export function addAngleDataset(name: string, reported: (number | null)[]): Dataset {
+  const r = reported.slice();
+  const ds = addDataset(E.modelFromInternal(ST.model!, r), name, 'angles');
+  ds.method = 'angles';
+  ds.reported = r;
+  return ds;
+}
+
+/** Cambia los ángulos informados de una pieza y la rehace contra el nominal
+ *  de AHORA. Una pieza de nube no tiene ángulos informados: se ignora. */
+export function setReported(ds: Dataset, reported: (number | null)[]): void {
+  if (ds.method !== 'angles') return;
+  ds.reported = reported.slice();
+  rebuildAngles(ds);
+  computeDev(ds);
+}
+
+/** Nombre de una pieza medida. Vacío no: una pieza sin nombre no se puede
+ *  elegir en la lista, así que un campo borrado deja el que había. */
+export function renameDataset(ds: Dataset, name: string): void {
+  const n = String(name ?? '').trim();
+  if (n) ds.name = n;
+}
+
+/** El informe de una pieza por ángulos, contra el nominal de ahora y con el
+ *  comando con el que se HIZO la pieza —el de ahora si es de un archivo que no
+ *  lo guardó—. `null` si la pieza no es por ángulos. */
+export function angleSummary(ds: Dataset): AngleSummary | null {
+  if (ds.method !== 'angles' || !ST.model) return null;
+  const M = ST.model;
+  return E.angleReport(M, ds.cmd && ds.cmd.length ? ds.cmd : ST.command, ds.reported || [],
+                       ST.comp, E.orientations(M));
+}
+
+/** Escribe en el comando el ángulo recomendado, SOLO en los dobleces que se
+ *  midieron: donde no hubo lectura no hay corrección que inventar, y el comando
+ *  de esa fila se queda como estaba. Rodado y avance no se tocan.
+ *
+ *  La misma contabilidad que «Aplicar» del lazo (`apply` en app/actions.ts):
+ *  el ajuste a mano se pone a cero —el comando nuevo es el punto de partida— y
+ *  la predicción se tira, porque era la del comando anterior. No apila el paso
+ *  de deshacer: eso lo hace el `commit()` del clic que llamó a esto. */
+export function applyAngleRec(ds: Dataset): void {
+  const S = angleSummary(ds);
+  if (!S || !S.n) return;
+  syncCommand();
+  ST.command = ST.command.map((b, i) => {
+    const r = S.rows[i];
+    const o = E.bendFrom(b);
+    if (r && r.measInt !== null && isFinite(r.rec)) o.angle = r.rec;
+    return o;
+  });
+  zeroTweak();
+  ST.pred = null;
 }

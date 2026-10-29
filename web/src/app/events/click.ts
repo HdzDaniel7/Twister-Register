@@ -13,6 +13,7 @@ import { refresh, renderAll, selectBend, setMode, openDrawer } from '../render.t
 import { setTheme } from '../theme.ts';
 import { action, variantById, varActivate, varDuplicate, varDelete, setSecKind, setKMode } from '../actions.ts';
 import { commit } from '../history.ts';
+import { angUI } from '../../panels/angles.ts';
 
 export function bindClick(): void {
   $('#tabs')!.addEventListener('click', e => {
@@ -59,7 +60,7 @@ function onClick(e: MouseEvent): void {
     }
     const t = (e.target as HTMLElement).closest(
       '[data-a],[data-v],[data-dm],[data-l],[data-th],[data-md],[data-dr],[data-dx],[data-dsel],[data-cm],[data-mx],[data-px],' +
-      '[data-vsel],[data-vx],[data-vd],[data-vr],[data-r],[data-pnx],[data-hv],[data-sk],[data-km]') as HTMLElement | null;
+      '[data-mm],[data-vsel],[data-vx],[data-vd],[data-vr],[data-r],[data-pnx],[data-hv],[data-sk],[data-km]') as HTMLElement | null;
     if (!t) return;
     const d = t.dataset;
     if (d.l !== undefined) { setLang(d.l); renderAll(); return; }
@@ -70,6 +71,9 @@ function onClick(e: MouseEvent): void {
     if (d.v !== undefined) { d.v === 'fit' ? fitView() : setView(d.v as ViewName); return; }
     if (d.cm !== undefined) { ST.view.cmode = d.cm as 'solid' | 'dev'; renderShell(); rebuildScene(); return; }
     if (d.dm !== undefined) { ST.datum = d.dm as DatumMode; refresh(); return; }
+    /* el método de medida: nube/CSV o por ángulos. Es estado de interfaz, no
+       del documento, así que ni toca ST ni apila un paso. */
+    if (d.mm !== undefined) { angUI.method = d.mm; renderPanels(); return; }
     if (d.sk !== undefined) { setSecKind(d.sk); return; }
     if (d.km !== undefined) { setKMode(d.km); return; }
     if (d.vsel !== undefined) { varActivate(d.vsel); return; }
@@ -127,7 +131,13 @@ function onClick(e: MouseEvent): void {
       renderPanels(); rebuildScene(); drawRibbon(); return;
     }
     if (d.dsel !== undefined) {
-      ST.dsActive = d.dsel; renderPanels(); rebuildScene(); drawRibbon(); return;
+      ST.dsActive = d.dsel;
+      /* elegir una pieza por ángulos lleva el panel a su método, y una de
+         nube a la nube: la pieza que se mira y el método que se enseña no se
+         separan */
+      const sel = ST.datasets.find(x => x.id === d.dsel);
+      if (sel) angUI.method = sel.method === 'angles' ? 'angles' : 'cloud';
+      renderPanels(); rebuildScene(); drawRibbon(); return;
     }
     if (d.a !== undefined) { action(d.a); return; }
     if (d.r !== undefined) { selectBend(+d.r); return; }

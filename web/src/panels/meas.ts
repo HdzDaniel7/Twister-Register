@@ -7,6 +7,8 @@ import { T } from '../i18n.ts';
 import type { Model, Proc } from '../types.ts';
 import { ST, activeDataset, measuredSpringback, simCount } from '../state.ts';
 import { fx, esc, cls, oriTag, sgn, srcTag } from './fmt.ts';
+import { angUI, angPane } from './angles.ts';
+import type { I18nKey } from './fmt.ts';
 
 /* --- pestaña MEDICIÓN --------------------------------------------------- */
 export function paneMeas(M: Model): string {
@@ -70,10 +72,19 @@ export function paneMeas(M: Model): string {
     <button class="btn pri mt6" style="width:100%" data-a="sim">${T('simulate')}</button>
     <div class="hintline">${T('formula')}</div>
   </div></div>`;
+  /* EL MÉTODO DE MEDIDA. La nube/CSV es lo de siempre; «Por ángulos» es la
+     pieza que se midió con goniómetro y solo tiene un número por doblez. El
+     selector sale de una lista (`E.MEAS_METHODS`) para que el siguiente método
+     no toque este archivo más que en una rama. */
+  const selector = `<div class="grp"><div class="body"><div class="row"><span class="tag">${T('mmMethod')}</span>
+    <div class="seg grow" role="group" aria-label="${esc(T('mmMethod'))}">${E.MEAS_METHODS.map(m =>
+      `<button data-mm="${m.id}" class="${angUI.method === m.id ? 'on' : ''}"
+        aria-pressed="${angUI.method === m.id}">${T(m.label as I18nKey)}</button>`).join('')}</div></div></div></div>`;
+  if (angUI.method === 'angles') return `<div class="pane on">${selector}${angPane(M)}</div>`;
   /* primero lo que se mira mientras se edita la tabla; el simulador, que se
      ajusta una vez y luego se olvida, va al final del lateral. */
   return `<div class="pane on">
-  ${!D ? `<div class="grp"><div class="body"><div class="emptynote">${T('dNone')}</div></div></div>` : `
+  ${selector}${!D ? `<div class="grp"><div class="body"><div class="emptynote">${T('dNone')}</div></div></div>` : `
   <div class="grp"><div class="eyebrow">${esc(D.name)} ${srcTag(D.src)}</div><div class="body">
     <div class="stats">
       <div class="stat"><div class="k">${T('statMaxA')}</div><div class="v ${cls(D.dev!.maxA, M.tol.angle)}">${fx(D.dev!.maxA, 3)}<span class="u">°</span></div></div>
