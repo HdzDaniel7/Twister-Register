@@ -171,7 +171,7 @@ export function paneModel(M: Model): string {
       <th scope="col">${T('straight')}</th>
       <th scope="col" class="dcol" title="${esc(T('dStraightTip'))}">${d}</th>
       <th scope="col" title="${T('rotHeadTip')}">${T('rot')}</th><th scope="col" class="dcol">${d}</th>
-      <th scope="col">${T('ang')}</th><th scope="col" class="dcol">${d}</th>
+      <th scope="col">${T('ang')}</th><th scope="col" class="dcol" title="${esc(T('angSenseTip'))}">${d}</th>
       <th scope="col">${T('rad')}</th><th scope="col">${T('twist')}</th><th scope="col">${T('twlen')}</th>
       <th scope="col">${T('arcL')}</th>
       <th scope="col" title="${esc(T('cutLenTip'))}">${T('cumL')}</th>

@@ -13,7 +13,7 @@ export type Lang = 'es' | 'en' | 'de';
  *  comentario sino el tipo —y la prueba de `test_motor.js`, que las cuenta y
  *  escribe el total—, así que aquí va el número que esa prueba imprime. */
 export type I18nKey =
-  | 'sub' | 'bNew' | 'bOpen' | 'bSave' | 'bRep' | 'bDemo' | 'layers' | 'datasets'
+  | 'angSenseTip' | 'angDevTip' | 'sub' | 'bNew' | 'bOpen' | 'bSave' | 'bRep' | 'bDemo' | 'layers' | 'datasets'
   | 'model' | 'meas' | 'thSys' | 'thLight' | 'thDark' | 'comp' | 'points' | 'lNom'
   | 'lVar' | 'lDiff' | 'lMeas' | 'lPred' | 'lDev' | 'lPts' | 'lLbl' | 'lGrid'
   | 'lFix' | 'addSim' | 'del' | 'view' | 'vIso' | 'vTop' | 'vFront' | 'vSide'

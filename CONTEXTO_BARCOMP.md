@@ -152,6 +152,7 @@ cambiaron de significado. El `2.2` es la excepción y no se convierte: ver §11.
 
 ### Convenciones cerradas — no las cambies
 
+- **Δ y desviaciones de ÁNGULO en sentido de doblez**: `+` = dobla más (cierra), `−` = desdobla, sin importar el signo del ángulo base ni el rodado. Helper `E.bendSense(a)` (`engine/math.ts`; +1/−1, recto = +1). Conversión: `con_signo = base + bendSense(base)·Δ`; `Δ = bendSense(base)·(con_signo − base)`. Rige en `effectiveModel()` (Δ de variante), `deviations().angle`, `angleReport()` (`dev` = plano − medido en internos; `recDelta` en sentido de doblez), `applyAngleRec()`, `compensatedCommand()` (`ST.tweak[i].angle`), la tabla de Compensar (`panels/comp.ts`), `editTweak()` y la tabla Δ del reporte. `+` en una desviación = sobredoblado, `−` = le faltó doblar. Rodado y avance NO cambian. Los archivos anteriores NO se migran: los Δ guardados se leen con la regla nueva.
 - Milímetros y grados en toda la interfaz y en el JSON. Radianes solo dentro de las funciones.
 - Sistema derecho, regla de la mano derecha.
 - Marco local: `x` = eje de la barra · `y` = dirección del **espesor** · `z` = dirección del

@@ -623,7 +623,8 @@ export function compensatedCommand(meas: Bend[]): Bend[] {
   return base.map((b, i) => {
     const t = ST.tweak[i] || { angle: 0, rot: 0, feed: 0 };
     const o = E.bendFrom(b);
-    if (ST.comp.doAngle) o.angle = b.angle + t.angle;
+    /* el ajuste de ángulo va EN SENTIDO DE DOBLEZ del comando: + dobla más */
+    if (ST.comp.doAngle) o.angle = b.angle + E.bendSense(ST.command[i]?.angle ?? b.angle) * t.angle;
     if (ST.comp.doRot) o.rot = b.rot + t.rot;
     if (ST.comp.doFeed) o.feed = b.feed + t.feed;
     return o;
@@ -918,7 +919,8 @@ export function reportSummary(ds: Dataset, k: number): AngleSummary | null {
  *  Cómo se escribe la corrección: como Δ DE ÁNGULO sobre la base de la copia
  *  (`setDelta()`), que es la columna que ya existe para eso —«la compensación
  *  al lado del dato sin perder el valor original», ver engine/model.ts—, y así
- *  en Modelos se ve QUÉ se corrigió y cuánto. El Δ es `rec − base`, no
+ *  en Modelos se ve QUÉ se corrigió y cuánto. El Δ es `rec − base` EN SENTIDO
+ *  DE DOBLEZ (`bendSense()`: + dobla más), no
  *  `Δ anterior + recDelta`: el ángulo efectivo de la copia sale exactamente
  *  `rec`, que se calculó sobre el tablero con el que se DOBLÓ aunque la
  *  variante se haya editado después. Un Δ de ángulo que ya tuviera la variante
@@ -945,7 +947,8 @@ export function applyAngleRec(ds: Dataset): string {
   E.syncDeltas(w);
   for (const r of S.rows) {
     if (r.measInt === null || !isFinite(r.rec) || r.i >= w.base.bends.length) continue;
-    E.setDelta(w, r.i, 'angle', r.rec - w.base.bends[r.i].angle);
+    const b0 = w.base.bends[r.i].angle;
+    E.setDelta(w, r.i, 'angle', E.bendSense(b0) * (r.rec - b0));
   }
   ST.variants.push(w);
   ST.active = w.id; ST.sel = -1;

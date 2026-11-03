@@ -261,8 +261,10 @@ console.log('\n— longitudes por doblez —');
     ok('un Δ en el ULTIMO doblez deja quieta la recta de la cola',
        Math.abs(E.tailStraight(E.effectiveModel(u)) - E.tailStraight(M)) < 1e-9,
        `${E.tailStraight(E.effectiveModel(u)).toFixed(6)}`);
+    /* el último doblez de DEMO es negativo: +1.5 lo CIERRA (sentido de
+       doblez), el trim crece y la cola se alarga, igual que en B5 */
     ok('  y lo paga tailDelta, no la recta',
-       Math.abs(u.tailDelta + 0.404) < 5e-4, `${u.tailDelta.toFixed(4)} mm`);
+       Math.abs(u.tailDelta - 0.406) < 5e-4, `${u.tailDelta.toFixed(4)} mm`);
 
     /* una clave que no mueve el trim entra por el camino corto */
     const t = mkv();
@@ -4663,7 +4665,8 @@ console.log('\n— medir por ángulos —');
      && JSON.stringify(Q.tol) === JSON.stringify(A.tol));
 
   /* angleReport: TABLERO (A, con lo que dobló la máquina), PLANO (los internos
-     del CAD) y REPORTE (lo medido). La desviación es reporte − plano; la
+     del CAD) y REPORTE (lo medido). La desviación va en SENTIDO DE DOBLEZ
+     (+ sobredoblado), que en internos es plano − reporte; la
      recomendación es un ángulo de TABLERO nuevo. */
   const comp = { ...E.COMP_DEFAULT, gainW: 0.5, gainT: 1.0, dead: 0.2, maxStep: 3,
                  doAngle: false, doRot: true, doFeed: true };
@@ -4674,20 +4677,23 @@ console.log('\n— medir por ángulos —');
   const plan = { names: ['codo A', '', 'B3 plano'], nominal: [92, null, 130, 125, null] };
   const R = E.angleReport(A, plan, [93, 150.1, 140, null, null], comp, ori);
   const [r0, r1, r2, r3] = R.rows;
-  ok('dev = REPORTE − PLANO, no contra el tablero: 93 contra 92 es +1',
-     r0.dev === 1 && r0.planInt === 92 && r0.refInt === 92 && !r0.fromBoard
+  ok('dev = PLANO − REPORTE (sentido de doblez), no contra el tablero: 93 contra 92 es −1, le faltó',
+     r0.dev === -1 && r0.planInt === 92 && r0.refInt === 92 && !r0.fromBoard
      && r0.boardInt === 90 && r0.board === 90 && r0.ok === false);
   ok('pieza CORTA (interno medido > plano), rama positiva → MÁS |doblez|: 90 → 91',
      Math.abs(r0.rec - 91) < 1e-12 && Math.abs(r0.recDelta - 1) < 1e-12, `${r0.rec}`);
   ok('pieza corta en la rama NEGATIVA → también más |doblez|: −45 → −48 (gainW, topado a 3)',
-     r2.dev === 10 && Math.abs(r2.rec + 48) < 1e-12 && Math.abs(r2.recDelta + 3) < 1e-12, `${r2.rec}`);
+     r2.dev === -10 && Math.abs(r2.rec + 48) < 1e-12 && Math.abs(r2.recDelta - 3) < 1e-12, `${r2.rec}`);
+  ok('recDelta va en SENTIDO DE DOBLEZ: +1 en la rama positiva y +3 en la negativa, los dos cierran',
+     r0.recDelta > 0 && r2.recDelta > 0);
   const Rp = E.angleReport(A, plan, [90, null, 128], comp, ori);
   ok('pieza PASADA (interno medido < plano) → MENOS |doblez|, en las dos ramas: 90 → 88, −45 → −44',
-     Rp.rows[0].dev === -2 && Math.abs(Rp.rows[0].rec - 88) < 1e-12
-     && Rp.rows[2].dev === -2 && Math.abs(Rp.rows[2].rec + 44) < 1e-12,
+     Rp.rows[0].dev === 2 && Math.abs(Rp.rows[0].rec - 88) < 1e-12
+     && Rp.rows[0].recDelta < 0 && Rp.rows[2].recDelta < 0
+     && Rp.rows[2].dev === 2 && Math.abs(Rp.rows[2].rec + 44) < 1e-12,
      `${Rp.rows[0].rec} ${Rp.rows[2].rec}`);
   ok('sin ángulo de plano se cae al TABLERO y lo marca: 150.1 contra 150, dentro de banda',
-     r1.planInt === null && r1.fromBoard && r1.refInt === 150 && Math.abs(r1.dev - 0.1) < 1e-9
+     r1.planInt === null && r1.fromBoard && r1.refInt === 150 && Math.abs(r1.dev + 0.1) < 1e-9
      && r1.ok === true && r1.rec === 30 && r1.recDelta === 0);
   ok('sin lectura: measInt, dev y ok a null, rec = tablero; el plano sí se informa',
      r3.measInt === null && r3.dev === null && r3.ok === null && r3.rec === -60
@@ -4696,12 +4702,12 @@ console.log('\n— medir por ángulos —');
      r0.name === 'codo A' && r1.name === '' && r2.name === 'B3 plano' && R.rows[4].name === '');
   ok('el resumen cuenta solo los medidos, planMissing los que cayeron al tablero, pieces = 1',
      R.n === 3 && R.out === 2 && R.planMissing === 1 && R.reports === 1
-     && Math.abs(R.maxAbs - 10) < 1e-12 && Math.abs(R.mean - (1 + 0.1 + 10) / 3) < 1e-9
+     && Math.abs(R.maxAbs - 10) < 1e-12 && Math.abs(R.mean + (1 + 0.1 + 10) / 3) < 1e-9
      && Math.abs(R.rms - Math.sqrt((1 + 0.01 + 100) / 3)) < 1e-9, `mean ${R.mean} rms ${R.rms}`);
   const vacio = { names: [], nominal: [] };
   const Rb = E.angleReport(A, vacio, [92, 154], comp, ori);
-  ok('plano vacío: todo contra el tablero, como antes (92 contra 90 → +2, rec 92; de canto +4·0.5)',
-     Rb.rows.every(x => x.fromBoard) && Rb.rows[0].dev === 2 && Math.abs(Rb.rows[0].rec - 92) < 1e-12
+  ok('plano vacío: todo contra el tablero, como antes (92 contra 90 → −2, rec 92; de canto +4·0.5)',
+     Rb.rows.every(x => x.fromBoard) && Rb.rows[0].dev === -2 && Math.abs(Rb.rows[0].rec - 92) < 1e-12
      && Math.abs(Rb.rows[1].rec - 32) < 1e-12 && Rb.planMissing === 2, `${Rb.rows[1].rec}`);
   ok('la recomendación es solo de ángulo aunque el lazo tenga doAngle apagado', r0.rec !== r0.board);
   const R0 = E.angleReport(A, plan, [], comp, ori);
@@ -4766,11 +4772,11 @@ console.log('\n— medir por ángulos —');
   ok('y null lo borra; setPlanName recorta', ST.plan.nominal[2] === null && ST.plan.names[1] === 'codo B');
   const Sp = angleSummary(ds);
   ok('con plano, la desviación es contra el PLANO y el nombre sale de él',
-     Math.abs(Sp.rows[0].dev) < 1e-9 && Math.abs(Sp.rows[1].dev - (-0.8 - 1.5)) < 1e-9
+     Math.abs(Sp.rows[0].dev) < 1e-9 && Math.abs(Sp.rows[1].dev - (0.8 + 1.5)) < 1e-9
      && !Sp.rows[1].fromBoard && Sp.rows[1].name === 'codo B' && Sp.rows[2].fromBoard
      && Sp.planMissing === S.n - 2);
   ok('B2 se pasó 2.3° contra el plano → el tablero nuevo dobla MENOS',
-     Sp.rows[1].dev < 0 && Math.abs(Sp.rows[1].rec) < Math.abs(Sp.rows[1].board),
+     Sp.rows[1].dev > 0 && Sp.rows[1].recDelta < 0 && Math.abs(Sp.rows[1].rec) < Math.abs(Sp.rows[1].board),
      `${Sp.rows[1].board} → ${Sp.rows[1].rec}`);
 
   /* computeDev: los colores de una pieza por ángulos son contra el PLANO */
@@ -4858,11 +4864,11 @@ console.log('\n— medir por ángulos —');
   ok('sus ángulos EFECTIVOS son la recomendación donde hubo lectura, y el tablero donde no',
      Sx.rows.every((r, i) => Math.abs(W.bends[i].angle
        - (r.measInt === null ? V1.bends[i].angle : r.rec)) < 1e-9));
-  ok('la corrección va en la columna Δ de ángulo (base intacta, Δ = rec − base)',
+  ok('la corrección va en la columna Δ de ángulo (base intacta, Δ = sentido · (rec − base))',
      w.base.bends.every((b, i) => b.angle === V1.bends[i].angle)
      && Sx.rows.some(r => r.recDelta !== 0)
      && Sx.rows.every((r, i) => Math.abs(w.deltas[i].angle
-       - (r.measInt === null ? 0 : r.rec - w.base.bends[i].angle)) < 1e-9));
+       - (r.measInt === null ? 0 : E.bendSense(w.base.bends[i].angle) * (r.rec - w.base.bends[i].angle))) < 1e-9));
   ok('y las rectas de la pieza no se mueven (setDelta recoloca el avance)',
      W.bends.every((_, i) => Math.abs(E.straightOf(W, i) - E.straightOf(V1, i)) < 1e-9)
      && Math.abs(E.tailStraight(W) - E.tailStraight(V1)) < 1e-9);
@@ -4989,6 +4995,50 @@ console.log('\n— medir por ángulos —');
      H.currentDoc().datasets.every(x => !('method' in x) && !('reported' in x) && !('board' in x)
        && !('reports' in x))
      && !('plan' in H.currentDoc()));
+}
+
+/* ---------------------------------------------------- SENTIDO DE DOBLEZ --
+   El caso que lo destapó (2026-11-03): ángulo −, rodado −, Δ +, y la sección
+   se ABRÍA. La regla: Δ + dobla más (cierra), Δ − desdobla, en las dos ramas
+   y con cualquier rodado; una desviación + está sobredoblada. */
+{
+  console.log('\n— sentido de doblez —');
+  ok('bendSense: + y recto dan +1, − da −1, y se envuelve (200 es −160)',
+     E.bendSense(30) === 1 && E.bendSense(0) === 1 && E.bendSense(-30) === -1
+     && E.bendSense(200) === -1 && E.bendSense(-200) === 1);
+  const mk = () => E.newVariant(E.normalizeModel({
+    name: 'signos', section: { width: 40, thickness: 12, chamfer: 1, endLen: 20 },
+    tol: { angle: .3, rot: .5, feed: .5, point: 1 }, tail: 100,
+    bends: [{ feed: 100, rot: 0, angle: 40, radius: 30 },
+            { feed: 100, rot: -90, angle: -40, radius: 30 },
+            { feed: 100, rot: 90, angle: 40, radius: 30 }],
+  }), 'signos', '#3FA9F5', 'v1');
+  const th = (m, i) => E.bendTheta(m.bends[i]);
+  const v = mk(), m0 = E.effectiveModel(v);
+  E.setDelta(v, 1, 'angle', 5);
+  let m1 = E.effectiveModel(v);
+  ok('ángulo −40, rodado −90, Δ +5: CIERRA a −45 (antes abría a −35)',
+     m1.bends[1].angle === -45 && th(m1, 1) > th(m0, 1), `${m1.bends[1].angle}`);
+  E.setDelta(v, 1, 'angle', -5);
+  m1 = E.effectiveModel(v);
+  ok('  y Δ −5 lo desdobla a −35', m1.bends[1].angle === -35 && th(m1, 1) < th(m0, 1));
+  E.setDelta(v, 2, 'angle', 5);
+  ok('en la rama + con rodado +90, Δ +5 también cierra: 40 → 45',
+     E.effectiveModel(v).bends[2].angle === 45);
+  const b = E.bakeDeltas(v);
+  ok('hornear deja la geometría efectiva en la base y los Δ a cero',
+     b.base.bends[1].angle === -35 && b.base.bends[2].angle === 45 && !E.hasDeltas(b));
+
+  /* desviación por puntos en sentido de doblez, en la rama negativa */
+  const nom = E.effectiveModel(mk());
+  const over = E.cloneModel(nom); over.bends[1].angle = -42;
+  const under = E.cloneModel(nom); under.bends[1].angle = -38;
+  ok('deviations().angle: −42 contra −40 es +2 (sobredoblado); −38 es −2 (le faltó)',
+     Math.abs(E.deviations(nom, over).angle[1] - 2) < 1e-9
+     && Math.abs(E.deviations(nom, under).angle[1] + 2) < 1e-9);
+  ok('  y el lazo pide lo contrario: a la sobredoblada la desdobla (|ángulo| baja)',
+     Math.abs(E.compensate(nom.bends, nom.bends, over.bends,
+       { ...E.COMP_DEFAULT, gainT: 1, gainW: 1, dead: 0 }, E.orientations(nom))[1].angle) < 40);
 }
 
 console.log(`\n${fails ? fails + ' PRUEBA(S) FALLARON' : 'todas las pruebas pasaron'}\n`);

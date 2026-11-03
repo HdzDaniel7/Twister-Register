@@ -145,7 +145,7 @@ const chip = (c: string, k: string, tip: string): string =>
  *  TRES conjuntos de valores de la MISMA pieza, y la interfaz los separa:
  *  PLANO (el CAD, lo que se quiere; se teclea aquí), REPORTE (lo que midió el
  *  escáner) y TABLERO (lo de Modelos, con lo que dobló la máquina; aquí solo
- *  se corrige). Δ = Reporte − Plano. */
+ *  se corrige). Δ en sentido de doblez: + sobredoblado, − le faltó doblar. */
 export function angPane(M: Model): string {
   const ds = angleDs();
   const tol = M.tol.angle;

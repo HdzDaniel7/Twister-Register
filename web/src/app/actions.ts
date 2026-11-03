@@ -199,7 +199,10 @@ export function editTweak(i: number, key: 'angle' | 'rot' | 'feed', text: string
      guardaría contra un cálculo distinto del que se ve */
   const calc = E.compensate(ST.command, M.bends, loopMeasured() || D.model.bends,
                             ST.comp, E.orientations(M));
-  const dCalc = calc[i][key] - ST.command[i][key];
+  /* el Δ de ángulo va en sentido de doblez: + dobla más, sea cual sea el signo
+     del ángulo del comando (rodado y avance, crudos) */
+  const sCalc = key === 'angle' ? E.bendSense(ST.command[i][key]) : 1;
+  const dCalc = sCalc * (calc[i][key] - ST.command[i][key]);
   /* lo que la celda ENSEÑA es el cálculo del lazo más el ajuste ya escrito;
      eso es `v`, y es sobre lo que opera un `+` o un `-` al principio */
   const mostrado = dCalc + (ST.tweak[i][key] || 0);

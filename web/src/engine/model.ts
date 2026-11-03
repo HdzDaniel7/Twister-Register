@@ -9,7 +9,7 @@
    ========================================================================= */
 import { Vector3 } from 'three';
 import type { Bend, Model, Variant, DeltaKey, Delta, Lims } from '../types.ts';
-import { clamp, wrapTurn, mulberry32 } from './math.ts';
+import { clamp, wrapTurn, mulberry32, bendSense } from './math.ts';
 import { BEND_DEFAULT, newBend, bendFrom, normalizeModel, cloneModel } from './bend.ts';
 import type { RawModel } from './bend.ts';
 import { fk, ik, canonRot, straightOf, feedForStraight,
@@ -74,7 +74,13 @@ export function demoModel(): Model {
    Una variante = valores BASE + una columna de DELTAS por parámetro. El modelo
    efectivo es base + delta, y es lo único que ve la cinemática. Separarlos
    permite escribir la compensación al lado del dato sin perder el valor
-   original, y volver a cero con un clic.                                    */
+   original, y volver a cero con un clic.
+
+   El Δ de ÁNGULO va EN SENTIDO DE DOBLEZ (ver `bendSense()`): + dobla más esa
+   estación y − la desdobla, sea cual sea el signo del ángulo base o el rodado.
+   Hasta el 2026-11-03 se sumaba con signo, y un +2 sobre un doblez de −30 lo
+   ABRÍA a −28. Los archivos anteriores no se migran: su Δ se lee con la regla
+   nueva, que es la que el usuario quería escribir desde el principio.       */
 export const DELTA_KEYS: DeltaKey[] = ['feed', 'rot', 'angle', 'radius', 'twist', 'twistLen'];
 
 export const zeroDelta = (): Delta =>
@@ -110,7 +116,8 @@ export function effectiveModel(v: Variant): Model {
   const m = cloneModel(v.base);
   m.bends.forEach((b, i) => {
     const d = v.deltas[i];
-    for (const k of DELTA_KEYS) b[k] = +b[k] + (+d[k] || 0);
+    const s = bendSense(b.angle);   // de la BASE, antes de sumar nada
+    for (const k of DELTA_KEYS) b[k] = +b[k] + (k === 'angle' ? s : 1) * (+d[k] || 0);
   });
   m.tail = +m.tail + (+v.tailDelta || 0);
   m.name = v.name ?? m.name;

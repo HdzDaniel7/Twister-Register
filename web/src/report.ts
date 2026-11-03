@@ -125,7 +125,7 @@ function seccionAngulos(R: Model): string {
   <div class="tw"><table><thead><tr><th scope="col">${T('repAngReps')}</th><th scope="col">${T('repAngInMean')}</th>
     <th scope="col">${T('angMaxAbs')} °</th></tr></thead><tbody>${filasRep}</tbody></table></div>
   <div class="tw"><table><thead><tr><th scope="col">${T('angNameCol')}</th><th scope="col">${T('angPlan')} °</th>
-    <th scope="col">${T('angMeanCol')} °</th><th scope="col" title="${esc(T('angSpreadTip'))}">${T('repAngSpread')} °</th><th scope="col">Δ °</th><th scope="col">${T('repAngState')}</th>
+    <th scope="col">${T('angMeanCol')} °</th><th scope="col" title="${esc(T('angSpreadTip'))}">${T('repAngSpread')} °</th><th scope="col" title="${esc(T('angDevTip'))}">Δ °</th><th scope="col">${T('repAngState')}</th>
     <th scope="col">${T('angBoardNow')} °</th><th scope="col">${T('angBoardNew')} °</th><th scope="col">${T('angCorr')} °</th>
     </tr></thead><tbody>${filas}</tbody></table></div>
   ${S.planMissing > 0 ? `<p><b>*</b> ${T('angPlanMissing').replace('{n}', String(S.planMissing))}</p>` : ''}
@@ -177,7 +177,7 @@ export function reportHtml(): string {
       return { ang: e.angle, rot: e.rot, tw: e.twist, rad: e.radius, str: EL.straight, cum: EL.cum };
     }
     return {
-      ang: e.angle - b.angle, rot: e.rot - b.rot, tw: (e.twist || 0) - (b.twist || 0),
+      ang: E.bendSense(b.angle) * (e.angle - b.angle), rot: e.rot - b.rot, tw: (e.twist || 0) - (b.twist || 0),
       rad: e.radius - b.radius, str: EL.straight - BL.straight, cum: EL.cum - BL.cum,
     };
   };
@@ -204,7 +204,7 @@ export function reportHtml(): string {
     if (modo === 'base') return cb;
     if (modo === 'total') return ce;
     return {
-      ang: ce.ang - cb.ang, rot: ce.rot - cb.rot, tw: ce.tw - cb.tw, rad: 0,
+      ang: d.base.bends.reduce((a, b, i) => a + (d.eff.bends[i] ? E.bendSense(b.angle) * (d.eff.bends[i].angle - b.angle) : 0), 0), rot: ce.rot - cb.rot, tw: ce.tw - cb.tw, rad: 0,
       str: ce.str - cb.str, cum: ce.cum - cb.cum,
     };
   };

@@ -24,7 +24,7 @@
    Es puro: no toca ST ni el DOM. La pieza se da de alta en state.ts.
    ========================================================================= */
 import type { AngleRow, AngleSummary, Comp, MeasMethod, Model, Orientation, Plan } from '../types.ts';
-import { wrapTurn } from './math.ts';
+import { wrapTurn, bendSense } from './math.ts';
 import { cloneModel } from './bend.ts';
 import { compensate } from './compensate.ts';
 
@@ -124,7 +124,8 @@ export function spreadReported(list: (number | null)[][]): (number | null)[] {
  *
  *  Tres juegos de cifras (ver `Plan` en types/doc.ts): `board` es el tablero
  *  con el que se dobló la pieza, `plan` el CAD y `reported` lo medido. La
- *  desviación es REPORTE − PLANO; donde el plano no da el ángulo se cae al
+ *  desviación va EN SENTIDO DE DOBLEZ —+ sobredoblado, − le faltó—, que en
+ *  internos es PLANO − REPORTE; donde el plano no da el ángulo se cae al
  *  tablero (`fromBoard`), que es lo único que hay, y el resumen lo cuenta en
  *  `planMissing` para que la pantalla lo diga.
  *
@@ -136,8 +137,9 @@ export function spreadReported(list: (number | null)[][]): (number | null)[] {
  *  doblez es `180 − interno` en la rama del tablero, así que una pieza que se
  *  quedó corta (interno medido > plano) tiene menos |doblez| que el plano, la
  *  diferencia plano − medida tiene el signo de la rama, y la corrección
- *  AUMENTA |doblez|. Una pasada de doblez, al revés. El banco lo comprueba en
- *  las dos ramas.
+ *  AUMENTA |doblez|. Una pasada de doblez, al revés. `recDelta` se da EN
+ *  SENTIDO DE DOBLEZ: desviación −1 pide Δ ≈ +1·ganancia en las dos ramas, y
+ *  el banco lo comprueba.
  *
  *  Un doblez sin lectura sale con `measInt`, `dev` y `ok` a null y
  *  `rec = board`: donde no se midió no hay nada que corregir. El resumen
@@ -161,10 +163,14 @@ export function angleReport(board: Model, plan: Plan, reported: (number | null)[
     if (!hasReading(r)) {
       return { ...head, measInt: null, dev: null, ok: null, rec: b.angle, recDelta: 0, spread: null };
     }
-    const dev = r - refInt;
+    /* Las dos cifras EN SENTIDO DE DOBLEZ (ver `bendSense()`). La desviación
+       es plano − medido en INTERNOS: un interno más cerrado que el plano es
+       un doblez de más, y sale +. El Δ recomendado es + cuando hay que doblar
+       más, también en una rama negativa. */
+    const dev = refInt - r;
     const a = rec[i].angle;
     return { ...head, measInt: r, dev, ok: Math.abs(dev) <= board.tol.angle,
-             rec: a, recDelta: a - b.angle, spread: null };
+             rec: a, recDelta: bendSense(b.angle) * (a - b.angle), spread: null };
   });
   const medidas = rows.filter(x => x.dev !== null);
   const devs = medidas.map(x => x.dev as number);

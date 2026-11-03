@@ -88,7 +88,7 @@ export function paneComp(M: Model): string {
   if (C.doFeed) cols.push({ k: 'feed', lab: T('feed'), u: 'mm', d: 2 });
 
   const head = cols.map(c => `<th scope="col">${c.lab} ${T('cNow')}</th>
-    <th scope="col">${T('cCalc')}</th><th scope="col" class="dcol">${T('cAdj')}</th><th scope="col">${T('cNew')} ${c.u}</th>`).join('');
+    <th scope="col"${c.k === 'angle' ? ` title="${esc(T('angSenseTip'))}"` : ''}>${T('cCalc')}</th><th scope="col" class="dcol"${c.k === 'angle' ? ` title="${esc(T('angSenseTip'))}"` : ''}>${T('cAdj')}</th><th scope="col">${T('cNew')} ${c.u}</th>`).join('');
 
   /* Hasta dónde llega la MEDIDA. Más allá, `compensate()` devuelve el comando
      sin tocar, y la tabla lo pintaba como «+0.000» — que se lee igual que un
@@ -130,14 +130,17 @@ export function paneComp(M: Model): string {
           <td class="dcol v-dim nomeas">—</td>
           <td class="v-dim">${fx(now, c.d)}</td>`;
       }
-      const dCalc = calc[i][c.k] - now;
+      /* el Δ de ÁNGULO va en sentido de doblez (+ dobla más), sea cual sea el
+         signo del ángulo base; rodado y avance, con su signo crudo */
+      const s = c.k === 'angle' ? E.bendSense(now) : 1;
+      const dCalc = s * (calc[i][c.k] - now);
       const tw = ST.tweak[i][c.k];
       const dApp = dCalc + tw;
       return `<td class="v-dim">${fx(now, c.d)}</td>
         <td class="v-dim">${sgn(dCalc, c.d)}</td>
         <td class="dcol"><input type="text" data-tw="${i}" data-k="${c.k}"
           class="${tw ? '' : 'z'}" title="c = ${fx(dCalc, c.d)}" value="${sgn(dApp, c.d)}"></td>
-        <td class="${Math.abs(dApp) > 1e-4 ? 'v-warn' : 'v-dim'}">${fx(now + dApp, c.d)}</td>`;
+        <td class="${Math.abs(dApp) > 1e-4 ? 'v-warn' : 'v-dim'}">${fx(now + s * dApp, c.d)}</td>`;
     }).join('');
     const dirty = ST.tweak[i].angle || ST.tweak[i].rot || ST.tweak[i].feed;
     rows.push(`<tr class="clk ${i === ST.sel ? 'sel' : ''} ${dirty ? 'hasd' : ''} ${sinMedir ? 'nomeas' : ''}"

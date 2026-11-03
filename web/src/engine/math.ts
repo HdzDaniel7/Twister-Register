@@ -23,6 +23,22 @@ export const wrapTurn = (a: number): number => {
 };
 export const clamp = (v: number, a: number, b: number): number => (v < a ? a : v > b ? b : v);
 
+/** SENTIDO DE DOBLEZ de un ángulo: +1 o −1, el lado al que dobla. Recto se
+ *  toma positivo, igual que en `bendFromInternal()`.
+ *
+ *  Es lo que convierte entre el ángulo CON SIGNO —el que ve la cinemática, que
+ *  lleva el lado— y las cifras que se leen EN SENTIDO DE DOBLEZ: un Δ o una
+ *  compensación positiva DOBLA MÁS (cierra, más agudo) y una negativa
+ *  DESDOBLA; una desviación positiva está SOBREDOBLADA y una negativa se
+ *  quedó corta. Con un doblez de −30, un Δ de +2 lo lleva a −32, no a −28:
+ *
+ *      con signo = base + sentido(base) · Δ
+ *      Δ         = sentido(base) · (con signo − base)
+ *
+ *  El rodado no entra: inclina el eje del arco, no cambia hacia dónde cierra
+ *  el doblez dentro de su plano. */
+export const bendSense = (a: number): 1 | -1 => (wrapTurn(a || 0) < 0 ? -1 : 1);
+
 /** PRNG portado exacto en los dos motores: misma semilla, misma pieza virtual. */
 export function mulberry32(a: number): () => number {
   a |= 0;

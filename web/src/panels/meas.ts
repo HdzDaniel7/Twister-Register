@@ -95,7 +95,7 @@ export function paneMeas(M: Model): string {
       <div class="seg"><button data-dm="start" class="${ST.datum === 'start' ? 'on' : ''}">${T('dStart')}</button>
       <button data-dm="best" class="${ST.datum === 'best' ? 'on' : ''}">${T('dBest')}</button></div></div>
     <div class="eyebrow" style="padding-left:0">${T('deltas')}</div>
-    <div class="tw"><table><thead><tr><th scope="col">${T('nBend')}</th><th scope="col">${T('ori')}</th><th scope="col">${T('dA')}</th>
+    <div class="tw"><table><thead><tr><th scope="col">${T('nBend')}</th><th scope="col">${T('ori')}</th><th scope="col" title="${esc(T('angDevTip'))}">${T('dA')}</th>
       ${lote ? `<th scope="col" title="${T('spreadTip')}">${T('spread')}</th>` : ''}
       <th scope="col">${T('dR')}</th><th scope="col">${T('dF')}</th><th scope="col">${T('dP')}</th></tr></thead><tbody>
       ${M.bends.slice(0, D.dev!.angle.length).map((b, i) => `<tr class="clk ${i === ST.sel ? 'sel' : ''}" data-r="${i}"

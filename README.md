@@ -56,6 +56,13 @@ tiene internet.
 - **Varios modelos comparables a la vez**, cada uno con su color, con una columna
   **Δ** al lado de cada parámetro compensable (recta, rodado, ángulo): la
   corrección se escribe junto al dato sin perder el valor original.
+- **Signo de los Δ de ángulo (sentido de doblez)**: en Modelos y Compensar, `+` =
+  dobla más esa estación (cierra, más agudo) y `−` = desdobla (más obtuso), sin
+  importar si el ángulo base es negativo ni el rodado. `con_signo = base +
+  bendSense(base)·Δ`. Las desviaciones de ángulo en Medir y en los reportes
+  también van en sentido de doblez: `+` sobredoblado, `−` le faltó doblar (la
+  compensación que pide es la contraria). Rodado y avance no cambian. Los
+  archivos anteriores **no se migran**: los Δ guardados se leen con la regla nueva.
 - **Extremo fijo común** entre modelos: amarre (P0), extremo libre, o mejor
   ajuste global (Kabsch). Con el extremo libre anclado, la divergencia se ve
   acumularse hacia el amarre — que es la lectura útil si el criterio de
