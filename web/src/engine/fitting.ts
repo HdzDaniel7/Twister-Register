@@ -4,7 +4,7 @@
    ========================================================================= */
 import { Matrix4, Vector3, Quaternion } from 'three';
 import type { Model, AnchorMode, Place } from '../types.ts';
-import { D2R, basisOf, eye, trans, rotX, rotY, rotZ, applyMat } from './math.ts';
+import { D2R, basisOf, eye, trans, rotX, rotY, rotZ, applyMat, clamp } from './math.ts';
 import { fk } from './kinematics.ts';
 
 /* --------------------------------------------------------------- alineación */
@@ -58,41 +58,98 @@ export function kabsch(P: Vector3[], Q: Vector3[]): Matrix4 {
 }
 
 /* ------------------------------------------------------------------ anclaje */
-/** Transformación rígida que fija UN extremo común entre variantes.
- *
- *  'start'  el extremo de amarre (P0) ya es común: fk() arranca todas en el
- *           origen con el mismo marco, así que no hace falta mover nada.
- *  'end'    el extremo LIBRE queda común: se lleva el marco final de `model`
- *           sobre el de `ref`, con lo cual la punta maquinada coincide en
- *           posición Y orientación y la divergencia se ve acumulándose hacia el
- *           amarre. Es el anclaje útil cuando el criterio de aceptación es la
- *           posición del extremo maquinado.
- *  'best'   mejor ajuste global de los PI (Kabsch). Reparte el error.
- */
-export function anchorTransform(model: Model, ref: Model, mode: AnchorMode = 'start'): Matrix4 {
-  if (mode === 'end') {
-    return new Matrix4().multiplyMatrices(fk(ref).end, fk(model).end.clone().invert());
-  }
-  if (mode === 'best') return kabsch(fk(model).pis, fk(ref).pis);
-  return eye();
+/** Lee un modo de anclaje de cualquier versión. 'start' y 'end' eran el
+ *  amarre y la punta: hoy son dos casos del punto de coincidencia, y `end`
+ *  dice que ese punto es el PE. */
+export function normAnchor(a: unknown): { mode: 'pivot' | 'best'; end: boolean } {
+  if (a === 'best') return { mode: 'best', end: false };
+  return { mode: 'pivot', end: a === 'end' };
 }
-export const anchoredPis = (model: Model, ref: Model, mode: AnchorMode = 'start'): Vector3[] =>
-  applyMat(anchorTransform(model, ref, mode), fk(model).pis);
+
+/** Índice del punto de coincidencia `k` (contado en la REFERENCIA, que tiene
+ *  `nRef` puntos) dentro de un modelo con `nm` puntos.
+ *
+ *  Las variantes pueden no tener el mismo número de dobleces. El PE de la
+ *  referencia es el PE de cualquiera —el extremo libre es el extremo libre—, y
+ *  un PI intermedio se cuenta desde el amarre, topado a lo que exista. */
+export function pivotIndex(k: number, nRef: number, nm: number): number {
+  const kk = clamp(k | 0, 0, Math.max(0, nRef - 1));
+  if (kk > 0 && kk >= nRef - 1) return nm - 1;
+  return clamp(kk, 0, nm - 1);
+}
+
+/** Marco del punto `k` de una pieza: dónde está y hacia dónde va la barra.
+ *
+ *  P0 es el marco de amarre y PE el del extremo libre, los dos de siempre. En
+ *  un PI intermedio la dirección de la barra no es una sola —ahí se dobla—: se
+ *  toma la del tramo que LLEGA desde el amarre, con el origen en el PI. Es la
+ *  misma convención que el PE, que también es el tramo que llega. */
+export function frameAtPi(model: Model, k: number): Matrix4 {
+  const { pis, frames, end } = fk(model);
+  const last = pis.length - 1;
+  const i = clamp(k | 0, 0, last);
+  if (i === 0) return frames[0].clone();
+  if (i === last) return end.clone();
+  const F = frames[i - 1].clone();
+  F.setPosition(pis[i]);
+  return F;
+}
+
+/** Transformación rígida que superpone `model` sobre `ref`.
+ *
+ *  'pivot'  PUNTO DE COINCIDENCIA: el PI `k` de la referencia (el pivote de la
+ *           colocación) queda común en posición Y orientación, y la
+ *           divergencia se ve creciendo hacia los dos lados. k = 0 es el amarre
+ *           —identidad: fk() ya arranca a todas en el origen con el mismo
+ *           marco—; k = PE es el extremo libre, el anclaje útil cuando la
+ *           aceptación es la posición de la punta maquinada. Sirve para
+ *           comparar como de verdad se sujeta CADA pieza.
+ *  'best'   mejor ajuste global de los PI (Kabsch). Reparte el error.
+ *
+ *  Los nombres viejos siguen valiendo: 'start' es P0 y 'end' es PE, sin
+ *  mirar `k`.
+ */
+export function anchorTransform(model: Model, ref: Model, mode: AnchorMode = 'pivot', k = 0): Matrix4 {
+  if (mode === 'best') return kabsch(fk(model).pis, fk(ref).pis);
+  const nr = fk(ref).pis.length, nm = fk(model).pis.length;
+  const kr = mode === 'end' ? nr - 1 : (mode === 'start' ? 0 : clamp(k | 0, 0, nr - 1));
+  const km = mode === 'end' ? nm - 1 : pivotIndex(kr, nr, nm);
+  if (kr === 0 && km === 0) return eye();
+  return new Matrix4().multiplyMatrices(frameAtPi(ref, kr), frameAtPi(model, km).invert());
+}
+export const anchoredPis = (model: Model, ref: Model, mode: AnchorMode = 'pivot', k = 0): Vector3[] =>
+  applyMat(anchorTransform(model, ref, mode, k), fk(model).pis);
+
+/** ¿Las listas de PI se emparejan desde el final? Solo cuando lo común es el
+ *  extremo libre: es ahí donde coinciden aunque a una le sobren dobleces. */
+export function alignsFromEnd(ref: Model, mode: AnchorMode = 'pivot', k = 0): boolean {
+  if (mode === 'end') return true;
+  if (mode !== 'pivot') return false;
+  return (k | 0) > 0 && (k | 0) >= fk(ref).pis.length - 1;
+}
 
 /** Cuánto se movió cada PI respecto a la referencia, ya anclado.
  *
  *  Devuelve un vector de distancias de largo min(len(a), len(b)); si las
  *  variantes no tienen el mismo número de dobleces se compara lo que existe en
- *  ambas, contando desde el extremo anclado.
+ *  ambas, contando desde el extremo anclado (ver `alignsFromEnd()`).
  */
-export function piShift(model: Model, ref: Model, mode: AnchorMode = 'start'): number[] {
-  let a = anchoredPis(model, ref, mode);
+export function piShift(model: Model, ref: Model, mode: AnchorMode = 'pivot', k = 0): number[] {
+  let a = anchoredPis(model, ref, mode, k);
   let b = fk(ref).pis;
   const n = Math.min(a.length, b.length);
-  if (mode === 'end') { a = a.slice(a.length - n); b = b.slice(b.length - n); }
+  if (alignsFromEnd(ref, mode, k)) { a = a.slice(a.length - n); b = b.slice(b.length - n); }
   else { a = a.slice(0, n); b = b.slice(0, n); }
   return a.map((p, i) => p.distanceTo(b[i]));
 }
+
+/** El número de una tarjeta: cuánto se separa el extremo MÁS LEJANO.
+ *
+ *  Con el punto de coincidencia en un extremo el otro es el que se mueve; con
+ *  él en medio se mueven los dos y manda el peor. Un solo número que vale para
+ *  P0, PE y cualquier PI de en medio. */
+export const farShift = (sh: number[]): number =>
+  sh.length ? Math.max(sh[0], sh[sh.length - 1]) : 0;
 
 /* ==================================================================
    COLOCACIÓN — dónde y cómo se para la pieza en el espacio

@@ -154,7 +154,7 @@ export function toDoc(
   datasets: ToDocDataset[] = [],
   variants: Variant[] = [],
   ref: string | null = null,
-  anchor: AnchorMode = 'start',
+  anchor: AnchorMode = 'pivot',
   extra: ToDocExtra = {},
 ): Doc {
   return {

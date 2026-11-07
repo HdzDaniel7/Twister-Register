@@ -7,7 +7,8 @@ import { Vector3 } from 'three';
 import * as E from '../engine.ts';
 import { T } from '../i18n.ts';
 import type { Model } from '../types.ts';
-import { ST, refModel, anchoredShownPis, shownModel } from '../state.ts';
+import { ST, pivotK, refModel, anchoredShownPis, shownModel } from '../state.ts';
+import { piName } from '../pivotlabel.ts';
 import { fx, esc, cls, nfield } from './fmt.ts';
 
 /* --- pestaña PUNTOS ----------------------------------------------------- */
@@ -18,15 +19,15 @@ export function panePoints(M: Model): string {
   /* Las coordenadas de la tabla son el DISEÑO y se teclean, así que se quedan
      libres; el desplazamiento no: dice cuánto se separa la barra que se muestra
      de la referencia en su misma forma, igual que la tarjeta de cada modelo. */
-  try { sh = E.piShift(shownModel(), ref, ST.anchor); } catch { sh = []; }
+  try { sh = E.piShift(shownModel(), ref, ST.anchor, pivotK()); } catch { sh = []; }
   const n = P.length;
-  /* con anclaje `end` piShift() alinea las listas POR EL FINAL, así que el
-     desplazamiento del PI i vive desplazado en el arreglo. */
-  const off = ST.anchor === 'end' ? n - sh.length : 0;
+  /* si el punto de coincidencia cae en la mitad final, piShift() alinea las
+     listas POR EL FINAL, así que el desplazamiento del PI i vive desplazado. */
+  const off = E.alignsFromEnd(ref, ST.anchor, pivotK()) ? n - sh.length : 0;
   const rows = P.map((p, i) => {
     const j = i - off;
     const dv = (j >= 0 && j < sh.length) ? sh[j] : 0;
-    const nm = i === 0 ? 'P0' : (i === n - 1 ? 'PE' : 'PI' + i);
+    const nm = piName(i, n);
     return `<tr class="clk ${i - 1 === ST.sel ? 'sel' : ''}" data-r="${i - 1}">
       <td class="${i === 0 || i === n - 1 ? 'v-dim' : ''}">${nm}</td>
       ${['x', 'y', 'z'].map(k =>

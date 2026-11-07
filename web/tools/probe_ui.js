@@ -994,11 +994,15 @@ step('la casilla de ver de una pieza medida aguanta el clic', () => {
   click(`#lf input[data-dv="${id}"]`);
 });
 step('Δ en la copia', () => setval('input[data-bd="5"][data-k="rot"]', '3'));
-step('anclaje end/best/start', () => {
+step('anclaje coincidencia (P0, PE) / mejor ajuste', () => {
   drawer('models');
-  check('input[data-an="end"]', true);
+  click('[data-a="pivE"]');
+  drawer('models');
   check('input[data-an="best"]', true);
-  check('input[data-an="start"]', true);
+  drawer('models');
+  click('[data-a="piv0"]');
+  drawer('models');
+  check('input[data-an="pivot"]', true);
 });
 step('marcar y devolver la referencia', () => {
   drawer('models');

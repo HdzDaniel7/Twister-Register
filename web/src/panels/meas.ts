@@ -6,6 +6,7 @@ import * as E from '../engine.ts';
 import { T } from '../i18n.ts';
 import type { Model, Proc } from '../types.ts';
 import { ST, activeDataset, measuredSpringback, simCount } from '../state.ts';
+import { pivotName } from '../pivotlabel.ts';
 import { fx, esc, cls, oriTag, sgn, srcTag } from './fmt.ts';
 import { angUI, angPane } from './angles.ts';
 import type { I18nKey } from './fmt.ts';
@@ -92,7 +93,7 @@ export function paneMeas(M: Model): string {
       <div class="stat"><div class="k">${T('statTip')}</div><div class="v ${cls(D.dev!.tip, M.tol.point)}">${fx(D.dev!.tip, 2)}<span class="u">mm</span></div></div>
       <div class="stat"><div class="k">${T('statOut')}</div><div class="v ${D.dev!.out ? 'v-bad' : 'v-ok'}">${D.dev!.out}<span class="u">/${M.bends.length}</span></div></div></div>
     <div class="row mt6"><span class="tag">${T('stDatum')}</span>
-      <div class="seg"><button data-dm="start" class="${ST.datum === 'start' ? 'on' : ''}">${T('dStart')}</button>
+      <div class="seg"><button data-dm="pivot" class="${ST.datum !== 'best' ? 'on' : ''}">${T('dPivot').replace('{p}', pivotName())}</button>
       <button data-dm="best" class="${ST.datum === 'best' ? 'on' : ''}">${T('dBest')}</button></div></div>
     <div class="eyebrow" style="padding-left:0">${T('deltas')}</div>
     <div class="tw"><table><thead><tr><th scope="col">${T('nBend')}</th><th scope="col">${T('ori')}</th><th scope="col" title="${esc(T('angDevTip'))}">${T('dA')}</th>

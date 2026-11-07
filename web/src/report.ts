@@ -40,7 +40,8 @@
 import * as E from './engine.ts';
 import { T } from './i18n.ts';
 import type { Model, Orientation, RowLength, Variant } from './types.ts';
-import { ST, REF } from './state.ts';
+import { ST, REF, pivotK } from './state.ts';
+import { anchorLabel, datumLabel } from './pivotlabel.ts';
 import { captureViews } from './scene.ts';
 import { fx, esc, buildTag } from './panels.ts';
 import { download, safeName } from './io.ts';
@@ -344,8 +345,7 @@ export function reportHtml(): string {
   const resumen = mods.map(({ v: x, eff }) => {
     let shift = 0;
     if (x.id !== ST.ref) {
-      const sh = E.piShift(eff, R, ST.anchor);
-      shift = ST.anchor === 'end' ? sh[0] : sh[sh.length - 1];
+      shift = E.farShift(E.piShift(eff, R, ST.anchor, pivotK()));
     }
     /* `data-mrow` es el gancho del banco: esta tabla lista EXACTAMENTE los
        modelos encendidos, una fila cada uno, colapsen o no las de abajo. */
@@ -356,7 +356,8 @@ export function reportHtml(): string {
       <td>${x.id === ST.ref ? '—' : fx(shift, 2)}</td></tr>`;
   }).join('');
 
-  const anchorLab = { start: T('aStart'), end: T('aEnd'), best: T('aBest') }[ST.anchor];
+  const anchorLab = anchorLabel();
+  const datumLab = datumLabel();
   const seccion = redonda
     ? `Ø ${fx(R.section.width, 1)}`
     : `${fx(R.section.width, 1)} × ${fx(R.section.thickness, 1)}`;
@@ -447,6 +448,7 @@ export function reportHtml(): string {
     <div><span>${T('tolA')}</span> ±${R.tol.angle}°</div>
     <div><span>${T('tolP')}</span> ±${R.tol.point} mm</div>
     <div><span>${T('anchor')}</span> ${anchorLab}</div>
+    <div><span>${T('stDatum')}</span> ${datumLab}</div>
   </div>
   <div class="shots">${shots.map(([n, u], i) =>
     `<figure class="${i === 0 ? 'wide' : ''}"><img src="${u}" alt="${capt[n] || n}">

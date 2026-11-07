@@ -6,7 +6,8 @@
 import * as E from '../engine.ts';
 import { T } from '../i18n.ts';
 import type { Place, Variant } from '../types.ts';
-import { ST, LAYER_DEF, refModel, heldOfVariant, heldOn } from '../state.ts';
+import { piName, pivotName } from '../pivotlabel.ts';
+import { ST, pivotK, LAYER_DEF, refModel, heldOfVariant, heldOn } from '../state.ts';
 import { $, fx, esc, cls, nfield, srcTag } from './fmt.ts';
 import { saveFocus, restoreFocus, commitFocusIn } from './focus.ts';
 import { MENUS, themeSeg, langSeg } from './shell.ts';
@@ -59,8 +60,7 @@ function vcard(v: Variant): string {
   const nd = v.deltas.reduce((a, d) => a + E.DELTA_KEYS.filter(k => d[k]).length, 0);
   let shift = 0;
   if (!isref) {
-    const sh = E.piShift(vm, ref, ST.anchor);
-    shift = ST.anchor === 'end' ? sh[0] : sh[sh.length - 1];
+    shift = E.farShift(E.piShift(vm, ref, ST.anchor, pivotK()));
   }
   return `<div class="ds ${act ? 'act' : ''}" data-vsel="${v.id}">
       <div class="top">
@@ -96,14 +96,11 @@ function choque(v: Variant): string {
     T('clashCard').replace('{n}', quien).replace('{d}', fx(c.depth, 1)))}</div>`;
 }
 
-const ANCHORS: [string, I18nKey][] = [['start', 'aStart'], ['end', 'aEnd'], ['best', 'aBest']];
-
 /** Opciones del pivote de la colocación: un PI del modelo de referencia. */
 function pivotOptions(): string {
   const np = E.fk(refModel()).pis.length;
   return [...Array(np)].map((_, i) => {
-    const nm = i === 0 ? 'P0' : (i === np - 1 ? 'PE' : 'PI' + i);
-    return `<option value="${i}" ${ST.place.pivot === i ? 'selected' : ''}>${nm}</option>`;
+    return `<option value="${i}" ${ST.place.pivot === i ? 'selected' : ''}>${piName(i, np)}</option>`;
   }).join('');
 }
 
@@ -197,9 +194,15 @@ const DRAWERS: Record<string, () => string> = {
    </div></div>
 
    <div class="grp"><div class="eyebrow">${T('anchor')}</div><div class="body">
-     ${ANCHORS.map(([k, lab]) => `<label class="layer">
-       <input type="radio" name="anch" data-an="${k}" ${ST.anchor === k ? 'checked' : ''}>
-       <span class="nm">${T(lab as I18nKey)}</span></label>`).join('')}
+     <label class="layer">
+       <input type="radio" name="anch" data-an="pivot" ${ST.anchor !== 'best' ? 'checked' : ''}>
+       <span class="nm">${T('aPivot').replace('{p}', pivotName())}</span></label>
+     <div class="row mt6">
+       <button class="btn sm grow" data-a="piv0">${T('aP0')}</button>
+       <button class="btn sm grow" data-a="pivE">${T('aPE')}</button></div>
+     <label class="layer">
+       <input type="radio" name="anch" data-an="best" ${ST.anchor === 'best' ? 'checked' : ''}>
+       <span class="nm">${T('aBest')}</span></label>
    </div></div>`,
 
   view: () => `
@@ -212,8 +215,8 @@ const DRAWERS: Record<string, () => string> = {
 
    <div class="grp"><div class="eyebrow">${T('place')}</div><div class="body">
      <div class="fgrid" style="grid-template-columns:1fr 96px">
-       <label>${T('pivot')}</label>
-       <select data-plp>${pivotOptions()}</select>
+       <label title="${esc(T('pivotNote'))}">${T('pivot')}</label>
+       <select data-plp title="${esc(T('pivotNote'))}">${pivotOptions()}</select>
        ${[['x', 'plX'], ['y', 'plY'], ['z', 'plZ']].map(([k, lab]) =>
          `<label>${T(lab as I18nKey)} (mm)</label>
           ${nfield('10', `data-pl="${k}"`, ST.place[k as keyof Place])}`).join('')}
@@ -222,6 +225,7 @@ const DRAWERS: Record<string, () => string> = {
           ${nfield('5', `data-pl="${k}"`, ST.place[k as keyof Place])}`).join('')}
      </div>
      <div class="row mt6"><button class="btn sm grow" data-a="placereset">${T('plReset')}</button></div>
+     <div class="hintline">${T('pivotNote')}</div>
      <div class="hintline">${T('plNote')}</div>
    </div></div>`,
 

@@ -33,7 +33,7 @@ export const MARK_COLORS = ['#57C8D6', '#FFD166', '#C792EA', '#7FD8C4', '#FF8A65
 const OFF_BY_DEFAULT = ['fix', 'pred', 'pins', 'held'];
 
 export const ST: State = {
-  variants: [], active: null, ref: null, anchor: 'start',
+  variants: [], active: null, ref: null, anchor: 'pivot',
   model: null, command: [], datasets: [], dsActive: null, sel: -1,
   comp: { ...E.COMP_DEFAULT }, proc: { ...E.PROC_DEFAULT },
   lims: { ...E.LIMS_DEFAULT },
@@ -46,7 +46,7 @@ export const ST: State = {
   layers: Object.fromEntries(LAYER_DEF.map(([k, , c]) =>
     [k, { on: !OFF_BY_DEFAULT.includes(k), color: c }])) as State['layers'],
   view: { exag: 25, cmode: 'dev' },
-  datum: 'start', mode: 'model', tab: 'model', drawer: null, solo: false, phone: false, pred: null,
+  datum: 'pivot', mode: 'model', tab: 'model', drawer: null, solo: false, phone: false, pred: null,
   /* lo escribe history.ts; ver por qué en types/state.ts */
   hist: { undo: 0, redo: 0 },
   /* 'system' | 'light' | 'dark'. Sin localStorage: viaja en el JSON. */
@@ -160,7 +160,10 @@ export function loadModel(
   const ids = ST.variants.map(v => v.id);
   ST.active = ids[0];
   ST.ref = ids.includes(ref as string) ? (ref as string) : ids[0];
-  ST.anchor = anchor || 'start';
+  /* 'start'/'end' de archivos viejos: el punto de coincidencia en P0 o en PE.
+     El PE se fija más abajo, cuando ya hay modelo del que contar los PI. */
+  const na = E.normAnchor(anchor);
+  ST.anchor = na.mode;
   ST.datasets = []; ST.dsActive = null; ST.pred = null; ST.sel = -1;
   dsSeq = 0; markSeq = 0; pedSeq = 0; pinSeq = 0;
   ST.marks = [];
@@ -172,11 +175,18 @@ export function loadModel(
      pone el suyo después (ver applyDoc() en app/history.ts) */
   ST.plan = { names: [], nominal: [] };
   syncModel();
+  if (na.end) ST.place.pivot = E.fk(refModelFree()).pis.length - 1;
   ST.command = ST.model!.bends.map(b => E.bendFrom(b));
   zeroTweak();
 }
 
 /* ------------------------------------------------------------- colocación */
+/** El PUNTO DE COINCIDENCIA: el índice del PI (de la referencia) elegido como
+ *  pivote. No es solo de dónde gira la colocación: es el punto que se fija
+ *  común a TODOS los modelos, las piezas medidas, la vista y los informes —
+ *  donde se sujeta la pieza—. Ver `anchorTransform()`. */
+export const pivotK = (): number => ST.place.pivot | 0;
+
 /** Punto sobre el que pivota la colocación: un PI del modelo de referencia.
  *
  *  De la referencia LIBRE, siempre, y no de la que se haya elegido para
@@ -245,7 +255,7 @@ export function setMarks(list: Partial<Mark>[] | null | undefined): Mark[] {
  *  Una sola matriz para la tabla, la escena y el solver. Las tres tienen que
  *  colocar la pieza en el mismo sitio o no están hablando de la misma pieza. */
 const placeAt = (): Matrix4 =>
-  placeMatrix().multiply(E.anchorTransform(ST.model!, refModelFree(), ST.anchor));
+  placeMatrix().multiply(E.anchorTransform(ST.model!, refModelFree(), ST.anchor, pivotK()));
 
 export function placedPath(): PathSample[] {
   return E.placePath(placeAt(), E.buildPath(ST.model!).samples);
@@ -282,7 +292,7 @@ export function shownPath(): PathSample[] {
  *  mismo: la forma sujeta cambia de sitio lo que el fixture le hace a la barra,
  *  no dónde se decide que la barra va. */
 export const anchoredShownPis = (): Vector3[] =>
-  E.applyMat(E.anchorTransform(ST.model!, refModelFree(), ST.anchor),
+  E.applyMat(E.anchorTransform(ST.model!, refModelFree(), ST.anchor, pivotK()),
              E.fk(shownModel()).pis);
 
 /** Y los mismos ya puestos en la mesa, en coordenadas del taller: es lo que hay
@@ -309,7 +319,7 @@ export const shownPis = (): Vector3[] =>
 export const shownBasis = (): [Vector3, Vector3, Vector3] => {
   const F = E.fk(shownModel()).frames;
   return E.stationBasis(
-    placeMatrix().multiply(E.anchorTransform(ST.model!, refModelFree(), ST.anchor)),
+    placeMatrix().multiply(E.anchorTransform(ST.model!, refModelFree(), ST.anchor, pivotK())),
     F[E.clamp(ST.sel + 1, 0, F.length - 1)]);
 };
 
@@ -459,7 +469,7 @@ function heldFor(slot: string, M: Model, refM: Model): Settled {
   /* Colocada donde de verdad está: el anclaje contra la referencia LIBRE (ver
      refModelFree()) y encima la colocación. Los pines son físicos y miran a la
      pieza en la mesa, no al modelo dibujado en el origen. */
-  const P = placeMatrix().multiply(E.anchorTransform(M, refM, ST.anchor));
+  const P = placeMatrix().multiply(E.anchorTransform(M, refM, ST.anchor, pivotK()));
   /* Una sola llamada para los dos casos: con carga, `settle()` resuelve el
      EQUILIBRIO —apoyos unilaterales, peso propio—; sin ella devuelve
      `restrain()` sin tocar un número. El interruptor se decide en el motor, no
@@ -647,7 +657,7 @@ export const activeDataset = (): Dataset | null =>
 export function computeDev(ds: Dataset): Dataset {
   const ref = ds.method === 'angles' && ST.model
     ? E.planModel(boardModel(ds), ST.plan) : ST.model!;
-  ds.dev = E.deviations(ref, ds.model, ST.datum);
+  ds.dev = E.deviations(ref, ds.model, ST.datum, pivotK());
   ds.pis = ds.dev.pis;
   return ds;
 }
@@ -735,16 +745,15 @@ export function commandModel(): Model {
   return E.normalizeModel({ ...M, bends: ST.command.map(b => E.bendFrom(b)) });
 }
 
-/** Cuánto se movió el extremo LIBRE del modelo activo respecto a la
- *  referencia — o el de amarre, si lo anclado es la punta. */
+/** Cuánto se movió el extremo más lejano del punto de coincidencia del modelo
+ *  activo respecto a la referencia (ver `farShift()`). */
 export function activeShift(): number {
   if (ST.active === ST.ref) return 0;
   try {
     /* Como en las tarjetas de modelo: si se mide contra la sujeta, esta también,
        o el número mezcla la diferencia de diseño con lo que el fixture le hace a
        la barra. Que es justo lo que contesta `shownModel()`. */
-    const sh = E.piShift(shownModel(), refModel(), ST.anchor);
-    return ST.anchor === 'end' ? sh[0] : sh[sh.length - 1];
+    return E.farShift(E.piShift(shownModel(), refModel(), ST.anchor, pivotK()));
   } catch { return 0; }
 }
 

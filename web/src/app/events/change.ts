@@ -13,7 +13,7 @@
    Las listas blancas salen de los objetos *_DEFAULT congelados: asi no pueden
    quedarse atras cuando alguien agregue un campo.                          */
 import * as E from '../../engine.ts';
-import { ST, V, syncModel } from '../../state.ts';
+import { ST, V, syncModel, recomputeAll } from '../../state.ts';
 import { rebuildScene } from '../../scene.ts';
 import { renderShell, renderLeft, renderRight, renderStatus, renderPanels } from '../../panels.ts';
 import type { AnchorMode, DeltaKey } from '../../types.ts';
@@ -47,7 +47,7 @@ const MARK_KEYS = new Set(['name', 'x', 'y', 'z']);
    porque es una casilla y no pasa por setNum(). */
 const PED_NUM = new Set(Object.keys(E.PED_DEFAULT).filter(k => k !== 'visible'));
 const PED_KEYS = new Set(['name', ...PED_NUM]);
-const ANCHORS = new Set(['start', 'end', 'best']);
+const ANCHORS = new Set(['pivot', 'best']);
 /* Los umbrales: la lista sale de LIMS_DEFAULT, como las demas. */
 const LIMS_KEYS = new Set<string>(E.LIMS_KEYS);
 /* El perfil de maquina: las columnas por un lado —son una lista— y el resto de
@@ -180,7 +180,8 @@ function onScene(t: HTMLInputElement, d: DOMStringMap): boolean {
   if (d.an !== undefined) {
     if (!ANCHORS.has(d.an)) return true;
     ST.anchor = d.an as AnchorMode;
-    renderLeft(); renderRight(); renderStatus(); rebuildScene();
+    /* el anclaje decide contra qué se comparan las piezas, no solo cómo se ve */
+    recomputeAll(); renderLeft(); renderRight(); renderStatus(); rebuildScene();
     return true;
   }
   if (d.vv !== undefined) { const x = variantById(d.vv); if (x) { x.visible = t.checked; rebuildScene(); } return true; }
@@ -425,7 +426,12 @@ function onPlacement(t: HTMLInputElement, d: DOMStringMap): boolean {
   }
   if (d.plp !== undefined) {
     const n = num(t.value);
-    if (n !== null) { ST.place.pivot = n | 0; rebuildScene(); }
+    if (n !== null) {
+      /* el punto de coincidencia es común a modelos, piezas, vista y reportes:
+         cambia las cifras, así que se recalculan todas las piezas medidas */
+      ST.place.pivot = n | 0; ST.anchor = 'pivot';
+      recomputeAll(); renderLeft(); renderRight(); renderStatus(); rebuildScene();
+    }
     return true;
   }
   return false;

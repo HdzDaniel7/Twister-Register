@@ -13,7 +13,7 @@ import {
 } from 'three';
 import * as E from '../engine.ts';
 import {
-  ST, shownPath, anchoredShownPis, refModelFree, heldResult, heldOn, heldOfVariant, placeMatrix,
+  ST, pivotK, shownPath, anchoredShownPis, refModelFree, heldResult, heldOn, heldOfVariant, placeMatrix,
   refHeldOn, pedCarrying,
 } from '../state.ts';
 import { groups, cssVar, devThreeColor, ghost, solidMat, extraLabels, sharedGeometry } from './stage.ts';
@@ -318,14 +318,17 @@ export function layerDiff(ctx: SceneCtx): void {
        Anclarlo contra sí mismo lo dejaba en otro marco y el desplazamiento salía
        con un desfase rígido de regalo en cuanto se medía contra la sujeta. */
     const rp = (shown.find(e => e.v.id === ST.ref) || {} as { pis?: Vector3[] }).pis
-      || E.anchoredPis(ref, refModelFree(), anchor);
+      || E.anchoredPis(ref, refModelFree(), anchor, pivotK());
     const segs: [Vector3, Vector3][] = [], mags: number[] = [];
+    /* si el punto de coincidencia cae en la mitad final, las listas se alinean
+       por el final (ver alignsFromEnd) */
+    const deFin = E.alignsFromEnd(refModelFree(), anchor, pivotK());
     for (const e of shown) {
       if (e.v.id === ST.ref) continue;
       let a = e.pis, b = rp;
       const n = Math.min(a.length, b.length);
-      a = anchor === 'end' ? a.slice(a.length - n) : a.slice(0, n);
-      b = anchor === 'end' ? b.slice(b.length - n) : b.slice(0, n);
+      a = deFin ? a.slice(a.length - n) : a.slice(0, n);
+      b = deFin ? b.slice(b.length - n) : b.slice(0, n);
       for (let i = 0; i < n; i++) {
         const d = a[i].distanceTo(b[i]);
         if (d < 1e-6) continue;
@@ -346,7 +349,7 @@ export function layerDiff(ctx: SceneCtx): void {
       groups.diff.add(new LineSegments(g, new LineBasicMaterial({ vertexColors: true })));
     }
     /* rombo + cifra en el extremo que SÍ se mueve (el opuesto al anclado) */
-    const k = anchor === 'end' ? 0 : -1;
+    const k = deFin ? 0 : -1;
     /* `fk()` devuelve siempre n+2 puntos —amarre, los PI y el extremo libre—,
        así que el primero y el último existen y `at()` nunca da undefined. */
     const rq = rp.at(k)!;

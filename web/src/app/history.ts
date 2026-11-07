@@ -31,7 +31,7 @@
    ========================================================================= */
 import * as E from '../engine.ts';
 import type { ToDocExtra } from '../engine/doc.ts';
-import { ST, loadModel, setMarks, setPedestals, setPins, syncTweak, addDataset, setReports, syncPlan } from '../state.ts';
+import { ST, loadModel, setMarks, setPedestals, setPins, syncTweak, addDataset, setReports, syncPlan, refModelFree } from '../state.ts';
 import type { Doc, DocIn, LoadedDoc } from '../types.ts';
 
 /** 50 pasos: con ~20 KB por documento son 1 MB largo, y nadie deshace más de
@@ -111,6 +111,9 @@ export function applyDoc(d: LoadedDoc): void {
   Object.assign(ST.load, d.load);
   Object.assign(ST.mat, d.mat);
   ST.place = { ...E.PLACE_DEFAULT, ...(d.place || {}) };
+  /* Un archivo anterior al punto de coincidencia con anclaje 'end': la punta
+     era lo común, así que el pivote pasa a ser el PE. Ver `normAnchor()`. */
+  if (E.normAnchor(d.anchor).end) ST.place.pivot = E.fk(refModelFree()).pis.length - 1;
   setMarks(d.marks);
   setPedestals(d.fixture);
   ST.tweak = d.tweak || [];

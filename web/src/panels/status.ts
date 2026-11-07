@@ -5,6 +5,7 @@
 import * as E from '../engine.ts';
 import { T } from '../i18n.ts';
 import { ST, activeDataset, activeShift, heldResult, heldOn } from '../state.ts';
+import { anchorLabel, datumLabel } from '../pivotlabel.ts';
 import { $, fx, cls, esc } from './fmt.ts';
 
 /* ---------------------------------------------------------------- versión --
@@ -60,14 +61,14 @@ function held(): string {
 export function renderStatus(): void {
   const M = ST.model!, D = activeDataset();
   const path = E.buildPath(M);
-  const anchorLab = { start: T('aStart'), end: T('aEnd'), best: T('aBest') }[ST.anchor];
+  const anchorLab = anchorLabel();
   const shift = activeShift();
   $('#st')!.innerHTML = `
    <div class="c">${T('stLen')} <b>${fx(path.total, 1)} mm</b></div>
    <div class="c">${T('stBends')} <b>${M.bends.length}</b></div>
    <div class="c">${T('anchor')} <b>${anchorLab}</b></div>
    <div class="c">${T('dTip')} <b class="${shift > .01 ? '' : 'v-dim'}">${fx(shift, 2)} mm</b></div>
-   <div class="c">${T('stDatum')} <b>${ST.datum === 'start' ? T('dStart') : T('dBest')}</b></div>
+   <div class="c">${T('stDatum')} <b>${datumLabel()}</b></div>
    <div class="c">${T('stMax')} <b class="${D ? cls(D.dev!.maxA, M.tol.angle) : ''}">${D ? fx(D.dev!.maxA, 3) + ' °' : '—'}</b></div>
    <div class="c">${T('stUnits')} <b>mm / °</b></div>
    ${held()}

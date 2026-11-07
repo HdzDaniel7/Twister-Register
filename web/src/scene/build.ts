@@ -6,7 +6,7 @@
    ========================================================================= */
 import { Matrix4 } from 'three';
 import * as E from '../engine.ts';
-import { ST, refModel, refModelFree, placeMatrix, heldOfVariant, heldOn, refHeldOn } from '../state.ts';
+import { ST, pivotK, refModel, refModelFree, placeMatrix, heldOfVariant, heldOn, refHeldOn } from '../state.ts';
 import { groups, root, clearGroup, clearLabels, markDirty, fault } from './stage.ts';
 import {
   layerGrid, layerFixtures, layerPins, layerActive, layerVariants, layerMeasured,
@@ -43,7 +43,7 @@ export function rebuildScene(): void {
   for (const v of ST.variants) {
     if (!v.visible) continue;
     const vm = E.effectiveModel(v);
-    const A = E.anchorTransform(vm, refModelFree(), anchor);
+    const A = E.anchorTransform(vm, refModelFree(), anchor, pivotK());
     shown.push({ v, m: vm, A, path: E.buildPath(vm), pis: E.applyMat(A, E.fk(vm).pis) });
   }
   const act = shown.find(e => e.v.id === ST.active) || null;
@@ -66,7 +66,7 @@ export function rebuildScene(): void {
   if (heldOn() && (L.held.on || refHeldOn())) {
     for (const e of shown) {
       const hm = heldOfVariant(e.v).model;
-      const A = E.anchorTransform(e.m, refModelFree(), anchor);
+      const A = E.anchorTransform(e.m, refModelFree(), anchor, pivotK());
       held.push({ v: e.v, m: hm, A, path: E.buildPath(hm), pis: E.applyMat(A, E.fk(hm).pis) });
     }
   }

@@ -898,6 +898,116 @@ ok('anclaje "end" deja quieto el extremo libre',
      `máx ${Math.max(...best).toFixed(2)} vs ${Math.max(...shStart).toFixed(2)} mm`);
 }
 
+/* --- punto de coincidencia (pivote PI k compartido por todos los modelos) --- */
+{
+  const nPi = E.fk(M).pis.length, last = nPi - 1;
+  const eqM = (A, B) => maxAbs(A.elements.map((v, i) => v - B.elements[i]));
+  const eqPis = (A, B) => A.every((p, i) => p.distanceTo(B[i]) < 1e-9);
+  const Mv = E.effectiveModel(W);   // doblez 6 con +3°
+
+  ok('normAnchor: start/end/pivot/best y lo desconocido se leen bien',
+     E.normAnchor('best').mode === 'best' && !E.normAnchor('best').end
+     && E.normAnchor('pivot').mode === 'pivot' && !E.normAnchor('pivot').end
+     && E.normAnchor('start').mode === 'pivot' && !E.normAnchor('start').end
+     && E.normAnchor('end').mode === 'pivot' && E.normAnchor('end').end
+     && E.normAnchor(undefined).mode === 'pivot' && E.normAnchor(null).mode === 'pivot'
+     && E.normAnchor('basura').mode === 'pivot' && !E.normAnchor('basura').end);
+
+  ok('pivote k=0 es la identidad y coincide con "start" legado',
+     eqM(E.anchorTransform(Mv, M, 'pivot', 0), new Matrix4()) < 1e-9
+     && eqM(E.anchorTransform(Mv, M, 'pivot', 0), E.anchorTransform(Mv, M, 'start')) < 1e-9
+     && eqPis(E.anchoredPis(Mv, M, 'pivot', 0), E.anchoredPis(Mv, M, 'start')));
+  ok('pivote k=último coincide con "end" legado (matriz y PI anclados)',
+     eqM(E.anchorTransform(Mv, M, 'pivot', last), E.anchorTransform(Mv, M, 'end')) < 1e-9
+     && eqPis(E.anchoredPis(Mv, M, 'pivot', last), E.anchoredPis(Mv, M, 'end')));
+  ok('el modo por omisión es pivote en k=0',
+     eqM(E.anchorTransform(Mv, M), new Matrix4()) < 1e-9
+     && E.piShift(Mv, M).every((d, i) => Math.abs(d - E.piShift(Mv, M, 'start')[i]) < 1e-12));
+
+  /* variante con dos dobleces cambiados, para que ambos extremos se muevan */
+  const V2 = E.cloneVariant(V, 'dos', '#FF8800', 'v9');
+  V2.deltas[2].angle = 4.0; V2.deltas[6].angle = -3.0;
+  const M2 = E.effectiveModel(V2);
+  const ref = E.fk(M);
+  for (const k of [4, 5, 6]) {
+    if (k >= last) continue;
+    const A = E.anchoredPis(M2, M, 'pivot', k);
+    ok(`pivote interior k=${k}: el PI k queda en el PI k de la referencia`,
+       A[k].distanceTo(ref.pis[k]) < 1e-9, `${A[k].distanceTo(ref.pis[k]).toExponential(2)} mm`);
+    const T = E.anchorTransform(M2, M, 'pivot', k);
+    const Fm = E.frameAtPi(M2, k).premultiply(T), Fr = E.frameAtPi(M, k);
+    ok(`pivote interior k=${k}: la dirección del tramo que llega también coincide`,
+       eqM(Fm, Fr) < 1e-9, `${eqM(Fm, Fr).toExponential(2)}`);
+    ok(`pivote interior k=${k}: la transformación es rígida`,
+       Math.abs(T.determinant() - 1) < 1e-9);
+    const sh = E.piShift(M2, M, 'pivot', k);
+    ok(`pivote interior k=${k}: piShift[k]≈0 y los dos extremos se mueven`,
+       sh[k] < 1e-9 && sh[0] > 1e-3 && sh[sh.length - 1] > 1e-3,
+       `k=${sh[k].toExponential(1)} · P0=${sh[0].toFixed(3)} · PE=${sh[sh.length - 1].toFixed(3)}`);
+    ok(`pivote interior k=${k}: alignsFromEnd es falso`, E.alignsFromEnd(M, 'pivot', k) === false);
+  }
+  ok('frameAtPi: k=0 es frames[0], k=último es fk.end, y se topa fuera de rango',
+     eqM(E.frameAtPi(M, 0), ref.frames[0]) < 1e-12
+     && eqM(E.frameAtPi(M, last), ref.end) < 1e-12
+     && eqM(E.frameAtPi(M, 999), ref.end) < 1e-12
+     && eqM(E.frameAtPi(M, -3), ref.frames[0]) < 1e-12);
+  {
+    const F3 = E.frameAtPi(M, 3).elements, F2 = ref.frames[2].elements;
+    ok('frameAtPi en un PI interior: origen en el PI, rotación del tramo que llega',
+       Math.abs(F3[12] - ref.pis[3].x) < 1e-9 && Math.abs(F3[13] - ref.pis[3].y) < 1e-9
+       && Math.abs(F3[14] - ref.pis[3].z) < 1e-9
+       && maxAbs([0, 1, 2, 4, 5, 6, 8, 9, 10].map(i => F3[i] - F2[i])) < 1e-12);
+  }
+
+  /* distinto número de dobleces */
+  const Mc = E.deletePi(M, 4);                   // un doblez menos
+  const Ml = E.insertPi(E.effectiveModel(W), 3); // uno más, y con el Δ
+  for (const [nombre, X] of [['con menos dobleces', Mc], ['con más dobleces', Ml]]) {
+    const nx = E.fk(X).pis.length;
+    ok(`pivotIndex: ${nombre} el último de la referencia es el último del modelo`,
+       E.pivotIndex(last, nPi, nx) === nx - 1);
+    const A = E.anchoredPis(X, M, 'pivot', last);
+    ok(`pivote en el último ${nombre}: el PE del modelo cae sobre el PE de la referencia`,
+       A[A.length - 1].distanceTo(ref.pis[last]) < 1e-9);
+    const sh = E.piShift(X, M, 'pivot', last);
+    ok(`pivote en el último ${nombre}: se compara desde el final (largo = mínimo, última ≈ 0)`,
+       sh.length === Math.min(nx, nPi) && sh[sh.length - 1] < 1e-9);
+  }
+  ok('pivotIndex: k=0 y PI intermedios se cuentan desde el amarre, topados',
+     E.pivotIndex(0, 10, 4) === 0 && E.pivotIndex(2, 10, 4) === 2
+     && E.pivotIndex(7, 10, 4) === 3 && E.pivotIndex(7, 10, 20) === 7 && E.pivotIndex(9, 10, 20) === 19);
+  ok('alignsFromEnd: solo con el PE como punto común (pivote k=último o "end")',
+     E.alignsFromEnd(M, 'pivot', last) === true && E.alignsFromEnd(M, 'end') === true
+     && E.alignsFromEnd(M, 'pivot', 0) === false && E.alignsFromEnd(M, 'start') === false
+     && E.alignsFromEnd(M, 'best') === false && E.alignsFromEnd(M, 'pivot', last - 1) === false);
+
+  ok('farShift: máximo entre el primero y el último; vacío es 0',
+     E.farShift([0, 5, 1]) === 1 && E.farShift([2, 9, 1]) === 2 && E.farShift([3, 0, 7]) === 7
+     && E.farShift([4]) === 4 && E.farShift([]) === 0);
+
+  /* deviations con punto de coincidencia */
+  const meas = E.effectiveModel(V2);
+  const D0 = E.deviations(M, meas, 'pivot', 0), Dst = E.deviations(M, meas, 'start');
+  ok('deviations pivote k=0 es idéntico al "start" legado',
+     D0.point.length === Dst.point.length && D0.point.every((d, i) => d === Dst.point[i])
+     && D0.tip === Dst.tip && D0.rms === Dst.rms);
+  const Dl = E.deviations(M, meas, 'pivot', last);
+  ok('deviations pivote k=último: la punta no se mueve (point[último] ≈ 0)',
+     Dl.point[Dl.point.length - 1] < 1e-9 && Dl.point[0] > 1e-3,
+     `PE=${Dl.point[Dl.point.length - 1].toExponential(1)} · P0=${Dl.point[0].toFixed(3)}`);
+  const D4 = E.deviations(M, meas, 'pivot', 4);
+  ok('deviations: tip = max(point[0], point[último]) en k=0, interior y último',
+     [D0, Dl, D4].every(D =>
+       Math.abs(D.tip - Math.max(D.point[0], D.point[D.point.length - 1])) < 1e-12));
+  ok('deviations pivote interior k=4: point[4] ≈ 0',
+     D4.point[4] < 1e-9, `${D4.point[4].toExponential(1)}`);
+  ok('deviations no cambia los ángulos según el pivote (solo la posición)',
+     D4.angle.every((a, i) => a === D0.angle[i]) && Dl.theta.every((a, i) => a === D0.theta[i]));
+  ok('deviations con medida igual al nominal: todo en cero con cualquier pivote',
+     [0, 3, last].every(k => { const D = E.deviations(M, M, 'pivot', k);
+       return D.tip < 1e-9 && maxAbs(D.point) < 1e-9; }));
+}
+
 /* --- edición de puntos ------------------------------------------------ */
 const Mi = E.insertPi(M, 3);
 ok('insertPi agrega un doblez', Mi.bends.length === M.bends.length + 1);

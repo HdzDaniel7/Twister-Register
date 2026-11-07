@@ -14,7 +14,7 @@ import {
   addPin, setPins, seedPinsFor,
   syncTweak, zeroTweak, compensatedCommand, loopMeasured, loopPieces,
   measuredSpringback, addAngleDataset, angleSummary, applyAngleRec,
-  addReport,
+  addReport, refModel,
 } from '../state.ts';
 import { angUI, angVals, angleDs, countTyped } from '../panels/angles.ts';
 import { rebuildScene, fitView } from '../scene.ts';
@@ -540,8 +540,16 @@ export function action(a: string): void {
     case 'zerotw':
       zeroTweak(); renderRight(); return;
 
+    /* atajos del punto de coincidencia: el amarre (P0) o la punta (PE) */
+    case 'piv0': case 'pivE':
+      ST.place.pivot = a === 'piv0' ? 0 : E.fk(refModel()).pis.length - 1;
+      ST.anchor = 'pivot';
+      return refresh();
+
     case 'placereset':
-      ST.place = { ...E.PLACE_DEFAULT };
+      /* devuelve la pieza a su sitio pero NO toca el punto de coincidencia:
+         ese decide contra qué se compara, no dónde se ve */
+      ST.place = { ...E.PLACE_DEFAULT, pivot: ST.place.pivot };
       renderLeft(); rebuildScene(); fitView(); return;
 
     case 'addmark': {

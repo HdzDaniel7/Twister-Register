@@ -123,11 +123,21 @@ export type Variant = {
  */
 export type Orientation = 'W' | 'T';
 
-/** Extremo que queda fijo al comparar variantes entre sí. */
-export type AnchorMode = 'start' | 'end' | 'best';
+/** Cómo se superponen las variantes entre sí.
+ *
+ *  'pivot'  PUNTO DE COINCIDENCIA: el PI elegido como pivote en la colocación
+ *           (`place.pivot`) es común a todas —posición y orientación—. P0 es
+ *           el amarre de siempre; PE, el extremo libre. Es el punto donde se
+ *           sujeta la pieza, y no todas se sujetan igual.
+ *  'best'   mejor ajuste global de los PI (Kabsch).
+ *
+ *  'start' y 'end' son los nombres de archivos anteriores: se leen como
+ *  'pivot' en P0 y en PE (ver `normAnchor()`), y no se vuelven a escribir. */
+export type AnchorMode = 'pivot' | 'best' | 'start' | 'end';
 
-/** Alineación de una pieza MEDIDA contra su nominal. Distinto de AnchorMode. */
-export type DatumMode = 'start' | 'best';
+/** Alineación de una pieza MEDIDA contra su nominal. 'pivot' usa el mismo
+ *  punto de coincidencia que las variantes; 'start' es el nombre viejo. */
+export type DatumMode = 'pivot' | 'best' | 'start';
 
 /** Longitudes de una fila de la tabla, mm. La cuenta vive en `rowLengths()`. */
 export type RowLength = {

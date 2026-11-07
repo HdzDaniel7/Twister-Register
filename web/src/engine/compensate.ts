@@ -9,7 +9,7 @@ import type {
 import { clamp, mulberry32, gauss, wrap180, applyMat, bendSense } from './math.ts';
 import { bendFrom, newBend } from './bend.ts';
 import { fk, bendTheta, alignModelBranch } from './kinematics.ts';
-import { kabsch } from './fitting.ts';
+import { kabsch, anchorTransform, farShift } from './fitting.ts';
 
 /* ---------------------------------------------------------- proceso simulado */
 export const PROC_DEFAULT: Proc = Object.freeze({
@@ -282,8 +282,13 @@ export function compensate(cmd: Bend[], nom: Bend[], meas: Bend[], comp: Comp, o
 }
 
 /* ------------------------------------------------------------ desviaciones */
-/** Compara una pieza medida contra el nominal. datum: 'start' | 'best'. */
-export function deviations(model: Model, measModel: Model, datum: DatumMode = 'start'): Deviations {
+/** Compara una pieza medida contra el nominal.
+ *
+ *  datum 'pivot' hace coincidir el punto `k` (un PI del nominal: el mismo
+ *  punto de coincidencia que las variantes, ver `anchorTransform()`); k = 0 es
+ *  el amarre de siempre. 'best' es el mejor ajuste. 'start' es el nombre viejo
+ *  de 'pivot' en P0. */
+export function deviations(model: Model, measModel: Model, datum: DatumMode = 'pivot', k = 0): Deviations {
   /* La comparación es fila contra fila, así que las dos piezas tienen que estar
      escritas en la misma rama o un doblez de canto perfecto se lee como 180 de
      desviación. addDataset() ya lo impone al entrar; esto cubre lo que venga
@@ -293,6 +298,7 @@ export function deviations(model: Model, measModel: Model, datum: DatumMode = 's
   const nom = fk(model).pis;
   let P = fk(measModel).pis.map(p => p.clone());
   if (datum === 'best') P = applyMat(kabsch(P, nom), P);
+  else if ((k | 0) > 0) P = applyMat(anchorTransform(measModel, model, 'pivot', k), P);
   const m = Math.min(P.length, nom.length);
   const point: number[] = [];
   for (let i = 0; i < m; i++) point.push(P[i].distanceTo(nom[i]));
@@ -320,7 +326,9 @@ export function deviations(model: Model, measModel: Model, datum: DatumMode = 's
   return {
     pis: P, point, angle, rot, feed, theta, rms,
     maxA: theta.reduce((a, x) => Math.max(a, Math.abs(x)), 0),
-    tip: point.length ? point[point.length - 1] : 0,
+    /* el extremo más lejano del punto de coincidencia: con él en P0 es la
+       punta de siempre, con él en PE es el amarre, y en medio manda el peor */
+    tip: farShift(point),
     out,   // un doblez está fuera si CUALQUIERA de sus dos componentes lo está
   };
 }
