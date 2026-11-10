@@ -23,6 +23,7 @@ export * from './engine/machine.ts';
 export * from './engine/fitting.ts';
 export * from './engine/compensate.ts';
 export * from './engine/measure.ts';
+export * from './engine/ptfit.ts';
 export * from './engine/expr.ts';
 export * from './engine/doc.ts';
 export * from './engine/csv.ts';

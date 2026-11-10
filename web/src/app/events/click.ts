@@ -11,9 +11,10 @@ import type { ViewName } from '../../scene.ts';
 import { $ } from '../../dom.ts';
 import { refresh, renderAll, selectBend, setMode, openDrawer } from '../render.ts';
 import { setTheme } from '../theme.ts';
-import { action, variantById, varActivate, varDuplicate, varDelete, setSecKind, setKMode } from '../actions.ts';
+import { action, setPivot, variantById, varActivate, varDuplicate, varDelete, setSecKind, setKMode } from '../actions.ts';
 import { commit } from '../history.ts';
 import { angUI, angleDs } from '../../panels/angles.ts';
+import { ptUI } from '../../ptstate.ts';
 
 export function bindClick(): void {
   $('#tabs')!.addEventListener('click', e => {
@@ -60,7 +61,7 @@ function onClick(e: MouseEvent): void {
     }
     const t = (e.target as HTMLElement).closest(
       '[data-a],[data-v],[data-dm],[data-l],[data-th],[data-md],[data-dr],[data-dx],[data-dsel],[data-cm],[data-mx],[data-px],' +
-      '[data-mm],[data-arv],[data-vsel],[data-vx],[data-vd],[data-vr],[data-r],[data-pnx],[data-hv],[data-sk],[data-km]') as HTMLElement | null;
+      '[data-mm],[data-pa],[data-arv],[data-vsel],[data-vx],[data-vd],[data-vr],[data-r],[data-pnx],[data-hv],[data-sk],[data-km]') as HTMLElement | null;
     if (!t) return;
     const d = t.dataset;
     if (d.l !== undefined) { setLang(d.l); renderAll(); return; }
@@ -73,7 +74,12 @@ function onClick(e: MouseEvent): void {
     if (d.dm !== undefined) { ST.datum = d.dm as DatumMode; refresh(); return; }
     /* el método de medida: nube/CSV o por ángulos. Es estado de interfaz, no
        del documento, así que ni toca ST ni apila un paso. */
-    if (d.mm !== undefined) { angUI.method = d.mm; renderPanels(); return; }
+    if (d.mm !== undefined) { angUI.method = d.mm; ptUI.on = d.mm === 'points'; renderPanels(); rebuildScene(); return; }
+    /* «Por puntos»: cómo se leen los puntos medidos (borrador de interfaz) */
+    if (d.pa !== undefined) {
+      if (d.pa === 'pivot' || d.pa === 'best') ptUI.align = d.pa;
+      renderPanels(); rebuildScene(); return;
+    }
     /* reportes de una pieza por ángulos: borrar uno toca el documento (commit
        lo apila); ver cuál se edita es estado de interfaz y no apila nada. */
     if (d.a === 'angrdel') {
@@ -147,9 +153,15 @@ function onClick(e: MouseEvent): void {
          nube a la nube: la pieza que se mira y el método que se enseña no se
          separan */
       const sel = ST.datasets.find(x => x.id === d.dsel);
-      if (sel) { angUI.method = sel.method === 'angles' ? 'angles' : 'cloud'; angUI.note = ''; angUI.rep = -1; }
+      /* «Por puntos» no tiene piezas propias (la medida es una nube): quien la
+         está usando no sale de ahí por elegir una pieza */
+      if (sel) {
+        angUI.method = sel.method === 'angles' ? 'angles' : (angUI.method === 'points' ? 'points' : 'cloud');
+        angUI.note = ''; angUI.rep = -1; ptUI.on = angUI.method === 'points';
+      }
       renderPanels(); rebuildScene(); drawRibbon(); return;
     }
+    if (d.a === 'setpiv') { setPivot(+(d.i ?? 0)); return; }
     if (d.a !== undefined) { action(d.a); return; }
     if (d.r !== undefined) { selectBend(+d.r); return; }
   }

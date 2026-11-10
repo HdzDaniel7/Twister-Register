@@ -457,7 +457,7 @@ export function reportHtml(): string {
   <h2>${T('variants')}</h2>
   <div class="tw"><table><thead><tr><th scope="col">${T('name')}</th>
     <th scope="col">${T('stBends')}</th><th scope="col">${T('stLen')} mm</th>
-    <th scope="col">${T('dTip')} mm</th></tr></thead><tbody>${resumen}</tbody></table></div>
+    <th scope="col" title="${esc(T('dTipTip'))}">${T('dTip')} mm</th></tr></thead><tbody>${resumen}</tbody></table></div>
 
   <h2>1 · ${T('repBase')}</h2>
   ${tabla('base')}

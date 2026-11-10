@@ -6,6 +6,7 @@
 import * as E from '../engine.ts';
 import { T } from '../i18n.ts';
 import type { DeltaKey, Model } from '../types.ts';
+import { coinBtn, isCoin } from '../pivotlabel.ts';
 import { ST, V } from '../state.ts';
 import { fx, esc, nfield, oriTag } from './fmt.ts';
 
@@ -110,8 +111,8 @@ export function paneModel(M: Model): string {
     const over = (b.twist || 0) && (b.twistLen || 0) > span;
     const hasD = E.DELTA_KEYS.some(k => v.deltas[i][k]);
     const bb = base[i];
-    return `<tr class="clk ${i === ST.sel ? 'sel' : ''} ${hasD ? 'hasd' : ''}" data-r="${i}">
-      <td>B${i + 1}</td><td>${oriTag(ori[i], redonda)}</td>
+    return `<tr class="clk ${i === ST.sel ? 'sel' : ''} ${hasD ? 'hasd' : ''} ${isCoin(i + 1, M.bends.length + 2) ? 'coin' : ''}" data-r="${i}">
+      <td>${coinBtn(i + 1, M.bends.length + 2)}B${i + 1}</td><td>${oriTag(ori[i], redonda)}</td>
       ${/* El rojo mira la recta EFECTIVA, que es la que hay que fabricar y la
            misma que juzga feasNote(): con un Δ de ángulo la recta de la pieza
            se acorta y el campo sigue enseñando la de la base, así que el aviso
@@ -167,7 +168,7 @@ export function paneModel(M: Model): string {
   <div class="grp"><div class="eyebrow">${T('bends')}<span class="n">${M.bends.length}</span></div><div class="body">
     <div id="fabnote">${fab}</div>
     <div class="tw"><table class="lra"><thead><tr>
-      <th scope="col">${T('nBend')}</th><th scope="col">${T('ori')}</th>
+      <th scope="col">${coinBtn(0, M.bends.length + 2)}${T('nBend')}</th><th scope="col">${T('ori')}</th>
       <th scope="col">${T('straight')}</th>
       <th scope="col" class="dcol" title="${esc(T('dStraightTip'))}">${d}</th>
       <th scope="col" title="${T('rotHeadTip')}">${T('rot')}</th><th scope="col" class="dcol">${d}</th>
@@ -176,7 +177,7 @@ export function paneModel(M: Model): string {
       <th scope="col">${T('arcL')}</th>
       <th scope="col" title="${esc(T('cutLenTip'))}">${T('cumL')}</th>
       </tr></thead><tbody>${rows}</tbody>
-      <tfoot><tr class="foot"><td>${T('tailRow')}</td><td></td>
+      <tfoot><tr class="foot ${isCoin(M.bends.length + 1, M.bends.length + 2) ? 'coin' : ''}"><td>${coinBtn(M.bends.length + 1, M.bends.length + 2)}${T('tailRow')}</td><td></td>
         <td data-cell="tstr">${nfield('.5',
           `data-m="tail" title="${esc(T('tailFootTip'))}"
            class="${E.tailStraight(M) < ST.lims.straightMin ? 'v-bad' : ''}"`,

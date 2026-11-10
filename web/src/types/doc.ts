@@ -140,7 +140,7 @@ export type Pin = {
  *
  *  Es una unión y no un booleano a propósito: vendrán más métodos (rectas
  *  sueltas, radios, …) y cada uno añade un caso aquí y en `MEAS_METHODS`. */
-export type MeasMethod = 'cloud' | 'angles';
+export type MeasMethod = 'cloud' | 'angles' | 'points';
 
 /** LAS TRES CIFRAS de una misma pieza, que no hay que confundir:
  *

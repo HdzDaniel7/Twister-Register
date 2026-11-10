@@ -4839,7 +4839,7 @@ console.log('\n— medir por ángulos —');
        === '[8,null,3,null]');
   ok('angleReport de un reporte suelto: reports = 1 y sin dispersión',
      R0.reports === 1 && R0.rows.every(x => x.spread === null));
-  ok('MEAS_METHODS conoce nube y ángulos', E.MEAS_METHODS.map(x => x.id).join() === 'cloud,angles');
+  ok('MEAS_METHODS conoce nube, ángulos y puntos', E.MEAS_METHODS.map(x => x.id).join() === 'cloud,angles,points');
 
   /* el estado: alta, tablero congelado, plano, informe, lote y tablero nuevo */
   /* datum al amarre: con el mejor ajuste, el PI1 también se movería */
@@ -5149,6 +5149,93 @@ console.log('\n— medir por ángulos —');
   ok('  y el lazo pide lo contrario: a la sobredoblada la desdobla (|ángulo| baja)',
      Math.abs(E.compensate(nom.bends, nom.bends, over.bends,
        { ...E.COMP_DEFAULT, gainT: 1, gainW: 1, dead: 0 }, E.orientations(nom))[1].angle) < 40);
+}
+
+/* --- método «Por puntos» (engine/ptfit.ts) ---------------------------- */
+console.log('\n— método por puntos —');
+{
+  const B = E.effectiveModel(E.newVariant(E.demoModel(), 'tablero', '#ffffff', 'vp'));
+  const n = E.fk(B).pis.length, last = n - 1;
+  const B2 = E.cloneModel(B);
+  B2.bends[2].angle += 3; B2.bends[3].feed += 4;
+  const zeros = () => Array.from({ length: n }, () => [0, 0, 0]);
+  const none = () => Array.from({ length: n }, () => null);
+  const anchors = [['pivot', 0], ['pivot', last], ['pivot', 5], ['best', 0]];
+
+  /* sin nada que pedir */
+  for (const [anc, k] of anchors) {
+    const R = E.pointsSolve(B, { edits: zeros(), meas: none(), gain: 1, align: 'pivot' }, anc, k);
+    ok(`por puntos sin pedir nada (${anc},${k}): changed=false, resid≈0, dobleces = tablero`,
+       !R.changed && R.maxResid < 1e-9 && R.nEdit === 0 && R.nMeas === 0
+       && R.model.bends.every((b, i) => b.angle === B.bends[i].angle && b.feed === B.bends[i].feed
+                                       && b.rot === B.bends[i].rot));
+  }
+
+  /* ida y vuelta: los PI de B2 en el marco de B como ediciones */
+  for (const [anc, k] of anchors) {
+    const A = E.anchorTransform(B2, B, anc, k);
+    const Fi = E.ptFrame(B, anc, k).invert();
+    const want = E.fk(B2).pis.map(p => p.clone().applyMatrix4(A).applyMatrix4(Fi));
+    const nom = E.ptNominal(B, anc, k);
+    const edits = want.map((p, i) => [p.x - nom[i][0], p.y - nom[i][1], p.z - nom[i][2]]);
+    const R = E.pointsSolve(B, { edits, meas: none(), gain: 1, align: 'pivot' }, anc, k);
+    const dA = Math.max(...R.model.bends.map((b, i) => Math.abs(b.angle - B2.bends[i].angle)));
+    const dF = Math.max(...R.model.bends.map((b, i) => Math.abs(b.feed - B2.bends[i].feed)));
+    ok(`por puntos ida y vuelta (${anc},${k}): recupera ángulos y avances de B2`,
+       R.changed && dA < 1e-6 && dF < 1e-6 && R.maxResid < 1e-5,
+       `Δángulo ${dA.toExponential(1)} Δavance ${dF.toExponential(1)} resid ${R.maxResid.toExponential(1)}`);
+    ok(`  y dAngle[2] = +3 en sentido de doblez (${anc},${k})`,
+       Math.abs(R.bends[2].dAngle - 3 * E.bendSense(B.bends[2].angle)) < 1e-5
+       && Math.abs(R.bends[3].dFeed - 4) < 1e-5);
+  }
+
+  /* compensación de lo medido */
+  {
+    const nom = E.ptNominal(B, 'pivot', 0);
+    const meas = none(); meas[4] = [nom[4][0], nom[4][1] + 2, nom[4][2]];
+    const g1 = E.pointsSolve(B, { edits: zeros(), meas, gain: 1, align: 'pivot' }, 'pivot', 0);
+    const g5 = E.pointsSolve(B, { edits: zeros(), meas, gain: .5, align: 'pivot' }, 'pivot', 0);
+    ok('medida +2 en Y del PI 4, ganancia 1: se pide nominal −2 en Y',
+       Math.abs(g1.rows[4].cmd[1] - (nom[4][1] - 2)) < 1e-9 && g1.rows[4].cmd[0] === nom[4][0] && g1.nMeas === 1);
+    ok('  ganancia 0.5: se pide nominal −1',
+       Math.abs(g5.rows[4].cmd[1] - (nom[4][1] - 1)) < 1e-9);
+    ok('  los PI sin medida piden su objetivo tal cual', g1.rows[3].cmd.every((v, a) => v === nom[3][a]));
+  }
+
+  /* alineación por mejor ajuste: la medida es el nominal movido en rígido */
+  {
+    const nom = E.ptNominal(B, 'pivot', 0);
+    const T = new Matrix4().makeRotationFromEuler(new Euler(.3, -.5, .8)).setPosition(40, -25, 70);
+    const meas = nom.map(p => { const v = new Vector3(...p).applyMatrix4(T); return [v.x, v.y, v.z]; });
+    const R = E.pointsSolve(B, { edits: zeros(), meas, gain: 1, align: 'best' }, 'pivot', 0);
+    ok('align best: la medida girada y movida en rígido queda con error ≈ 0',
+       R.maxErr < 1e-6 && R.changed && R.nMeas === n);
+    ok('  y la barra resultante sale como el tablero',
+       R.model.bends.every((b, i) => Math.abs(b.angle - B.bends[i].angle) < 1e-5
+                                   && Math.abs(b.feed - B.bends[i].feed) < 1e-5));
+  }
+
+  /* la pieza medida como modelo */
+  for (const [anc, k] of anchors) {
+    const A = E.anchorTransform(B2, B, anc, k);
+    const Fi = E.ptFrame(B, anc, k).invert();
+    const meas = E.fk(B2).pis.map(p => { const v = p.clone().applyMatrix4(A).applyMatrix4(Fi); return [v.x, v.y, v.z]; });
+    const m = E.measuredFromPoints(B, meas, 'pivot', anc, k);
+    ok(`measuredFromPoints (${anc},${k}): los dobleces son los de B2`,
+       !!m && m.bends.every((b, i) => Math.abs(b.angle - B2.bends[i].angle) < 1e-6
+                                     && Math.abs(b.feed - B2.bends[i].feed) < 1e-6));
+    const miss = meas.slice(); miss[3] = null;
+    ok(`  con un PI sin medir devuelve null (${anc},${k})`, E.measuredFromPoints(B, miss, 'pivot', anc, k) === null);
+  }
+
+  /* entradas sucias: valen cero */
+  {
+    const sucio = zeros();
+    sucio[2] = [NaN, 1, 1]; sucio[3] = undefined; sucio[4] = null; sucio[5] = [1, 2];
+    const R = E.pointsSolve(B, { edits: sucio, meas: [], gain: 1, align: 'pivot' }, 'pivot', 0);
+    ok('ediciones no finitas, ausentes o incompletas cuentan como cero',
+       !R.changed && R.nEdit === 0 && R.maxResid < 1e-9);
+  }
 }
 
 console.log(`\n${fails ? fails + ' PRUEBA(S) FALLARON' : 'todas las pruebas pasaron'}\n`);

@@ -9,6 +9,7 @@ import { ST, activeDataset, measuredSpringback, simCount } from '../state.ts';
 import { pivotName } from '../pivotlabel.ts';
 import { fx, esc, cls, oriTag, sgn, srcTag } from './fmt.ts';
 import { angUI, angPane } from './angles.ts';
+import { ptPane } from './ptsmeas.ts';
 import type { I18nKey } from './fmt.ts';
 
 /* --- pestaña MEDICIÓN --------------------------------------------------- */
@@ -82,6 +83,7 @@ export function paneMeas(M: Model): string {
       `<button data-mm="${m.id}" class="${angUI.method === m.id ? 'on' : ''}"
         aria-pressed="${angUI.method === m.id}">${T(m.label as I18nKey)}</button>`).join('')}</div></div></div></div>`;
   if (angUI.method === 'angles') return `<div class="pane on">${selector}${angPane(M)}</div>`;
+  if (angUI.method === 'points') return `<div class="pane on">${selector}${ptPane(M)}</div>`;
   /* primero lo que se mira mientras se edita la tabla; el simulador, que se
      ajusta una vez y luego se olvida, va al final del lateral. */
   return `<div class="pane on">

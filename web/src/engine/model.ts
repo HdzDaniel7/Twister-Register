@@ -228,7 +228,7 @@ export const hasDeltas = (v: Variant): boolean =>
  *  torsión no viven en los puntos: hay que arrastrarlos de `keep`, la lista de
  *  dobleces que corresponde uno a uno con los PI nuevos.
  */
-function modelFromPoints(model: Model, P: Vector3[], keep: Bend[], minBendDeg = 0): Model {
+export function modelFromPoints(model: Model, P: Vector3[], keep: Bend[], minBendDeg = 0): Model {
   const r = ik(P, keep.map(b => b.radius), minBendDeg, keep.map(b => b.twist));
   const bends = r.bends.map((b, j) => {
     const src = keep[j] || BEND_DEFAULT;

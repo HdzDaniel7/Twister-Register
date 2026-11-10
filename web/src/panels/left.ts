@@ -75,7 +75,7 @@ function vcard(v: Variant): string {
           aria-label="${esc(T('del'))}">✕</button></div>
       <div class="meta"><span>${vm.bends.length} ${T('dblz')}</span>
         <span>Δ<b>${nd}</b></span>
-        <span>${T('dTip')} <b class="${shift > .01 ? '' : 'v-dim'}">${fx(shift, 2)}</b></span></div>
+        <span title="${esc(T('dTipTip'))}">${T('dTip')} <b class="${shift > .01 ? '' : 'v-dim'}">${fx(shift, 2)}</b></span></div>
       ${choque(v)}
       ${isref ? '' : `<button class="linkbtn" data-vr="${v.id}">${T('setRef')}</button>`}
     </div>`;
@@ -100,7 +100,7 @@ function choque(v: Variant): string {
 function pivotOptions(): string {
   const np = E.fk(refModel()).pis.length;
   return [...Array(np)].map((_, i) => {
-    return `<option value="${i}" ${ST.place.pivot === i ? 'selected' : ''}>${piName(i, np)}</option>`;
+    return `<option value="${i}" ${ST.place.pivot === i ? 'selected' : ''}>${piName(i, np)}${i === 0 ? ' ' + T('pivSufP0') : i === np - 1 ? ' ' + T('pivSufPE') : ''}</option>`;
   }).join('');
 }
 

@@ -8,7 +8,7 @@ import * as E from '../engine.ts';
 import { T } from '../i18n.ts';
 import type { Model } from '../types.ts';
 import { ST, pivotK, refModel, anchoredShownPis, shownModel } from '../state.ts';
-import { piName } from '../pivotlabel.ts';
+import { piName, coinBtn, isCoin } from '../pivotlabel.ts';
 import { fx, esc, cls, nfield } from './fmt.ts';
 
 /* --- pestaña PUNTOS ----------------------------------------------------- */
@@ -28,8 +28,8 @@ export function panePoints(M: Model): string {
     const j = i - off;
     const dv = (j >= 0 && j < sh.length) ? sh[j] : 0;
     const nm = piName(i, n);
-    return `<tr class="clk ${i - 1 === ST.sel ? 'sel' : ''}" data-r="${i - 1}">
-      <td class="${i === 0 || i === n - 1 ? 'v-dim' : ''}">${nm}</td>
+    return `<tr class="clk ${i - 1 === ST.sel ? 'sel' : ''} ${isCoin(i, n) ? 'coin' : ''}" data-r="${i - 1}">
+      <td class="${i === 0 || i === n - 1 ? 'v-dim' : ''}">${coinBtn(i, n)}${nm}</td>
       ${['x', 'y', 'z'].map(k =>
         `<td>${nfield('.1', `data-p="${i}" data-k="${k}"`, p[k as 'x' | 'y' | 'z'])}</td>`).join('')}
       <td class="${dv > .01 ? 'dv' : 'v-dim'}">${fx(dv, 2)}</td></tr>`;
@@ -37,7 +37,7 @@ export function panePoints(M: Model): string {
   return `<div class="pane on"><div class="grp">
     <div class="eyebrow">${T('points')}<span class="n">${n}</span></div><div class="body">
     <div class="tw"><table><thead><tr><th scope="col">PI</th><th scope="col">${T('x')}</th><th scope="col">${T('y')}</th>
-      <th scope="col">${T('z')}</th><th scope="col">${T('dTip')}</th></tr></thead><tbody>${rows}</tbody></table></div>
+      <th scope="col">${T('z')}</th><th scope="col" title="${esc(T('dTipTip'))}">${T('dTip')}</th></tr></thead><tbody>${rows}</tbody></table></div>
     <div class="row mt6"><button class="btn sm" data-a="insp">${T('insPt')}</button>
       <button class="btn sm" data-a="delp">${T('delPt')}</button>
       <span class="grow"></span><button class="btn sm" data-a="expts">CSV ↓</button></div>

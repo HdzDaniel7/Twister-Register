@@ -17,6 +17,7 @@ import {
   addReport, refModel,
 } from '../state.ts';
 import { angUI, angVals, angleDs, countTyped } from '../panels/angles.ts';
+import { ptUI, applyPointsTarget, addPointsDataset, clearPt, ptAllMeasured } from '../ptstate.ts';
 import { rebuildScene, fitView } from '../scene.ts';
 import { drawRibbon } from '../ribbon.ts';
 import {
@@ -390,6 +391,16 @@ function showFixture(): void {
   if (!ST.layers.fix.on) { ST.layers.fix.on = true; renderShell(); }
 }
 
+/** Fija el punto de coincidencia en el PI `i`. Un solo camino para la lista de
+ *  Vista, los atajos P0/PE y los botones ⊕ de las tablas: es común a modelos,
+ *  piezas, vista y reportes, así que cambia las cifras y se recalcula todo. */
+export function setPivot(i: number): void {
+  const n = E.fk(refModel()).pis.length;
+  ST.place.pivot = Math.min(Math.max(i | 0, 0), n - 1);
+  ST.anchor = 'pivot';
+  refresh(); renderLeft(); renderStatus();
+}
+
 export function action(a: string): void {
   const M = ST.model!, v = V();
   if (fixtureAction(a, M)) return;
@@ -496,7 +507,7 @@ export function action(a: string): void {
       const nm = (angleDs() ? '' : angUI.name) || `${T('angDefName')} ${ST.datasets.length + 1}`;
       const ds = addAngleDataset(nm, vals);
       ds.visible = true; ST.dsActive = ds.id;
-      angUI.method = 'angles'; angUI.draft = []; angUI.name = ''; angUI.note = '';
+      angUI.method = 'angles'; ptUI.on = false; angUI.draft = []; angUI.name = ''; angUI.note = '';
       renderPanels(); rebuildScene(); drawRibbon();
       return;
     }
@@ -515,6 +526,32 @@ export function action(a: string): void {
       renderAll(); rebuildScene(); drawRibbon();
       return;
     }
+    /* MEDIR POR PUNTOS. «Crear barra objetivo» da de alta la barra que alcanza
+       los puntos como una variante nueva (activa): toca el documento, así que
+       el commit() del clic la apila. Borrar ediciones o medidas es borrador. */
+    case 'ptapply': {
+      const id = applyPointsTarget();
+      if (!id) return;
+      const nv = variantById(id);
+      ptUI.note = T('ptApplied').replace('{v}', nv ? nv.name : id);
+      predict();
+      renderAll(); rebuildScene(); drawRibbon();
+      return;
+    }
+    /* «Crear pieza medida»: con todos los PI medidos, una nube más (activa y
+       visible); el borrador se queda, por si hay que repetirla con otro ajuste */
+    case 'ptmeas': {
+      if (!ptAllMeasured()) { alert(T('ptMeasTip')); return; }
+      const nm = ptUI.name || `${T('ptDefName')} ${ST.datasets.length + 1}`;
+      const ds = addPointsDataset(nm);
+      if (!ds) return;
+      ds.visible = true; ST.dsActive = ds.id;
+      ptUI.name = '';
+      renderPanels(); rebuildScene(); drawRibbon();
+      return;
+    }
+    case 'ptclredit': clearPt('edits'); renderPanels(); rebuildScene(); return;
+    case 'ptclrmeas': clearPt('meas'); renderPanels(); rebuildScene(); return;
     /* Pieza | Lote: qué resumen se mira. Es estado de interfaz. */
     /* + Reporte: uno vacío, que queda seleccionado para teclearlo. Tocar los
        reportes es del documento: commit() lo apila (deshacer). */
@@ -542,9 +579,7 @@ export function action(a: string): void {
 
     /* atajos del punto de coincidencia: el amarre (P0) o la punta (PE) */
     case 'piv0': case 'pivE':
-      ST.place.pivot = a === 'piv0' ? 0 : E.fk(refModel()).pis.length - 1;
-      ST.anchor = 'pivot';
-      return refresh();
+      return setPivot(a === 'piv0' ? 0 : E.fk(refModel()).pis.length - 1);
 
     case 'placereset':
       /* devuelve la pieza a su sitio pero NO toca el punto de coincidencia:

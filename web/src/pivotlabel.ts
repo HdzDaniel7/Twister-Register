@@ -22,3 +22,17 @@ export const anchorLabel = (): string =>
 /** Cómo se llama la referencia de la medición (datum). */
 export const datumLabel = (): string =>
   ST.datum === 'best' ? T('dBest') : T('dPivot').replace('{p}', pivotName());
+
+/** ¿Es el PI `i` el punto de coincidencia? Con «mejor ajuste» no hay ninguno. */
+export function isCoin(i: number, n: number): boolean {
+  return ST.anchor !== 'best' && Math.min(Math.max(pivotK(), 0), n - 1) === i;
+}
+
+/** Botón ⊕ de una fila: marca el punto de coincidencia vigente y, en las demás
+ *  filas, deja fijarlo con un clic. Lleva data-a/data-i y no data-r para que el
+ *  clic NO seleccione la fila (el despachador toma el primer ancestro con data). */
+export function coinBtn(i: number, n: number): string {
+  const on = isCoin(i, n);
+  const tip = (on ? T('coinTip') : T('coinSet')).replace(/"/g, '&quot;');
+  return `<button class="coinbtn${on ? ' on' : ''}" data-a="setpiv" data-i="${i}" title="${tip}" aria-label="${tip}">⊕</button>`;
+}

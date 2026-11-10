@@ -745,3 +745,25 @@ input[type=text].angin.plan::placeholder{color:var(--dim);opacity:.55}
 .angtab td.angmc{text-align:right;font-variant-numeric:tabular-nums;line-height:1.15}
 .angtab .angmean{display:block;color:var(--txt)}
 .angtab .spr{display:block;font-size:9.5px;color:var(--dim);cursor:help}
+
+/* Punto de coincidencia: la fila del PI fijo común a modelos, piezas, vista y
+   reportes. Ámbar #ffcc00 con borde izquierdo y fondo tenue, legible en claro
+   y oscuro (el fondo es translúcido, el borde y el ⊕ son opacos). */
+tbody tr.coin td,tfoot tr.coin td{background:rgba(255,204,0,.14)}
+tbody tr.coin td:first-child,tfoot tr.coin td:first-child{box-shadow:inset 3px 0 0 #ffcc00}
+.coinbtn{background:none;border:0;padding:0 3px 0 0;margin-right:2px;cursor:pointer;
+  color:var(--dim2);opacity:.45;font-size:13px;line-height:1}
+.coinbtn:hover{opacity:1;color:#ffcc00}
+.coinbtn.on{opacity:1;color:#ffcc00;font-weight:700;text-shadow:0 0 1px #8a6a00}
+
+/* --- medir por puntos: tabla ancha con campos compactos --- */
+input[type=text].ptin{width:44px;padding:3px 2px;box-sizing:border-box;text-align:right;font-size:11px;font-variant-numeric:tabular-nums}
+input[type=text].ptin.ed{background:#6aa9ff10}
+input[type=text].ptin.ms{background:#ffb02e10}
+input[type=text].ptin::placeholder{color:var(--dim);opacity:.5}
+.pttab th,.pttab td{padding-left:2px;padding-right:2px;font-size:11px;white-space:nowrap}
+.pttab td.ptnom{text-align:right;font-variant-numeric:tabular-nums}
+.pttab th.ptg{text-align:center;border-bottom:1px solid var(--line2)}
+.pttab th.ptg.ed{color:#6aa9ff}.pttab th.ptg.ms{color:var(--warn)}.pttab th.ptg.tg{color:var(--ok)}
+.pttab tr.ptchg td{background:rgba(255,176,46,.10)}
+.ptsw{display:inline-block;width:12px;height:12px;border-radius:3px;margin-left:6px;flex:none}

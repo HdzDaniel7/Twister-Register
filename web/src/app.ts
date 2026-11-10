@@ -44,6 +44,7 @@ import {
 } from './scene.ts';
 import { drawRibbon, bindRibbon, setOnRibbonSelect } from './ribbon.ts';
 import { reportHtml } from './report.ts';
+import * as PT from './ptstate.ts';
 import { renderAll, refresh, selectBend } from './app/render.ts';
 import { importCsvText, importCsvBatch, openError } from './app/files.ts';
 import { initHistory, markSaved, isDirty } from './app/history.ts';
@@ -54,6 +55,7 @@ import { bindChange } from './app/events/change.ts';
 import { bindKeyboard } from './app/events/keyboard.ts';
 import { bindGrips } from './app/events/grips.ts';
 import { bindSignKey } from './app/events/sign.ts';
+import { ptUI, ptResult } from './ptstate.ts';
 
 /* Todas las escuchas son por delegación sobre document.body, así que da igual
    cuántas veces se reconstruyan los paneles: se enganchan una sola vez, aquí,
@@ -131,6 +133,7 @@ document.addEventListener('DOMContentLoaded', boot);
 /** Forma del objeto de depuración: vive solo aquí, un cast puntual sobre
  *  `window` no necesita una declaración global nueva. */
 type DebugExports = {
+  ptUI: typeof ptUI; ptResult: typeof ptResult;
   ST: typeof ST; E: typeof E; I18N: typeof I18N; LANG: typeof LANG;
   renderAll: typeof renderAll; refresh: typeof refresh; REF: typeof REF;
   drawGizmo: typeof drawGizmo; drawLabels: typeof drawLabels; groupHost: typeof groupHost;
@@ -185,14 +188,16 @@ type DebugExports = {
      queda en NaN. */
   onResize: typeof onResize;
   readonly camera: typeof camera;
+  /* el método «Por puntos»: el banco y las capturas fijan ediciones sin pasar por el panel */
+  PT: typeof PT;
 };
 /* `renderer` se lee por getter porque initScene() lo asigna DESPUÉS de que
    este módulo se evalúe: copiarlo aquí guardaría el undefined de arranque. */
 if (typeof window !== 'undefined') (window as unknown as { BARCOMP: DebugExports }).BARCOMP = {
-  ST, E, I18N, LANG, renderAll, refresh, REF, drawGizmo, drawLabels, groupHost, groups,
+  ptUI, ptResult, ST, E, I18N, LANG, renderAll, refresh, REF, drawGizmo, drawLabels, groupHost, groups,
   rebuildScene, markDirty, importCsvText, importCsvBatch, openError, commandModel,
   placedPath, shownPath, shownModel, heldResult, heldOfVariant, refModel, refModelFree,
-  captureViews, reportHtml, onResize,
+  captureViews, reportHtml, onResize, PT,
   edgesRef, edgesGeometry,
   get renderer() { return renderer; },
   get scene() { return scene; },

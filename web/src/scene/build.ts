@@ -10,7 +10,7 @@ import { ST, pivotK, refModel, refModelFree, placeMatrix, heldOfVariant, heldOn,
 import { groups, root, clearGroup, clearLabels, markDirty, fault } from './stage.ts';
 import {
   layerGrid, layerFixtures, layerPins, layerActive, layerVariants, layerMeasured,
-  layerPredicted, layerHeld, layerDiff, layerMarks, layerPoints, layerDev,
+  layerPredicted, layerHeld, layerDiff, layerMarks, layerPoints, layerDev, layerCoin, layerPts,
 } from './layers.ts';
 import type { ShownEntry, SceneCtx } from './types.ts';
 
@@ -90,7 +90,7 @@ export function rebuildScene(): void {
      escena recién vaciada y a medio construir, sin la pieza y sin aviso. */
   for (const layer of [layerGrid, layerFixtures, layerPins, layerActive, layerVariants,
                        layerMeasured, layerPredicted, layerHeld, layerDiff, layerMarks,
-                       layerPoints, layerDev]) {
+                       layerPoints, layerDev, layerCoin, layerPts]) {
     try { layer(ctx); } catch (err) { fault(err); }
   }
   markDirty();

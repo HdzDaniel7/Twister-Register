@@ -67,7 +67,7 @@ export function renderStatus(): void {
    <div class="c">${T('stLen')} <b>${fx(path.total, 1)} mm</b></div>
    <div class="c">${T('stBends')} <b>${M.bends.length}</b></div>
    <div class="c">${T('anchor')} <b>${anchorLab}</b></div>
-   <div class="c">${T('dTip')} <b class="${shift > .01 ? '' : 'v-dim'}">${fx(shift, 2)} mm</b></div>
+   <div class="c" title="${esc(T('dTipTip'))}">${T('dTip')} <b class="${shift > .01 ? '' : 'v-dim'}">${fx(shift, 2)} mm</b></div>
    <div class="c">${T('stDatum')} <b>${datumLabel()}</b></div>
    <div class="c">${T('stMax')} <b class="${D ? cls(D.dev!.maxA, M.tol.angle) : ''}">${D ? fx(D.dev!.maxA, 3) + ' °' : '—'}</b></div>
    <div class="c">${T('stUnits')} <b>mm / °</b></div>

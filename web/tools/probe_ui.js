@@ -4391,7 +4391,7 @@ step('las B del 3D dicen lo mismo que las de la tabla', () => {
     click('[data-md="model"]');
     click('#tabs [data-t="model"]');               // la tabla de dobleces vive aqui
     const deLaTabla = [...document.querySelectorAll('#panes table.lra tbody tr td:first-child')]
-      .map(td => td.textContent.trim())
+      .map(td => td.textContent.replace(/⊕/g, '').trim())
       .filter(t => /^B\d+$/.test(t))
       .sort((a, b) => +a.slice(1) - +b.slice(1));
     if (!del3D.length || !deLaTabla.length) {
@@ -5274,6 +5274,82 @@ step('el verde es SOLO de las compensaciones: las tablas de base y de totales no
     S().ref = refAntes;
     window.BARCOMP.renderAll();
   }
+});
+
+/* --- MEDIR POR PUNTOS (tercer método de la pestaña MEDICIÓN) ---------------
+   Editar un PI intermedio, ver el Δ de la barra resultante, dar de alta la
+   barra objetivo y la pieza medida. P0 de punto de coincidencia: sin tramo
+   sujeto que se mueva, el residuo tiene que salir ~0. */
+const BC = () => window.BARCOMP;
+const ptN = () => BC().E.fk(BC().E.effectiveModel(BC().ST.variants.find(v => v.id === BC().ST.active) || BC().ST.variants[0])).pis.length;
+step('por puntos: el selector ofrece el tercer método y lo activa', () => {
+  click('[data-md="meas"]');
+  const b = q('[data-mm="points"]');
+  if (!b) throw new Error('sin botón');
+  b.click();
+  if (BC().ptUI.on !== true) throw new Error('ptUI.on = ' + BC().ptUI.on);
+  q('#ptboard'); q('table.pttab');
+});
+step('por puntos: teclear ΔY=5 en un PI intermedio da un Δ distinto de cero y residuo ~0 con P0', () => {
+  click('[data-md="meas"]');
+  q('[data-mm="points"]').click();
+  BC().ST.place.pivot = 0; BC().ST.anchor = 'pivot';
+  BC().renderAll();
+  const i = Math.max(1, Math.floor(ptN() / 2));
+  setval(`input[data-pe="${i}:1"]`, '5,0');
+  const R = BC().ptResult();
+  if (R.nEdit !== 1) throw new Error('nEdit = ' + R.nEdit);
+  const mov = R.bends.some(b => Math.abs(b.dAngle) > 1e-3 || Math.abs(b.dRot) > 1e-3 || Math.abs(b.dFeed) > 1e-3);
+  if (!mov) throw new Error('ningún doblez cambió');
+  if (!(R.maxResid < 0.05)) throw new Error('maxResid = ' + R.maxResid);
+  if (!document.querySelector('.pttab tr.ptchg')) throw new Error('ninguna fila resaltada');
+  const o = q(`input[data-pt="${i}:1"]`);
+  if (Math.abs(parseFloat(o.value.replace(',', '.')) - (R.rows[i].nom[1] + 5)) > 0.01) throw new Error('objetivo ' + o.value);
+});
+step('por puntos: teclear el objetivo absoluto guarda la edición', () => {
+  const i = Math.max(1, Math.floor(ptN() / 2));
+  const nom = BC().ptResult().rows[i].nom[1];
+  setval(`input[data-pt="${i}:1"]`, String(nom + 3));
+  const e = BC().ptUI.edits[i][1];
+  if (Math.abs(e - 3) > 1e-6) throw new Error('edición ' + e);
+  setval(`input[data-pe="${i}:1"]`, '5');
+});
+step('por puntos: «Crear barra objetivo» da de alta una variante nueva y activa, y un deshacer la quita', () => {
+  const antes = BC().ST.variants.length;
+  click('[data-a="ptapply"]');
+  if (BC().ST.variants.length !== antes + 1) throw new Error('variantes ' + antes + ' → ' + BC().ST.variants.length);
+  const v = BC().ST.variants.find(x => x.id === BC().ST.active);
+  if (!/pts/.test(v.name)) throw new Error('nombre ' + v.name);
+  hotkey('z', { ctrlKey: true });
+  if (BC().ST.variants.length !== antes) throw new Error('el deshacer no quitó la barra: ' + BC().ST.variants.length);
+});
+step('por puntos: una medida con +0.5 en un eje marca el error y no gasta pasos de deshacer', () => {
+  click('[data-md="meas"]');
+  q('[data-mm="points"]').click();
+  click('[data-a="ptclredit"]');
+  const nom = BC().ptResult().rows[1].nom;
+  setval('input[data-pm="1:0"]', String(nom[0] + 0.5).replace('.', ','));
+  const R = BC().ptResult();
+  if (R.nMeas !== 1 || Math.abs(R.rows[1].errN - 0.5) > 1e-6) throw new Error('nMeas ' + R.nMeas + ' errN ' + R.rows[1].errN);
+  const rowEl = document.querySelectorAll('.pttab tbody tr')[1];
+  if (!rowEl || /^—/.test(rowEl.children[13].textContent.trim())) throw new Error('la columna Error sigue en «—»');
+  const b = q('[data-a="ptmeas"]');
+  if (!b.disabled) throw new Error('«Crear pieza medida» activo sin medir todo');
+});
+step('por puntos: con todos los PI medidos, «Crear pieza medida» añade una pieza', () => {
+  const R = BC().ptResult();
+  R.rows.forEach(r => r.nom.forEach((x, a) => setval(`input[data-pm="${r.i}:${a}"]`, String(x))));
+  if (BC().ptResult().nMeas !== R.rows.length) throw new Error('nMeas ' + BC().ptResult().nMeas);
+  const antes = BC().ST.datasets.length;
+  const b = q('[data-a="ptmeas"]');
+  if (b.disabled) throw new Error('el botón sigue desactivado');
+  b.click();
+  if (BC().ST.datasets.length !== antes + 1) throw new Error('piezas ' + antes + ' → ' + BC().ST.datasets.length);
+  if (BC().ptUI.on !== true) throw new Error('salió del método');
+});
+step('por puntos: elegir otro método apaga ptUI.on', () => {
+  q('[data-mm="cloud"]').click();
+  if (BC().ptUI.on !== false) throw new Error('ptUI.on = ' + BC().ptUI.on);
 });
 
 return log.join('\n');

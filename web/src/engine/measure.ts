@@ -34,6 +34,10 @@ import { compensate } from './compensate.ts';
 export const MEAS_METHODS: readonly { id: MeasMethod; label: string }[] = Object.freeze([
   { id: 'cloud', label: 'measCloud' },
   { id: 'angles', label: 'measAngles' },
+  /* «Por puntos» es un método de PANTALLA: no crea piezas con method 'points'
+     (la pieza medida es una nube normal con src 'points'), pero el selector
+     sale de esta lista y normMethod() ya sabe leerlo */
+  { id: 'points', label: 'measPoints' },
 ]);
 
 /** ¿Hay lectura? `null`, `undefined`, NaN e infinito son «no se midió»: una

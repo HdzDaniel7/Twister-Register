@@ -25,8 +25,9 @@ import { T } from '../../i18n.ts';
 import { angUI, angleDs, angVals, angRepIdx, parseDec } from '../../panels/angles.ts';
 import { setReportVals, setReportUse, renameReport, reportsOf, renameDataset, syncPlan, setPlanName, setPlanNominal } from '../../state.ts';
 import { drawRibbon } from '../../ribbon.ts';
+import { ptUI, setPtEdit, setPtTarget, setPtMeas, setPtBoard } from '../../ptstate.ts';
 import {
-  variantById, editBend, editStraight, editStraightDelta, editTail, editDelta, editPoint, editTweak,
+  setPivot, variantById, editBend, editStraight, editStraightDelta, editTail, editDelta, editPoint, editTweak,
 } from '../actions.ts';
 
 /* --- listas blancas ------------------------------------------------------
@@ -100,8 +101,39 @@ function onChange(e: Event): void {
     if (d.orig !== undefined) t.value = d.orig;
     return;
   }
-  void (onAngles(t, d) || onScene(t, d) || onModelField(t, d) || onCell(t, d)
+  void (onPoints(t, d) || onAngles(t, d) || onScene(t, d) || onModelField(t, d) || onCell(t, d)
         || onPlacement(t, d) || onMark(t, d) || onPedestal(t, d) || onTweak(t, d));
+}
+
+/* --- medir por puntos: edición, objetivo y medida por PI y eje -----------
+   Todo es borrador de interfaz (ptUI): no toca el documento, así que el
+   commit() de después no apila nada. Un texto que no es número se descarta y
+   se devuelve lo que había; vacío es 0 en la edición, vuelve al nominal en el
+   objetivo y «sin medir» en la medida. */
+function onPoints(t: HTMLInputElement, d: DOMStringMap): boolean {
+  const key = d.pe ?? d.pt ?? d.pm;
+  if (key !== undefined) {
+    const [si, sa] = key.split(':');
+    const i = +si, ax = +sa;
+    if (!Number.isInteger(i) || !Number.isInteger(ax) || i < 0 || ax < 0 || ax > 2) return true;
+    const v = parseDec(t.value);
+    if (v === null && t.value.trim()) { t.value = d.po ?? ''; return true; }
+    if (d.pe !== undefined) setPtEdit(i, ax, v);
+    else if (d.pt !== undefined) setPtTarget(i, ax, v);
+    else setPtMeas(i, ax, v);
+    renderPanels(); rebuildScene();
+    return true;
+  }
+  if (d.pg !== undefined) {
+    const g = parseDec(t.value);
+    if (g !== null) ptUI.gain = Math.min(1, Math.max(0, g));
+    renderPanels(); rebuildScene();
+    return true;
+  }
+  if (d.pbd !== undefined) { setPtBoard(t.value); renderPanels(); rebuildScene(); return true; }
+  if (d.psh !== undefined) { ptUI.show = t.checked; rebuildScene(); return true; }
+  if (d.pnm !== undefined) { ptUI.name = t.value.trim(); return true; }
+  return false;
 }
 
 /* --- medir por ángulos: el ángulo interno reportado y el nombre ----------
@@ -429,8 +461,7 @@ function onPlacement(t: HTMLInputElement, d: DOMStringMap): boolean {
     if (n !== null) {
       /* el punto de coincidencia es común a modelos, piezas, vista y reportes:
          cambia las cifras, así que se recalculan todas las piezas medidas */
-      ST.place.pivot = n | 0; ST.anchor = 'pivot';
-      recomputeAll(); renderLeft(); renderRight(); renderStatus(); rebuildScene();
+      setPivot(n);
     }
     return true;
   }
@@ -504,6 +535,12 @@ function bindInput(): void {
       ST.view.exag = n;
       $('#exagv')!.textContent = t.value + '×';
       rebuildScene();
+    }
+    /* la ganancia de «Por puntos»: solo el número junto al deslizador; el
+       repintado entero es del `change`, al soltar */
+    if (d.pg !== undefined) {
+      const val = t.parentElement!.querySelector('.val');
+      if (val) val.textContent = (+t.value).toFixed(2);
     }
     if (d.pr !== undefined) {
       if (!setNum(ST.proc, PROC_KEYS, d.pr, t.value)) return;

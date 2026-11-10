@@ -8,9 +8,11 @@ import {
   GridHelper, BoxGeometry, SphereGeometry, OctahedronGeometry, CylinderGeometry,
   BufferGeometry, Float32BufferAttribute,
   Line, LineSegments, LineBasicMaterial, LineDashedMaterial, Mesh, MeshStandardMaterial,
-  MeshBasicMaterial,
+  MeshBasicMaterial, TorusGeometry, Matrix4, Euler,
   Color, Vector3,
 } from 'three';
+import { T } from '../i18n.ts';
+import { pivotName } from '../pivotlabel.ts';
 import * as E from '../engine.ts';
 import {
   ST, pivotK, shownPath, anchoredShownPis, refModelFree, heldResult, heldOn, heldOfVariant, placeMatrix,
@@ -18,6 +20,7 @@ import {
 } from '../state.ts';
 import { groups, cssVar, devThreeColor, ghost, solidMat, extraLabels, sharedGeometry } from './stage.ts';
 import { barGeometry } from './geometry.ts';
+import { ptVisible, ptResult, ptSceneMatrix, ptToScene, ptResultMatrix } from '../ptstate.ts';
 import type { SceneCtx } from './types.ts';
 
 /* --- rejilla y pedestales: van en `world`, que la colocación no toca ---
@@ -483,4 +486,133 @@ export function layerDev(ctx: SceneCtx): void {
       groups.dev.add(new LineSegments(g, new LineBasicMaterial({ vertexColors: true })));
     }
   }
+}
+
+/* --- punto de coincidencia -------------------------------------------- */
+/* El PI que se fija común a todos los modelos y piezas. Sin marca, cambiar el
+   pivote se notaba solo en que las barras se separaban en OTRO sitio, y había
+   que adivinar dónde estaban pegadas: el taller pidió verlo. Tres anillos en
+   los planos del marco del punto (como una mordaza vista de frente), una flecha
+   a lo largo del tramo que queda fijo y la etiqueta con el nombre. Se dibuja
+   encima de todo —sin prueba de profundidad— porque el punto suele quedar
+   DENTRO de la barra sólida, y no depende de ninguna capa: es la referencia de
+   todo lo demás que se ve. Con «mejor ajuste» no hay punto común, y no se
+   pinta nada que lo sugiera. */
+export const COIN_COLOR = '#ffcc00';
+export function layerCoin(ctx: SceneCtx): void {
+  if (ST.anchor === 'best') return;
+  const refM = refModelFree();
+  const n = E.fk(refM).pis.length;
+  const k = Math.min(Math.max(pivotK(), 0), n - 1);
+  /* La referencia anclada contra sí misma es la identidad: su PI `k` es donde
+     está pegado todo lo demás, y su marco el de la sujeción. */
+  const F = E.frameAtPi(refM, k);
+  const p = new Vector3().setFromMatrixPosition(F);
+  const sec = ctx.M.section;
+  const r = Math.max(14, 0.9 * Math.max(+(sec?.width || 0), +(sec?.thickness || 0), 20));
+  const mat = () => new MeshBasicMaterial({
+    color: COIN_COLOR, depthTest: false, transparent: true, opacity: .9,
+  });
+  /* los tres anillos: en el plano normal a la barra y en los dos que la
+     contienen. TorusGeometry nace en el plano XY, así que la normal es z. */
+  const rots: [number, number, number][] = [[0, Math.PI / 2, 0], [Math.PI / 2, 0, 0], [0, 0, 0]];
+  for (const [rx, ry, rz] of rots) {
+    const m = new Mesh(new TorusGeometry(r, Math.max(1.2, r * .07), 8, 48), mat());
+    m.matrixAutoUpdate = false;
+    m.matrix.copy(F).multiply(new Matrix4().makeRotationFromEuler(new Euler(rx, ry, rz)));
+    m.renderOrder = 999;
+    groups.coin.add(m);
+  }
+  /* el núcleo y la flecha del tramo fijo, que es el eje x del marco */
+  const core = new Mesh(new SphereGeometry(r * .28, 16, 12), mat());
+  core.position.copy(p); core.renderOrder = 999;
+  groups.coin.add(core);
+  const dir = new Vector3(1, 0, 0).transformDirection(F);
+  /* el tramo fijo es el que LLEGA al punto (ver frameAtPi), así que fuera del
+     amarre la flecha mira hacia atrás, sobre la barra y no hacia el vacío */
+  const sgn = k > 0 ? -1 : 1;
+  const tip = p.clone().addScaledVector(dir, sgn * r * 2.6);
+  const g = new BufferGeometry();
+  g.setAttribute('position', new Float32BufferAttribute(
+    [p.x, p.y, p.z, tip.x, tip.y, tip.z], 3));
+  const ln = new LineSegments(g, new LineBasicMaterial({ color: COIN_COLOR, depthTest: false }));
+  ln.renderOrder = 999;
+  groups.coin.add(ln);
+  extraLabels.push({ p: p.clone(), txt: '⊕ ' + T('aPivot').replace('{p}', pivotName()), color: COIN_COLOR });
+}
+
+/* --- método «Por puntos» ---------------------------------------------- */
+/* Lo que se le pide a la barra y lo que alcanza, sobre la propia pieza. Los
+   objetivos (`cmd`, el punto que de verdad se le pide al motor, con la
+   compensación de lo medido) van como cruces; una línea del nominal al objetivo
+   enseña cuánto y hacia dónde se mueve cada PI; lo medido, en otro color, con
+   su línea al nominal; y la barra resultante, en alambre. Si el motor no llega
+   (`resid` pasa la tolerancia de punto) una línea roja une lo que alcanza con
+   lo pedido: es el aviso de que ese objetivo no se cumple. Todo sin prueba de
+   profundidad, como el punto de coincidencia, porque los PI quedan dentro de
+   la barra sólida. Cuelga de `groups.pts`, bajo la colocación igual que las
+   variantes, y sus puntos salen en el espacio de escena de `e.A`, así que no
+   se aplica `placeMatrix` otra vez. */
+export const PTS_COLOR = '#22d3ee', PTS_MEAS_COLOR = '#ff8a3d', PTS_BAD_COLOR = '#ff3b3b';
+export function layerPts(ctx: SceneCtx): void {
+  if (!ptVisible()) return;
+  const R = ptResult();
+  const Ms = ptSceneMatrix();
+  const sec = ctx.M.section;
+  const r = Math.max(5, 0.5 * Math.max(+(sec?.width || 0), +(sec?.thickness || 0), 20));
+  const tol = ctx.M.tol?.point ?? 1;
+  const pt = (p: [number, number, number]) => ptToScene(p, Ms);
+
+  if (R.changed) {
+    const g = barGeometry(E.buildPath(R.model), R.model.section || ctx.M.section, null);
+    const w = ghost(g, PTS_COLOR, .9);
+    w.applyMatrix4(ptResultMatrix());
+    groups.pts.add(w);
+    g.dispose();
+  }
+
+  const seg: number[] = [], segMeas: number[] = [], segBad: number[] = [];
+  const push = (a: number[], p: Vector3, q: Vector3) => a.push(p.x, p.y, p.z, q.x, q.y, q.z);
+  /* cruz de tres ejes: se lee desde cualquier cámara, a diferencia de un disco */
+  const cross = (a: number[], c: Vector3, s: number) => {
+    for (const d of [[1, 0, 0], [0, 1, 0], [0, 0, 1]]) {
+      a.push(c.x - d[0] * s, c.y - d[1] * s, c.z - d[2] * s, c.x + d[0] * s, c.y + d[1] * s, c.z + d[2] * s);
+    }
+  };
+  const small: number[] = [], big: number[] = [], mcross: number[] = [];
+  for (const row of R.rows) {
+    const nom = pt(row.nom), cmd = pt(row.cmd);
+    const edited = row.edit[0] || row.edit[1] || row.edit[2];
+    const active = !!edited || !!row.meas;
+    cross(active ? big : small, cmd, active ? r : r * .4);
+    if (cmd.distanceTo(nom) > 1e-6) push(seg, nom, cmd);
+    if (row.meas) {
+      const m = pt(row.meas);
+      cross(mcross, m, r * .8);
+      push(segMeas, m, nom);
+    }
+    if (row.resid > tol) {
+      const got = pt(row.got);
+      push(segBad, got, cmd);
+      extraLabels.push({ p: got.clone(), txt: `P${row.i} ⚠ ${row.resid.toFixed(2)}`, color: PTS_BAD_COLOR });
+    }
+    if (edited) {
+      const d = Math.hypot(row.edit[0], row.edit[1], row.edit[2]);
+      extraLabels.push({ p: cmd.clone(), txt: `P${row.i} Δ${d.toFixed(2)}`, color: PTS_COLOR });
+    }
+  }
+  const lines = (a: number[], color: string, opacity = 1) => {
+    if (!a.length) return;
+    const g = new BufferGeometry();
+    g.setAttribute('position', new Float32BufferAttribute(a, 3));
+    const l = new LineSegments(g, new LineBasicMaterial({ color, depthTest: false, transparent: opacity < 1, opacity }));
+    l.renderOrder = 998;
+    groups.pts.add(l);
+  };
+  lines(small, PTS_COLOR, .45);
+  lines(big, PTS_COLOR);
+  lines(seg, PTS_COLOR, .8);
+  lines(mcross, PTS_MEAS_COLOR);
+  lines(segMeas, PTS_MEAS_COLOR, .8);
+  lines(segBad, PTS_BAD_COLOR);
 }
