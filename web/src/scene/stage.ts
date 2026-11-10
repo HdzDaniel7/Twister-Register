@@ -151,7 +151,7 @@ export function initScene(): void {
   root = new Group();
   root.matrixAutoUpdate = false;
   scene.add(root);
-  for (const k of ['nom', 'var', 'meas', 'pred', 'held', 'diff', 'dev', 'marks', 'pts', 'coin']) {
+  for (const k of ['nom', 'var', 'meas', 'pred', 'held', 'diff', 'dev', 'marks', 'pts', 'coin', 'datums', 'prox']) {
     groups[k] = new Group();
     root.add(groups[k]);
   }

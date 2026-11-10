@@ -50,10 +50,10 @@
    que sale da el ORDEN y la DIRECCIÓN, no una flecha certificada. Cuando llegue
    el escaneo del punto A.5 con la pieza montada, esto se contrasta contra ella.
    ========================================================================= */
-import { Vector3 } from 'three';
+import { Matrix4, Vector3 } from 'three';
 import { solveDense, D2R, clamp } from './math.ts';
 import { buildPath, fk, PATH_SEG } from './kinematics.ts';
-import { pedestalFit } from './fixture.ts';
+import { pedestalFit, cradleBox, placePath } from './fixture.ts';
 import { sampleAt } from './path.ts';
 import { lineLoad } from './sag.ts';
 import { sectionI } from './section.ts';
@@ -78,6 +78,9 @@ export const LOAD_DEFAULT: Readonly<Load> = Object.freeze({
   /** empuje extra en la punta libre, N. Es el dedo con el que uno prueba si la
    *  pieza se mueve, puesto donde más se nota */
   tip: 0,
+  /** mordaza: el primer extremo empotrado, que es lo que hizo siempre. Ver
+   *  `Load.hold` y la sección «MORDAZA O LIBRE» más abajo */
+  hold: 'clamp',
 });
 
 /** Cuánto más rígido es el muelle de contacto que la barra.
@@ -118,7 +121,16 @@ export const REACH = 20;
  *  estaciones y no mira ni el largo ni el avance.
  *
  *  30 y no 34 porque 30 es la última cifra medida DENTRO del presupuesto: el
- *  aviso tiene que salir antes de que se note, no cuando ya se notó. */
+ *  aviso tiene que salir antes de que se note, no cuando ya se notó.
+ *
+ *  CON LA CARGA EN «LIBRE» CUESTA MÁS, y esto no lo cubre: medido el
+ *  2026-11-10 sobre la demo (15 dobleces) con siete pedestales sembrados, la
+ *  mordaza resuelve en 45–70 ms y la pieza suelta en 65–320 ms según el
+ *  fixture —240 ms el sembrado, 320 ms con el último pedestal bajado un
+ *  milímetro—. Lo caro no son las tres incógnitas de más, que mueven la
+ *  trayectoria sin reconstruirla, sino que la búsqueda directa se rinde y
+ *  hay que ir por la rampa. Ver «MORDAZA O LIBRE» y el bloque de pruebas del
+ *  mismo nombre en test_motor.js. */
 export const LOAD_SLOW_BENDS = 30;
 
 /** Cuánto tiene que bajar el gradiente para dar la búsqueda por terminada.
@@ -158,6 +170,9 @@ export function normLoad(o: Partial<Load> | null | undefined): Load {
     /* el empuje de prueba se topa: mil newton son cien kilos colgando de la
        punta, y por encima de eso nada de este modelo sigue siendo elástico */
     tip: n(l.tip, 0, -1000, 1000),
+    /* Lo que no sea exactamente 'free' es mordaza: un archivo de antes de la
+       opción no la trae, y así se comportaba. */
+    hold: l.hold === 'free' ? 'free' : 'clamp',
   };
   /* Una dirección nula no es «sin carga», es una división por cero esperando:
      se cae a la gravedad, que es lo que el campo quiere decir el 99% de las
@@ -219,7 +234,32 @@ export type Settled = Restrained & {
   /** los apoyos que se quedaron metidos dentro de la barra más de la tolerancia,
    *  el peor primero. Vacío = la pieza cabe en el fixture. Ver `clashes()` */
   clash: Clash[];
+  /** el ASENTAMIENTO como sólido rígido, en coordenadas del taller: la
+   *  `Matrix4` (16 elementos, por columnas, como `Matrix4.elements`) que hay
+   *  que aplicar DESPUÉS de `place` para que la forma `model` quede donde la
+   *  carga la deja. Identidad con mordaza, que no se asienta. Ver
+   *  `rigidMatrix()` y la sección «MORDAZA O LIBRE» */
+  rigid: number[];
+  /** cuánto bajó por asentarse el punto de la barra que más bajó, mm, en la
+   *  dirección de la carga. Solo el sólido rígido: lo que cede cada estación
+   *  va en `drop`. 0 con mordaza */
+  rigidDrop: number;
+  /** con «libre», ¿la pieza se CAERÍA? Menos apoyos de los que hacen falta
+   *  para sostenerla —uno solo, o todos en línea con el peso fuera— y el
+   *  asentamiento no tiene equilibrio: la búsqueda se iría a buscarlo a metros.
+   *  Entonces se devuelve la cuenta CON MORDAZA y esto puesto, para que la
+   *  pantalla lo diga en vez de enseñar números de una pieza volando */
+  unstable: boolean;
 };
+
+/** Los 16 elementos de la identidad, la `rigid` de todo lo que no se asienta. */
+const IDENT = Object.freeze(new Matrix4().elements.slice()) as readonly number[];
+
+/** La transformación del asentamiento como `Matrix4`. Va DESPUÉS de `place`:
+ *  `placePath(rigidMatrix(r).multiply(P), s)` es la pieza donde la carga la
+ *  deja, si `P` es la matriz con la que se le pasó `place` a `settle()`. */
+export const rigidMatrix = (r: Pick<Settled, 'rigid'>): Matrix4 =>
+  new Matrix4().fromArray(r.rigid && r.rigid.length === 16 ? r.rigid : IDENT as number[]);
 
 /** Un contacto candidato, congelado con la pieza sin cargar. */
 type Touch = {
@@ -248,7 +288,7 @@ function noLoad(r: Restrained, nPin: number, nPed: number, noMat: boolean,
     pinBlind: new Array<boolean>(nPin).fill(noDof),
     pedBlind: new Array<boolean>(nPed).fill(noDof),
     pene: 0, drop: 0, dropAt: -1, weight, carried: 0, root: weight, noMat, noDof,
-    clash: [],
+    clash: [], rigid: IDENT.slice(), rigidDrop: 0, unstable: false,
   };
 }
 
@@ -277,6 +317,13 @@ type Problem = {
   gapOf: (p: PathSample[], c: Touch) => number;
   potential: (p: PathSample[]) => number;
   phi: (u: number[], p: PathSample[]) => number;
+  /** la pieza colocada para unas incógnitas `u`. Con mordaza es
+   *  `place(buildPath(withDelta(model, u)))`, la cuenta de siempre; con
+   *  «libre» lleva además el asentamiento rígido de las tres últimas */
+  shape: (u: number[]) => PathSample[];
+  /** cuántas de las incógnitas, al final de `u`, son del sólido rígido: 0 con
+   *  mordaza, 3 con «libre» */
+  nr: number;
 };
 
 /** Los apoyos que pueden llegar a tocar.
@@ -330,7 +377,7 @@ type Equilibrium = {
  *  se encienden y se apagan durante la búsqueda —la pieza se despega de un pin y
  *  se apoya en otro— y eso pide iteraciones. */
 function equilibrium(pb: Problem, path0: PathSample[], u0: number[] | null): Equilibrium {
-  const { model, opt, place, doRot, nu, K, kap, cs, gapOf, potential, phi } = pb;
+  const { opt, nu, nr, K, kap, cs, gapOf, potential, phi, shape } = pb;
   /* Desde cero en la primera pasada; en las siguientes, desde lo que ya cedió
      cada estación, con `path0` construida sobre ese mismo `u0`. */
   const u = u0 ? u0.slice() : new Array<number>(nu).fill(0);
@@ -372,7 +419,7 @@ function equilibrium(pb: Problem, path0: PathSample[], u0: number[] | null): Equ
     for (let j = 0; j < nu; j++) {
       const up = [...u];
       up[j] += H;
-      const pp = place(buildPath(withDelta(model, up, doRot), PATH_SEG).samples);
+      const pp = shape(up);
       dV.push((potential(pp) - V0) / H);
       J.push(cs.map((c, k) => (gapOf(pp, c) - g0[k]) / H));
     }
@@ -473,7 +520,7 @@ function equilibrium(pb: Problem, path0: PathSample[], u0: number[] | null): Equ
     let done = false;
     for (let back = 0; back < 8; back++) {
       const un = u.map((v, i) => v + step[i] * f);
-      const pn = place(buildPath(withDelta(model, un, doRot), PATH_SEG).samples);
+      const pn = shape(un);
       const Fn = phi(un, pn);
       if (Fn <= F) {
         for (let i = 0; i < nu; i++) u[i] = un[i];
@@ -481,6 +528,49 @@ function equilibrium(pb: Problem, path0: PathSample[], u0: number[] | null): Equ
         break;
       }
       f /= 2;
+    }
+    /* CON «LIBRE», UN SEGUNDO INTENTO SOLO CON EL SÓLIDO RÍGIDO antes de
+       rendirse. El hueco contra una cuna no es suave del todo: la búsqueda del
+       punto más cercano toma el marco de la sección del principio de cada
+       tramo de la polilínea, así que al rodar una estación el mínimo puede
+       saltar de tramo y el hueco con él —medido sobre la demo sembrada: 14 µm
+       por una cienmilésima de grado de rodado, con una cuna justo bajo el
+       primer doblez—. Con el muelle de contacto entero ese salto vale más que
+       lo que el paso gana, y el paso de Newton no baja Φ ni partido ocho veces.
+       Moviendo SOLO la pieza entera no cambia ningún marco, y eso es casi
+       siempre lo que falta para que el peso quede en los apoyos: sin esto, la
+       demo con el último pedestal bajado un milímetro se quedaba con 4.5 N
+       que no llevaba nadie. */
+    if (!done && nr) {
+      const g = gradWith(llega);
+      const A: number[][] = [];
+      const b: number[] = [];
+      for (let i = nu - nr; i < nu; i++) {
+        const row = new Array<number>(nr).fill(0);
+        for (let k = 0; k < cs.length; k++) {
+          if (!llega[k]) continue;
+          for (let j = nu - nr; j < nu; j++) row[j - nu + nr] += kap * J[i][k] * J[j][k];
+        }
+        row[i - nu + nr] += K[i] * (1 + Math.max(1e-3, opt.damp));
+        A.push(row);
+        b.push(-g[i]);
+      }
+      const sr = solveDense(A, b);
+      if (sr) {
+        const bigR = Math.max(...sr.map(Math.abs));
+        let fr = bigR > 5 ? 5 / bigR : 1;
+        for (let back = 0; back < 8 && !done; back++) {
+          const un = u.slice();
+          for (let j = 0; j < nr; j++) un[nu - nr + j] += sr[j] * fr;
+          const pn = shape(un);
+          const Fn = phi(un, pn);
+          if (Fn <= F) {
+            for (let i = 0; i < nu; i++) u[i] = un[i];
+            P = pn; F = Fn; done = true;
+          } else fr /= 2;
+        }
+        if (done) continue;
+      }
     }
     /* Ni partiendo el paso ocho veces baja la energía, y el gradiente de arriba
        decía que todavía había por dónde bajar.
@@ -537,11 +627,48 @@ function reactions(pb: Problem, P: PathSample[], blind: boolean[]
       if (n.lengthSq() > 1e-12) carried += R * n.normalize().dot(dir);
     } else {
       pedN[c.k] += R;
-      /* Un pedestal empuja hacia arriba y punto: es una cuna, no una mordaza. */
-      carried += -R * dir.z;
+      /* Un pedestal empuja según la NORMAL DE SU CUNA, no «hacia arriba»: el
+         hueco se mide contra esa cara (ver `cradleBox()`), así que la fuerza
+         del muelle va por ahí. Hasta el 2026-11-10 se sumaba `−R·dir.z`, que es
+         lo mismo con la cuna tendida —n = (0, 0, 1) da exactamente `−R·dz`, bit
+         a bit— y con la cuna inclinada contaba como carga lo que es empuje de
+         lado: una cuna a 30° sostiene cos 30° = 0.87 de lo que empuja, no todo.
+         La parte horizontal la aguanta lo que fije la pieza en planta (los
+         pines, el rozamiento), que este modelo no reparte. Y si la barra no
+         apoya en la cara sino en el CANTO de la cuna, empuja el canto: ver
+         `cradlePush()`. */
+      carried += -R * cradlePush(peds[c.k], P, c.k, pb).dot(dir);
     }
   }
   return { pinN, pedN, pinBlind, pedBlind, pene, carried };
+}
+
+/** Hacia dónde empuja una cuna a la barra: unitario, del pedestal a la pieza.
+ *
+ *  Es la MISMA dirección que mide `nearestToBox()`, y tiene que serlo: el
+ *  muelle empuja según el gradiente del hueco, y contar la fuerza en otra
+ *  dirección es descuadrar la suma. Dos casos:
+ *
+ *  · la barra apoya DENTRO de la cara: la normal de la cuna, `e[2]`;
+ *  · la barra apoya en el CANTO —una cuna con la inclinación o el rumbo un
+ *    poco cruzados toca por la punta de la chapa—: la recta que va del punto
+ *    del canto más cercano al eje de la barra.
+ *
+ *  Lo segundo no es un detalle: sobre la demo sembrada, tres de los cinco
+ *  pedestales que llevan peso tocan por el canto, y con la normal de la cara
+ *  la suma vertical salía 21.97 N sobre una pieza de 23.67 asentada en
+ *  equilibrio —el 7 % del peso «perdido» entre la cara y el canto—. */
+function cradlePush(ped: Pedestal, P: PathSample[], k: number, pb: Problem): Vector3 {
+  const box = cradleBox(ped);
+  const [u, v, n] = box.e;
+  const f = pedestalFit(P, pb.sec, pb.peds[k]);
+  if (!f) return n;
+  const D = sampleAt(P, f.s).p.clone().sub(box.c);
+  const a = u.dot(D), b = v.dot(D);
+  if (Math.abs(a) <= box.h[0] && Math.abs(b) <= box.h[1]) return n;
+  const ca = clamp(a, -box.h[0], box.h[0]), cb = clamp(b, -box.h[1], box.h[1]);
+  D.addScaledVector(u, -ca).addScaledVector(v, -cb);
+  return D.lengthSq() > 1e-24 ? D.normalize() : n;
 }
 
 /** La rampa del muelle de contacto, en fracciones de κ.
@@ -562,6 +689,113 @@ const KAP_RAMP = [1e-3, 1e-2, 1e-1, 1];
  *  —con los apoyos de la última pasada— y dónde acabó la pieza. */
 type Solved = { pb: Problem; eq: Equilibrium; it: number };
 
+/* =========================================================================
+   MORDAZA O LIBRE — y por qué hace falta la segunda.
+
+   Las incógnitas de arriba son los codos de las estaciones, y nada más. Eso
+   deja el primer extremo de la barra CLAVADO donde lo pone `place`: la pieza
+   está empotrada en su raíz, y `root = weight − carried` es lo que aguanta esa
+   mordaza. Con el fixture del taller —que tiene mordaza en el primer extremo,
+   confirmado el 2026-09-15— es la cuenta correcta y sigue siendo la de fábrica.
+
+   Pero una pieza puesta SIN mordaza sobre unas cunas no hace eso. Primero se
+   ASIENTA como un sólido: baja, cabecea y se ladea hasta apoyar en lo que
+   tenga debajo, y solo después flecta. Y las dos cosas no son del mismo orden:
+
+   · el asentamiento es de MILÍMETROS: un pedestal un milímetro bajo deja la
+     pieza hasta un milímetro más abajo en ese sitio, y cabeceada en proporción;
+   · la flecha elástica entre siete pedestales es de MICRAS. Con 40×12 de
+     aluminio (w ≈ 0.0127 N/mm, E = 69 GPa, de plano I = 5760 mm⁴), un vano
+     biapoyado de 300 mm se cuelga 5wL⁴/384EI ≈ 0.003 mm, y uno de 1000 mm
+     ≈ 0.4 mm.
+
+   Con la mordaza, todo lo que un fixture mal nivelado le hace a la pieza tiene
+   que salir por los codos de las estaciones, que es pedirle a la barra que se
+   doble para tocar lo que, suelta, tocaría moviéndose entera.
+
+   LAS INCÓGNITAS de «libre» son las de mordaza MÁS TRES de sólido rígido,
+   aplicadas DESPUÉS de `place`:
+
+       tz   bajar/subir, mm, en la z del taller
+       rx   ladearse alrededor de x, grados
+       ry   cabecear alrededor de y, grados
+
+   girando alrededor del CENTRO DE MASAS de la pieza colocada y sin cargar.
+   Grados como los codos y milímetros como todo lo demás, así que el paso
+   topado a 5 de `equilibrium()` sigue significando lo mismo. El giro en planta
+   y el desplazamiento horizontal (tx, ty, rz) NO se sueltan, y es a propósito:
+   sin rozamiento en el modelo nada los restringe salvo los pines, y una pieza
+   en un fixture de verdad la pone en planta quien la monta. Soltarlos sería
+   dejar que la regularización de abajo decidiera dónde queda la pieza en la
+   mesa, y eso no es física. Por lo mismo, con la carga inclinada (dx o dy
+   distintos de cero) la parte horizontal la aguanta esa sujeción en planta y
+   sale en `root`.
+
+   LA REGULARIZACIÓN. Un sólido rígido no tiene rigidez: K = 0 en esas tres
+   direcciones, y en cualquiera que los apoyos no restrinjan —todas, antes de
+   que la pieza toque— el sistema de Newton es singular. Se le pone un muelle
+   MUY blando, y su tamaño se elige por lo que cuesta en la respuesta:
+
+       k_t = RIGID_REG · peso / 1 mm          (N/mm)
+       k_r = k_t · (ρ · π/180)²               (N·mm/grado²)
+
+   o sea, cada milímetro que la pieza se asienta le roba a los apoyos una
+   diezmilésima del peso (`RIGID_REG = 1e-4`), y un grado de giro cuesta lo
+   mismo que mover ρ·π/180 mm el punto típico de la barra —`ρ` es el radio de
+   giro alrededor del centro de masas—. Sobre la demo (23.7 N): 2.4 mN por
+   milímetro, frente a un muelle de contacto de ~6 000 N/mm. El número de
+   condición sube de 1e5 (ver CONTACT_K) a κ/k_t ≈ 2.6e6 por apoyo, ~1e7 con
+   siete, que en doble precisión sigue dejando nueve cifras de margen.
+
+   CUÁNDO SE CAE. Con menos apoyos de los que hacen falta —uno solo lejos del
+   centro de masas, o una fila con el peso a un lado— no hay equilibrio rígido,
+   y lo único que para la pieza es el muelle de regularización: diez metros más
+   abajo. La búsqueda avanza a pasos topados de 5 mm hasta agotar las vueltas.
+   Eso se detecta (`unstable`) y se devuelve la cuenta con mordaza, para no
+   enseñar números de una pieza en el aire.
+   ========================================================================= */
+
+/** Fracción del peso que le cuesta a los apoyos cada milímetro de
+ *  asentamiento: el muelle de regularización del sólido rígido. Ver arriba. */
+export const RIGID_REG = 1e-4;
+
+/** A partir de cuánto se da por caída una pieza «libre»: la fracción del peso
+ *  que puede quedarse sin llevar nadie (la lleva el muelle de regularización,
+ *  o sea nadie) antes de decir que no está apoyada. El 5 % deja sitio al error
+ *  del muelle de contacto y a lo que se lleva la regularización —2.4 mN/mm
+ *  sobre la demo—, y una pieza que se cae lo supera con mucho. */
+const FALL_FRAC = 0.05;
+
+/** El sólido rígido de «libre»: alrededor de qué gira y sus dos muelles. */
+type Rig = { C: Vector3; kt: number; kr: number };
+
+/** La matriz de un asentamiento (tz mm, rx y ry grados) alrededor de `C`. */
+function rigidAt(C: Vector3, tz: number, rx: number, ry: number): Matrix4 {
+  return new Matrix4().makeTranslation(C.x, C.y, C.z + tz)
+    .multiply(new Matrix4().makeRotationX(rx * D2R))
+    .multiply(new Matrix4().makeRotationY(ry * D2R))
+    .multiply(new Matrix4().makeTranslation(-C.x, -C.y, -C.z));
+}
+
+/** El centro de masas y el radio de giro de la pieza colocada, con los mismos
+ *  pesos por muestra que `potential`, y de ahí los muelles de regularización. */
+function rigOf(p: PathSample[], weight: number): Rig {
+  const wOf = (i: number): number => {
+    const a = i ? p[i - 1].s : p[0].s;
+    const b = i + 1 < p.length ? p[i + 1].s : p[p.length - 1].s;
+    return (b - a) / 2;
+  };
+  const C = new Vector3();
+  let m = 0;
+  for (let i = 0; i < p.length; i++) { const wi = wOf(i); C.addScaledVector(p[i].p, wi); m += wi; }
+  if (m > 0) C.multiplyScalar(1 / m);
+  let r2 = 0;
+  for (let i = 0; i < p.length; i++) r2 += wOf(i) * p[i].p.distanceToSquared(C);
+  const rho = Math.sqrt(m > 0 ? r2 / m : 0) || 1;
+  const kt = RIGID_REG * Math.max(weight, 1e-9);
+  return { C, kt, kr: kt * (rho * D2R) ** 2 };
+}
+
 /** Plantea el contacto y lo resuelve: la carga, la rigidez, el muelle, las
  *  pasadas y, si hace falta, la rampa.
  *
@@ -572,11 +806,31 @@ type Solved = { pb: Problem; eq: Equilibrium; it: number };
 function solveContacts(model: Model, pins: Pin[], peds: Pedestal[], sec: Section,
                        opt: Restraint, place: (s: PathSample[]) => PathSample[],
                        path0: PathSample[], w: number, tip: number, dir: Vector3,
-                       E0: number): Solved {
+                       E0: number, rig: Rig | null = null): Solved {
   const doRot = !!opt.doRot;
   const nb = model.bends.length;
-  const nu = doRot ? 2 * nb : nb;
+  const ns = doRot ? 2 * nb : nb;
+  /* Con «libre», tres incógnitas más al final: tz, rx, ry. Ver «MORDAZA O
+     LIBRE». Sin `rig` todo lo de abajo es la cuenta de siempre. */
+  const nu = rig ? ns + 3 : ns;
   const total = path0[path0.length - 1].s;
+
+  /* La pieza para unas incógnitas. Con mordaza, la línea que estaba escrita en
+     los dos sitios del bucle. Con «libre», la forma de las estaciones se
+     guarda: las columnas del jacobiano de las tres incógnitas rígidas no
+     cambian ningún codo, y reconstruir la trayectoria es lo caro; mover la
+     que ya hay es una multiplicación por muestra. */
+  let memoU: number[] | null = null, memoP: PathSample[] = [];
+  const shape = (u: number[]): PathSample[] => {
+    if (!rig) return place(buildPath(withDelta(model, u, doRot), PATH_SEG).samples);
+    let same = memoU !== null;
+    for (let i = 0; same && i < ns; i++) same = memoU![i] === u[i];
+    if (!same) {
+      memoP = place(buildPath(withDelta(model, u, doRot), PATH_SEG).samples);
+      memoU = u.slice(0, ns);
+    }
+    return placePath(rigidAt(rig.C, u[ns], u[ns + 1], u[ns + 2]), memoP);
+  };
 
   /* El hueco con signo de un contacto. Positivo = sobra aire; negativo = el
      apoyo está metido dentro de la barra y por tanto empujando.
@@ -627,6 +881,10 @@ function solveContacts(model: Model, pins: Pin[], peds: Pedestal[], sec: Section
     K.push(E0 * Ia / span[i] * D2R * D2R);
     if (doRot) K.push(ROT_STIFF_FAC * E0 * Ia / span[i] * D2R * D2R);
   }
+  /* El sólido rígido no tiene rigidez: lo que va aquí es la regularización, y
+     por eso entra también en la energía —es un muelle de verdad, aunque
+     blando—: así el gradiente y Φ cuentan la misma historia. */
+  if (rig) K.push(rig.kt, rig.kr, rig.kr);
   const kap = CONTACT_K * E0 * Ia / Math.max(1, total ** 3);
 
   const elastic = (u: number[]): number => {
@@ -654,6 +912,7 @@ function solveContacts(model: Model, pins: Pin[], peds: Pedestal[], sec: Section
       };
       const pb: Problem = {
         model, sec, pins, peds, opt, place, doRot, nu, K, kap: kapNow, dir, cs, gapOf, potential, phi,
+        shape, nr: rig ? 3 : 0,
       };
       const eq = equilibrium(pb, P0, u1);
       it += eq.it;
@@ -669,18 +928,31 @@ function solveContacts(model: Model, pins: Pin[], peds: Pedestal[], sec: Section
     }
   };
 
-  const directo = run(kap, path0, null, []);
+  /* Con «libre» se arranca de la pieza ya pasada por `shape`: la misma
+     colocación con el asentamiento a cero, para que la energía del primer
+     paso y la de los siguientes salgan de la misma cuenta. */
+  const start = rig ? shape(new Array<number>(nu).fill(0)) : path0;
+  const directo = run(kap, start, null, []);
   const dentro = (s: Solved): number => worstPenetration(s.eq.P, sec, pinsOn, peds);
-  if (dentro(directo) <= lim) return directo;
+  /* Con «libre» también se tira de la rampa si la búsqueda directa se rindió:
+     un hueco que salta —una cuna sembrada justo bajo un doblez lo hace,
+     14 µm por una cienmilésima de grado de rodado— frena el primer paso con
+     el muelle entero, y con el muelle blando se cruza. Con mordaza no se toca:
+     es la cuenta de siempre. */
+  if (dentro(directo) <= lim && !(rig && directo.eq.stuck)) return directo;
   /* Quedó algo metido: la rampa, desde la pieza libre. Se queda la que menos se
      mete de las dos, y las iteraciones se cuentan todas, que se gastaron. */
   let rampa: Solved | null = null, it = directo.it;
   for (const f of KAP_RAMP) {
-    rampa = run(kap * f, rampa ? rampa.eq.P : path0, rampa ? rampa.eq.u : null,
+    rampa = run(kap * f, rampa ? rampa.eq.P : start, rampa ? rampa.eq.u : null,
                 rampa ? rampa.pb.cs : []);
     it += rampa.it;
   }
-  const mejor = rampa && dentro(rampa) < dentro(directo) ? rampa : directo;
+  /* Con «libre» y la directa rendida en el sitio, la directa no se mete en
+     nada porque no se movió: compararlas por lo que se meten elegiría siempre
+     la que no hizo nada. Ahí gana la rampa si llegó y cabe. */
+  const rendida = !!rig && directo.eq.stuck && !!rampa && dentro(rampa) <= lim;
+  const mejor = rendida || (rampa && dentro(rampa) < dentro(directo)) ? rampa! : directo;
   return { ...mejor, it };
 }
 
@@ -735,39 +1007,98 @@ function settleShape(model: Model, pins: Pin[], peds: Pedestal[], sec: Section,
     return noLoad(held(), pins.length, peds.length, true, weight);
   }
   if (!w && !tip) return noLoad(held(), pins.length, peds.length, false, weight);
-  /* Y sin estaciones no hay incógnitas: el peso se sabe, el reparto no. */
-  if (!nu) return noLoad(held(), pins.length, peds.length, false, weight, true);
+  /* Y sin estaciones, con mordaza, no hay incógnitas: el peso se sabe, el
+     reparto no. Suelta sí las hay —las tres del sólido rígido— y una recta
+     posada en sus cunas se asienta como cualquier otra pieza. */
+  const sinDof = (): Settled => noLoad(held(), pins.length, peds.length, false, weight, true);
+  if (load.hold !== 'free') return nu ? solved(null) : sinDof();
 
-  const { pb, eq, it } = solveContacts(model, pins, peds, sec, opt, place, path0, w, tip, dir, E0);
-  const { u, P, stuck, blind } = eq;
-  const { cs, gapOf } = pb;
-  const { pinN, pedN, pinBlind, pedBlind, pene, carried } = reactions(pb, P, blind);
+  /* «Libre»: ver la sección MORDAZA O LIBRE. Si no hay NADA debajo que pueda
+     tocar no se busca —la pieza cae y punto—; si lo hay, se busca y se mira
+     después si de verdad quedó apoyada. Caída, la cuenta con mordaza. */
+  const mordaza = (): Settled => ({ ...(nu ? solved(null) : sinDof()), unstable: true });
+  if (!touches(path0, sec, pins, peds, opt).length) return mordaza();
+  const r = solved(rigOf(path0, weight));
+  return r.unstable ? mordaza() : r;
 
-  const model2 = withDelta(model, u, doRot);
-  const kink = kinksOf(u, nb, doRot);
-  const { curv, stress, worst, worstAt } = elasticReport(kink, stationSpans(model), sec, mat);
+  /** Resuelve el contacto y junta el resultado; con `rig`, la pieza suelta. */
+  function solved(rig: Rig | null): Settled {
+    const { pb, eq, it } = solveContacts(model, pins, peds, sec, opt, place, path0, w, tip, dir, E0, rig);
+    const { u, P, stuck, blind } = eq;
+    const { cs, gapOf } = pb;
+    const { pinN, pedN, pinBlind, pedBlind, pene, carried } = reactions(pb, P, blind);
 
-  /* Cuánto se movió la pieza: contra la LIBRE, que es la forma que tendría sin
-     fixture y sin peso. Incluye por tanto lo que hacen los pines y lo que hace
-     la carga; separarlas es apagar la carga y mirar el mismo número. */
-  const a = fk(model).pis, b = fk(model2).pis;
-  let drop = 0, dropAt = -1;
-  for (let i = 0; i < Math.min(a.length, b.length); i++) {
-    const d = a[i].distanceTo(b[i]);
-    if (d > drop) { drop = d; dropAt = i; }
+    const model2 = withDelta(model, u, doRot);
+    const kink = kinksOf(u.slice(0, nu), nb, doRot);
+    const { curv, stress, worst, worstAt } = elasticReport(kink, stationSpans(model), sec, mat);
+
+    /* Cuánto se movió la pieza: contra la LIBRE, que es la forma que tendría sin
+       fixture y sin peso. Incluye por tanto lo que hacen los pines y lo que hace
+       la carga; separarlas es apagar la carga y mirar el mismo número. */
+    const a = fk(model).pis, b = fk(model2).pis;
+    let drop = 0, dropAt = -1;
+    /* Con «libre» el movimiento se mide en la MESA y con el asentamiento
+       puesto: separar «lo que cedieron las estaciones» de «lo que se movió
+       entera» no es único —doblar la primera estación y girar la pieza al
+       revés deja igual todo menos el primer tramo—, y lo que no depende de
+       cómo se reparta es dónde acaba cada PI. */
+    const Rg = rig ? rigidAt(rig.C, u[nu], u[nu + 1], u[nu + 2]) : null;
+    const enMesa = (v: Vector3[], R: Matrix4 | null): Vector3[] => {
+      const X = new Vector3(1, 0, 0), Y = new Vector3(0, 1, 0), Z = new Vector3(0, 0, 1);
+      const q = place(v.map(p => ({ p, x: X, y: Y, z: Z, s: 0 }))).map(o => o.p);
+      return R ? q.map(p => p.clone().applyMatrix4(R)) : q;
+    };
+    const aa = Rg ? enMesa(a, null) : a, bb = Rg ? enMesa(b, Rg) : b;
+    for (let i = 0; i < Math.min(aa.length, bb.length); i++) {
+      const d = aa[i].distanceTo(bb[i]);
+      if (d > drop) { drop = d; dropAt = i; }
+    }
+
+    const res = cs.filter(c => c.pin).map(c => gapOf(P, c));
+
+    /* El asentamiento: la matriz, cuánto bajó el punto que más bajó, cuánto se
+       movió el que más, y si con eso la pieza está apoyada o cayéndose.
+       Se mide con la pieza ENTERA —la que dejan el sólido rígido y los codos
+       juntos, `P`— contra la colocada sin cargar, muestra a muestra por su `s`.
+       Solo con la parte rígida no: el reparto entre «se movió entera» y «cedió
+       la primera estación» no es único (ver el `drop` de arriba), y medido así
+       la demo sembrada salía con 0.37 mm de «asentamiento» que los codos
+       deshacían. */
+    let rigid = IDENT.slice(), rigidDrop = 0, unstable = false;
+    if (rig && Rg) {
+      rigid = Rg.elements.slice();
+      let mueve = 0;
+      const q = new Vector3();
+      for (const s of path0) {
+        q.copy(sampleAt(P, s.s).p).sub(s.p);
+        rigidDrop = Math.max(rigidDrop, q.dot(dir));
+        mueve = Math.max(mueve, q.length());
+      }
+      /* Caída: se fue más allá de donde un apoyo la puede alcanzar (REACH), o
+         —con la búsqueda LLEGADA y la carga a plomo, que es cuando los apoyos
+         tienen que llevarlo todo— una parte del peso no la lleva nadie.
+         Una búsqueda que se rindió cerca de donde empezó NO es una caída: es
+         una búsqueda que no llegó, y eso ya lo dice `ok`. Confundirlas era
+         decir «se cae» de una pieza bien apoyada sobre cinco pedestales a la
+         que el solver no supo terminar de asentar. */
+      unstable = mueve > REACH
+        || (!stuck && Math.abs(dir.z) > 0.99 && Math.abs(weight - carried) > FALL_FRAC * weight);
+    }
+    return {
+      model: model2, kink, curv, stress, worst, worstAt,
+      /* `ok` aquí quiere decir «la búsqueda llegó a un mínimo», no «todos los
+         contactos cerrados»: con apoyos unilaterales, un contacto ABIERTO es una
+         solución correcta y no un residuo que haya que perseguir. */
+      res, ok: !stuck, iters: it,
+      held: cs.filter(c => c.pin && pinN[c.k] > 0).map(c => c.k),
+      pinN, pedN, pinBlind, pedBlind, pene, drop, dropAt,
+      /* Con «libre», `root` deja de ser una mordaza: es lo que no lleva ningún
+         apoyo —la regularización, y la parte horizontal de una carga inclinada—
+         y con la pieza bien apoyada tiene que salir ≈ 0. */
+      weight, carried, root: weight - carried, noMat: false, noDof: false, clash: [],
+      rigid, rigidDrop, unstable,
+    };
   }
-
-  const res = cs.filter(c => c.pin).map(c => gapOf(P, c));
-  return {
-    model: model2, kink, curv, stress, worst, worstAt,
-    /* `ok` aquí quiere decir «la búsqueda llegó a un mínimo», no «todos los
-       contactos cerrados»: con apoyos unilaterales, un contacto ABIERTO es una
-       solución correcta y no un residuo que haya que perseguir. */
-    res, ok: !stuck, iters: it,
-    held: cs.filter(c => c.pin && pinN[c.k] > 0).map(c => c.k),
-    pinN, pedN, pinBlind, pedBlind, pene, drop, dropAt,
-    weight, carried, root: weight - carried, noMat: false, noDof: false, clash: [],
-  };
 
   /** El amarre sin carga: `restrain()`, salvo que deje la barra metida dentro
    *  de un apoyo. Ver la cabecera de `settle()`. */
@@ -816,7 +1147,11 @@ export function settle(model: Model, pins: Pin[], peds: Pedestal[], sec: Section
   const s = settleShape(model, pins, peds, sec, opt, mat, load, place);
   if (!opt.on && !load.on) return s;
   const lim = Math.max(model.tol.point, opt.tol);
-  const P = place(buildPath(s.model, PATH_SEG).samples);
+  /* La pieza donde de verdad queda: con «libre», asentada. Con mordaza la
+     matriz es la identidad y no se toca nada, ni un bit. */
+  const P0 = place(buildPath(s.model, PATH_SEG).samples);
+  const Rg = rigidMatrix(s);
+  const P = Rg.equals(new Matrix4()) ? P0 : placePath(Rg, P0);
   return { ...s, clash: clashes(P, sec, opt.on ? pins : [], peds, lim) };
 }
 

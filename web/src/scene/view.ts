@@ -21,7 +21,7 @@ function modelBox() {
     if (!v.visible) continue;
     const vm = E.effectiveModel(v);
     const forma = refHeldOn() ? heldOfVariant(v).model : vm;
-    E.applyMat(E.anchorTransform(vm, ref, ST.anchor, pivotK()), E.fk(forma).pis)
+    E.applyMat(E.anchorTransform(vm, ref, ST.anchor, pivotK(), ST.datums), E.fk(forma).pis)
       .forEach(p => { box.expandByPoint(p.applyMatrix4(W)); any = true; });
   }
   if (!any) E.fk(ST.model!).pis.forEach(p => box.expandByPoint(p.clone().applyMatrix4(W)));

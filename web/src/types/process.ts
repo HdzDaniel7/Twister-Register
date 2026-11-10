@@ -146,6 +146,18 @@ export type Load = {
   dz: number;
   /** empuje extra en el extremo libre, N, en la misma dirección */
   tip: number;
+  /** CÓMO está sujeta la pieza mientras pesa.
+   *
+   *  · `'clamp'` —mordaza— es lo de siempre: el primer extremo queda EMPOTRADO
+   *    donde lo deja la colocación y lo que los apoyos no llevan lo aguanta él
+   *    (`root`). Es el fixture con mordaza que el taller confirmó.
+   *  · `'free'` —libre— suelta la pieza: antes de flectar se ASIENTA como un
+   *    sólido rígido sobre las cunas (baja, cabecea y se ladea hasta apoyar), y
+   *    el peso entero lo tienen que llevar los apoyos.
+   *
+   *  Opcional en el tipo por los archivos de antes: `normLoad()` lo rellena con
+   *  `'clamp'`, que es exactamente como se comportaban. */
+  hold?: 'clamp' | 'free';
 };
 
 /** Lo que devuelve `deviations()`: una pieza medida contra su nominal. */

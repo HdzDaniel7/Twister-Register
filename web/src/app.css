@@ -767,3 +767,24 @@ input[type=text].ptin::placeholder{color:var(--dim);opacity:.5}
 .pttab th.ptg.ed{color:#6aa9ff}.pttab th.ptg.ms{color:var(--warn)}.pttab th.ptg.tg{color:var(--ok)}
 .pttab tr.ptchg td{background:rgba(255,176,46,.10)}
 .ptsw{display:inline-block;width:12px;height:12px;border-radius:3px;margin-left:6px;flex:none}
+/* rastreador de cercanía (Vista) */
+.prxleg{display:flex;flex-wrap:wrap;gap:4px 10px;margin:8px 0 4px;font-size:11px;color:var(--dim);font-variant-numeric:tabular-nums}
+.prxlg{display:inline-flex;align-items:center;gap:5px}
+.prxsw{display:inline-block;width:22px;height:10px;border-radius:2px;border:1px solid var(--line)}
+.prxstats{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:6px}
+
+
+/* varios puntos de coincidencia (anclaje 'datums'): una tarjeta por punto.
+   Con selectores de tipo para ganarle a las reglas globales de campo. */
+.dtpane{margin-top:6px}
+.dtcard{border:1px solid var(--line);border-radius:4px;background:var(--panel2);padding:4px 6px;margin-bottom:4px}
+.dtcard.off{opacity:.55}
+.dtl1,.dtl2{display:flex;align-items:center;gap:4px;flex-wrap:nowrap;min-width:0}
+.dtl2{margin-top:4px;font-size:11.5px;flex-wrap:wrap}
+.dtcard input[type=text],.dtcard input[type=number],.dtcard select{width:auto;min-width:0;box-sizing:border-box;padding:2px 3px;font-size:11px}
+.dtl1 input[type=text].nm{flex:1 1 0;width:0}
+.dtl1 select{flex:0 0 auto}
+.dtcard input[type=number].dtf,.dtcard input[type=number].dtw{width:44px;flex:0 0 auto}
+.dtax{display:inline-flex;align-items:center;gap:2px;color:var(--dim);flex:0 0 auto}
+.dtq{padding:1px 4px;font-size:10px;flex:0 0 auto}
+.dtr{margin-left:auto;font-variant-numeric:tabular-nums;white-space:nowrap}

@@ -31,6 +31,8 @@ import { PIN_DEFAULT, normMat, RESTRAINT_DEFAULT } from './pins.ts';
 import { normLoad } from './load.ts';
 import type { MachineFmt } from './machine.ts';
 import { PLACE_DEFAULT } from './fitting.ts';
+import { normDatum } from './datums.ts';
+import type { Datum } from './datums.ts';
 import { safeColor } from '../safe.ts';
 
 export const SCHEMA = 'barcomp/2.6';
@@ -134,6 +136,8 @@ export type ToDocExtra = {
   place?: Partial<Place>;
   marks?: Mark[];
   fixture?: Pedestal[];
+  /** los puntos de coincidencia del anclaje 'datums'. Ver engine/datums.ts */
+  datums?: Datum[];
   pins?: Pin[];
   restraint?: Restraint;
   load?: Load;
@@ -217,6 +221,11 @@ export function toDoc(
     })),
     /* Los pines van sin `id`, igual que las cotas y los pedestales: es un
        número de orden que se reasigna al abrir. */
+    /* Los puntos de coincidencia, SOLO si hay: un documento sin ellos sale
+       idéntico al de antes y el deshacer, que compara texto, no se entera.
+       Clave que añade y no reinterpreta, así que no sube SCHEMA. */
+    ...(extra.datums && extra.datums.length
+      ? { datums: extra.datums.map(x => normDatum(x, x.id, x.name)) } : {}),
     pins: (extra.pins || []).map(p => ({
       name: p.name, visible: p.visible !== false, hold: p.hold !== false,
       x: +p.x || 0, y: +p.y || 0, h: +p.h || 0, dia: +p.dia || 0,
@@ -506,6 +515,8 @@ export function fromDoc(d: DocIn): LoadedDoc {
       tilt: +f.tilt || 0, yaw: f.yaw === undefined ? undefined : +f.yaw || 0,
       pad: +f.pad || 0,
     })),
+    datums: (Array.isArray(d.datums) ? d.datums : [])
+      .map((x, i) => normDatum(x, `dt${i + 1}`, `D${i + 1}`)),
     pins: (d.pins || []).map((p, i) => ({
       id: `pn${i + 1}`,
       name: p.name || `Pin ${i + 1}`,

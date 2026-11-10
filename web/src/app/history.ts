@@ -62,7 +62,7 @@ let restoring = false;
 export function currentDoc(ui?: ToDocExtra['ui']): Doc {
   const hayAjuste = ST.tweak.some(t => t.angle || t.rot || t.feed);
   const extra: Required<Omit<ToDocExtra, 'ui'>> = {
-    place: ST.place, marks: ST.marks, fixture: ST.fixture,
+    place: ST.place, marks: ST.marks, fixture: ST.fixture, datums: ST.datums,
     tweak: hayAjuste ? ST.tweak : [], lims: ST.lims, mach: ST.mach,
     pins: ST.pins, restraint: ST.restraint, load: ST.load, mat: ST.mat,
     plan: ST.plan,
@@ -116,6 +116,7 @@ export function applyDoc(d: LoadedDoc): void {
   if (E.normAnchor(d.anchor).end) ST.place.pivot = E.fk(refModelFree()).pis.length - 1;
   setMarks(d.marks);
   setPedestals(d.fixture);
+  ST.datums = (d.datums || []).map(x => ({ ...x, ax: [...x.ax] as [boolean, boolean, boolean] }));
   ST.tweak = d.tweak || [];
   syncTweak(ST.model!.bends.length);
   /* el plano antes que las piezas: las piezas por ángulos se comparan contra

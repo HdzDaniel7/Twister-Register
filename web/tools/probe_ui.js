@@ -5352,4 +5352,42 @@ step('por puntos: elegir otro método apaga ptUI.on', () => {
   if (BC().ptUI.on !== false) throw new Error('ptUI.on = ' + BC().ptUI.on);
 });
 
+step('rastreador: activarlo crea la capa 3D y muestra las cifras', () => {
+  drawer('view');
+  const on = q('input[data-prxon]');
+  on.checked = true; on.dispatchEvent(new Event('change', { bubbles: true }));
+  if (BC().proxUI.on !== true) throw new Error('proxUI.on = ' + BC().proxUI.on);
+  if (!BC().groups.prox.children.length) throw new Error('la capa prox está vacía');
+  if (!document.querySelector('.prxstats')) throw new Error('faltan las cifras');
+});
+step('rastreador: cambiar de eje repinta y apagarlo vacía la capa', () => {
+  setval('select[data-prxx]', 'z');
+  if (BC().proxUI.axis !== 'z') throw new Error('eje ' + BC().proxUI.axis);
+  if (!BC().groups.prox.children.length) throw new Error('capa vacía con eje z');
+  const on = q('input[data-prxon]');
+  on.checked = false; on.dispatchEvent(new Event('change', { bubbles: true }));
+  if (BC().groups.prox.children.length) throw new Error('la capa sigue con el rastreador apagado');
+  setval('select[data-prxx]', 'mag');
+});
+
+step('varios puntos: elegir el modo siembra un 3-2-1 de 6 filas y crea la capa', () => {
+  drawer('models');
+  const r = q('input[data-an="datums"]');
+  r.checked = true; r.dispatchEvent(new Event('change', { bubbles: true }));
+  if (BC().ST.anchor !== 'datums') throw new Error('anchor = ' + BC().ST.anchor);
+  const n = document.querySelectorAll('.dtcard').length;
+  if (n !== 6 || BC().ST.datums.length !== 6) throw new Error('filas ' + n + ', puntos ' + BC().ST.datums.length);
+  if (!BC().groups.datums.children.length) throw new Error('la capa datums está vacía');
+  if (BC().groups.coin.children.length) throw new Error('el ⊕ de coincidencia sigue dibujado');
+});
+step('varios puntos: borrar uno y volver a sembrar deja 6; apagar el modo vacía la capa', () => {
+  click('[data-dtb^="del:"]');
+  if (BC().ST.datums.length !== 5) throw new Error('puntos ' + BC().ST.datums.length);
+  click('[data-dtb="321"]');
+  if (BC().ST.datums.length !== 6) throw new Error('puntos ' + BC().ST.datums.length);
+  const r = q('input[data-an="pivot"]');
+  r.checked = true; r.dispatchEvent(new Event('change', { bubbles: true }));
+  if (BC().groups.datums.children.length) throw new Error('la capa sigue con otro anclaje');
+});
+
 return log.join('\n');

@@ -24,7 +24,7 @@ import { ST, loadModel, syncModel, syncTweak, addMark, addPedestal,
          addAngleDataset, renameDataset, angleSummary, applyAngleRec,
          recomputeAll, setPlanNominal, setPlanName, reportsOf, addReport, setReportVals,
          setReportUse, renameReport, removeReport, reportSummary,
-         syncPlan } from './src/state.ts';
+         syncPlan, addDatum, setDatum, seedDatums321 } from './src/state.ts';
 import * as H from './src/app/history.ts';
 
 let fails = 0;
@@ -1641,7 +1641,7 @@ console.log('\n— idiomas —');
      exención es POR IDIOMA: en inglés «Datum» y «Twist» son la palabra buena,
      en alemán no —Datum significa fecha, y el bezug de medición es Bezug—, así
      que ahí siguen sin exención y la prueba los vigila. */
-  const COMUNES = ['nBend', 'dcol', 'ori', 'x', 'y', 'z', 'arcL', 'cumL',
+  const COMUNES = ['dt321', 'dtPi', 'nBend', 'dcol', 'ori', 'x', 'y', 'z', 'arcL', 'cumL',
                    'isRef', 'vIso', 'cDelta', 'rad', 'name',
                    /* «SIM» es la misma sigla en los tres idiomas, como REF. La
                       medida sí cambia (MED/MEAS/MESS) y sigue vigilada. */
@@ -5235,6 +5235,258 @@ console.log('\n— método por puntos —');
     const R = E.pointsSolve(B, { edits: sucio, meas: [], gain: 1, align: 'pivot' }, 'pivot', 0);
     ok('ediciones no finitas, ausentes o incompletas cuentan como cero',
        !R.changed && R.nEdit === 0 && R.maxResid < 1e-9);
+  }
+}
+
+/* ---------- rastreador de cercanía (engine/proximity.ts) ---------- */
+{
+  const mk = (n, f) => Array.from({ length: n }, (_, i) => {
+    const x = i * 10;                                   // tramo recto en +X, cada 10 mm
+    const q = f ? f(x) : [x, 0, 0];
+    return { p: new Vector3(q[0], q[1], q[2]), x: new Vector3(1, 0, 0), y: new Vector3(0, 1, 0),
+             z: new Vector3(0, 0, 1), s: x };
+  });
+  const A = mk(11), tol = 1;
+  const same = E.proximity(A, mk(11), 'mag', tol);
+  ok('proximity: piezas idénticas, todo cero y emparejado',
+     same.rows.every(r => r.paired && Math.abs(r.v) < 1e-9) && same.stats.maxAbs < 1e-9
+     && same.stats.within === 1 && same.stats.n === 11 && same.stats.nPaired === 11);
+  ok('proxColor: cero es verde, sin par es gris',
+     E.proxColor(0, tol, true).join() === E.proxColor(.2, tol, true).join()
+     && E.proxColor(0, tol, true)[1] > .8 && E.proxColor(0, tol, true, false).join() === E.PROX_GRAY.join());
+  const up = E.proximity(A, mk(11, x => [x, 0, 2]), 'z', tol);
+  ok('proximity: B desplazada +2 en Z da v=+2 en el eje z',
+     up.rows.every(r => Math.abs(r.v - 2) < 1e-9) && Math.abs(up.stats.maxPos - 2) < 1e-9 && up.stats.maxNeg === 0);
+  const dn = E.proximity(mk(11, x => [x, 0, 2]), A, 'z', tol);
+  ok('proximity: invertidas A y B, el signo es −2', dn.rows.every(r => Math.abs(r.v + 2) < 1e-9) && Math.abs(dn.stats.maxNeg + 2) < 1e-9);
+  const mg = E.proximity(A, mk(11, x => [x, 0, 2]), 'mag', tol);
+  ok('proximity: magnitud sin signo y fuera de tol', mg.rows.every(r => Math.abs(r.v - 2) < 1e-9) && mg.stats.within === 0);
+  ok('proximity: espesor/ancho siguen los ejes locales de A',
+     E.proximity(A, mk(11, x => [x, 2, 0]), 'thick', tol).rows.every(r => Math.abs(r.v - 2) < 1e-9)
+     && E.proximity(A, mk(11, x => [x, 2, 0]), 'width', tol).rows.every(r => Math.abs(r.v) < 1e-9));
+  const sh = E.proximity(A, mk(11, x => [x + 3, 0, 0]), 'mag', tol);
+  ok('proximity: un corrimiento a lo largo de la tangente no cuenta', sh.rows.filter(r => r.paired).every(r => r.v < 1e-9));
+  const short = E.proximity(A, mk(6), 'mag', tol);      // B llega solo hasta x=50
+  ok('proximity: lo que sobresale de B queda sin par',
+     short.rows.slice(0, 6).every(r => r.paired) && short.rows.slice(6).every(r => !r.paired)
+     && short.stats.nPaired === 6 && short.stats.n === 11);
+  const pk = E.proximity(A, mk(11, x => [x, 0, x === 50 ? 3 : 0]), 'mag', tol);
+  ok('proximity: sAtMax es donde está el pico', Math.abs(pk.stats.sAtMax - 50) < 1e-9 && pk.stats.maxAbs > 2);
+}
+
+
+/* ======================================================================== */
+console.log('\n— varios puntos de coincidencia (3-2-1) —');
+{
+  const R = E.demoModel();
+  const Mv = E.normalizeModel({ ...R, bends: R.bends.map((b, i) => i === 2 ? { ...b, angle: b.angle + 4 } : b) });
+  const mk = (p, id, ax) => E.normDatum({ ...E.DATUM_DEFAULT, ...p, ax: ax || p.ax }, id, id.toUpperCase());
+  const dist = (A, B) => A.elements.reduce((m, v, i) => Math.max(m, Math.abs(v - B.elements[i])), 0);
+  const seed = E.seed321(R).map((p, i) => mk(p, 'dt' + (i + 1)));
+  const fid = E.datumFit(R, R, seed);
+  ok('3-2-1 sobre pieza idéntica: identidad, 6 restricciones, 0 libres',
+     dist(fid.M, new Matrix4()) < 1e-6 && fid.nCon === 6 && fid.free === 0,
+     `dist ${dist(fid.M, new Matrix4()).toExponential(2)} nCon ${fid.nCon} free ${fid.free}`);
+  const todos = E.fk(R).pis.map((_, i) => mk({ at: 'pi', i }, 'p' + i, [true, true, true]));
+  const ft = E.datumFit(Mv, R, todos);
+  const kb = E.kabsch(E.fk(Mv).pis, E.fk(R).pis);
+  ok('todos los PI en X, Y y Z equivale a Kabsch', dist(ft.M, kb) < 1e-6 && ft.free === 0,
+     `dist ${dist(ft.M, kb).toExponential(2)}`);
+  const soloZ = seed.filter(d => d.ax[2] && !d.ax[0] && !d.ax[1]);
+  ok('solo puntos en Z dejan 3 grados libres', E.datumFit(Mv, R, soloZ).free === 3,
+     'free ' + E.datumFit(Mv, R, soloZ).free);
+  const dosPi = [mk({ at: 'pi', i: 1 }, 'a', [true, true, true]), mk({ at: 'pi', i: 4 }, 'b', [true, true, true])];
+  ok('dos PI completos dejan 1 grado libre (el giro sobre su recta)', E.datumFit(Mv, R, dosPi).free === 1,
+     'free ' + E.datumFit(Mv, R, dosPi).free);
+  let eIda = 0;
+  for (const f of [0, .1, .3, .5, .77, .99, 1]) {
+    const tot = E.rowLengths(R).at(-1).cum + E.tailStraight(R);
+    const s = f * tot, at = E.datumAtS(R, s);
+    const s2 = E.datumS(R, { ...E.DATUM_DEFAULT, ...at, id: 'x', name: 'x' });
+    eIda = Math.max(eIda, Math.abs(s - s2));
+  }
+  ok('datumAtS y datumS son inversas', eIda < 1e-6, eIda.toExponential(2));
+  ok('anchor «datums» sin puntos activos es «best»',
+     dist(E.anchorTransform(Mv, R, 'datums', 0, []), E.anchorTransform(Mv, R, 'best', 0, [])) < 1e-9);
+  /* el JSON: con puntos van y vuelven; sin ellos el documento NO lleva la clave */
+  const mkDoc = datums => E.toDoc(R, R.bends, { ...E.COMP_DEFAULT }, { ...E.PROC_DEFAULT }, [],
+                                  [], 'v1', 'datums', { datums });
+  const rtD = E.fromDoc(JSON.parse(JSON.stringify(mkDoc(seed))));
+  ok('los puntos viajan en el JSON y vuelven iguales',
+     rtD.anchor === 'datums' && JSON.stringify(rtD.datums) === JSON.stringify(seed));
+  ok('sin puntos el documento no lleva la clave datums', !('datums' in mkDoc([])) && !('datums' in mkDoc(undefined)));
+  ok('y al abrirlo da una lista vacía', E.fromDoc(JSON.parse(JSON.stringify(mkDoc([])))).datums.length === 0);
+  /* los ayudantes del estado */
+  loadModel(E.demoModel());
+  ST.anchor = 'datums';
+  for (const p of E.seed321(refModelFree())) addDatum(p);
+  const id0 = ST.datums[0].id;
+  setDatum(id0, 'f', .9);
+  const f1 = ST.datums[0].f;
+  setDatum(id0, 'f', 7);
+  ok('setDatum cambia su campo y recorta fuera de rango', f1 === .9 && ST.datums[0].f === 1);
+  ok('setDatum rechaza claves que no son del punto', !setDatum(id0, 'id', 'zz') && ST.datums[0].id === id0);
+  ok('seedDatums321 da 6 puntos con ids únicos',
+     seedDatums321().length === 6 && new Set(ST.datums.map(d => d.id)).size === 6);
+  ST.anchor = 'pivot'; ST.datums = [];
+}
+
+/* ======================================================================== */
+console.log('\n— mordaza o libre: el asentamiento rígido (engine/load.ts) —');
+/* LO QUE ESTE BLOQUE DEMUESTRA. Que la flecha entre pedestales es de MICRAS y
+   el asentamiento de una pieza suelta es de DÉCIMAS O MILÍMETROS; que con
+   mordaza nada cambia; que con «libre» el peso lo llevan los apoyos; y que una
+   pieza que se caería se dice en vez de enseñarse.
+
+   TIEMPOS medidos el 2026-11-10 sobre la demo con siete pedestales sembrados
+   (Node, el mismo PC que LOAD_SLOW_BENDS), contra el presupuesto de 250 ms:
+
+       mordaza            45–70 ms     4–5 vueltas
+       libre, sembrado   ~240 ms      17 vueltas (directa rendida + rampa)
+       libre, P1 −1 mm    ~65 ms       5 vueltas
+       libre, P7 −1 mm   ~320 ms      25 vueltas (con el paso solo rígido)
+
+   «Libre» cuesta de una a cinco veces la mordaza y puede pasarse del
+   presupuesto: lo que lo encarece es el salto del hueco de la cuna sembrada
+   bajo el primer doblez (ver `cradlePush()` y el paso rígido de
+   `equilibrium()`), que frena el paso directo y obliga a la rampa. */
+{
+  const mat = { E: 69000, yield: 240, rho: 2700 };
+  const OFF = { ...E.RESTRAINT_DEFAULT, on: false };
+  const CARGA = { ...E.LOAD_DEFAULT, on: true };
+  const LIBRE = { ...CARGA, hold: 'free' };
+
+  /* (1) LA FLECHA DE LIBRO, y las cifras de la cabecera de sag.ts: 40×12 de
+     aluminio DE PLANO, biapoyado entre dos pedestales y en voladizo. */
+  {
+    const sec = { width: 40, thickness: 12, chamfer: 0, endLen: 20 };
+    const w = E.lineLoad(sec, mat);
+    ok('40×12 de aluminio pesa 0.0127 N/mm', Math.abs(w - 0.012714) < 1e-5, `${w.toFixed(5)} N/mm`);
+    const Ip = 40 * 12 ** 3 / 12;
+    const libro = L => 5 * w * L ** 4 / (384 * mat.E * Ip);
+    ok('  y biapoyada de plano: 300 mm se cuelgan 3 µm, 1000 mm 0.42 mm',
+       Math.abs(libro(300) - 0.003375) < 5e-6 && Math.abs(libro(1000) - 0.4166) < 5e-4,
+       `${(libro(300) * 1000).toFixed(2)} µm · ${libro(1000).toFixed(3)} mm`);
+    /* La barra recta nace de canto (ver el bloque de M6), así que aquí la
+       inercia es la del ancho; la fórmula se comprueba con la que la cuenta
+       dice usar, que es lo que se está probando. */
+    const M = E.normalizeModel({ name: 'RECTA', tail: 1400, section: sec,
+      bends: [E.newBend({ feed: 100, rot: 0, angle: 0, radius: 30 })] });
+    const path = E.buildPath(M).samples;
+    const I = E.sagI(E.sampleAt(path, 700), sec);
+    const peds = [400, 1200].map((x, i) => {
+      const p = { id: `s${i}`, name: `S${i}`, visible: true, x, y: 0, h: 0, tilt: 0, yaw: 0, pad: 60 };
+      return { ...p, h: p.h + E.pedestalFit(path, sec, p).gap };
+    });
+    const r = E.gravitySag(M, path, sec, peds, mat);
+    const vano = r.spans.find(sp => !sp.free);
+    const punta = r.spans.find(sp => sp.free && sp.s0 > 1000);
+    ok('  el tramo entre dos pedestales es 5wL⁴/384EI exacto',
+       !!vano && Math.abs(vano.sag - 5 * w * vano.L ** 4 / (384 * mat.E * I)) < 1e-12,
+       vano ? `L=${vano.L.toFixed(1)} mm · ${(vano.sag * 1000).toFixed(1)} µm` : '—');
+    ok('  y el voladizo de la punta wL⁴/8EI exacto',
+       !!punta && Math.abs(punta.sag - w * punta.L ** 4 / (8 * mat.E * E.sagI(E.sampleAt(path, (punta.s0 + punta.s1) / 2), sec))) < 1e-12,
+       punta ? `L=${punta.L.toFixed(1)} mm · ${(punta.sag * 1000).toFixed(2)} µm` : '—');
+  }
+
+  const M = E.demoModel();
+  const p0 = E.buildPath(M).samples;
+  const peds = E.seedPedestals(p0, M.section, 7)
+    .map((q, i) => ({ ...q, id: `pd${i + 1}`, name: `P${i + 1}` }));
+
+  /* (2) MORDAZA ES LO DE ANTES, bit a bit: con `hold` ausente —un archivo
+     anterior— y con 'clamp' sale exactamente lo mismo. */
+  {
+    const sinCampo = { ...CARGA };
+    delete sinCampo.hold;
+    const a = E.settle(M, [], peds, M.section, OFF, mat, sinCampo);
+    const b = E.settle(M, [], peds, M.section, OFF, mat, { ...CARGA, hold: 'clamp' });
+    const huella = r => JSON.stringify([r.model.bends, r.pedN, r.carried, r.root, r.drop, r.iters, r.rigid]);
+    ok('mordaza da lo mismo que sin el campo, bit a bit', huella(a) === huella(b),
+       `${a.carried} N / ${b.carried} N`);
+    ok('  y la mordaza no se asienta: identidad, 0 mm, estable',
+       a.rigid.every((v, i) => v === new Matrix4().elements[i]) && a.rigidDrop === 0 && !a.unstable);
+    ok('  y el campo se sanea: lo que no es «free» es mordaza',
+       E.normLoad({ hold: 'x' }).hold === 'clamp' && E.normLoad({}).hold === 'clamp'
+       && E.normLoad({ hold: 'free' }).hold === 'free');
+    const dc = E.fromDoc(JSON.parse(JSON.stringify(E.toDoc(M, null, null, null, [], [], null, 'start',
+                                                           { load: LIBRE }))));
+    ok('  y «libre» viaja en el documento', dc.load.hold === 'free');
+  }
+
+  /* (3) LIBRE SOBRE EL FIXTURE SEMBRADO: el peso lo llevan los apoyos. */
+  let t0 = performance.now();
+  const clamp = E.settle(M, [], peds, M.section, OFF, mat, CARGA);
+  const tClamp = performance.now() - t0;
+  t0 = performance.now();
+  const libre = E.settle(M, [], peds, M.section, OFF, mat, LIBRE);
+  const tLibre = performance.now() - t0;
+  ok('libre sobre la demo sembrada: la raíz no lleva nada (<2 % del peso)',
+     Math.abs(libre.root) < 0.02 * libre.weight && libre.ok && !libre.unstable,
+     `raíz ${libre.root.toFixed(3)} N de ${libre.weight.toFixed(2)} · mordaza ${clamp.root.toFixed(3)} N`);
+  ok('  y los apoyos llevan el peso entero',
+     Math.abs(libre.carried - libre.weight) < 0.02 * libre.weight,
+     `${libre.carried.toFixed(2)} N · ${libre.iters} vueltas · ${tLibre.toFixed(0)} ms (mordaza ${tClamp.toFixed(0)} ms)`);
+  ok('  y lo que se asienta es de décimas, no de metros',
+     libre.rigidDrop >= 0 && libre.rigidDrop < 1, `${libre.rigidDrop.toFixed(3)} mm`);
+
+  /* (4) BAJAR UN PEDESTAL UN MILÍMETRO. P1 lleva peso con la pieza suelta;
+     bajado, deja de llevarlo y la barra baja ahí lo que haga falta, que nunca
+     es más que lo que bajó el pedestal. */
+  {
+    const k = 0;
+    const bajo = peds.map((q, j) => (j === k ? { ...q, h: q.h - 1 } : q));
+    const r = E.settle(M, [], bajo, M.section, OFF, mat, LIBRE);
+    const P = E.placePath(E.rigidMatrix(r), E.buildPath(r.model, E.PATH_SEG).samples);
+    const s = E.pedestalFit(p0, M.section, peds[k]).s;
+    const baja = E.sampleAt(p0, s).p.z - E.sampleAt(P, s).p.z;
+    ok('bajar P1 un milímetro con «libre» cambia el reparto',
+       libre.pedN[k] > 0.5 && r.pedN[k] < libre.pedN[k] - 0.5 && r.ok && !r.unstable,
+       `P1 ${libre.pedN[k].toFixed(2)} → ${r.pedN[k].toFixed(2)} N · raíz ${r.root.toFixed(3)} N`);
+    ok('  y la pieza baja ahí, sin pasar del milímetro',
+       baja > 0.05 && baja < 1 + 0.01, `${baja.toFixed(3)} mm sobre P1 · asentamiento ${r.rigidDrop.toFixed(3)} mm`);
+  }
+
+  /* (5) UN SOLO PEDESTAL EN UNA PUNTA: la pieza se caería. Se dice, y los
+     números que salen son los de la mordaza. */
+  {
+    const r = E.settle(M, [], [peds[0]], M.section, OFF, mat, LIBRE);
+    const c = E.settle(M, [], [peds[0]], M.section, OFF, mat, CARGA);
+    ok('libre con un solo pedestal: se cae, y se dice', r.unstable === true,
+       `raíz ${r.root.toFixed(2)} N`);
+    ok('  y enseña la cuenta con mordaza, no la de una pieza en el aire',
+       r.carried === c.carried && r.rigidDrop === 0);
+    const nada = E.settle(M, [], [], M.section, OFF, mat, LIBRE);
+    ok('  y sin ningún apoyo, también', nada.unstable === true);
+  }
+
+  /* (6) LA REACCIÓN VA POR LA NORMAL DE LA CUNA. Una barra recta posada sobre
+     una cuna CRUZADA (rumbo 90°) e inclinada 30°: apoya en la cara, la cuna
+     empuja según su normal y lleva cos 30° de lo que empuja. Con la cuna
+     tendida, la suma es la de antes: idéntica si la barra apoya en la cara, y
+     a 1e-12 si cedió lo bastante para apoyar en el canto de la punta, donde
+     empuja el canto y no la cara (ver `cradlePush()`). La estación va rodada
+     90° para que su codo mueva la barra en VERTICAL: con el codo en planta el
+     peso no tiene por dónde ceder y no hay reacción que repartir. */
+  {
+    const sec = { width: 40, thickness: 12, chamfer: 0, endLen: 20 };
+    const R = E.normalizeModel({ name: 'RECTA', tail: 900, section: sec,
+      bends: [E.newBend({ feed: 100, rot: 90, angle: 0, radius: 30 })] });
+    const path = E.buildPath(R).samples;
+    const cuna = (x, tilt, yaw) => {
+      const p = { id: `c${x}`, name: `C${x}`, visible: true, x, y: 0, h: 0, tilt, yaw, pad: 60 };
+      for (let i = 0; i < 4; i++) p.h += E.pedestalFit(path, sec, p).gap / Math.cos(tilt * Math.PI / 180);
+      return p;
+    };
+    const inc = E.settle(R, [], [cuna(800, 30, 90)], sec, OFF, mat, CARGA);
+    ok('una cuna inclinada 30° lleva cos 30° de lo que empuja',
+       inc.pedN[0] > 0 && Math.abs(inc.carried - inc.pedN[0] * Math.cos(Math.PI / 6)) < 1e-9 * inc.pedN[0],
+       `empuja ${inc.pedN[0].toFixed(3)} N · lleva ${inc.carried.toFixed(3)} N`);
+    const pl = E.settle(R, [], [cuna(500, 0, 0), cuna(800, 0, 0)], sec, OFF, mat, CARGA);
+    const antes = pl.pedN.reduce((a, n) => a + -n * -1, 0);
+    ok('  y con cunas tendidas la suma es la de antes',
+       pl.pedN.some(n => n > 0) && Math.abs(pl.carried - antes) < 1e-9 * antes,
+       `${pl.carried} N vs ${antes} N`);
   }
 }
 

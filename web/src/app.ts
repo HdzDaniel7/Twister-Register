@@ -56,6 +56,7 @@ import { bindKeyboard } from './app/events/keyboard.ts';
 import { bindGrips } from './app/events/grips.ts';
 import { bindSignKey } from './app/events/sign.ts';
 import { ptUI, ptResult } from './ptstate.ts';
+import { proxUI } from './proxstate.ts';
 
 /* Todas las escuchas son por delegación sobre document.body, así que da igual
    cuántas veces se reconstruyan los paneles: se enganchan una sola vez, aquí,
@@ -133,7 +134,7 @@ document.addEventListener('DOMContentLoaded', boot);
 /** Forma del objeto de depuración: vive solo aquí, un cast puntual sobre
  *  `window` no necesita una declaración global nueva. */
 type DebugExports = {
-  ptUI: typeof ptUI; ptResult: typeof ptResult;
+  ptUI: typeof ptUI; proxUI: typeof proxUI; ptResult: typeof ptResult;
   ST: typeof ST; E: typeof E; I18N: typeof I18N; LANG: typeof LANG;
   renderAll: typeof renderAll; refresh: typeof refresh; REF: typeof REF;
   drawGizmo: typeof drawGizmo; drawLabels: typeof drawLabels; groupHost: typeof groupHost;
@@ -194,7 +195,7 @@ type DebugExports = {
 /* `renderer` se lee por getter porque initScene() lo asigna DESPUÉS de que
    este módulo se evalúe: copiarlo aquí guardaría el undefined de arranque. */
 if (typeof window !== 'undefined') (window as unknown as { BARCOMP: DebugExports }).BARCOMP = {
-  ptUI, ptResult, ST, E, I18N, LANG, renderAll, refresh, REF, drawGizmo, drawLabels, groupHost, groups,
+  ptUI, proxUI, ptResult, ST, E, I18N, LANG, renderAll, refresh, REF, drawGizmo, drawLabels, groupHost, groups,
   rebuildScene, markDirty, importCsvText, importCsvBatch, openError, commandModel,
   placedPath, shownPath, shownModel, heldResult, heldOfVariant, refModel, refModelFree,
   captureViews, reportHtml, onResize, PT,

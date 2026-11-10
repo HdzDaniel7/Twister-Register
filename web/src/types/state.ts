@@ -7,6 +7,7 @@ import type { Comp, Lims, Load, Mat, Proc, Restraint } from './process.ts';
 import type { MachineFmt } from '../engine/machine.ts';
 import type { Dataset, Place, Mark, Pedestal, Pin, Tweak, Mode, Plan } from './doc.ts';
 import type { Settled } from '../engine/load.ts';
+import type { Datum } from '../engine/datums.ts';
 
 /* ------------------------------------------------------------ estado global */
 
@@ -36,6 +37,9 @@ export type State = {
   ref: string | null;
   /** extremo fijo al comparar variantes entre sí */
   anchor: AnchorMode;
+  /** los puntos de coincidencia del anclaje 'datums' (3-2-1 de fixture).
+   *  Son de la PIEZA, como el fixture: viajan en el JSON y en el deshacer */
+  datums: Datum[];
   /** caché del modelo efectivo (base + deltas) de la variante activa */
   model: Model | null;
   /** comando de máquina: lo que calcula el lazo, sin el ajuste manual (`tweak`) */

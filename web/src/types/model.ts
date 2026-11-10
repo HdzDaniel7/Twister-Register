@@ -130,10 +130,12 @@ export type Orientation = 'W' | 'T';
  *           el amarre de siempre; PE, el extremo libre. Es el punto donde se
  *           sujeta la pieza, y no todas se sujetan igual.
  *  'best'   mejor ajuste global de los PI (Kabsch).
+ *  'datums' varios puntos de coincidencia con ejes restringidos (3-2-1):
+ *           ver engine/datums.ts y `State.datums`.
  *
  *  'start' y 'end' son los nombres de archivos anteriores: se leen como
  *  'pivot' en P0 y en PE (ver `normAnchor()`), y no se vuelven a escribir. */
-export type AnchorMode = 'pivot' | 'best' | 'start' | 'end';
+export type AnchorMode = 'pivot' | 'best' | 'datums' | 'start' | 'end';
 
 /** Alineación de una pieza MEDIDA contra su nominal. 'pivot' usa el mismo
  *  punto de coincidencia que las variantes; 'start' es el nombre viejo. */

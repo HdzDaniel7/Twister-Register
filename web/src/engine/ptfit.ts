@@ -107,10 +107,15 @@ const finite3 = (a: unknown): a is Xyz =>
   Array.isArray(a) && a.length === 3 && a.every(x => typeof x === 'number' && isFinite(x));
 const isZero = (a: Xyz): boolean => !a[0] && !a[1] && !a[2];
 
+/** ¿El anclaje es un AJUSTE (mejor ajuste o varios puntos) y no un marco
+ *  fijo en un PI? En los dos casos las coordenadas van en el marco de la
+ *  referencia y la barra resultante se superpone a los puntos pedidos. */
+const isFit = (a: AnchorMode): boolean => a === 'best' || a === 'datums';
+
 /** El marco de las coordenadas (ver la cabecera): el del PI `k` con anclaje
  *  por punto de coincidencia; identidad con mejor ajuste. */
 export function ptFrame(board: Model, anchor: AnchorMode, k: number): Matrix4 {
-  return anchor === 'best' ? new Matrix4() : frameAtPi(board, k);
+  return isFit(anchor) ? new Matrix4() : frameAtPi(board, k);
 }
 
 /** Los PI de una barra en el marco del punto de coincidencia. */
@@ -180,7 +185,7 @@ function gotter(board: Model, want: Xyz[], anchor: AnchorMode, k: number): (m: M
   const inv = ptFrame(board, anchor, k).invert();
   return (m: Model): Xyz[] => {
     const P = fk(m).pis;
-    if (anchor === 'best') {
+    if (isFit(anchor)) {
       const A = kabsch(P, want.map(v3));
       return P.map(p => xyz(p.clone().applyMatrix4(A)));
     }
@@ -227,7 +232,7 @@ export function pointsSolve(board: Model, inp: PtInput, anchor: AnchorMode = 'pi
   if (!changed) {
     model = { ...board, bends: board.bends.map(b => ({ ...b })) };
   } else {
-    model = solveRolled(board, toMachine(cmd.map(c => v3(c).applyMatrix4(F))), cmd, gotOf, anchor !== 'best');
+    model = solveRolled(board, toMachine(cmd.map(c => v3(c).applyMatrix4(F))), cmd, gotOf, !isFit(anchor));
   }
 
   /* Lo que alcanza (ver `gotter()`). */
@@ -272,5 +277,5 @@ export function measuredFromPoints(board: Model, meas: (Xyz | null | undefined)[
   const F = ptFrame(board, anchor, k);
   const M = alignMeas(nom, raw, align) as Xyz[];
   return solveRolled(board, toMachine(M.map(m => v3(m).applyMatrix4(F))), M,
-                     gotter(board, M, anchor, k), anchor !== 'best');
+                     gotter(board, M, anchor, k), !isFit(anchor));
 }

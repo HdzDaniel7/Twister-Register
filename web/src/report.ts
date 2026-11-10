@@ -345,7 +345,7 @@ export function reportHtml(): string {
   const resumen = mods.map(({ v: x, eff }) => {
     let shift = 0;
     if (x.id !== ST.ref) {
-      shift = E.farShift(E.piShift(eff, R, ST.anchor, pivotK()));
+      shift = E.farShift(E.piShift(eff, R, ST.anchor, pivotK(), ST.datums));
     }
     /* `data-mrow` es el gancho del banco: esta tabla lista EXACTAMENTE los
        modelos encendidos, una fila cada uno, colapsen o no las de abajo. */

@@ -11,7 +11,8 @@ import type {
   AnchorMode, Bend, Comp, Dataset, DatumMode, Mark, Model, PathSample, Pedestal, Pin, Place, Proc,
   Lims, Mat, Restraint, State, Tweak, Variant, Springback, AngleSummary, Plan, MeasReport,
 } from './types.ts';
-import type { Matrix4, Vector3 } from 'three';
+import { Matrix4 } from 'three';
+import type { Vector3 } from 'three';
 import type { Settled } from './engine/load.ts';
 
 export const LAYER_DEF = [
@@ -33,7 +34,7 @@ export const MARK_COLORS = ['#57C8D6', '#FFD166', '#C792EA', '#7FD8C4', '#FF8A65
 const OFF_BY_DEFAULT = ['fix', 'pred', 'pins', 'held'];
 
 export const ST: State = {
-  variants: [], active: null, ref: null, anchor: 'pivot',
+  variants: [], active: null, ref: null, anchor: 'pivot', datums: [],
   model: null, command: [], datasets: [], dsActive: null, sel: -1,
   comp: { ...E.COMP_DEFAULT }, proc: { ...E.PROC_DEFAULT },
   lims: { ...E.LIMS_DEFAULT },
@@ -170,6 +171,9 @@ export function loadModel(
   /* el fixture es de la PIEZA: cargar otra deja los pedestales de la anterior
      apuntando a una barra que ya no está encima */
   ST.fixture = [];
+  /* los puntos de coincidencia también: se definen por doblez y fracción
+     de ESTA pieza */
+  ST.datums = [];
   ST.place = { ...E.PLACE_DEFAULT };
   /* el plano es del DOCUMENTO: otra pieza, otro dibujo. Quien abre un archivo
      pone el suyo después (ver applyDoc() en app/history.ts) */
@@ -255,7 +259,7 @@ export function setMarks(list: Partial<Mark>[] | null | undefined): Mark[] {
  *  Una sola matriz para la tabla, la escena y el solver. Las tres tienen que
  *  colocar la pieza en el mismo sitio o no están hablando de la misma pieza. */
 const placeAt = (): Matrix4 =>
-  placeMatrix().multiply(E.anchorTransform(ST.model!, refModelFree(), ST.anchor, pivotK()));
+  placeMatrix().multiply(E.anchorTransform(ST.model!, refModelFree(), ST.anchor, pivotK(), ST.datums));
 
 export function placedPath(): PathSample[] {
   return E.placePath(placeAt(), E.buildPath(ST.model!).samples);
@@ -277,8 +281,31 @@ export function placedPath(): PathSample[] {
  *  La matriz es la MISMA que la de `placedPath()`: lo único que cambia es qué
  *  forma se coloca con ella. */
 export function shownPath(): PathSample[] {
-  return E.placePath(placeAt(), E.buildPath(shownModel()).samples);
+  return E.placePath(placeAt().premultiply(shownRigid()), E.buildPath(shownModel()).samples);
 }
+
+/** El ASENTAMIENTO de una forma cargada, en el marco de la escena: la matriz
+ *  que va entre la colocación y el anclaje (`placeMatrix · esto · anclaje`).
+ *
+ *  `settle()` lo da en coordenadas del taller, DESPUÉS de la colocación, porque
+ *  ahí es donde están las cunas; la escena cuelga la pieza de un nodo que ya
+ *  lleva la colocación, así que hay que pasarlo a este lado: `P⁻¹·R·P`. Con
+ *  mordaza `R` es la identidad y se devuelve la identidad tal cual, sin pasar
+ *  por la cuenta —que dejaría ruido de coma flotante en una pieza que no se
+ *  movió—. Ver «MORDAZA O LIBRE» en engine/load.ts. */
+export function settleLocal(r: Settled): Matrix4 {
+  const R = E.rigidMatrix(r);
+  if (R.equals(new Matrix4())) return R;
+  const P = placeMatrix();
+  return P.clone().invert().multiply(R).multiply(P);
+}
+
+/** El asentamiento de la pieza CONTRA LA QUE SE MIDE, en coordenadas del
+ *  taller: identidad salvo con la sujeta en pantalla y la carga en «libre». Lo
+ *  comparten la tabla, las cotas y el indicador de ejes, para que midan la
+ *  pieza donde el 3D la dibuja. */
+const shownRigid = (): Matrix4 => (refHeldOn() && ST.load.on && ST.load.hold === 'free'
+  ? E.rigidMatrix(heldResult()) : new Matrix4());
 
 /** Los PI de esa misma pieza, anclados pero SIN colocar.
  *
@@ -292,7 +319,8 @@ export function shownPath(): PathSample[] {
  *  mismo: la forma sujeta cambia de sitio lo que el fixture le hace a la barra,
  *  no dónde se decide que la barra va. */
 export const anchoredShownPis = (): Vector3[] =>
-  E.applyMat(E.anchorTransform(ST.model!, refModelFree(), ST.anchor, pivotK()),
+  E.applyMat(E.anchorTransform(ST.model!, refModelFree(), ST.anchor, pivotK(), ST.datums)
+               .premultiply(refHeldOn() ? settleLocal(heldResult()) : new Matrix4()),
              E.fk(shownModel()).pis);
 
 /** Y los mismos ya puestos en la mesa, en coordenadas del taller: es lo que hay
@@ -319,7 +347,8 @@ export const shownPis = (): Vector3[] =>
 export const shownBasis = (): [Vector3, Vector3, Vector3] => {
   const F = E.fk(shownModel()).frames;
   return E.stationBasis(
-    placeMatrix().multiply(E.anchorTransform(ST.model!, refModelFree(), ST.anchor, pivotK())),
+    placeMatrix().multiply(E.anchorTransform(ST.model!, refModelFree(), ST.anchor, pivotK(), ST.datums))
+      .premultiply(shownRigid()),
     F[E.clamp(ST.sel + 1, 0, F.length - 1)]);
 };
 
@@ -419,6 +448,95 @@ export function seedPinsFor(n?: number): Pin[] {
   return setPins(E.seedPins(shownPath(), ST.model.section, n));
 }
 
+/* ------------------------------------- varios puntos de coincidencia (3-2-1) */
+/** El primer id `dt<n>` libre. Se busca entre los que hay y no con un contador
+ *  suelto, por lo mismo que `newVid()`: deshacer, abrir un archivo o cargar otra
+ *  pieza reponen la lista entera sin pasar por aquí, y un contador que no se
+ *  entera de eso acaba dando dos puntos con el mismo id. */
+function nextDatumId(): { id: string; name: string } {
+  let n = 1;
+  while (ST.datums.some(d => d.id === `dt${n}`)) n += 1;
+  let k = n;
+  while (ST.datums.some(d => d.name === `D${k}`)) k += 1;
+  return { id: `dt${n}`, name: `D${k}` };
+}
+
+/** Añade un punto de coincidencia. Lo que falte sale de `DATUM_DEFAULT`. */
+export function addDatum(p: Partial<E.Datum> = {}): E.Datum {
+  const { id, name } = nextDatumId();
+  const d = E.normDatum({ ...E.DATUM_DEFAULT, ...p, id, name: p.name || name }, id, name);
+  ST.datums.push(d);
+  return d;
+}
+
+/** Cuántos índices admite cada tipo de punto en la referencia: PI, doblez o
+ *  recta (los dobleces más la cola). */
+export function datumRange(at: E.DatumAt): number {
+  const ref = refModelFree();
+  if (at === 'pi') return E.fk(ref).pis.length;
+  return at === 'arc' ? ref.bends.length : ref.bends.length + 1;
+}
+
+/** Cambia UN campo de un punto, con la lista blanca de `DATUM_DEFAULT` más el
+ *  nombre, y lo vuelve a sanear entero con `normDatum()` al final: un valor
+ *  fuera de rango se recorta aquí y no viaja al motor. El índice se topa contra
+ *  la REFERENCIA, que es contra la que se define el punto. */
+export function setDatum(id: string, key: string, value: unknown): boolean {
+  const d = ST.datums.find(x => x.id === id);
+  if (!d || !(key === 'name' || key in E.DATUM_DEFAULT)) return false;
+  const o = { ...d } as Record<string, unknown>;
+  o[key] = key === 'ax' && Array.isArray(value) ? [...value] : value;
+  const n = E.normDatum(o as Partial<E.Datum>, d.id, d.name);
+  const top = datumRange(n.at) - 1;
+  if (n.i > top) n.i = Math.max(0, top);
+  Object.assign(d, n);
+  return true;
+}
+
+export function removeDatum(id: string): void {
+  ST.datums = ST.datums.filter(d => d.id !== id);
+}
+
+/** Tira lo que hubiera y siembra un 3-2-1 sobre la referencia. */
+export function seedDatums321(): E.Datum[] {
+  ST.datums = [];
+  if (!ST.model) return ST.datums;
+  for (const p of E.seed321(refModelFree())) addDatum(p);
+  return ST.datums;
+}
+
+/** Los puntos de partida SACADOS DEL FIXTURE que ya hay: un punto en Z donde
+ *  apoya cada pedestal visible y uno lateral (Y) donde toca cada pin visible.
+ *  Es lo que dice «apóyala por donde la apoya el taller». Si el fixture está
+ *  vacío no toca nada y devuelve false. */
+export function datumsFromFixture(): boolean {
+  if (!ST.model) return false;
+  const path = shownPath(), sec = ST.model.section, ref = refModelFree();
+  const list: Partial<E.Datum>[] = [];
+  for (const ped of ST.fixture) {
+    if (!ped.visible) continue;
+    const f = E.pedestalFit(path, sec, ped);
+    if (f) list.push({ ...E.datumAtS(ref, f.s), ax: [false, false, true], name: ped.name });
+  }
+  for (const pin of ST.pins) {
+    if (!pin.visible) continue;
+    const f = E.pinFit(path, sec, pin);
+    if (f) list.push({ ...E.datumAtS(ref, f.s), ax: [false, true, false], name: pin.name });
+  }
+  if (!list.length) return false;
+  ST.datums = [];
+  for (const p of list) addDatum(p);
+  return true;
+}
+
+/** El ajuste por puntos de la activa contra la referencia libre. El motor ya
+ *  guarda cada resultado por su contenido, así que esto se puede pedir en cada
+ *  repintado sin recalcular. Null sin pieza. */
+export function datumResult(): E.DatumFit | null {
+  if (!ST.model) return null;
+  return E.datumFit(ST.model, refModelFree(), ST.datums);
+}
+
 /** La pieza tal como la dejan los pines, con caché.
  *
  *  El solver construye una trayectoria por incógnita y por iteración —del orden
@@ -460,7 +578,7 @@ function heldFor(slot: string, M: Model, refM: Model): Settled {
      la forma calculada con el anterior. */
   const key = JSON.stringify([M.bends, M.tail, M.section, ST.pins, ST.restraint, ST.mat,
                               ST.load, ST.fixture,
-                              ST.place, ST.anchor, refM.bends, refM.tail]);
+                              ST.place, ST.anchor, ST.datums, refM.bends, refM.tail]);
   heldSlot.set(slot, key);
   const hit = heldMemo.get(key);
   /* borrar y volver a meter la pone la última: el orden de la tabla es el de
@@ -469,7 +587,7 @@ function heldFor(slot: string, M: Model, refM: Model): Settled {
   /* Colocada donde de verdad está: el anclaje contra la referencia LIBRE (ver
      refModelFree()) y encima la colocación. Los pines son físicos y miran a la
      pieza en la mesa, no al modelo dibujado en el origen. */
-  const P = placeMatrix().multiply(E.anchorTransform(M, refM, ST.anchor, pivotK()));
+  const P = placeMatrix().multiply(E.anchorTransform(M, refM, ST.anchor, pivotK(), ST.datums));
   /* Una sola llamada para los dos casos: con carga, `settle()` resuelve el
      EQUILIBRIO —apoyos unilaterales, peso propio—; sin ella devuelve
      `restrain()` sin tocar un número. El interruptor se decide en el motor, no
@@ -753,7 +871,7 @@ export function activeShift(): number {
     /* Como en las tarjetas de modelo: si se mide contra la sujeta, esta también,
        o el número mezcla la diferencia de diseño con lo que el fixture le hace a
        la barra. Que es justo lo que contesta `shownModel()`. */
-    return E.farShift(E.piShift(shownModel(), refModel(), ST.anchor, pivotK()));
+    return E.farShift(E.piShift(shownModel(), refModel(), ST.anchor, pivotK(), ST.datums));
   } catch { return 0; }
 }
 

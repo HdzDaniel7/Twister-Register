@@ -9,18 +9,19 @@ import {
   BufferGeometry, Float32BufferAttribute,
   Line, LineSegments, LineBasicMaterial, LineDashedMaterial, Mesh, MeshStandardMaterial,
   MeshBasicMaterial, TorusGeometry, Matrix4, Euler,
-  Color, Vector3,
+  Color, Vector3, DoubleSide, SRGBColorSpace, Quaternion,
 } from 'three';
 import { T } from '../i18n.ts';
 import { pivotName } from '../pivotlabel.ts';
 import * as E from '../engine.ts';
 import {
   ST, pivotK, shownPath, anchoredShownPis, refModelFree, heldResult, heldOn, heldOfVariant, placeMatrix,
-  refHeldOn, pedCarrying,
+  refHeldOn, pedCarrying, datumResult, settleLocal,
 } from '../state.ts';
 import { groups, cssVar, devThreeColor, ghost, solidMat, extraLabels, sharedGeometry } from './stage.ts';
 import { barGeometry } from './geometry.ts';
 import { ptVisible, ptResult, ptSceneMatrix, ptToScene, ptResultMatrix } from '../ptstate.ts';
+import { proxVisible, proxResult, proxUI } from '../proxstate.ts';
 import type { SceneCtx } from './types.ts';
 
 /* --- rejilla y pedestales: van en `world`, que la colocación no toca ---
@@ -192,21 +193,25 @@ export function layerHeld(ctx: SceneCtx): void {
      · y con el interruptor en sujeta va sólida SIEMPRE, también con «Las dos»:
        es la barra que se mide y la que lleva los puntos, y la libre pasa a ser
        el alambre de referencia. Ver layerActive(). */
+  /* Con la carga en «libre», la sujeta además va ASENTADA: la misma matriz que
+     usan la tabla y las cotas (ver `settleLocal()`), o lo que se dibuja y lo que
+     se calcula dejan de ser la misma pieza. Con mordaza es `Axf` tal cual. */
+  const hA = settleLocal(R).multiply(Axf);
   const geo = barGeometry(E.buildPath(R.model), M.section, null);
   if (refHeldOn() || !L.nom.on) {
     const m = new Mesh(geo, solidMat());
-    m.applyMatrix4(Axf);
+    m.applyMatrix4(hA);
     groups.held.add(m);
   }
   const alambre = ghost(geo, col, L.nom.on ? .9 : .5);
-  alambre.applyMatrix4(Axf);
+  alambre.applyMatrix4(hA);
   groups.held.add(alambre);
 
   /* Y el desplazamiento de cada PI, de la forma libre a la sujeta. Es la
      lectura que convierte «se movió» en «se movió AQUÍ y tanto»: sin estos
      segmentos hay que adivinar a ojo qué parte de la barra cedió. */
   const libre = E.applyMat(Axf, E.fk(M).pis);
-  const suj = E.applyMat(Axf, E.fk(R.model).pis);
+  const suj = E.applyMat(hA, E.fk(R.model).pis);
   const n = Math.min(libre.length, suj.length);
   const pos: number[] = [];
   for (let i = 0; i < n; i++) {
@@ -321,7 +326,7 @@ export function layerDiff(ctx: SceneCtx): void {
        Anclarlo contra sí mismo lo dejaba en otro marco y el desplazamiento salía
        con un desfase rígido de regalo en cuanto se medía contra la sujeta. */
     const rp = (shown.find(e => e.v.id === ST.ref) || {} as { pis?: Vector3[] }).pis
-      || E.anchoredPis(ref, refModelFree(), anchor, pivotK());
+      || E.anchoredPis(ref, refModelFree(), anchor, pivotK(), ST.datums);
     const segs: [Vector3, Vector3][] = [], mags: number[] = [];
     /* si el punto de coincidencia cae en la mitad final, las listas se alinean
        por el final (ver alignsFromEnd) */
@@ -500,7 +505,7 @@ export function layerDev(ctx: SceneCtx): void {
    pinta nada que lo sugiera. */
 export const COIN_COLOR = '#ffcc00';
 export function layerCoin(ctx: SceneCtx): void {
-  if (ST.anchor === 'best') return;
+  if (ST.anchor !== 'pivot') return;                // ni 'best' ni 'datums'
   const refM = refModelFree();
   const n = E.fk(refM).pis.length;
   const k = Math.min(Math.max(pivotK(), 0), n - 1);
@@ -539,6 +544,84 @@ export function layerCoin(ctx: SceneCtx): void {
   ln.renderOrder = 999;
   groups.coin.add(ln);
   extraLabels.push({ p: p.clone(), txt: '⊕ ' + T('aPivot').replace('{p}', pivotName()), color: COIN_COLOR });
+}
+
+/* --- varios puntos de coincidencia (anclaje 'datums') ------------------- */
+/* Cada punto activo se marca EN LA REFERENCIA —que es donde está atornillado el
+   fixture—: una esfera, una flecha corta por cada eje que restringe (X rojo, Y
+   verde, Z azul, los de siempre) y el nombre. Si la pieza activa es otra, una
+   línea sale de ahí al punto homólogo de ella YA COLOCADO, con el residuo
+   escrito cuando pasa de una centésima: es lo que le falta a ese apoyo para
+   tocar. El residuo del rótulo es el de `datumResult()`, el mismo de la tabla.
+   Cuelga de `groups.datums`, bajo la colocación como las variantes, y sus
+   puntos están en el marco de la referencia libre, que con el anclaje es el de
+   la escena: no se aplica `placeMatrix` otra vez. Sin prueba de profundidad,
+   como el punto de coincidencia, porque el punto cae DENTRO de la barra. */
+export const DATUM_AX_COLORS = ['#ff5a5f', '#3fd68c', '#4a8cff'];
+export function layerDatums(ctx: SceneCtx): void {
+  if (ST.anchor !== 'datums' || !ST.datums.length) return;
+  const refM = refModelFree();
+  const nPi = E.fk(refM).pis.length;
+  const sec = ctx.M.section;
+  const r = Math.max(5, 0.45 * Math.max(+(sec?.width || 0), +(sec?.thickness || 0), 12));
+  const sph = sharedGeometry('sphDatum', () => new SphereGeometry(1, 14, 10));
+  const fit = datumResult();
+  const resid = new Map((fit ? fit.resid : []).map(x => [x.id, x]));
+  const act = ctx.act;
+  const Sref = E.buildPath(refM).samples;
+  const Sact = act ? E.buildPath(act.m).samples : [];
+  const axDir = [new Vector3(1, 0, 0), new Vector3(0, 1, 0), new Vector3(0, 0, 1)];
+  const pos: number[] = [], col: number[] = [], apos: number[] = [], acol: number[] = [];
+  for (const d of ST.datums) {
+    if (!d.on) continue;
+    const q = E.datumPoint(refM, d, nPi, Sref);
+    if (!q) continue;
+    const m = new Mesh(sph, new MeshBasicMaterial({
+      color: COIN_COLOR, depthTest: false, transparent: true, opacity: .95 }));
+    m.position.copy(q); m.scale.setScalar(r); m.renderOrder = 998;
+    groups.datums.add(m);
+    for (let a = 0; a < 3; a++) {
+      if (!d.ax[a]) continue;
+      /* flecha a mano y no con ArrowHelper: clearGroup() libera la geometría de
+         cada hijo directo, y el ArrowHelper es un grupo que se la guardaría */
+      const L1 = r * 5, tip = q.clone().addScaledVector(axDir[a], L1);
+      const c = new Color(DATUM_AX_COLORS[a]);
+      apos.push(q.x, q.y, q.z, tip.x, tip.y, tip.z);
+      acol.push(c.r, c.g, c.b, c.r, c.g, c.b);
+      const cone = new Mesh(sharedGeometry('coneDatum', () => new CylinderGeometry(0, 1.1, 1.8, 10)),
+        new MeshBasicMaterial({ color: c, depthTest: false }));
+      cone.scale.setScalar(r);
+      cone.quaternion.copy(new Quaternion().setFromUnitVectors(new Vector3(0, 1, 0), axDir[a]));
+      cone.position.copy(tip).addScaledVector(axDir[a], r * .9);
+      cone.renderOrder = 998;
+      groups.datums.add(cone);
+    }
+    const rs = resid.get(d.id);
+    let txt = d.name;
+    if (act && Sact.length) {
+      const p0 = E.datumPoint(act.m, d, nPi, Sact);
+      if (p0) {
+        const p = p0.applyMatrix4(act.A);
+        const dist = p.distanceTo(q);
+        if (rs && isFinite(rs.n) && rs.n > .01 && dist > .01) {
+          const c = devThreeColor(rs.n, ctx.M.tol.point);
+          pos.push(q.x, q.y, q.z, p.x, p.y, p.z);
+          col.push(c.r, c.g, c.b, c.r, c.g, c.b);
+          txt += ' · ' + rs.n.toFixed(2) + ' mm';
+        }
+      }
+    }
+    extraLabels.push({ p: q.clone(), txt, color: COIN_COLOR });
+  }
+  for (const [P, C] of [[pos, col], [apos, acol]]) {
+    if (!P.length) continue;
+    const g = new BufferGeometry();
+    g.setAttribute('position', new Float32BufferAttribute(P, 3));
+    g.setAttribute('color', new Float32BufferAttribute(C, 3));
+    const ln = new LineSegments(g, new LineBasicMaterial({ vertexColors: true, depthTest: false }));
+    ln.renderOrder = 998;
+    groups.datums.add(ln);
+  }
 }
 
 /* --- método «Por puntos» ---------------------------------------------- */
@@ -615,4 +698,45 @@ export function layerPts(ctx: SceneCtx): void {
   lines(mcross, PTS_MEAS_COLOR);
   lines(segMeas, PTS_MEAS_COLOR, .8);
   lines(segBad, PTS_BAD_COLOR);
+}
+
+/* --- rastreador de cercanía --------------------------------------------
+   La pieza A repintada con el mapa de color de `proximity()` contra B. Es una
+   cinta con colores por vértice sobre la trayectoria de A, un poco más gruesa
+   que la barra normal (0.6 mm por lado) y con polygonOffset: sin eso queda
+   enterrada en la barra del mismo tamaño y parpadea. Va sin iluminar para que
+   el verde sea verde en cualquier cara. Las muestras sin par (A sobresale de
+   B) salen en gris. El rótulo va en el punto de mayor |valor|, en mm con signo
+   si se mira un eje. Las muestras ya vienen en el marco de `root`. */
+export function layerProx(ctx: SceneCtx): void {
+  if (!proxVisible()) return;
+  const st = proxResult();
+  if (!st) return;
+  const signed = proxUI.axis !== 'mag';
+  const path = E.buildPath(st.model);
+  if (path.samples.length !== st.res.rows.length) return;
+  const sec = st.model.section || ctx.M.section;
+  const fat = { ...sec, width: (+sec.width || 0) + 1.2, thickness: (+sec.thickness || 0) + 1.2 };
+  const c = new Color();
+  const g = barGeometry(path, fat, (_q, i) => {
+    const r = st.res.rows[i];
+    const k = E.proxColor(r.v, st.tol, signed, r.paired);
+    c.setRGB(k[0], k[1], k[2], SRGBColorSpace);
+    return [c.r, c.g, c.b];
+  });
+  const m = new Mesh(g, new MeshBasicMaterial({
+    vertexColors: true, side: DoubleSide, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2,
+  }));
+  m.renderOrder = 5;
+  groups.prox.add(m);
+  const s = st.res.stats;
+  if (s.nPaired && s.maxAbs > 0) {
+    let bi = 0;
+    st.res.rows.forEach((r, i) => { if (r.paired && st.samples[i].s === s.sAtMax) bi = i; });
+    const r = st.res.rows[bi];
+    const k = E.proxColor(r.v, st.tol, signed);
+    const col = '#' + new Color().setRGB(k[0], k[1], k[2], SRGBColorSpace).getHexString();
+    extraLabels.push({ p: st.samples[bi].p.clone(), color: col,
+      txt: `${signed && r.v > 0 ? '+' : ''}${r.v.toFixed(2)} mm` });
+  }
 }

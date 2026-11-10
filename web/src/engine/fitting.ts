@@ -6,6 +6,8 @@ import { Matrix4, Vector3, Quaternion } from 'three';
 import type { Model, AnchorMode, Place } from '../types.ts';
 import { D2R, basisOf, eye, trans, rotX, rotY, rotZ, applyMat, clamp } from './math.ts';
 import { fk } from './kinematics.ts';
+import { datumFit } from './datums.ts';
+import type { Datum } from './datums.ts';
 
 /* --------------------------------------------------------------- alineación */
 /* Jacobi para matrices simétricas n×n — sin numpy de este lado. */
@@ -61,8 +63,9 @@ export function kabsch(P: Vector3[], Q: Vector3[]): Matrix4 {
 /** Lee un modo de anclaje de cualquier versión. 'start' y 'end' eran el
  *  amarre y la punta: hoy son dos casos del punto de coincidencia, y `end`
  *  dice que ese punto es el PE. */
-export function normAnchor(a: unknown): { mode: 'pivot' | 'best'; end: boolean } {
+export function normAnchor(a: unknown): { mode: 'pivot' | 'best' | 'datums'; end: boolean } {
   if (a === 'best') return { mode: 'best', end: false };
+  if (a === 'datums') return { mode: 'datums', end: false };
   return { mode: 'pivot', end: a === 'end' };
 }
 
@@ -105,11 +108,16 @@ export function frameAtPi(model: Model, k: number): Matrix4 {
  *           aceptación es la posición de la punta maquinada. Sirve para
  *           comparar como de verdad se sujeta CADA pieza.
  *  'best'   mejor ajuste global de los PI (Kabsch). Reparte el error.
+ *  'datums' VARIOS PUNTOS de coincidencia, cada uno restringiendo solo los
+ *           ejes que se le marquen (esquema 3-2-1 de fixture). Ver
+ *           engine/datums.ts. Sin puntos activos es 'best'.
  *
  *  Los nombres viejos siguen valiendo: 'start' es P0 y 'end' es PE, sin
  *  mirar `k`.
  */
-export function anchorTransform(model: Model, ref: Model, mode: AnchorMode = 'pivot', k = 0): Matrix4 {
+export function anchorTransform(model: Model, ref: Model, mode: AnchorMode = 'pivot', k = 0,
+                                datums: Datum[] = []): Matrix4 {
+  if (mode === 'datums') return datumFit(model, ref, datums).M;
   if (mode === 'best') return kabsch(fk(model).pis, fk(ref).pis);
   const nr = fk(ref).pis.length, nm = fk(model).pis.length;
   const kr = mode === 'end' ? nr - 1 : (mode === 'start' ? 0 : clamp(k | 0, 0, nr - 1));
@@ -117,8 +125,9 @@ export function anchorTransform(model: Model, ref: Model, mode: AnchorMode = 'pi
   if (kr === 0 && km === 0) return eye();
   return new Matrix4().multiplyMatrices(frameAtPi(ref, kr), frameAtPi(model, km).invert());
 }
-export const anchoredPis = (model: Model, ref: Model, mode: AnchorMode = 'pivot', k = 0): Vector3[] =>
-  applyMat(anchorTransform(model, ref, mode, k), fk(model).pis);
+export const anchoredPis = (model: Model, ref: Model, mode: AnchorMode = 'pivot', k = 0,
+                            datums: Datum[] = []): Vector3[] =>
+  applyMat(anchorTransform(model, ref, mode, k, datums), fk(model).pis);
 
 /** ¿Las listas de PI se emparejan desde el final? Solo cuando lo común es el
  *  extremo libre: es ahí donde coinciden aunque a una le sobren dobleces. */
@@ -134,8 +143,9 @@ export function alignsFromEnd(ref: Model, mode: AnchorMode = 'pivot', k = 0): bo
  *  variantes no tienen el mismo número de dobleces se compara lo que existe en
  *  ambas, contando desde el extremo anclado (ver `alignsFromEnd()`).
  */
-export function piShift(model: Model, ref: Model, mode: AnchorMode = 'pivot', k = 0): number[] {
-  let a = anchoredPis(model, ref, mode, k);
+export function piShift(model: Model, ref: Model, mode: AnchorMode = 'pivot', k = 0,
+                        datums: Datum[] = []): number[] {
+  let a = anchoredPis(model, ref, mode, k, datums);
   let b = fk(ref).pis;
   const n = Math.min(a.length, b.length);
   if (alignsFromEnd(ref, mode, k)) { a = a.slice(a.length - n); b = b.slice(b.length - n); }

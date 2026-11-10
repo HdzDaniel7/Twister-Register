@@ -6,13 +6,20 @@
    nada. Aquí hay un modelo de datos: cada pedestal está donde está, con su
    altura y su inclinación, y el programa dice si la barra apoya en él.
 
-   POR QUÉ IMPORTA, y no es decoración: la barra se MIDE montada en el fixture.
-   En 1.7 m de aluminio la flecha por gravedad entre dos apoyos puede ser del
-   orden de la tolerancia de punto, así que un vano largo mete en la medición un
+   POR QUÉ IMPORTA, y no es decoración: la barra se MIDE montada en el fixture,
+   y dónde y a qué altura la sostiene cada pedestal mete en la medición un
    error que no es de doblado. El lazo de compensación intenta corregirlo, no
-   puede —no es un error de doblado— y ahí se queda. Es la explicación más
-   probable del estancamiento a ~5 mm en la punta que se vio en simulación.
-   Ver `.auditoria/solicitud-datos.md`, punto A.5.
+   puede —no es un error de doblado— y ahí se queda. Ver
+   `.auditoria/solicitud-datos.md`, punto A.5.
+
+   Y NO ES LA FLECHA, aunque aquí estuvo escrito que lo era: el estancamiento a
+   ~5 mm en la punta que se vio en simulación no lo explican los vanos. Con
+   siete pedestales los vanos son de ~250 mm y la flecha de 40×12 de aluminio
+   de plano en 300 mm es 0.003 mm (en 1000 mm, 0.42 mm; ver la cabecera de
+   engine/sag.ts). Lo que sí mueve milímetros es la SUJECIÓN: con mordaza la
+   pieza está empotrada en su primer extremo; suelta, se asienta entera sobre
+   las cunas, y un pedestal desnivelado medio milímetro la baja y la cabecea
+   en proporción. Es la carga en «libre» de engine/load.ts.
 
    Este archivo NO calcula la flecha. Da la geometría de la que sale: dónde
    apoya cada pedestal y qué vano queda entre uno y el siguiente. La flecha

@@ -13,7 +13,7 @@
    Las listas blancas salen de los objetos *_DEFAULT congelados: asi no pueden
    quedarse atras cuando alguien agregue un campo.                          */
 import * as E from '../../engine.ts';
-import { ST, V, syncModel, recomputeAll } from '../../state.ts';
+import { ST, V, syncModel, recomputeAll, seedDatums321, setDatum } from '../../state.ts';
 import { rebuildScene } from '../../scene.ts';
 import { renderShell, renderLeft, renderRight, renderStatus, renderPanels } from '../../panels.ts';
 import type { AnchorMode, DeltaKey } from '../../types.ts';
@@ -25,6 +25,8 @@ import { T } from '../../i18n.ts';
 import { angUI, angleDs, angVals, angRepIdx, parseDec } from '../../panels/angles.ts';
 import { setReportVals, setReportUse, renameReport, reportsOf, renameDataset, syncPlan, setPlanName, setPlanNominal } from '../../state.ts';
 import { drawRibbon } from '../../ribbon.ts';
+import { proxUI } from '../../proxstate.ts';
+import type { ProxAxis } from '../../engine/proximity.ts';
 import { ptUI, setPtEdit, setPtTarget, setPtMeas, setPtBoard } from '../../ptstate.ts';
 import {
   setPivot, variantById, editBend, editStraight, editStraightDelta, editTail, editDelta, editPoint, editTweak,
@@ -48,7 +50,7 @@ const MARK_KEYS = new Set(['name', 'x', 'y', 'z']);
    porque es una casilla y no pasa por setNum(). */
 const PED_NUM = new Set(Object.keys(E.PED_DEFAULT).filter(k => k !== 'visible'));
 const PED_KEYS = new Set(['name', ...PED_NUM]);
-const ANCHORS = new Set(['pivot', 'best']);
+const ANCHORS = new Set(['pivot', 'best', 'datums']);
 /* Los umbrales: la lista sale de LIMS_DEFAULT, como las demas. */
 const LIMS_KEYS = new Set<string>(E.LIMS_KEYS);
 /* El perfil de maquina: las columnas por un lado —son una lista— y el resto de
@@ -60,7 +62,8 @@ const PIN_NUM = new Set(Object.keys(E.PIN_DEFAULT).filter(k => k !== 'visible' &
 const PIN_KEYS = new Set(['name', ...PIN_NUM]);
 const RS_NUM = new Set(Object.keys(E.RESTRAINT_DEFAULT).filter(k => k !== 'on' && k !== 'doRot'));
 const MAT_KEYS = new Set(Object.keys(E.MAT_DEFAULT));
-const LOAD_NUM = new Set(Object.keys(E.LOAD_DEFAULT).filter(k => k !== 'on'));
+/* `hold` sale también: es un <select> con dos palabras, no un número. */
+const LOAD_NUM = new Set(Object.keys(E.LOAD_DEFAULT).filter(k => k !== 'on' && k !== 'hold'));
 const MACH_KEYS = new Set(Object.keys(E.MACHINE_DEFAULT).filter(k => k !== 'cols'));
 
 /** Un numero que se puede escribir en el modelo, o null.
@@ -101,8 +104,46 @@ function onChange(e: Event): void {
     if (d.orig !== undefined) t.value = d.orig;
     return;
   }
-  void (onPoints(t, d) || onAngles(t, d) || onScene(t, d) || onModelField(t, d) || onCell(t, d)
+  void (onDatum(t, d) || onProx(t, d) || onPoints(t, d) || onAngles(t, d) || onScene(t, d) || onModelField(t, d) || onCell(t, d)
         || onPlacement(t, d) || onMark(t, d) || onPedestal(t, d) || onTweak(t, d));
+}
+
+/* --- varios puntos de coincidencia (anclaje 'datums') --------------------
+   Es del DOCUMENTO: el commit() de después lo apila y se puede deshacer. Mueve
+   la pieza entera (el anclaje cambia), así que se recalcula todo como al
+   cambiar de anclaje. `setDatum()` sanea cada campo contra la lista blanca. */
+function onDatum(t: HTMLInputElement, d: DOMStringMap): boolean {
+  if (d.dd === undefined) return false;
+  const k = d.df || '';
+  const dt = ST.datums.find(x => x.id === d.dd);
+  if (!dt) return true;
+  if (/^ax[012]$/.test(k)) {
+    const ax = [...dt.ax] as [boolean, boolean, boolean];
+    ax[+k[2]] = t.checked;
+    setDatum(dt.id, 'ax', ax);
+  } else if (k === 'on') setDatum(dt.id, 'on', t.checked);
+  else if (k === 'name') setDatum(dt.id, 'name', t.value.trim() || dt.name);
+  else if (k === 'at') setDatum(dt.id, 'at', t.value);
+  else if (k === 'i' || k === 'f' || k === 'w') {
+    const n = num(t.value);
+    if (n === null) { renderLeft(); return true; }
+    setDatum(dt.id, k, k === 'i' ? Math.round(n) : n);
+  } else return true;
+  recomputeAll(); renderLeft(); renderRight(); renderStatus(); rebuildScene();
+  return true;
+}
+
+/* --- rastreador de cercanía: borrador de interfaz (proxUI), no toca el
+   documento. Solo repinta la escena; los paneles se redibujan para que la
+   leyenda y las cifras sigan a la elección. */
+function onProx(t: HTMLInputElement, d: DOMStringMap): boolean {
+  if (d.prxon !== undefined) proxUI.on = t.checked;
+  else if (d.prxa !== undefined) proxUI.a = t.value;
+  else if (d.prxb !== undefined) proxUI.b = t.value;
+  else if (d.prxx !== undefined) proxUI.axis = t.value as ProxAxis;
+  else return false;
+  renderPanels(); rebuildScene();
+  return true;
 }
 
 /* --- medir por puntos: edición, objetivo y medida por PI y eje -----------
@@ -212,6 +253,9 @@ function onScene(t: HTMLInputElement, d: DOMStringMap): boolean {
   if (d.an !== undefined) {
     if (!ANCHORS.has(d.an)) return true;
     ST.anchor = d.an as AnchorMode;
+    /* «Varios puntos» sin puntos no fija nada (= mejor ajuste): se siembra un
+       3-2-1 para que haya algo que mirar y tocar */
+    if (ST.anchor === 'datums' && !ST.datums.length) seedDatums321();
     /* el anclaje decide contra qué se comparan las piezas, no solo cómo se ve */
     recomputeAll(); renderLeft(); renderRight(); renderStatus(); rebuildScene();
     return true;
@@ -368,6 +412,10 @@ function onPin(t: HTMLInputElement, d: DOMStringMap): boolean {
         ST.layers.held.on = true;
         ST.layers.fix.on = true;
       }
+    } else if (d.ld === 'hold') {
+      /* Mordaza o libre: se sanea con la misma función que un archivo, así
+         que lo que no sea exactamente 'free' es mordaza. */
+      ST.load.hold = E.normLoad({ hold: t.value as 'clamp' | 'free' }).hold;
     } else if (!setNum(ST.load, LOAD_NUM, d.ld, t.value)) return true;
     pintar();
     return true;

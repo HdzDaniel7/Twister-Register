@@ -1,7 +1,8 @@
 /* ----------------------------------------------------------------- clics --
    Dos escuchas: la de las pestanas y la global. La global es un despachador
    por atributos data-*; para agregar un boton basta con darle el suyo.     */
-import { ST, removeReport } from '../../state.ts';
+import { ST, removeReport, addDatum, removeDatum, setDatum, seedDatums321, datumsFromFixture, recomputeAll } from '../../state.ts';
+import { noFixtureMsg } from '../../panels/datums.ts';
 import { setLang } from '../../i18n.ts';
 import { fitView, setView, rebuildScene } from '../../scene.ts';
 import { drawRibbon } from '../../ribbon.ts';
@@ -61,9 +62,22 @@ function onClick(e: MouseEvent): void {
     }
     const t = (e.target as HTMLElement).closest(
       '[data-a],[data-v],[data-dm],[data-l],[data-th],[data-md],[data-dr],[data-dx],[data-dsel],[data-cm],[data-mx],[data-px],' +
-      '[data-mm],[data-pa],[data-arv],[data-vsel],[data-vx],[data-vd],[data-vr],[data-r],[data-pnx],[data-hv],[data-sk],[data-km]') as HTMLElement | null;
+      '[data-mm],[data-pa],[data-arv],[data-vsel],[data-vx],[data-vd],[data-vr],[data-r],[data-pnx],[data-hv],[data-sk],[data-km],[data-dtb]') as HTMLElement | null;
     if (!t) return;
     const d = t.dataset;
+    /* los botones de la lista de varios puntos: `acción[:id[:valor]]`. Tocan el
+       documento (anclaje), así que se recalcula todo y commit() lo apila. */
+    if (d.dtb !== undefined) {
+      const [ac, id, val] = d.dtb.split(':');
+      if (ac === 'add') addDatum();
+      else if (ac === '321') seedDatums321();
+      else if (ac === 'fix') { if (!datumsFromFixture()) alert(noFixtureMsg()); }
+      else if (ac === 'clear') ST.datums = [];
+      else if (ac === 'del') removeDatum(id);
+      else if (ac === 'f') setDatum(id, 'f', +val);
+      recomputeAll(); renderLeft(); renderRight(); renderStatus(); rebuildScene();
+      return;
+    }
     if (d.l !== undefined) { setLang(d.l); renderAll(); return; }
     if (d.th !== undefined) { setTheme(d.th); return; }
     if (d.md !== undefined) { setMode(d.md as Mode); return; }

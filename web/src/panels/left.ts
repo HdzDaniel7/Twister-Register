@@ -10,6 +10,8 @@ import { piName, pivotName } from '../pivotlabel.ts';
 import { ST, pivotK, LAYER_DEF, refModel, heldOfVariant, heldOn } from '../state.ts';
 import { $, fx, esc, cls, nfield, srcTag } from './fmt.ts';
 import { saveFocus, restoreFocus, commitFocusIn } from './focus.ts';
+import { proxPane } from './prox.ts';
+import { datumsPane } from './datums.ts';
 import { MENUS, themeSeg, langSeg } from './shell.ts';
 import type { I18nKey } from './fmt.ts';
 
@@ -60,7 +62,7 @@ function vcard(v: Variant): string {
   const nd = v.deltas.reduce((a, d) => a + E.DELTA_KEYS.filter(k => d[k]).length, 0);
   let shift = 0;
   if (!isref) {
-    shift = E.farShift(E.piShift(vm, ref, ST.anchor, pivotK()));
+    shift = E.farShift(E.piShift(vm, ref, ST.anchor, pivotK(), ST.datums));
   }
   return `<div class="ds ${act ? 'act' : ''}" data-vsel="${v.id}">
       <div class="top">
@@ -195,7 +197,7 @@ const DRAWERS: Record<string, () => string> = {
 
    <div class="grp"><div class="eyebrow">${T('anchor')}</div><div class="body">
      <label class="layer">
-       <input type="radio" name="anch" data-an="pivot" ${ST.anchor !== 'best' ? 'checked' : ''}>
+       <input type="radio" name="anch" data-an="pivot" ${ST.anchor === 'pivot' ? 'checked' : ''}>
        <span class="nm">${T('aPivot').replace('{p}', pivotName())}</span></label>
      <div class="row mt6">
        <button class="btn sm grow" data-a="piv0">${T('aP0')}</button>
@@ -203,6 +205,10 @@ const DRAWERS: Record<string, () => string> = {
      <label class="layer">
        <input type="radio" name="anch" data-an="best" ${ST.anchor === 'best' ? 'checked' : ''}>
        <span class="nm">${T('aBest')}</span></label>
+     <label class="layer">
+       <input type="radio" name="anch" data-an="datums" ${ST.anchor === 'datums' ? 'checked' : ''}>
+       <span class="nm">${T('aDatums')}</span></label>
+     ${datumsPane()}
    </div></div>`,
 
   view: () => `
@@ -212,6 +218,8 @@ const DRAWERS: Record<string, () => string> = {
       <input type="color" class="sw" data-lc="${k}" value="${ST.layers[k].color}">
       <span class="nm">${T(lab as I18nKey)}</span></div>`).join('')}
    </div></div>
+
+   ${proxPane()}
 
    <div class="grp"><div class="eyebrow">${T('place')}</div><div class="body">
      <div class="fgrid" style="grid-template-columns:1fr 96px">

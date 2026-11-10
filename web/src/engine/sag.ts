@@ -11,12 +11,29 @@
    con el aviso puesto.
 
    POR QUÉ IMPORTA, que es lo que lo puso en la lista: la barra se MIDE montada
-   en el fixture. En 1.7 m de aluminio la flecha entre dos apoyos separados
-   puede ser del orden de la tolerancia de punto, así que un vano largo mete en
-   la medición un error que NO es de doblado. El lazo de compensación intenta
-   corregirlo, no puede —no es un error de doblado— y ahí se queda. Es la
-   explicación más probable del estancamiento a ~5 mm en la punta que se vio en
-   simulación.
+   en el fixture, y un vano LARGO mete en la medición un error que NO es de
+   doblado. El lazo de compensación intenta corregirlo, no puede, y ahí se
+   queda.
+
+   LO QUE ESTE ARCHIVO NO EXPLICA, corregido el 2026-11-10: aquí estuvo escrito
+   que la flecha era «la explicación más probable del estancamiento a ~5 mm en
+   la punta». Con las cifras delante no lo es. Con 40×12 de aluminio
+   (w = 0.0127 N/mm, E = 69 GPa) y la barra DE PLANO, que es como más se
+   cuelga (I = 5760 mm⁴):
+
+       vano biapoyado de  300 mm  →  5wL⁴/384EI ≈ 0.003 mm
+       vano biapoyado de 1000 mm  →             ≈ 0.42 mm
+       voladizo de        100 mm  →  wL⁴/8EI   ≈ 0.0004 mm
+
+   Con siete pedestales los vanos son de ~250 mm: micras, no milímetros. Para
+   que la flecha diera 5 mm haría falta un vano de casi dos metros de plano, o
+   sea la barra entera sin nada debajo. El candidato que sí es de milímetros
+   es la SUJECIÓN: una pieza posada en cunas primero se ASIENTA como sólido
+   —baja, cabecea y se ladea hasta apoyar—, y un pedestal medio milímetro
+   desnivelado la mueve medio milímetro ahí y en proporción a un metro de
+   distancia. Eso lo calcula engine/load.ts con la carga en «libre» (ver
+   «MORDAZA O LIBRE»); con mordaza, la pieza está empotrada en su primer
+   extremo y ese asentamiento no puede ocurrir.
 
    CÓMO SE CALCULA, y qué se está aceptando al hacerlo así:
 

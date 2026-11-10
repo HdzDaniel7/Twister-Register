@@ -34,7 +34,7 @@ export function ptPane(M: Model): string {
   const lab = (nm: string, k: I18nKey, a: number): string =>
     T('ptAxisOf').replace('{p}', nm).replace('{a}', T(k) + ' ' + AX[a]);
 
-  const frame = ST.anchor === 'best'
+  const frame = ST.anchor !== 'pivot'          // 'best' y 'datums' ajustan, no fijan un PI
     ? T('ptFrameBest')
     : T('ptFrameHint').replace('{p}', `<b>${esc(pivotName())}</b>`);
 

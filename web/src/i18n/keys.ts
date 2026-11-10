@@ -54,6 +54,8 @@ export type I18nKey =
   | 'loadN' | 'loadNTip' | 'loadNote' | 'loadNoMat' | 'loadHang'
   | 'loadStuck' | 'loadStuckTip' | 'loadStuckWarn'
   | 'loadNd' | 'loadNdTip' | 'loadNoDof'
+  | 'loadHold' | 'loadHoldTip' | 'loadHoldClamp' | 'loadHoldFree' | 'loadSettle' | 'loadSettleTip'
+  | 'loadUnstable' | 'loadRootFree' | 'loadRootFreeTip'
   | 'devRowTip'
   | 'mach' | 'machTitle' | 'machCols' | 'machAxis' | 'machSep' | 'machDec'
   | 'machLen' | 'machAng' | 'machSignA' | 'machSignR' | 'machSignTip'
@@ -110,4 +112,6 @@ export type I18nKey =
   | 'pedD' | 'pedDTip' | 'pedSTip' | 'pedPlanTip' | 'pedGapTip' | 'pedSpanTip'
   | 'pinDiaTip' | 'pinGapTip' | 'pinStateTip' | 'loadRootDown'
   | 'mmMethod' | 'measCloud' | 'measAngles' | 'angTitle' | 'angName' | 'angDefName' | 'angMeasOf' | 'angCorr' | 'angCreate' | 'angApply' | 'angRecApplyTip' | 'angMaxAbs' | 'angMean' | 'angN' | 'angChart' | 'angChartTip' | 'angNoneTyped' | 'repAngles' | 'repAngPiece' | 'repAngDate' | 'repAngOk' | 'repAngOut' | 'repAngState' | 'angOneNote' | 'angRange' | 'angVsPlan' | 'angPlan' | 'angPlanTip' | 'angRep' | 'angRepTip' | 'angBoard' | 'angBoardTip' | 'angBoardNow' | 'angBoardNew' | 'angDeltaTip' | 'angFlowHint' | 'angBoardInfo' | 'angNameOf' | 'angPlanOf' | 'angNoPlanTip' | 'angPlanMissing' | 'angRecDone' | 'repAngIntro' | 'repAngBoard' | 'angNameCol' | 'angReports' | 'angMeanOf' | 'angAddRep' | 'angUseTip' | 'angSpreadTip' | 'angRecFromMean' | 'angMeanHint' | 'angMeanTip' | 'angMeanCol' | 'angRepName' | 'angRepDel' | 'angRepSelTip' | 'angApplyMean' | 'repAngReps' | 'repAngMeanOf' | 'repAngInMean' | 'repAngSpread'
-  | 'measPoints' | 'ptTitle' | 'ptFlow' | 'ptBoard' | 'ptFrameHint' | 'ptFrameBest' | 'ptAlign' | 'ptAlignPivot' | 'ptAlignPivotTip' | 'ptAlignBest' | 'ptAlignBestTip' | 'ptGain' | 'ptShow' | 'ptNominal' | 'ptEdit' | 'ptTarget' | 'ptMeasured' | 'ptErr' | 'ptErrTip' | 'ptResid' | 'ptResidTip' | 'ptAxisOf' | 'ptResBar' | 'ptFeed' | 'ptRot' | 'ptAngle' | 'ptTail' | 'ptResHint' | 'ptUnreach' | 'ptStatResid' | 'ptStatErr' | 'ptStatEdit' | 'ptStatMeas' | 'ptApply' | 'ptApplied' | 'ptClrEdit' | 'ptClrMeas' | 'ptCreateMeas' | 'ptMeasTip' | 'ptDefName';
+  | 'measPoints' | 'ptTitle' | 'ptFlow' | 'ptBoard' | 'ptFrameHint' | 'ptFrameBest' | 'ptAlign' | 'ptAlignPivot' | 'ptAlignPivotTip' | 'ptAlignBest' | 'ptAlignBestTip' | 'ptGain' | 'ptShow' | 'ptNominal' | 'ptEdit' | 'ptTarget' | 'ptMeasured' | 'ptErr' | 'ptErrTip' | 'ptResid' | 'ptResidTip' | 'ptAxisOf' | 'ptResBar' | 'ptFeed' | 'ptRot' | 'ptAngle' | 'ptTail' | 'ptResHint' | 'ptUnreach' | 'ptStatResid' | 'ptStatErr' | 'ptStatEdit' | 'ptStatMeas' | 'ptApply' | 'ptApplied' | 'ptClrEdit' | 'ptClrMeas' | 'ptCreateMeas' | 'ptMeasTip' | 'ptDefName'
+  | 'prxTitle' | 'prxOn' | 'prxA' | 'prxB' | 'prxAxis' | 'prxRef' | 'prxActive' | 'prxMag' | 'prxAxX' | 'prxAxY' | 'prxAxZ' | 'prxAxThick' | 'prxAxWidth' | 'prxHint' | 'prxLegend' | 'prxMaxPos' | 'prxMaxNeg' | 'prxAt' | 'prxWithin' | 'prxNoPair' | 'prxUnpaired' | 'prxMissing' | 'prxSame'
+  | 'aDatums' | 'dtHint' | 'dtName' | 'dtOn' | 'dtAt' | 'dtIdx' | 'dtFrac' | 'dtAx' | 'dtW' | 'dtRes' | 'dtDel' | 'dtPi' | 'dtArc' | 'dtLine' | 'dtTail' | 'dtEntry' | 'dtVertex' | 'dtExit' | 'dtAdd' | 'dt321' | 'dtFromFix' | 'dtClear' | 'dtFromFixTip' | 'dtNoFix' | 'dt321Tip' | 'dtStatus' | 'dtFree' | 'dtFixed' | 'dtPiNote' | 'dtNone' | 'dtMissing';

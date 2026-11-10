@@ -84,7 +84,7 @@ let memo: PtResult | null = null;
 export function ptResult(): PtResult {
   ptSync();
   const B = ptBoard();
-  const key = JSON.stringify([B.bends, B.tail, ST.anchor, pivotK(), ptUI.edits, ptUI.meas, ptUI.gain, ptUI.align]);
+  const key = JSON.stringify([B.bends, B.tail, ST.anchor, pivotK(), ST.datums, ptUI.edits, ptUI.meas, ptUI.gain, ptUI.align]);
   if (memo && key === memoKey) return memo;
   memo = E.pointsSolve(B, { edits: ptUI.edits, meas: ptUI.meas, gain: ptUI.gain, align: ptUI.align },
                        ST.anchor, pivotK());
@@ -96,7 +96,7 @@ export function ptResult(): PtResult {
  *  colocación): la misma matriz con la que se dibuja esa variante. */
 export function ptSceneMatrix(): Matrix4 {
   const B = ptBoard();
-  const A = E.anchorTransform(B, refModelFree(), ST.anchor, pivotK());
+  const A = E.anchorTransform(B, refModelFree(), ST.anchor, pivotK(), ST.datums);
   return A.multiply(E.ptFrame(B, ST.anchor, pivotK()));
 }
 export const ptToScene = (p: Xyz, M: Matrix4 = ptSceneMatrix()): Vector3 =>

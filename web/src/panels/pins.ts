@@ -159,7 +159,13 @@ function carga(M: Model): string {
      apoyada: está en voladizo. Se avisa con un número, no con un adjetivo.
      Sin estaciones no se puede afirmar: ahí todo el peso sale en la raíz por
      construcción, no porque la pieza esté en voladizo. */
-  const colgando = resuelto && !rendido && R.root > 0.5 * R.weight;
+  /* Con la pieza SUELTA no hay mordaza de la que colgar ni que tire: la raíz es
+     lo que no lleva nadie, y ya se avisa con `inestable` si eso es la pieza
+     cayéndose. Ver «MORDAZA O LIBRE» en engine/load.ts. */
+  const libre = on && ST.load.hold === 'free';
+  const inestable = libre && R.unstable;
+  const suelta = libre && !inestable;
+  const colgando = resuelto && !rendido && !suelta && R.root > 0.5 * R.weight;
   /* Y el signo contrario: los apoyos llevan MÁS que la pieza entera y la
      mordaza tira hacia abajo lo que sobra. El taller confirmó el 2026-09-15 que
      el fixture tiene mordaza en el primer extremo, así que esto no es un número
@@ -167,7 +173,7 @@ function carga(M: Model): string {
      que hay que comprobar —sin la mordaza, ese extremo se levantaría— y hasta
      hoy salía como una cifra negativa sin una palabra. El 1 % es para no avisar
      del ruido de un reparto que cuadra. */
-  const tira = resuelto && !rendido && R.root < -0.01 * R.weight;
+  const tira = resuelto && !rendido && !suelta && R.root < -0.01 * R.weight;
   /* Y lo que cuesta CALCULARLO, que hasta el 2026-09-19 no se decía en ninguna
      parte: por encima de unos treinta dobleces asentar la pieza deja de ser
      instantáneo y a sesenta son dieciséis segundos. El aviso sale con el
@@ -191,7 +197,13 @@ function carga(M: Model): string {
       <label title="${esc(T('loadDirTip'))}">${rot.dx}</label>${num('dx', '.25')}
       <label title="${esc(T('loadDirTip'))}">${rot.dy}</label>${num('dy', '.25')}
       <label title="${esc(T('loadDirTip'))}">${rot.dz}</label>${num('dz', '.25')}
+      <label title="${esc(T('loadHoldTip'))}">${T('loadHold')}</label>
+      <select data-ld="hold" title="${esc(T('loadHoldTip'))}" ${named(T('loadHold'))}>
+        <option value="clamp" ${libre ? '' : 'selected'}>${T('loadHoldClamp')}</option>
+        <option value="free" ${libre ? 'selected' : ''}>${T('loadHoldFree')}</option>
+      </select>
     </div>
+    ${inestable ? `<div role="alert" class="warnbox mt6">${T('loadUnstable')}</div>` : ''}
     ${R.noMat ? `<div role="alert" class="warnbox mt6">${T('loadNoMat')}</div>`
       /* Sin estaciones el peso SÍ se sabe —densidad por sección por largo— y lo
          que no se sabe es cómo se reparte. Se enseña lo primero y se dice lo
@@ -208,8 +220,11 @@ function carga(M: Model): string {
         fx(R.weight, 1)} N</span>
       <span class="chip ${rendido ? 'dim' : colgando ? '' : 'ok'}" title="${esc(T('loadCarriedTip'))}">${
         T('loadCarried')}: ${fx(R.carried, 1)} N</span>
-      <span class="chip ${rendido ? 'dim' : colgando || tira ? 'bad' : ''}" title="${esc(T('loadRootTip'))}">${
-        T('loadRoot')}: ${fx(R.root, 1)} N</span>
+      <span class="chip ${rendido ? 'dim' : colgando || tira ? 'bad' : ''}" title="${
+        esc(T(suelta ? 'loadRootFreeTip' : 'loadRootTip'))}">${
+        T(suelta ? 'loadRootFree' : 'loadRoot')}: ${fx(R.root, suelta ? 2 : 1)} N</span>
+      ${suelta ? `<span class="chip ${rendido ? 'dim' : ''}" title="${esc(T('loadSettleTip'))}">${
+        T('loadSettle')}: ${fx(R.rigidDrop, 2)} mm</span>` : ''}
       <span class="chip ${rendido ? 'dim' : R.drop > M.tol.point ? 'bad' : ''}" title="${esc(T('loadDropTip'))}">${
         T('loadDrop')}: ${fx(R.drop, 2)} mm${R.dropAt >= 0 ? ` · PI${R.dropAt + 1}` : ''}</span>
       <span class="chip ${!rendido && R.pene > ST.restraint.tol ? 'bad' : 'dim'}"

@@ -10,6 +10,7 @@ import type { Vector3 } from 'three';
 import type { Bend, Model, Variant, AnchorMode } from './model.ts';
 import type { Comp, Lims, Load, Mat, Proc, Restraint, Deviations } from './process.ts';
 import type { MachineFmt } from '../engine/machine.ts';
+import type { Datum } from '../engine/datums.ts';
 
 /* -------------------------------------------------------------- documento */
 
@@ -380,6 +381,8 @@ export type Doc = {
   marks: { name: string; color: string; visible: boolean; x: number; y: number; z: number }[];
   /** el fixture. Sin `id`: se reasigna al abrir, igual que en `marks` */
   fixture: Omit<Pedestal, 'id'>[];
+  /** los puntos de coincidencia; opcional, solo si hay */
+  datums?: Datum[];
   /* (el `yaw` de cada cuna viaja desde `barcomp/2.5`; los anteriores no lo
      traen y se apuntan una vez al abrirlos) */
   /** los pines laterales. Sin `id`, por lo mismo */
@@ -439,6 +442,8 @@ export type LoadedDoc = {
    *  fixtures distintos. Lo resuelve `setPedestals()`, que es quien tiene una
    *  pieza colocada contra la que apuntar la cuna. Ver SCHEMA_COMPAT. */
   fixture: (Omit<Pedestal, 'yaw'> & { yaw?: number })[];
+  /** los puntos de coincidencia, saneados; vacío si no venían */
+  datums: Datum[];
   pins: Pin[];
   restraint: Restraint;
   load: Load;

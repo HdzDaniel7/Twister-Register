@@ -19,7 +19,7 @@ export function panePoints(M: Model): string {
   /* Las coordenadas de la tabla son el DISEÑO y se teclean, así que se quedan
      libres; el desplazamiento no: dice cuánto se separa la barra que se muestra
      de la referencia en su misma forma, igual que la tarjeta de cada modelo. */
-  try { sh = E.piShift(shownModel(), ref, ST.anchor, pivotK()); } catch { sh = []; }
+  try { sh = E.piShift(shownModel(), ref, ST.anchor, pivotK(), ST.datums); } catch { sh = []; }
   const n = P.length;
   /* si el punto de coincidencia cae en la mitad final, piShift() alinea las
      listas POR EL FINAL, así que el desplazamiento del PI i vive desplazado. */

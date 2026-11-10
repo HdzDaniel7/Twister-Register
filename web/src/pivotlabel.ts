@@ -17,7 +17,8 @@ export function pivotName(): string {
 
 /** Cómo se llama el anclaje activo: «Mejor ajuste» o «Coincidencia en PI11». */
 export const anchorLabel = (): string =>
-  ST.anchor === 'best' ? T('aBest') : T('aPivot').replace('{p}', pivotName());
+  ST.anchor === 'best' ? T('aBest')
+    : ST.anchor === 'datums' ? T('aDatums') : T('aPivot').replace('{p}', pivotName());
 
 /** Cómo se llama la referencia de la medición (datum). */
 export const datumLabel = (): string =>
@@ -25,7 +26,10 @@ export const datumLabel = (): string =>
 
 /** ¿Es el PI `i` el punto de coincidencia? Con «mejor ajuste» no hay ninguno. */
 export function isCoin(i: number, n: number): boolean {
-  return ST.anchor !== 'best' && Math.min(Math.max(pivotK(), 0), n - 1) === i;
+  /* solo con el punto de coincidencia de siempre: con «mejor ajuste» o con
+     varios puntos no hay UN PI fijo común */
+  return (ST.anchor === 'pivot' || ST.anchor === 'start' || ST.anchor === 'end')
+    && Math.min(Math.max(pivotK(), 0), n - 1) === i;
 }
 
 /** Botón ⊕ de una fila: marca el punto de coincidencia vigente y, en las demás
