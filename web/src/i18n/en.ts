@@ -86,7 +86,7 @@ export const en: Record<I18nKey, string> = {
  formula: 'new command = current command + gain × (nominal − measured)',
  note: 'The whole chain is regenerated after each correction: downstream carry-over is already in the model.',
  repModel: 'Model report', repPrint: 'Print / PDF', repTotal: 'Total',
- repBase: 'Model, no compensation', repAdjust: 'Compensations', repTotals: 'Totals',
+ repBase: 'Model, no compensation', repAdjust: 'Compensations', repAdjLegend: 'Each compensation against the original: blue = same (no change), green = higher (+), red = lower (−).', repTotals: 'Totals',
  repSameAll: 'Same for every model',
  repSave: 'Save HTML',
  ok: 'In tolerance', bad: 'Out of tolerance', piece: 'Part',

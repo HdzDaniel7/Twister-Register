@@ -94,7 +94,7 @@ export const de: Record<I18nKey, string> = {
  formula: 'neuer Befehl = aktueller Befehl + Verstärkung × (Nennwert − Messwert)',
  note: 'Nach jeder Korrektur wird die ganze Kette neu erzeugt: die Fortpflanzung zwischen den Biegungen steckt bereits im Modell.',
  repModel: 'Modellbericht', repPrint: 'Drucken / PDF', repTotal: 'Summe',
- repBase: 'Modell ohne Kompensation', repAdjust: 'Kompensationen', repTotals: 'Summen',
+ repBase: 'Modell ohne Kompensation', repAdjust: 'Kompensationen', repAdjLegend: 'Jede Kompensation gegenüber dem Original: blau = gleich (keine Änderung), grün = größer (+), rot = kleiner (−).', repTotals: 'Summen',
  repSameAll: 'Für alle Modelle gleich',
  repSave: 'HTML sichern',
  ok: 'In Toleranz', bad: 'Außer Toleranz', piece: 'Teil',

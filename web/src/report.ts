@@ -211,7 +211,7 @@ export function reportHtml(): string {
   };
 
   /* --- una celda ------------------------------------------------------------
-     En la tabla de Δ el cero se apaga y el resto lleva signo: la columna solo
+     En la tabla de Δ el resto lleva signo y color (ver abajo): la columna solo
      debe cantar donde hay corrección. En la de totales se marca lo que se
      separa de la REFERENCIA, y se compara el TEXTO ya redondeado y no el
      número: con el número crudo, dos celdas que imprimen 90.0 y 90.0 salían
@@ -229,9 +229,15 @@ export function reportHtml(): string {
   const celda = (v: number | null, n: number, modo: Modo, ref: number | null,
                  cls = ''): string => {
     if (v === null) return `<td class="${cls}z">—</td>`;
+    /* TRES COLORES EN LA TABLA DE COMPENSACIONES, por el signo de la cifra
+       TAL COMO SE IMPRIME: igual a la original (Δ 0) en azul, mayor en verde
+       (`k`, la de siempre), menor en rojo. Así una pieza dada de alta por
+       puntos —misma base, todo en Δ— se lee de un vistazo: qué fila se
+       compensa y hacia dónde. */
     if (modo === 'delta') {
-      const z = +v.toFixed(n) === 0;
-      return `<td class="${cls}${z ? 'z' : 'k'}">${z ? '—' : (v > 0 ? '+' : '') + fx(v, n)}</td>`;
+      const r = +v.toFixed(n);
+      if (r === 0) return `<td class="${cls}ke">${fx(0, n)}</td>`;
+      return `<td class="${cls}${r > 0 ? 'k' : 'kn'}">${(r > 0 ? '+' : '') + fx(v, n)}</td>`;
     }
     const t = fx(v, n);
     return `<td class="${cls}${ref !== null && t !== fx(ref, n) ? 'd' : ''}">${t}</td>`;
@@ -407,6 +413,12 @@ export function reportHtml(): string {
      0-1-0 perdería contra ella — justo en la fila que más se mira de las tres
      tablas. Empatado a 0-1-2 y escrito después, gana este. */
   tr td.k{color:#0a6b2d;font-weight:700;background:#eaf7ee}
+  /* menor que la original en rojo, igual en azul; mismo truco de
+     especificidad que el verde para que la fila TOTAL no se los coma */
+  tr td.kn{color:#b0122a;font-weight:700;background:#fdecee}
+  tr td.ke{color:#1d4ed8;background:#eef3fd}
+  .leg{font:11px system-ui,sans-serif;color:var(--dim);margin:0 0 6px}
+  .leg b{padding:0 5px;border-radius:3px}
   .sw{display:inline-block;width:9px;height:9px;border-radius:2px;margin-right:6px}
   /* La barra se queda PEGADA arriba. En un teléfono el reporte son varias
      pantallas de tabla, y si la barra se va con el scroll no queda salida:
@@ -463,6 +475,7 @@ export function reportHtml(): string {
   ${tabla('base')}
 
   <h2>2 · ${T('repAdjust')}</h2>
+  <p class="leg"><b style="color:#1d4ed8;background:#eef3fd">0</b> <b style="color:#0a6b2d;background:#eaf7ee">+</b> <b style="color:#b0122a;background:#fdecee">−</b> ${T('repAdjLegend')}</p>
   ${tabla('delta')}
 
   <h2>3 · ${T('repTotals')}</h2>

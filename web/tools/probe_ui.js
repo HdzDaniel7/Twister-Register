@@ -5316,10 +5316,17 @@ step('por puntos: teclear el objetivo absoluto guarda la edición', () => {
 });
 step('por puntos: «Crear barra objetivo» da de alta una variante nueva y activa, y un deshacer la quita', () => {
   const antes = BC().ST.variants.length;
+  const src = JSON.parse(JSON.stringify(BC().ST.variants.find(x => x.id === (BC().ptUI.vid || BC().ST.active))));
   click('[data-a="ptapply"]');
   if (BC().ST.variants.length !== antes + 1) throw new Error('variantes ' + antes + ' → ' + BC().ST.variants.length);
   const v = BC().ST.variants.find(x => x.id === BC().ST.active);
   if (!/pts/.test(v.name)) throw new Error('nombre ' + v.name);
+  /* misma base nominal que la barra de origen; todo el cambio en los Δ */
+  if (JSON.stringify(v.base.bends) !== JSON.stringify(src.base.bends)) throw new Error('la barra objetivo cambió la base nominal');
+  if (!v.deltas.some(d => Object.values(d).some(x => Math.abs(x) > 1e-9))) throw new Error('la barra objetivo no trae compensación en los Δ');
+  const want = BC().ptResult().model, eff = BC().E.effectiveModel(v);
+  const dif = Math.max(...eff.bends.flatMap((b, i) => ['feed', 'rot', 'angle'].map(k => Math.abs(b[k] - want.bends[i][k]))));
+  if (dif > 1e-9) throw new Error('base + Δ no da la barra resultante: dif ' + dif);
   hotkey('z', { ctrlKey: true });
   if (BC().ST.variants.length !== antes) throw new Error('el deshacer no quitó la barra: ' + BC().ST.variants.length);
 });

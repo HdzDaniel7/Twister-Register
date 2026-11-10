@@ -162,9 +162,15 @@ export function setPtBoard(vid: string): void {
 
 /* -------------------------------------------------------------- altas */
 /** Da de alta la BARRA OBJETIVO como variante nueva, activa y visible, y
- *  devuelve su id ('' si no había nada que pedir). Es la barra resultante
- *  entera como base, sin Δ: lo que se tecleó son puntos, no correcciones de
- *  fila, y repartirlo en Δ por fila sería inventar cuál de ellas lo pidió.
+ *  devuelve su id ('' si no había nada que pedir).
+ *
+ *  LA BASE ES LA DE LA BARRA ELEGIDA, intacta: las medidas nominales de la
+ *  pieza no cambian porque se haya medido. Todo lo que hace falta para llegar
+ *  a los puntos pedidos va en los Δ —las compensaciones—, que es lo que el
+ *  reporte enseña en su tabla 2 y lo que se compara contra la original. Los Δ
+ *  son el cambio TOTAL desde la base, así que los que ya traía la barra se
+ *  conservan sumados. Con la misma regla de signo que `effectiveModel()`:
+ *  el Δ del ángulo va por el sentido del doblez de la base.
  *  No apila el paso de deshacer: eso lo hace el `commit()` del clic. */
 export function applyPointsTarget(): string {
   const R = ptResult();
@@ -174,8 +180,19 @@ export function applyPointsTarget(): string {
   let k = 1;
   while (ST.variants.some(v => v.name === `${base} · pts ${k}`)) k += 1;
   const n = ST.variants.length;
-  const w = E.newVariant({ ...R.model, name: `${base} · pts ${k}` }, `${base} · pts ${k}`,
-                         VAR_COLORS[n % VAR_COLORS.length], newVid());
+  const w = E.cloneVariant(src, `${base} · pts ${k}`, VAR_COLORS[n % VAR_COLORS.length], newVid());
+  E.syncDeltas(w);
+  w.deltas = w.base.bends.map((b, i) => {
+    const r = R.model.bends[i] || b;
+    const s = E.bendSense(b.angle);
+    const d = E.zeroDelta();
+    for (const key of E.DELTA_KEYS) {
+      const v = (+r[key] || 0) - (+b[key] || 0);
+      d[key] = key === 'angle' ? s * v : v;
+    }
+    return d;
+  });
+  w.tailDelta = (+R.model.tail || 0) - (+w.base.tail || 0);
   w.visible = true;
   ST.variants.push(w);
   ST.active = w.id; ST.sel = -1;

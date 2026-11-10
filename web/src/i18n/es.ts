@@ -86,7 +86,7 @@ export const es: Record<I18nKey, string> = {
  formula: 'nuevo comando = comando actual + ganancia × (nominal − medido)',
  note: 'La cadena completa se regenera tras cada corrección: el arrastre entre dobleces ya está contenido en el modelo.',
  repModel: 'Reporte de modelo', repPrint: 'Imprimir / PDF', repTotal: 'Total',
- repBase: 'Modelo sin compensación', repAdjust: 'Compensaciones', repTotals: 'Totales',
+ repBase: 'Modelo sin compensación', repAdjust: 'Compensaciones', repAdjLegend: 'Cada compensación contra la original: azul = igual (sin cambio), verde = mayor (+), rojo = menor (−).', repTotals: 'Totales',
  repSameAll: 'Igual en todos los modelos',
  repSave: 'Guardar HTML',
  ok: 'En tolerancia', bad: 'Fuera de tolerancia', piece: 'Pieza',

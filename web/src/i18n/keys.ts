@@ -94,7 +94,7 @@ export type I18nKey =
   | 'stUnits' | 'stVer' | 'stVerTip'
   | 'schemaAmbiguous' | 'schemaMigrated' | 'schemaUnknown'
   | 'jsonNotJson' | 'jsonNotDoc' | 'jsonBroken' | 'cellBad'
-  | 'repModel' | 'repPrint' | 'repBase' | 'repAdjust' | 'repTotals' | 'repTotal'
+  | 'repModel' | 'repPrint' | 'repBase' | 'repAdjust' | 'repAdjLegend' | 'repTotals' | 'repTotal'
   | 'repSameAll' | 'repSave'
   | 'dPivot' | 'dBest' | 'formula' | 'note'
   | 'ok' | 'bad' | 'piece' | 'orW' | 'orT' | 'confirmNew' | 'pts'
