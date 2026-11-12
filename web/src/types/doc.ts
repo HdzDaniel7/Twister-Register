@@ -211,6 +211,9 @@ export type AngleRow = {
   /** measInt − refInt, °. Positivo = más abierto que el plano = le falta
    *  doblez */
   dev: number | null;
+  /** true = la desviación media no supera el ruido entre reportes (ver
+   *  `isNoise()`); null/ausente = menos de dos lecturas */
+  noise?: boolean | null;
   /** |dev| <= tol.angle */
   ok: boolean | null;
   /** ángulo de doblez del tablero con el que se hizo la pieza, ° */

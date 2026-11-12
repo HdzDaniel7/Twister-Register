@@ -5466,4 +5466,39 @@ step('por ángulos: salida «tablero» crea una variante con la misma base y Δ 
   click('[data-a="angout"]');
 });
 
+/* --- fase B de la auditoría 2026-11-12: ajuste literal, Δ para máquina, tecla ± --- */
+step('por ángulos: en modo ajuste el tablero recibe lo tecleado tal cual, y Medir enseña el Δ para máquina', () => {
+  const nv = BC().ST.variants.length;
+  BC().angUI.draft = [];
+  click('[data-a="anginmode"]');
+  if (BC().angUI.inMode !== 'adj') throw new Error('no pasó a ajuste');
+  setval('input[data-ai="0"]', '+0,02');
+  click('[data-a="angout"]');
+  if (!/\(/.test(q('[data-a="angboard"]').textContent)) throw new Error('el botón no dice de dónde sale: ' + q('[data-a="angboard"]').textContent);
+  click('[data-a="angboard"]');
+  const v = BC().ST.variants.find(x => x.id === BC().ST.active);
+  if (BC().ST.variants.length !== nv + 1) throw new Error('no creó el tablero');
+  if (Math.abs(v.deltas[0].angle - 0.02) > 1e-6) throw new Error('Δ ' + v.deltas[0].angle + ' y se tecleó +0.02');
+  const m = q('.angmach');
+  if (!/\+0[.,]02/.test(m.textContent)) throw new Error('el bloque Δ para máquina dice: ' + m.textContent);
+  hotkey('z', { ctrlKey: true });
+  click('[data-a="angout"]');
+});
+step('por ángulos: en teléfono la tecla ± sale sobre el ajuste (campo de texto) y le cambia el signo', () => {
+  try {
+    telOn();
+    setval('input[data-ai="0"]', '1,5');
+    q('input[data-ai="0"]').focus();
+    if (!seVe('#signk').ok) throw new Error('#signk no se ve sobre el campo de ajuste');
+    click('#signk');
+    if (q('input[data-ai="0"]').value !== '-1.5') throw new Error('quedó ' + q('input[data-ai="0"]').value);
+    click('[data-a="anginmode"]');
+    q('input[data-ai="0"]').focus();
+    if (seVe('#signk').ok) throw new Error('#signk se ve sobre un ángulo absoluto, que no admite negativo');
+  } finally {
+    telOff();
+    BC().angUI.draft = [];
+  }
+});
+
 return log.join('\n');

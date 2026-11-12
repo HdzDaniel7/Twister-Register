@@ -18,6 +18,15 @@ import { download, pickFile, pickFiles, safeName } from '../io.ts';
 import { renderAll } from './render.ts';
 import { useTheme } from './theme.ts';
 import { commit, markSaved, currentDoc, applyDoc } from './history.ts';
+import { angUI } from '../panels/angles.ts';
+import { ptUI } from '../ptstate.ts';
+
+/** Lo tecleado sin dar de alta (ángulos, puntos) es de la pieza que había:
+ *  al abrir otro archivo se tira, aunque tenga el mismo número de dobleces. */
+function resetDrafts(): void {
+  angUI.draft = []; angUI.name = ''; angUI.note = ''; angUI.rep = -1;
+  ptUI.vid = ''; ptUI.sig = ''; ptUI.edits = []; ptUI.meas = []; ptUI.note = ''; ptUI.name = '';
+}
 
 export function saveJson(): void {
   /* El mismo documento que guarda el deshacer, más la pantalla: ver currentDoc(). */
@@ -32,6 +41,7 @@ export function openJson(): void {
     try {
       const d = E.fromDoc(JSON.parse(txt));
       applyDoc(d);
+      resetDrafts();
       /* Un archivo guardado con la barra sujeta tiene que ABRIRSE enseñándolo:
          las capas no viajan en el JSON, así que sin esto el amarre queda
          encendido y en el 3D no se ve ni un pin — que se lee como que el

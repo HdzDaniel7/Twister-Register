@@ -26,7 +26,11 @@ import { T } from '../../i18n.ts';
  *  «sin tope», que es el caso de 125 de los 140 campos. */
 function target(): HTMLInputElement | null {
   const el = document.activeElement as HTMLInputElement | null;
-  if (!el || el.tagName !== 'INPUT' || el.type !== 'number') return null;
+  if (!el || el.tagName !== 'INPUT') return null;
+  /* los campos de TEXTO decimales (ángulos en modo ajuste, puntos) se apuntan
+     con `data-neg`: ahí no hay `min` que mirar */
+  if (el.type === 'text') return el.dataset.neg !== undefined ? el : null;
+  if (el.type !== 'number') return null;
   if (el.min !== '' && +el.min >= 0) return null;
   return el;
 }
@@ -48,8 +52,13 @@ function sync(b: HTMLButtonElement): void {
 function flip(): void {
   const t = target();
   if (!t) return;
-  const v = parseFloat(t.value);
+  const v = parseFloat(t.value.trim().replace(',', '.').replace(/[−–]/g, '-'));
   if (!isFinite(v)) return;
+  if (t.type === 'text') {
+    t.value = String(-v);
+    t.dispatchEvent(new Event('change', { bubbles: true }));
+    return;
+  }
   let n = -v;
   if (t.max !== '' && isFinite(+t.max)) n = Math.min(+t.max, n);
   if (t.min !== '' && isFinite(+t.min)) n = Math.max(+t.min, n);

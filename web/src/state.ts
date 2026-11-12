@@ -1053,6 +1053,14 @@ export function renameDataset(ds: Dataset, name: string): void {
   if (n) ds.name = n;
 }
 
+/** AJUSTE LITERAL (decisión D2 de la auditoría 2026-11-12). Con la entrada en
+ *  modo «Ajuste» lo tecleado ES la corrección a aplicar: va al tablero tal
+ *  cual, sin ganancia, banda muerta ni tope. En modo absoluto manda el lazo
+ *  (`ST.comp`). Es estado de interfaz: lo pone el interruptor de entrada. */
+export const angMode = { literal: false };
+export const angComp = (): Comp => (angMode.literal
+  ? { ...ST.comp, gainW: 1, gainT: 1, dead: 0, maxStep: 0 } : ST.comp);
+
 /** El informe de una pieza por ángulos: la MEDIA de sus reportes en uso
  *  contra el plano del documento, y la recomendación sobre el tablero con el
  *  que se dobló. Cada fila lleva la dispersión de los reportes promediados, y
@@ -1061,9 +1069,12 @@ export function angleSummary(ds: Dataset): AngleSummary | null {
   if (ds.method !== 'angles' || !ST.model) return null;
   const B = boardModel(ds);
   const used = usedReports(ds).map(r => r.vals);
-  const S = E.angleReport(B, ST.plan, E.meanReported(used), ST.comp, E.orientations(B), designOf(ds));
+  const S = E.angleReport(B, ST.plan, E.meanReported(used), angComp(), E.orientations(B), designOf(ds));
   const sp = E.spreadReported(used);
-  S.rows.forEach(r => { r.spread = sp[r.i] ?? null; });
+  S.rows.forEach(r => {
+    r.spread = sp[r.i] ?? null;
+    r.noise = r.dev === null ? null : E.isNoise(r.dev, E.readingsOf(used, r.i));
+  });
   S.reports = used.length;
   return S;
 }
@@ -1074,7 +1085,7 @@ export function reportSummary(ds: Dataset, k: number): AngleSummary | null {
   const r = reportsOf(ds)[k];
   if (!r || !ST.model) return null;
   const B = boardModel(ds);
-  return E.angleReport(B, ST.plan, r.vals, ST.comp, E.orientations(B), designOf(ds));
+  return E.angleReport(B, ST.plan, r.vals, angComp(), E.orientations(B), designOf(ds));
 }
 
 /** Crea el TABLERO COMPENSADO: una variante nueva, copia del tablero que dobló

@@ -5604,5 +5604,26 @@ console.log('\n— la regla de signo y la referencia, de punta a punta (auditor�
      Pa.bends.map(b => b.dAngle.toFixed(3)).join(' '));
 }
 
+console.log('\n— flujo de ángulos: ruido y ajuste literal (auditoría, fase B) —');
+{
+  ok('isNoise: una sola lectura no dice nada', E.isNoise(1, [90]) === null);
+  ok('isNoise: 0.3° de media con lecturas que bailan 1° es ruido', E.isNoise(0.3, [89.2, 90.3, 90.1]) === true);
+  ok('isNoise: 1° de media con lecturas juntas es tendencia', E.isNoise(1, [91.0, 91.1, 90.9]) === false);
+  ok('isNoise: lecturas idénticas usan el piso, no s = 0', E.isNoise(0.01, [90, 90, 90]) === true && E.isNoise(0.5, [90, 90, 90]) === false);
+  /* D2: en modo ajuste lo tecleado va tal cual. El panel lo consigue con un
+     lazo de ganancia 1 sin banda ni tope: se comprueba aquí con ese lazo. */
+  const D = E.normalizeModel({
+    name: 'lit', section: { width: 40, thickness: 12, chamfer: 1, endLen: 20 },
+    tol: { angle: .3, rot: .5, feed: .5, point: 1 }, tail: 100,
+    bends: [{ feed: 120, rot: 0, angle: 40, radius: 30 }, { feed: 120, rot: 90, angle: -40, radius: 30 }],
+  });
+  const adj = [0.02, -7.5];
+  const real = E.internalAngles(D).map((a, i) => a + adj[i]);
+  const lit = { gainW: 1, gainT: 1, doAngle: true, doRot: false, doFeed: false, dead: 0, maxStep: 0 };
+  const S = E.angleReport(D, { nominal: [], names: [] }, real, lit, E.orientations(D), D);
+  ok('ajuste literal: +0.02 y −7.5 tecleados salen +0.02 y −7.5 de Δ, en las dos ramas',
+     S.rows.every((r, i) => Math.abs(r.recDelta - adj[i]) < 1e-9), S.rows.map(r => r.recDelta.toFixed(3)).join(' '));
+}
+
 console.log(`\n${fails ? fails + ' PRUEBA(S) FALLARON' : 'todas las pruebas pasaron'}\n`);
 process.exit(fails ? 1 : 0);

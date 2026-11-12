@@ -29,7 +29,7 @@ export function ptPane(M: Model): string {
     `<div class="stat"><div class="k">${k}</div><div class="v ${c}">${x}</div></div>`;
   /* campos de TEXTO, como en ángulos: con coma decimal un type=number devuelve '' */
   const inp = (attr: string, value: string, ph: string, label: string, c2: string): string =>
-    `<input type="text" inputmode="decimal" class="ptin ${c2}" ${attr} data-po="${esc(value)}"
+    `<input type="text" inputmode="decimal" class="ptin ${c2}" data-neg ${attr} data-po="${esc(value)}"
       value="${esc(value)}" placeholder="${esc(ph)}" aria-label="${esc(label)}">`;
   const lab = (nm: string, k: I18nKey, a: number): string =>
     T('ptAxisOf').replace('{p}', nm).replace('{a}', T(k) + ' ' + AX[a]);

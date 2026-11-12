@@ -124,6 +124,23 @@ export function spreadReported(list: (number | null)[][]): (number | null)[] {
   });
 }
 
+/** Las lecturas de un doblez en varios reportes (sin celdas vacías). */
+export const readingsOf = (list: (number | null)[][], i: number): number[] => column(list, i);
+
+/** FILTRO DE TENDENCIA. ¿La desviación media `dev` de un doblez se confunde
+ *  con el ruido de sus lecturas? Sí cuando |dev| <= k·s/√n, con s la
+ *  desviación estándar de las lecturas y un piso `SIG_FLOOR` (con 2 o 3 barras
+ *  la s sale pequeña por azar). `null` con menos de dos lecturas: una sola no
+ *  dice nada del ruido. Solo AVISA: la recomendación no se toca. */
+export const SIG_K = 2, SIG_FLOOR = 0.05;
+export function isNoise(dev: number, readings: number[]): boolean | null {
+  const n = readings.length;
+  if (n < 2) return null;
+  const m = readings.reduce((a, x) => a + x, 0) / n;
+  const s = Math.sqrt(readings.reduce((a, x) => a + (x - m) * (x - m), 0) / (n - 1));
+  return Math.abs(dev) <= SIG_K * Math.max(s, SIG_FLOOR) / Math.sqrt(n);
+}
+
 /** El informe por doblez y la recomendación para el TABLERO siguiente.
  *
  *  Tres juegos de cifras (ver `Plan` en types/doc.ts): `board` es el tablero

@@ -13,7 +13,7 @@ import {
   anchoredShownPis,
   addPin, setPins, seedPinsFor,
   syncTweak, zeroTweak, compensatedCommand, loopMeasured, loopPieces,
-  measuredSpringback, addAngleDataset, angleSummary, applyAngleRec, applyAngleRecRows,
+  measuredSpringback, addAngleDataset, angleSummary, applyAngleRec, applyAngleRecRows, angMode,
   addReport, refModel,
 } from '../state.ts';
 import { angUI, angVals, angleDs, angSummary, countTyped } from '../panels/angles.ts';
@@ -512,7 +512,11 @@ export function action(a: string): void {
       return;
     }
     /* interruptores del panel: qué se teclea (absoluto/ajuste) y qué se crea */
-    case 'anginmode': angUI.inMode = angUI.inMode === 'adj' ? 'abs' : 'adj'; renderPanels(); return;
+    case 'anginmode':
+      angUI.inMode = angUI.inMode === 'adj' ? 'abs' : 'adj';
+      angMode.literal = angUI.inMode === 'adj';
+      renderPanels(); return;
+    case 'gocomp': setMode('comp'); return;
     case 'angout': angUI.out = angUI.out === 'board' ? 'piece' : 'board'; renderPanels(); return;
     /* «Crear» en modo tablero: la recomendación de lo tecleado (o de lo que se
        mira de la pieza activa) va directa a un tablero compensado nuevo, sin
