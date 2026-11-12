@@ -207,7 +207,8 @@ export function angPane(M: Model): string {
         aria-label="${esc(T('angPlanOf').replace('{b}', 'B' + (i + 1)))}">${r.planInt === null
         ? `<span class="nopl" title="${esc(T('angNoPlanTip'))}">≈</span>` : ''}</td>
       <td class="${edit ? '' : 'angmc'}">${cell}</td>
-      <td class="${r.dev === null ? 'v-dim' : cls(r.dev, tol)}">${r.dev === null ? '—' : sgn(r.dev, 3)}${devBar(r.dev, tol)}</td>
+      <td class="${r.dev === null ? 'v-dim' : cls(r.dev, tol)}">${r.dev === null ? '—'
+        : sgn(angUI.inMode === 'adj' ? r.recDelta : r.dev, 3)}${devBar(r.dev === null ? null : angUI.inMode === 'adj' ? r.recDelta : r.dev, tol)}</td>
       <td class="angrc" title="${esc(T('angBoardNow'))}: ${fx(rm.board, 2)}°">${rm.measInt === null
         ? `<span class="v-dim">${fx(rm.board, 2)}</span>`
         : `${fx(rm.rec, 2)}<span class="corr" title="${esc(T('angCorrTip'))}">Δ ${sgn(rm.recDelta, 2)}</span>`}</td></tr>`;
@@ -271,7 +272,7 @@ export function angPane(M: Model): string {
     <div class="tw mt6"><table class="angtab"><colgroup><col class="c0"><col class="c1"><col class="c2"><col class="c3"><col class="c4"></colgroup><thead><tr><th scope="col">${T('nBend')}</th>
       <th scope="col" class="hplan" title="${esc(T('angPlanTip'))}">${T('angPlan')}</th>
       <th scope="col" class="hrep" title="${esc(T('angRepTip') + ' · ' + T(angUI.inMode === 'adj' ? 'angInAdj' : 'angInAbs'))}">${angUI.inMode === 'adj' ? T(ds && rep < 0 ? 'angAdjMeanCol' : 'angAdjCol') : ds && rep < 0 ? T('angMeanCol') : T('angRep')}</th>
-      <th scope="col" title="${esc(T('angDeltaTip'))}">${T('angDevCol')}</th>
+      <th scope="col" title="${esc(T(angUI.inMode === 'adj' ? 'angAdjOutTip' : 'angDeltaTip'))}">${T(angUI.inMode === 'adj' ? 'angAdjOut' : 'angDevCol')}</th>
       <th scope="col" class="hbrd" title="${esc(T('angBoardTip'))}">${T('angBoardNew')}</th></tr></thead><tbody>${body}</tbody></table></div>
     ${S.planMissing > 0 ? `<div class="hintline v-warn">${T('angPlanMissing').replace('{n}', String(S.planMissing))}</div>` : ''}
     ${noisy ? `<div class="hintline v-warn">${T('angNoiseWarn').replace('{n}', String(noisy)).replace('{m}', String(nUsed))}</div>` : ''}

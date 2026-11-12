@@ -22,7 +22,7 @@ y búsqueda de compensaciones del tablero de la dobladora. Taller sin internet, 
 - **Referencia**: se mide contra el DISEÑO (base de la variante, o el plano tecleado), nunca
   contra el tablero ya compensado. `nominalModel()`, `baseModelOf()`, `designOf(ds)` en `state.ts`.
 - Variante = `{base, deltas, tailDelta}`. `ST.model` = base + Δ = TABLERO (lo que va a máquina).
-- Reportes por ángulos guardan el ángulo INTERNO absoluto. En modo «Ajuste» lo tecleado va literal
+- Reportes por ángulos guardan el ángulo INTERNO absoluto. En modo «Desviación» se teclea medido − nominal (+ = más abierto) y la columna «Ajuste» calculada (= esa desviación, + dobla más) va literal
   al tablero (`angComp()`); en absoluto manda el lazo `ST.comp`.
 - Borradores de interfaz (`angUI`, `ptUI`, `proxUI`) no van en `ST`, ni al JSON, ni al deshacer.
 - Textos: tres idiomas con las mismas claves (`i18n/keys.ts` lo exige al compilar).

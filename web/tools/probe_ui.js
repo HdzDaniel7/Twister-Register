@@ -5643,4 +5643,29 @@ step('por ángulos: «Pieza nominal» crea una variante sin Δ y el deshacer la 
   if (BC().ST.variants.length !== nv) throw new Error('el deshacer no la quitó');
 });
 
+step('por ángulos: en modo desviación se teclea medido − nominal y la columna Ajuste da la compensación', () => {
+  click('[data-md="meas"]'); click('[data-mm="angles"]');
+  const act = BC().ST.dsActive;
+  BC().ST.dsActive = '';
+  BC().angUI.draft = [];
+  if (BC().angUI.inMode !== 'adj') click('[data-a="anginmode"]');
+  try {
+    setval('input[data-ai="0"]', '0,11');
+    const S = BC().E.angleReport(BC().ST.model, BC().ST.plan, BC().angUI.draft,
+      { ...BC().ST.comp, gainW: 1, gainT: 1, dead: 0, maxStep: 0 }, BC().E.orientations(BC().ST.model), BC().nominalModel ? BC().nominalModel() : undefined);
+    const r0 = S.rows[0];
+    if (Math.abs(BC().angUI.draft[0] - (r0.refInt + 0.11)) > 1e-6) throw new Error('guardó ' + BC().angUI.draft[0] + ' con nominal ' + r0.refInt);
+    const tr = q('table.angtab tbody tr');
+    const aj = tr.children[3].textContent;
+    if (!/\+0[.,]110/.test(aj)) throw new Error('la columna Ajuste dice: ' + aj);
+    const th = [...document.querySelectorAll('table.angtab thead th')].map(x => x.textContent.trim());
+    if (!/Desv/.test(th[2]) || !/Ajuste/.test(th[3])) throw new Error('cabeceras: ' + th.join(' | '));
+  } finally {
+    BC().angUI.draft = [];
+    click('[data-a="anginmode"]');
+    BC().ST.dsActive = act;
+    click('[data-mm="angles"]');
+  }
+});
+
 return log.join('\n');
