@@ -5550,4 +5550,97 @@ step('menús: Compensar no ocupa la cabecera; se entra por Piezas · Avanzado y 
   if (document.querySelector('[data-md="comp"]')) throw new Error('al salir sigue en la cabecera');
 });
 
+/* --- por ángulos: el interruptor manda (pieza/tablero), «una por reporte» y pieza real sobre el diseño --- */
+const angActiveV = () => BC().ST.variants.find(x => x.id === BC().ST.active);
+const angCounts = () => ({ d: BC().ST.datasets.length, v: BC().ST.variants.length });
+const angSnap = { d: 0, v: 0, act: '', ds: null };
+step('por ángulos: en «pieza» con la media a la vista no hay angrec ni angboard; en «tablero» sale angrec y no angnew', () => {
+  click('[data-md="meas"]');
+  q('[data-mm="angles"]').click();
+  Object.assign(angSnap, angCounts(), { act: BC().ST.active, ds: BC().ST.dsActive });
+  BC().angUI.out = 'piece'; BC().angUI.rep = -1; BC().angUI.draft = [];
+  const ref = angRows()[0].refInt;
+  setval('input[data-ai="0"]', String(ref + 1));
+  click('[data-a="angnew"]');
+  const ds = BC().ST.datasets.find(x => x.id === BC().ST.dsActive);
+  if (!ds || ds.method !== 'angles') throw new Error('no se creó la pieza por ángulos');
+  click('[data-a="angradd"]');
+  setval('input[data-ai="0"]', String(ref + 2.5));
+  click('[data-arv="-1"]');
+  if (BC().angUI.rep !== -1) throw new Error('rep = ' + BC().angUI.rep);
+  if (ds.reports.length !== 2) throw new Error('reportes ' + ds.reports.length);
+  if (document.querySelector('[data-a="angrec"]')) throw new Error('angrec en «pieza»');
+  if (document.querySelector('[data-a="angboard"]')) throw new Error('angboard en «pieza»');
+  if (document.querySelector('[data-a="angnew"]')) throw new Error('angnew con la media a la vista');
+  click('[data-a="angout"]');
+  if (BC().angUI.out !== 'board') throw new Error('out = ' + BC().angUI.out);
+  q('[data-a="angrec"]');
+  if (document.querySelector('[data-a="angnew"]')) throw new Error('angnew en «tablero»');
+  click('[data-a="angout"]');
+});
+step('por ángulos: «una por reporte» en «pieza» crea 2 piezas y 0 variantes sin mover la activa', () => {
+  const ds = BC().ST.datasets.find(x => x.id === BC().ST.dsActive);
+  const c0 = angCounts(), act = BC().ST.dsActive;
+  click('[data-a="angeach"]');
+  const c1 = angCounts();
+  if (c1.d !== c0.d + 2) throw new Error('piezas ' + c0.d + ' → ' + c1.d);
+  if (c1.v !== c0.v) throw new Error('variantes ' + c0.v + ' → ' + c1.v);
+  if (BC().ST.dsActive !== act) throw new Error('cambió la pieza activa');
+  const nuevas = BC().ST.datasets.slice(-2);
+  if (!nuevas.every(d => d.method === 'angles' && d.name.indexOf(ds.name + ' · ') === 0)) throw new Error('nombres ' + nuevas.map(d => d.name));
+});
+step('por ángulos: «una por reporte» en «tablero» crea 2 variantes con Δ de ángulo distinto y 0 piezas', () => {
+  const c0 = angCounts();
+  click('[data-a="angout"]');
+  click('[data-a="angeach"]');
+  const c1 = angCounts();
+  if (c1.v !== c0.v + 2) throw new Error('variantes ' + c0.v + ' → ' + c1.v);
+  if (c1.d !== c0.d) throw new Error('piezas ' + c0.d + ' → ' + c1.d);
+  const vs = BC().ST.variants.slice(-2);
+  if (!vs.every(v => / · R\d · comp/.test(v.name))) throw new Error('nombres ' + vs.map(v => v.name));
+  const d0 = vs[0].deltas[0].angle, d1 = vs[1].deltas[0].angle;
+  if (Math.abs(d0) < 1e-6 || Math.abs(d0 - d1) < 1e-6) throw new Error('Δ ' + d0 + ' y ' + d1);
+});
+step('por ángulos: la pieza real se construye sobre el diseño: sin lectura, el ángulo de la base y no el del tablero', () => {
+  BC().angUI.out = 'piece'; BC().angUI.rep = -1; BC().angUI.draft = [];
+  if (BC().ST.model.bends.length < 2) throw new Error('hace falta un modelo de 2 dobleces');
+  /* tablero con Δ de ángulo en el doblez 0: pieza con lectura ahí → angrec en «tablero» */
+  click('[data-a="angout"]');
+  click('[data-a="angrec"]');
+  click('[data-a="angout"]');
+  const vAct = angActiveV();
+  if (!vAct || Math.abs(vAct.deltas[0].angle) < 1e-6) throw new Error('la variante activa no tiene Δ de ángulo en el doblez 0');
+  const baseAng = vAct.base.bends[0].angle;
+  /* pieza nueva sobre ese tablero, con un reporte que NO lee el doblez 0 */
+  BC().ST.dsActive = null; BC().angUI.draft = [];
+  click('[data-md="model"]'); click('[data-md="meas"]'); q('[data-mm="angles"]').click();
+  const r1 = angRows()[1].refInt;
+  setval('input[data-ai="1"]', String(r1 + 1));
+  click('[data-a="angnew"]');
+  const ds = BC().ST.datasets.find(x => x.id === BC().ST.dsActive);
+  if (!ds || ds.method !== 'angles') throw new Error('no se creó la pieza');
+  if (Math.abs(ds.model.bends[0].angle - baseAng) > 1e-6) throw new Error('doblez 0 de la pieza ' + ds.model.bends[0].angle + ', base ' + baseAng + ', tablero ' + (baseAng + vAct.deltas[0].angle));
+});
+step('por ángulos: se deja el estado como estaba (deshacer lo creado)', () => {
+  BC().angUI.out = 'piece'; BC().angUI.rep = -1; BC().angUI.draft = [];
+  for (let n = 0; n < 40 && (BC().ST.datasets.length !== angSnap.d || BC().ST.variants.length !== angSnap.v); n++) hotkey('z', { ctrlKey: true });
+  const c = angCounts();
+  if (c.d !== angSnap.d || c.v !== angSnap.v) throw new Error('quedó ' + c.d + ' piezas y ' + c.v + ' variantes; había ' + angSnap.d + ' y ' + angSnap.v);
+  if (BC().ST.active !== angSnap.act) throw new Error('la variante activa no volvió');
+  BC().ST.dsActive = angSnap.ds;
+});
+
+step('por ángulos: «Pieza nominal» crea una variante sin Δ y el deshacer la quita', () => {
+  click('[data-md="meas"]'); click('[data-mm="angles"]');
+  const nv = BC().ST.variants.length, nd = BC().ST.datasets.length;
+  click('[data-a="angnom"]');
+  const v = BC().ST.variants.find(x => x.id === BC().ST.active);
+  if (BC().ST.variants.length !== nv + 1) throw new Error('variantes ' + BC().ST.variants.length);
+  if (BC().ST.datasets.length !== nd) throw new Error('creó una pieza medida');
+  if (!/nominal/.test(v.name)) throw new Error('nombre ' + v.name);
+  if (v.deltas.some(d => Math.abs(d.angle) + Math.abs(d.feed) + Math.abs(d.rot) > 1e-9) || v.tailDelta) throw new Error('lleva Δ');
+  hotkey('z', { ctrlKey: true });
+  if (BC().ST.variants.length !== nv) throw new Error('el deshacer no la quitó');
+});
+
 return log.join('\n');

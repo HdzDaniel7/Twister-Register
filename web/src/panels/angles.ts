@@ -238,9 +238,17 @@ export function angPane(M: Model): string {
   /* D1: cada botón dice de dónde saca el tablero. Con la media a la vista el
      botón de «lo que se mira» sería el mismo que el de la media: se quita. */
   const toBoard = angUI.out === 'board';
-  const first = toBoard && ds && rep < 0 ? '' : `<button class="btn sm grow" data-a="${toBoard ? 'angboard' : 'angnew'}" ${countTyped(vals) ? '' : 'disabled'}>${
-    !toBoard ? T('angCreate') : ds ? T('angCreateBoardRep').replace('{r}', esc(reportsOf(ds)[rep].name)) : T('angCreateBoardDraft')}</button>`;
-  const second = ds ? `<button class="btn sm grow" data-a="angrec" ${SM.n ? '' : 'disabled'} title="${esc(applyTip)}">${T('angApply').replace('{n}', String(nUsed))}</button>` : '';
+  /* EL INTERRUPTOR MANDA: en «pieza real» ningún botón crea tablero, y en
+     «tablero» ninguno crea pieza. La pieza a la vista YA es la real de la
+     media, así que en ese lado el botón solo sale al mirar un reporte suelto. */
+  const repName = ds && rep >= 0 ? esc(reportsOf(ds)[rep].name) : '';
+  const first = ds && rep < 0 ? '' : `<button class="btn sm grow" data-a="${toBoard ? 'angboard' : 'angnew'}" ${countTyped(vals) ? '' : 'disabled'}>${
+    !toBoard ? (ds ? T('angCreatePieceRep').replace('{r}', repName) : T('angCreate'))
+      : ds ? T('angCreateBoardRep').replace('{r}', repName) : T('angCreateBoardDraft')}</button>`;
+  const second = ds && toBoard ? `<button class="btn sm grow" data-a="angrec" ${SM.n ? '' : 'disabled'} title="${esc(applyTip)}">${T('angApply').replace('{n}', String(nUsed))}</button>` : '';
+  const each = ds && nUsed > 1 ? `<button class="btn sm grow" data-a="angeach" title="${esc(T(toBoard ? 'angEachBoardTip' : 'angEachPieceTip'))}">${
+    T(toBoard ? 'angEachBoard' : 'angEachPiece').replace('{n}', String(nUsed))}</button>` : '';
+  const outHint = T(toBoard ? 'angOutBoardHint' : ds ? 'angOutPieceIs' : 'angOutPieceHint').replace('{n}', String(nUsed));
   /* Δ PARA MÁQUINA: lo que lleva el tablero ACTIVO sobre su base, que es lo
      que se teclea en la dobladora. Así no hace falta ir a Modelar a leerlo. */
   const av = V(), fmtG = (x: number | undefined): string => fx(+(x ?? 0), 2);
@@ -270,7 +278,9 @@ export function angPane(M: Model): string {
     ${!ds || nUsed < 2 ? `<div class="hintline v-warn">${T('angOneNote')}</div>` : ''}
     ${angUI.note ? `<div class="hintline v-ok" role="status">${esc(angUI.note)}</div>` : ''}
     ${sw('angout', 'angOutMode', toBoard, 'angOutPiece', 'angOutBoard')}
-    <div class="row mt6">${first}${second}
+    <div class="hintline">${outHint}</div>
+    <div class="row mt6">${first}${second}${each}
+      <button class="btn sm grow" data-a="angnom" title="${esc(T('angNomTip'))}">${T('angNom')}</button>
       <button class="btn sm grow" data-a="report">${T('bRep')}</button></div>
     ${mach}
     <div class="stats">

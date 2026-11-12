@@ -138,8 +138,8 @@ export function applyDoc(d: LoadedDoc): void {
        el que se comparaba cuando se guardó. */
     if (x.method === 'angles') {
       ds.method = 'angles';
-      ds.board = x.board ? { vid: x.board.vid, name: x.board.name,
-                             bends: x.board.bends.map(E.bendFrom) } : undefined;
+      /* con su `base`: sin ella la pieza real y la referencia caen al tablero */
+      ds.board = x.board ? E.normBoard(x.board) : undefined;
       /* sin `reports` —archivo anterior— la pieza tiene un solo reporte: lo
          que guardó en `reported` */
       setReports(ds, x.reports && x.reports.length ? x.reports

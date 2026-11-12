@@ -13,10 +13,10 @@ import {
   anchoredShownPis,
   addPin, setPins, seedPinsFor,
   syncTweak, zeroTweak, compensatedCommand, loopMeasured, loopPieces,
-  measuredSpringback, addAngleDataset, angleSummary, applyAngleRec, applyAngleRecRows, angMode,
+  measuredSpringback, addAngleDataset, angleSummary, applyAngleRec, applyAngleRecRows, angMode, splitReports, applyAngleRecEach, reportsOf, addNominalVariant,
   addReport, refModel,
 } from '../state.ts';
-import { angUI, angVals, angleDs, angSummary, countTyped } from '../panels/angles.ts';
+import { angUI, angVals, angleDs, angRepIdx, angSummary, countTyped } from '../panels/angles.ts';
 import { ptUI, applyPointsTarget, addPointsDataset, clearPt, ptAllMeasured } from '../ptstate.ts';
 import { rebuildScene, fitView } from '../scene.ts';
 import { drawRibbon } from '../ribbon.ts';
@@ -504,8 +504,13 @@ export function action(a: string): void {
     case 'angnew': {
       const vals = angVals(M);
       if (!countTyped(vals)) { alert(T('angNoneTyped')); return; }
-      const nm = (angleDs() ? '' : angUI.name) || `${T('angDefName')} ${ST.datasets.length + 1}`;
-      const ds = addAngleDataset(nm, vals);
+      /* con una pieza a la vista, lo que se crea es la pieza real del REPORTE
+         que se mira: mismo tablero que la pieza de la que sale */
+      const cur = angleDs(), k = angRepIdx();
+      const nm = cur ? `${cur.name} · ${k >= 0 ? reportsOf(cur)[k].name : T('angMean')}`
+        : angUI.name || `${T('angDefName')} ${ST.datasets.length + 1}`;
+      const ds = addAngleDataset(nm, vals, cur || undefined);
+      if (cur) cur.visible = false;   /* misma lectura dos veces en el lote: no */
       ds.visible = true; ST.dsActive = ds.id;
       angUI.method = 'angles'; ptUI.on = false; angUI.draft = []; angUI.name = ''; angUI.note = '';
       renderPanels(); rebuildScene(); drawRibbon();
@@ -537,6 +542,36 @@ export function action(a: string): void {
        viejo se conserva intacto. Donde no hay medida no hay corrección que
        inventar. Ir a Modelos a verlo es decisión del usuario: aquí solo se
        avisa cómo se llama. */
+    /* «Una por reporte»: lo que diga el interruptor —pieza real o tablero—,
+       una vez por cada reporte marcado de la pieza activa */
+    /* «Pieza nominal»: el tablero sin compensaciones, con el plano tecleado */
+    case 'angnom': {
+      const ds = angleDs();
+      const src = (ds && ds.board && ST.variants.find(v => v.id === ds.board!.vid)) || V();
+      const id = addNominalVariant(src, (ds && ds.board && ds.board.name) || src.name);
+      const nv = variantById(id);
+      angUI.note = T('angNomDone').replace('{v}', nv ? nv.name : id);
+      predict();
+      renderAll(); rebuildScene(); drawRibbon();
+      return;
+    }
+    case 'angeach': {
+      const ds = angleDs();
+      if (!ds) return;
+      if (angUI.out === 'board') {
+        const ids = applyAngleRecEach(ds);
+        if (!ids.length) { alert(T('noMeas')); return; }
+        angUI.note = T('angEachBoardDone').replace('{n}', String(ids.length));
+        predict();
+        renderAll(); rebuildScene(); drawRibbon();
+        return;
+      }
+      const made = splitReports(ds);
+      if (!made.length) { alert(T('noMeas')); return; }
+      angUI.note = T('angEachPieceDone').replace('{n}', String(made.length));
+      renderPanels(); rebuildScene(); drawRibbon();
+      return;
+    }
     case 'angrec': {
       const ds = angleDs(), S = ds ? angleSummary(ds) : null;
       if (!ds || !S || !S.n) { alert(T('noMeas')); return; }

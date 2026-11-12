@@ -9,7 +9,7 @@
 import * as E from './engine.ts';
 import type {
   AnchorMode, Bend, Comp, Dataset, DatumMode, Mark, Model, PathSample, Pedestal, Pin, Place, Proc,
-  Lims, Mat, Restraint, State, Tweak, Variant, Springback, AngleSummary, Plan, MeasReport,
+  Lims, Mat, Restraint, State, Tweak, Variant, Springback, AngleSummary, Plan, MeasReport, Board,
 } from './types.ts';
 import { Matrix4 } from 'three';
 import type { Vector3 } from 'three';
@@ -744,7 +744,16 @@ export function measuredSpringback(): Springback | null {
   if (!vis.length) return null;
   const M = ST.model!;
   return E.springback(
-    vis.map(d => ({ cmd: d.cmd && d.cmd.length ? d.cmd : ST.command, meas: d.model.bends })),
+    vis.map(d => {
+      const cmd = d.cmd && d.cmd.length ? d.cmd : ST.command;
+      /* por ángulos, un doblez SIN lectura no es una medida: sale NaN y
+         `springback()` lo descarta, en vez de contar un resorte inventado */
+      const meas = d.method !== 'angles' ? d.model.bends : d.model.bends.map((b, i) => {
+        const r = (d.reported || [])[i];
+        return typeof r === 'number' && isFinite(r) ? b : { ...b, angle: NaN };
+      });
+      return { cmd, meas };
+    }),
     E.orientations(M));
 }
 
@@ -789,8 +798,7 @@ export const activeDataset = (): Dataset | null =>
 export function computeDev(ds: Dataset): Dataset {
   let ref: Model;
   if (ds.method === 'angles' && ST.model) {
-    const B = boardModel(ds), D = designOf(ds);
-    ref = E.planModel(D ? E.modelFromInternal(B, E.internalAngles(D)) : B, ST.plan);
+    ref = E.planModel(designOf(ds) || boardModel(ds), ST.plan);
   } else ref = nominalModel();
   ds.dev = E.deviations(ref, ds.model, ST.datum, pivotK());
   ds.pis = ds.dev.pis;
@@ -837,7 +845,11 @@ export function boardModel(ds: Dataset): Model {
  *  barato: una copia del modelo, y `computeDev()` iba a correr igual. */
 function rebuildAngles(ds: Dataset): void {
   if (ds.method !== 'angles' || !ST.model) return;
-  ds.model = E.modelFromInternal(boardModel(ds), ds.reported || []);
+  /* LA PIEZA REAL es el NOMINAL con lo medido puesto: donde hay lectura, el
+     interno del reporte; donde no, el diseño. No el tablero: un doblez sin
+     medir llevaría puesta la compensación del tablero como si la pieza hubiera
+     salido así, y la «pieza real» se vería igual que el tablero compensado. */
+  ds.model = E.modelFromInternal(designOf(ds) || boardModel(ds), ds.reported || []);
 }
 export const recomputeAll = (): void => {
   ST.datasets.forEach(ds => { rebuildAngles(ds); computeDev(ds); });
@@ -985,14 +997,73 @@ function syncReported(ds: Dataset): void {
  *  `model` se deriva de los dos. Las copias son a propósito: el borrador del
  *  panel sigue vivo y el tablero se va a seguir editando, y ninguno de los dos
  *  debe poder tocar una pieza ya dada de alta. Ver engine/measure.ts. */
-export function addAngleDataset(name: string, reported: (number | null)[]): Dataset {
+export function addAngleDataset(name: string, reported: (number | null)[], from?: Dataset): Dataset {
   const r = reported.slice();
-  const ds = addDataset(E.modelFromInternal(ST.model!, r), name, 'angles');
+  const ds = addDataset(E.modelFromInternal(ST.model!, r), name, 'angles', from ? from.cmd : undefined);
   ds.method = 'angles';
   ds.reports = [{ name: 'R1', vals: r, use: true }];
-  ensureBoard(ds);
+  /* `from`: la pieza sale de un reporte de OTRA pieza y se dobló con el mismo
+     tablero que ella, no con el de ahora */
+  if (from && from.board) ds.board = copyBoard(from.board);
+  else ensureBoard(ds);
   syncReported(ds);
   return ds;
+}
+const copyBoard = (b: Board): Board => ({
+  vid: b.vid, name: b.name, bends: b.bends.map(x => E.bendFrom(x)),
+  ...(b.base ? { base: b.base.map(x => E.bendFrom(x)) } : {}),
+});
+const hasVals = (v: (number | null)[]): boolean => v.some(x => typeof x === 'number' && isFinite(x));
+
+/** UNA PIEZA REAL POR REPORTE: cada reporte marcado de `ds` sale como pieza
+ *  medida aparte (`{pieza} · {reporte}`), con el mismo tablero. La de origen
+ *  no se toca y sigue activa. Devuelve las creadas. */
+export function splitReports(ds: Dataset): Dataset[] {
+  if (ds.method !== 'angles') return [];
+  const out = usedReports(ds).filter(r => hasVals(r.vals))
+    .map(r => addAngleDataset(`${ds.name} · ${r.name}`, r.vals, ds));
+  ST.dsActive = ds.id;
+  /* la de origen es la MEDIA de esas mismas lecturas: visible junto a ellas,
+     el lote y el resorte contarían cada lectura dos veces. Se oculta. */
+  if (out.length) ds.visible = false;
+  return out;
+}
+
+/** LA PIEZA NOMINAL como modelo aparte: copia del tablero `src` SIN ninguna
+ *  compensación (Δ a cero) y con el ángulo del PLANO donde se tecleó; donde
+ *  no, el de la base. Queda activa; la de origen no se toca. Devuelve su id. */
+export function addNominalVariant(src: Variant, base: string): string {
+  let k = 1;
+  const nm = (): string => `${base} · nominal${k > 1 ? ' ' + k : ''}`;
+  while (ST.variants.some(v => v.name === nm())) k += 1;
+  const w = E.cloneVariant(src, nm(), VAR_COLORS[ST.variants.length % VAR_COLORS.length], newVid());
+  w.visible = true;
+  const P = E.planModel(baseModelOf(src), ST.plan).bends;
+  w.base.bends.forEach((b, i) => { if (P[i]) b.angle = P[i].angle; });
+  w.deltas = w.base.bends.map(() => E.zeroDelta());
+  w.tailDelta = 0;
+  ST.variants.push(w);
+  ST.active = w.id; ST.sel = -1;
+  syncModel(); syncCommand();
+  recomputeAll();
+  return w.id;
+}
+
+/** UN TABLERO COMPENSADO POR REPORTE: como `applyAngleRec()` pero con la
+ *  recomendación de cada reporte marcado por separado, todos sobre el tablero
+ *  con el que se dobló la pieza. Queda activo el último. Devuelve los ids. */
+export function applyAngleRecEach(ds: Dataset): string[] {
+  if (ds.method !== 'angles' || !ds.board) return [];
+  const src = ST.variants.find(v => v.id === ds.board!.vid) || V();
+  const base = ds.board.name || src.name;
+  const ids: string[] = [];
+  reportsOf(ds).forEach((r, k) => {
+    if (!r.use) return;
+    const S = reportSummary(ds, k);
+    const id = S && S.n ? applyAngleRecRows(S.rows, src, `${base} · ${r.name}`) : '';
+    if (id) ids.push(id);
+  });
+  return ids;
 }
 
 /** Sustituye TODOS los reportes de una pieza (al abrir un archivo). Copia. */
