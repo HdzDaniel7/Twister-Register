@@ -22,7 +22,7 @@ import { $ } from '../../dom.ts';
 import { refresh } from '../render.ts';
 import { commit } from '../history.ts';
 import { T } from '../../i18n.ts';
-import { angUI, angleDs, angVals, angRepIdx, parseDec } from '../../panels/angles.ts';
+import { angUI, angleDs, angVals, angRepIdx, parseDec, angSummary, angDispToAbs } from '../../panels/angles.ts';
 import { setReportVals, setReportUse, renameReport, reportsOf, renameDataset, syncPlan, setPlanName, setPlanNominal } from '../../state.ts';
 import { drawRibbon } from '../../ribbon.ts';
 import { proxUI } from '../../proxstate.ts';
@@ -223,9 +223,12 @@ function onAngles(t: HTMLInputElement, d: DOMStringMap): boolean {
   if (d.ai === undefined) return false;
   const i = +d.ai, n = ST.model ? ST.model.bends.length : 0;
   if (!Number.isInteger(i) || i < 0 || i >= n) return true;
-  const v = parseDec(t.value);
+  const tv = parseDec(t.value);
   /* un texto que no es número se descarta y se devuelve lo que había */
-  if (v === null && t.value.trim()) { t.value = d.orig ?? ''; return true; }
+  if (tv === null && t.value.trim()) { t.value = d.orig ?? ''; return true; }
+  /* en modo AJUSTE lo tecleado es la corrección sobre la referencia del doblez
+     (plano, o tablero si no hay plano); se guarda siempre el absoluto */
+  const v = tv === null ? null : angDispToAbs(tv, angSummary(ST.model!).rows[i].refInt);
   /* el motor topa el ángulo interno a [0,180]: fuera de eso no es una medida
      sino un error de dedo, y se rechaza en vez de dejar que se recorte solo */
   if (v !== null && (v < 0 || v > 180)) { t.value = d.orig ?? ''; t.title = T('angRange'); alert(T('angRange')); return true; }

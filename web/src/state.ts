@@ -1063,16 +1063,23 @@ export function reportSummary(ds: Dataset, k: number): AngleSummary | null {
 export function applyAngleRec(ds: Dataset): string {
   const S = angleSummary(ds);
   if (!S || !S.n || !ds.board) return '';
-  const vid = ds.board.vid;
-  const src = ST.variants.find(v => v.id === vid) || V();
-  const base = ds.board.name || src.name;
+  const src = ST.variants.find(v => v.id === ds.board!.vid) || V();
+  return applyAngleRecRows(S.rows, src, ds.board.name || src.name);
+}
+
+/** El núcleo común de «tablero compensado»: clona `src` como `${base} · comp k`,
+ *  escribe en su Δ de ángulo la recomendación de cada fila MEDIDA (`rows` de
+ *  `angleReport`) y la deja activa y visible. Sirve tanto a una pieza ya creada
+ *  como a lo tecleado en el borrador. `''` si ninguna fila trae lectura. */
+export function applyAngleRecRows(rows: AngleSummary['rows'], src: Variant, base: string): string {
+  if (!rows.some(r => r.measInt !== null)) return '';
   let k = 1;
   while (ST.variants.some(v => v.name === `${base} · comp ${k}`)) k += 1;
   const n = ST.variants.length;
   const w = E.cloneVariant(src, `${base} · comp ${k}`, VAR_COLORS[n % VAR_COLORS.length], newVid());
   w.visible = true;
   E.syncDeltas(w);
-  for (const r of S.rows) {
+  for (const r of rows) {
     if (r.measInt === null || !isFinite(r.rec) || r.i >= w.base.bends.length) continue;
     const b0 = w.base.bends[r.i].angle;
     E.setDelta(w, r.i, 'angle', E.bendSense(b0) * (r.rec - b0));

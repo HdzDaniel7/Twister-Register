@@ -50,6 +50,13 @@ export type Xyz = [number, number, number];
  *           falta tres o más): para una medida tomada en un marco cualquiera. */
 export type PtAlign = 'pivot' | 'best';
 
+/** Qué puede mover el motor para llegar a los PI pedidos.
+ *  'all'     avance, rodado y ángulo de cada doblez, y la cola (lo de siempre)
+ *  'angles'  solo rodado y ángulo: avances y cola se quedan EXACTAMENTE los del
+ *            tablero. Para cuando la máquina no deja tocar las rectas, o no se
+ *            quiere: el residuo ya no tiene por qué ser cero (ver `solveAngles()`). */
+export type PtDof = 'all' | 'angles';
+
 export type PtInput = {
   /** una edición por PI (P0..PE). Lo que falta cuenta como 0 */
   edits: (Xyz | null | undefined)[];
@@ -58,6 +65,8 @@ export type PtInput = {
   /** fracción del error medido que se corrige, 0..1 (como la ganancia del lazo) */
   gain: number;
   align: PtAlign;
+  /** qué se mueve; por defecto 'all' */
+  dof?: PtDof;
 };
 
 export type PtRow = {
@@ -175,6 +184,123 @@ function solveRolled(board: Model, P: Vector3[], cmd: Xyz[], gotOf: (m: Model) =
   return build(cost(phi) <= bc ? phi : best);
 }
 
+/** SOLO ÁNGULOS. Los avances y la cola se quedan los del tablero, bit a bit, y
+ *  se buscan el rodado y el ángulo de cada doblez que dejan los PI lo más cerca
+ *  posible de los pedidos: mínimos cuadrados de Σ|got_i − cmd_i|², con el MISMO
+ *  `gotOf` que `solveRolled()`, así que punto de coincidencia, varios puntos y
+ *  mejor ajuste se leen igual que con todos los grados de libertad.
+ *
+ *  EL ROLLO no hace falta buscarlo aparte: girar la barra entera alrededor de
+ *  la recta de entrada es sumar el mismo giro a todos los ejes absolutos, y
+ *  como los ejes acumulan, eso es sumarlo solo al rodado del primer doblez —que
+ *  ya es una incógnita—.
+ *
+ *  Levenberg–Marquardt con jacobiano numérico (diferencias centradas) sobre las
+ *  2n incógnitas [rot0, ang0, rot1, ang1, …], en grados. Se arranca del mejor
+ *  (por coste) de los `starts`: la solución completa con las rectas devueltas
+ *  al tablero suele estar cerca; el tablero mismo es la red. Un doblez recto
+ *  deja su rodado sin efecto (columna nula): la amortiguación lo deja quieto.
+ *  Al final se reescribe en la rama del tablero (`alignModelBranch`), que no
+ *  mueve la pieza, y se reponen avances y cola por si la reescritura los tocara. */
+function solveAngles(board: Model, starts: Model[], cmd: Xyz[], gotOf: (m: Model) => Xyz[]): Model {
+  const n = board.bends.length;
+  const make = (x: number[]): Model => ({
+    ...board,
+    bends: board.bends.map((b, i) => ({ ...b, rot: x[2 * i], angle: x[2 * i + 1] })),
+  });
+  const res = (x: number[]): number[] => {
+    const g = gotOf(make(x));
+    const r: number[] = [];
+    cmd.forEach((c, i) => {
+      const p = g[i];
+      if (p) r.push(p[0] - c[0], p[1] - c[1], p[2] - c[2]); else r.push(0, 0, 0);
+    });
+    return r;
+  };
+  const ss = (r: number[]): number => r.reduce((a, v) => a + v * v, 0);
+
+  /* el mejor arranque */
+  let x: number[] = [], r: number[] = [], c = Infinity;
+  for (const m of starts) {
+    const x0 = board.bends.flatMap((b, i) => {
+      const s = m.bends[i] || b;
+      return [+s.rot || 0, +s.angle || 0];
+    });
+    const r0 = res(x0), c0 = ss(r0);
+    if (c0 < c) { x = x0; r = r0; c = c0; }
+  }
+
+  const N = 2 * n, h = 1e-4;
+  let lam = 1e-3;
+  for (let it = 0; it < 50 && c > 1e-20 && N > 0; it++) {
+    /* jacobiano por columnas, centrado */
+    const J: number[][] = [];
+    for (let j = 0; j < N; j++) {
+      const xp = x.slice(), xm = x.slice();
+      xp[j] += h; xm[j] -= h;
+      const rp = res(xp), rm = res(xm);
+      J.push(rp.map((v, k) => (v - rm[k]) / (2 * h)));
+    }
+    const A: number[][] = J.map(a => J.map(b => a.reduce((s, v, k) => s + v * b[k], 0)));
+    const g: number[] = J.map(a => a.reduce((s, v, k) => s + v * r[k], 0));
+    let accepted = false, step = 0;
+    for (let tries = 0; tries < 10; tries++) {
+      const M = A.map((row, i) => row.map((v, j) => (i === j ? v + lam * (v + 1e-6) : v)));
+      const dx = solveLin(M, g.map(v => -v));
+      const xn = x.map((v, i) => v + dx[i]);
+      const rn = res(xn), cn = ss(rn);
+      if (cn < c) {
+        step = dx.reduce((a, v) => Math.max(a, Math.abs(v)), 0);
+        const gain = c - cn;
+        x = xn; r = rn; c = cn;
+        lam = Math.max(lam / 3, 1e-12);
+        accepted = true;
+        if (gain < 1e-14 * (1 + c)) step = 0;      // ya no baja: parar
+        break;
+      }
+      lam *= 4;
+    }
+    if (!accepted || step < 1e-9) break;
+  }
+
+  const out = alignModelBranch(make(x.map(v => wrapTurn(v))), board);
+  out.bends.forEach((b, i) => { b.feed = board.bends[i].feed; });
+  out.tail = board.tail;
+  return out;
+}
+
+/** A·x = b por eliminación con pivote parcial. Un pivote nulo deja su
+ *  incógnita en 0 (no la hay: dirección sin efecto). */
+function solveLin(A: number[][], b: number[]): number[] {
+  const n = b.length;
+  const M = A.map((row, i) => [...row, b[i]]);
+  for (let c = 0; c < n; c++) {
+    let p = c;
+    for (let i = c + 1; i < n; i++) if (Math.abs(M[i][c]) > Math.abs(M[p][c])) p = i;
+    [M[c], M[p]] = [M[p], M[c]];
+    if (Math.abs(M[c][c]) < 1e-300) continue;
+    for (let i = c + 1; i < n; i++) {
+      const f = M[i][c] / M[c][c];
+      if (f) for (let j = c; j <= n; j++) M[i][j] -= f * M[c][j];
+    }
+  }
+  const x = new Array(n).fill(0);
+  for (let i = n - 1; i >= 0; i--) {
+    if (Math.abs(M[i][i]) < 1e-300) { x[i] = 0; continue; }
+    let s = M[i][n];
+    for (let j = i + 1; j < n; j++) s -= M[i][j] * x[j];
+    x[i] = s / M[i][i];
+  }
+  return x;
+}
+
+/** Con 'angles', la solución completa pasa a ser solo un arranque. */
+function restrict(board: Model, full: Model, cmd: Xyz[], gotOf: (m: Model) => Xyz[], dof: PtDof): Model {
+  if (dof !== 'angles') return full;
+  const boardCopy: Model = { ...board, bends: board.bends.map(b => ({ ...b })) };
+  return solveAngles(board, [full, boardCopy], cmd, gotOf);
+}
+
 /** Dónde quedan los PI de una barra, en el marco de coincidencia.
  *  Con punto de coincidencia: superpuesta al tablero como cualquier variante,
  *  que es lo que hace el útil. Con mejor ajuste: superpuesta a los puntos
@@ -233,6 +359,7 @@ export function pointsSolve(board: Model, inp: PtInput, anchor: AnchorMode = 'pi
     model = { ...board, bends: board.bends.map(b => ({ ...b })) };
   } else {
     model = solveRolled(board, toMachine(cmd.map(c => v3(c).applyMatrix4(F))), cmd, gotOf, !isFit(anchor));
+    model = restrict(board, model, cmd, gotOf, inp.dof === 'angles' ? 'angles' : 'all');
   }
 
   /* Lo que alcanza (ver `gotter()`). */
@@ -268,14 +395,16 @@ export function pointsSolve(board: Model, inp: PtInput, anchor: AnchorMode = 'pi
 
 /** La PIEZA MEDIDA como modelo, para darla de alta como cualquier nube: solo
  *  si se midieron TODOS los PI. Alineada igual que en `pointsSolve()` y de
- *  vuelta al marco de la máquina. `null` si falta alguno. */
+ *  vuelta al marco de la máquina. `null` si falta alguno. Con `dof` 'angles'
+ *  las rectas y la cola son las del tablero y solo se leen rodados y ángulos. */
 export function measuredFromPoints(board: Model, meas: (Xyz | null | undefined)[], align: PtAlign,
-                                   anchor: AnchorMode = 'pivot', k = 0): Model | null {
+                                   anchor: AnchorMode = 'pivot', k = 0, dof: PtDof = 'all'): Model | null {
   const nom = ptNominal(board, anchor, k);
   const raw = nom.map((_, i) => (finite3(meas[i]) ? meas[i] as Xyz : null));
   if (raw.some(m => !m)) return null;
   const F = ptFrame(board, anchor, k);
   const M = alignMeas(nom, raw, align) as Xyz[];
-  return solveRolled(board, toMachine(M.map(m => v3(m).applyMatrix4(F))), M,
-                     gotter(board, M, anchor, k), !isFit(anchor));
+  const gotOf = gotter(board, M, anchor, k);
+  const full = solveRolled(board, toMachine(M.map(m => v3(m).applyMatrix4(F))), M, gotOf, !isFit(anchor));
+  return restrict(board, full, M, gotOf, dof);
 }

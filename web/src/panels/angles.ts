@@ -24,9 +24,27 @@ import type { I18nKey } from './fmt.ts';
  *  se mira de la pieza activa: -1 la MEDIA de los reportes marcados (solo
  *  lectura), k el reporte k (es el que se teclea). `note` es el aviso de la
  *  última acción (el tablero nuevo). */
-export const angUI: { method: string; draft: (number | null)[]; name: string; rep: number; note: string } = {
-  method: 'cloud', draft: [], name: '', rep: -1, note: '',
+export const angUI: {
+  method: string; draft: (number | null)[]; name: string; rep: number; note: string;
+  inMode: 'abs' | 'adj'; out: 'piece' | 'board';
+} = {
+  method: 'cloud', draft: [], name: '', rep: -1, note: '', inMode: 'abs', out: 'piece',
 };
+
+/** `inMode`: cómo se ve y se teclea la columna del reporte. 'abs' = ángulo
+ *  interno medido; 'adj' = AJUSTE, la corrección a aplicar en sentido de
+ *  doblez (+ doblar más, − doblar menos) sobre la referencia `refInt` (el
+ *  plano, o el tablero si no hay plano): real = refInt + ajuste. Lo GUARDADO es
+ *  siempre el absoluto; esto solo cambia lo que se pinta y se interpreta. */
+export const angAbsToDisp = (abs: number | null | undefined, ref: number): number | null =>
+  abs === null || abs === undefined || !isFinite(abs) ? null
+    : angUI.inMode === 'adj' ? +(abs - ref).toFixed(3) : +(+abs).toFixed(3);
+/** Lo tecleado (ya numérico) → ángulo interno absoluto a guardar. */
+export const angDispToAbs = (v: number | null, ref: number): number | null =>
+  v === null ? null : angUI.inMode === 'adj' ? +(ref + v).toFixed(6) : v;
+/** Texto de un valor en pantalla: el ajuste lleva signo explícito. */
+export const angDispText = (v: number | null): string =>
+  v === null ? '' : angUI.inMode === 'adj' && v > 0 ? '+' + v : String(v === 0 ? 0 : v);
 
 /** El reporte que se mira de la pieza activa: -1 = la media. Un índice que ya
  *  no existe (se borró el reporte, se cambió de pieza) cuenta como la media. */
@@ -50,7 +68,7 @@ export const countTyped = (v: (number | null)[]): number =>
  *  `type=number` devuelve '' con «17,5» según el idioma del navegador, y el
  *  taller teclea con coma. */
 export function parseDec(s: string): number | null {
-  const t = String(s).trim().replace(',', '.');
+  const t = String(s).trim().replace(',', '.').replace(/[−–]/g, '-');
   if (!t) return null;
   const n = Number(t);
   return isFinite(n) ? n : null;
@@ -137,6 +155,14 @@ const devBar = (dev: number | null, tol: number): string => {
     ? `left:50%;width:${f.toFixed(1)}%` : `left:${(50 + f).toFixed(1)}%;width:${(-f).toFixed(1)}%`}"></i></span>`;
 };
 
+/** Interruptor de dos estados: texto de la izquierda (off) · pista · texto de la
+ *  derecha (on). Es un botón con role=switch: el clic lo atiende `data-a`. */
+const sw = (act: string, label: string, on: boolean, offK: string, onK: string): string =>
+  `<div class="angsw"><span class="swl ${on ? '' : 'on'}">${T(offK as I18nKey)}</span>
+    <button type="button" class="swb" role="switch" aria-checked="${on}" data-a="${act}"
+      aria-label="${esc(T(label as I18nKey))}: ${esc(T((on ? onK : offK) as I18nKey))}"><i></i></button>
+    <span class="swl ${on ? 'on' : ''}">${T(onK as I18nKey)}</span></div>`;
+
 /** Un chip de la tira de leyenda: color del conjunto de valores y su nombre. */
 const chip = (c: string, k: string, tip: string): string =>
   `<span class="angchip ${c}" title="${esc(T(tip as I18nKey))}">${T(k as I18nKey)}</span>`;
@@ -165,11 +191,12 @@ export function angPane(M: Model): string {
     const pv = ST.plan.nominal[i], rm = SM.rows[i] || r;
     const bad = (x: number | null | undefined): string =>
       x !== null && x !== undefined && (x < 0 || x > 180) ? 'aria-invalid="true"' : '';
-    const vv = vals[i] === null || vals[i] === undefined ? null : +(+vals[i]!).toFixed(3);
+    const vv = angAbsToDisp(vals[i], r.refInt), vt = angDispText(vv);
+    const lbl = T(angUI.inMode === 'adj' ? 'angMeasAdjOf' : 'angMeasOf').replace('{b}', 'B' + (i + 1));
     const cell = edit
-      ? `<input type="text" inputmode="decimal" class="angin rep" ${bad(vals[i])} data-ai="${i}" data-orig="${vals[i] ?? ''}"
-        value="${vv === null ? '' : vv}" aria-label="${esc(T('angMeasOf').replace('{b}', 'B' + (i + 1)))}">`
-      : `<span class="angmean" title="${esc(T('angMeanTip'))}">${vv === null ? '—' : vv}</span>${rm.spread === null || rm.spread === undefined
+      ? `<input type="text" inputmode="decimal" class="angin rep" ${bad(vals[i])} data-ai="${i}" data-orig="${vt}"
+        value="${vt}" aria-label="${esc(lbl)}" title="${esc(lbl)}">`
+      : `<span class="angmean" title="${esc(T('angMeanTip'))}">${vv === null ? '—' : vt}</span>${rm.spread === null || rm.spread === undefined
         ? '' : `<span class="spr" title="${esc(T('angSpreadTip'))}">r ${fx(rm.spread, 2)}</span>`}`;
     return `<tr class="clk ${i === ST.sel ? 'sel' : ''}" data-r="${i}" ${i === ST.sel ? 'aria-current="true"' : ''}>
       <td><input type="text" class="angnm" data-apn="${i}" data-orig="${esc(ST.plan.names[i] || '')}" maxlength="24"
@@ -213,14 +240,17 @@ export function angPane(M: Model): string {
     <label class="tag" for="angname">${T('angName')}</label>
     <input type="text" id="angname" class="angname" data-ann="1" value="${esc(nm)}" maxlength="80">
     ${lista}
-    <div class="tw mt6"><table class="angtab"><thead><tr><th scope="col">${T('nBend')}</th>
+    ${sw('anginmode', 'angInMode', angUI.inMode === 'adj', 'angInAbs', 'angInAdj')}
+    ${angUI.inMode === 'adj' ? `<div class="hintline">${T('angAdjHint')}</div>` : ''}
+    <div class="tw mt6"><table class="angtab"><colgroup><col class="c0"><col class="c1"><col class="c2"><col class="c3"><col class="c4"></colgroup><thead><tr><th scope="col">${T('nBend')}</th>
       <th scope="col" class="hplan" title="${esc(T('angPlanTip'))}">${T('angPlan')}</th>
-      <th scope="col" class="hrep" title="${esc(T('angRepTip'))}">${ds && rep < 0 ? T('angMeanCol') : T('angRep')}</th>
+      <th scope="col" class="hrep" title="${esc(T('angRepTip') + ' · ' + T(angUI.inMode === 'adj' ? 'angInAdj' : 'angInAbs'))}">${angUI.inMode === 'adj' ? T(ds && rep < 0 ? 'angAdjMeanCol' : 'angAdjCol') : ds && rep < 0 ? T('angMeanCol') : T('angRep')}</th>
       <th scope="col" title="${esc(T('angDeltaTip'))}">Δ</th>
       <th scope="col" class="hbrd" title="${esc(T('angBoardTip'))}">${T('angBoardNew')}</th></tr></thead><tbody>${body}</tbody></table></div>
     ${S.planMissing > 0 ? `<div class="hintline v-warn">${T('angPlanMissing').replace('{n}', String(S.planMissing))}</div>` : ''}
     ${angUI.note ? `<div class="hintline v-ok" role="status">${esc(angUI.note)}</div>` : ''}
-    <div class="row mt6"><button class="btn sm grow" data-a="angnew" ${countTyped(vals) ? '' : 'disabled'}>${T('angCreate')}</button>
+    ${sw('angout', 'angOutMode', angUI.out === 'board', 'angOutPiece', 'angOutBoard')}
+    <div class="row mt6"><button class="btn sm grow" data-a="${angUI.out === 'board' ? 'angboard' : 'angnew'}" ${countTyped(vals) ? '' : 'disabled'}>${T(angUI.out === 'board' ? 'angCreateBoard' : 'angCreate')}</button>
       <button class="btn sm grow" data-a="angrec" ${ds && SM.n ? '' : 'disabled'} title="${esc(applyTip)}">${T('angApply')}</button>
       <button class="btn sm grow" data-a="report">${T('bRep')}</button></div>
     ${ds && SM.n ? `<div class="hintline">${esc(applyTip)}</div>` : ''}

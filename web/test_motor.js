@@ -5236,6 +5236,52 @@ console.log('\n— método por puntos —');
     ok('ediciones no finitas, ausentes o incompletas cuentan como cero',
        !R.changed && R.nEdit === 0 && R.maxResid < 1e-9);
   }
+
+  /* «Solo ángulos» (dof: 'angles'): avances y cola del tablero, bit a bit */
+  {
+    const B3 = E.cloneModel(B);
+    B3.bends[1].angle += 2.5; B3.bends[2].rot += 4; B3.bends[3].angle -= 3; B3.bends[4].rot -= 6;
+    const sameFeeds = m => m.bends.every((b, i) => b.feed === B.bends[i].feed) && m.tail === B.tail;
+    for (const [anc, k] of anchors) {
+      const A = E.anchorTransform(B3, B, anc, k);
+      const Fi = E.ptFrame(B, anc, k).invert();
+      const want = E.fk(B3).pis.map(p => p.clone().applyMatrix4(A).applyMatrix4(Fi));
+      const nom = E.ptNominal(B, anc, k);
+      const edits = want.map((p, i) => [p.x - nom[i][0], p.y - nom[i][1], p.z - nom[i][2]]);
+      const t0 = Date.now();
+      const R = E.pointsSolve(B, { edits, meas: none(), gain: 1, align: 'pivot', dof: 'angles' }, anc, k);
+      const ms = Date.now() - t0;
+      const dA = Math.max(...R.model.bends.map((b, i) => Math.abs(b.angle - B3.bends[i].angle)));
+      /* con mejor ajuste el rollo de la pieza entera (rot del primer doblez) es libre */
+      const dR = Math.max(...R.model.bends.map((b, i) =>
+        (anc === 'best' && i === 0 ? 0 : Math.abs(E.wrapTurn(b.rot - B3.bends[i].rot)))));
+      ok(`solo ángulos (${anc},${k}): avances y cola = tablero, dFeed = dTail = 0 exactos`,
+         sameFeeds(R.model) && R.bends.every(b => b.dFeed === 0) && R.dTail === 0);
+      ok(`  y con un objetivo alcanzable solo con ángulos lo recupera (${anc},${k})`,
+         R.maxResid < 1e-4 && dA < 1e-4 && dR < 1e-3,
+         `resid ${R.maxResid.toExponential(1)} Δángulo ${dA.toExponential(1)} Δrot ${dR.toExponential(1)} ${ms} ms`);
+      const m = E.measuredFromPoints(B, want.map(p => [p.x, p.y, p.z]), 'pivot', anc, k, 'angles');
+      ok(`  measuredFromPoints solo ángulos (${anc},${k}): rectas del tablero, ángulos de B3`,
+         !!m && sameFeeds(m) && m.bends.every((b, i) => Math.abs(b.angle - B3.bends[i].angle) < 1e-4));
+    }
+    /* B2 cambia un avance: con solo ángulos no se alcanza, pero se acerca más que el tablero */
+    {
+      const A = E.anchorTransform(B2, B, 'pivot', 0);
+      const want = E.fk(B2).pis.map(p => p.clone().applyMatrix4(A));
+      const nom = E.ptNominal(B, 'pivot', 0);
+      const edits = want.map((p, i) => [p.x - nom[i][0], p.y - nom[i][1], p.z - nom[i][2]]);
+      const Rang = E.pointsSolve(B, { edits, meas: none(), gain: 1, align: 'pivot', dof: 'angles' }, 'pivot', 0);
+      const Rall = E.pointsSolve(B, { edits, meas: none(), gain: 1, align: 'pivot', dof: 'all' }, 'pivot', 0);
+      const Rdef = E.pointsSolve(B, { edits, meas: none(), gain: 1, align: 'pivot' }, 'pivot', 0);
+      const ss = R => R.rows.reduce((a, r) => a + r.resid * r.resid, 0);
+      const ssBoard = edits.reduce((a, e) => a + e[0] * e[0] + e[1] * e[1] + e[2] * e[2], 0);
+      ok('solo ángulos con un avance cambiado: rectas fijas, residuo > 0 pero menor que no hacer nada',
+         sameFeeds(Rang.model) && Rang.maxResid > 1e-3 && ss(Rang) < ssBoard,
+         `resid ${Rang.maxResid.toFixed(3)}  Σ² ${ss(Rang).toFixed(3)} < ${ssBoard.toFixed(3)}`);
+      ok('  dof: \'all\' es lo de siempre (igual que sin dof) y alcanza el objetivo',
+         JSON.stringify(Rall.model) === JSON.stringify(Rdef.model) && Rall.maxResid < 1e-5);
+    }
+  }
 }
 
 /* ---------- rastreador de cercanía (engine/proximity.ts) ---------- */

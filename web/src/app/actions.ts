@@ -13,10 +13,10 @@ import {
   anchoredShownPis,
   addPin, setPins, seedPinsFor,
   syncTweak, zeroTweak, compensatedCommand, loopMeasured, loopPieces,
-  measuredSpringback, addAngleDataset, angleSummary, applyAngleRec,
+  measuredSpringback, addAngleDataset, angleSummary, applyAngleRec, applyAngleRecRows,
   addReport, refModel,
 } from '../state.ts';
-import { angUI, angVals, angleDs, countTyped } from '../panels/angles.ts';
+import { angUI, angVals, angleDs, angSummary, countTyped } from '../panels/angles.ts';
 import { ptUI, applyPointsTarget, addPointsDataset, clearPt, ptAllMeasured } from '../ptstate.ts';
 import { rebuildScene, fitView } from '../scene.ts';
 import { drawRibbon } from '../ribbon.ts';
@@ -509,6 +509,23 @@ export function action(a: string): void {
       ds.visible = true; ST.dsActive = ds.id;
       angUI.method = 'angles'; ptUI.on = false; angUI.draft = []; angUI.name = ''; angUI.note = '';
       renderPanels(); rebuildScene(); drawRibbon();
+      return;
+    }
+    /* interruptores del panel: qué se teclea (absoluto/ajuste) y qué se crea */
+    case 'anginmode': angUI.inMode = angUI.inMode === 'adj' ? 'abs' : 'adj'; renderPanels(); return;
+    case 'angout': angUI.out = angUI.out === 'board' ? 'piece' : 'board'; renderPanels(); return;
+    /* «Crear» en modo tablero: la recomendación de lo tecleado (o de lo que se
+       mira de la pieza activa) va directa a un tablero compensado nuevo, sin
+       dar de alta pieza medida. Sale del mismo núcleo que «angrec». */
+    case 'angboard': {
+      const ds = angleDs(), S = angSummary(M);
+      if (!S.n) { alert(T('angNoneTyped')); return; }
+      const src = (ds && ds.board && ST.variants.find(v => v.id === ds.board!.vid)) || V();
+      const id = applyAngleRecRows(S.rows, src, (ds && ds.board && ds.board.name) || src.name);
+      const nv = variantById(id);
+      angUI.note = T('angRecDone').replace('{v}', nv ? nv.name : id);
+      predict();
+      renderAll(); rebuildScene(); drawRibbon();
       return;
     }
     /* «Crear tablero compensado»: el ángulo recomendado de los dobleces medidos

@@ -62,7 +62,7 @@ function onClick(e: MouseEvent): void {
     }
     const t = (e.target as HTMLElement).closest(
       '[data-a],[data-v],[data-dm],[data-l],[data-th],[data-md],[data-dr],[data-dx],[data-dsel],[data-cm],[data-mx],[data-px],' +
-      '[data-mm],[data-pa],[data-arv],[data-vsel],[data-vx],[data-vd],[data-vr],[data-r],[data-pnx],[data-hv],[data-sk],[data-km],[data-dtb]') as HTMLElement | null;
+      '[data-mm],[data-pa],[data-pdof],[data-arv],[data-vsel],[data-vx],[data-vd],[data-vr],[data-r],[data-pnx],[data-hv],[data-sk],[data-km],[data-dtb]') as HTMLElement | null;
     if (!t) return;
     const d = t.dataset;
     /* los botones de la lista de varios puntos: `acción[:id[:valor]]`. Tocan el
@@ -92,6 +92,11 @@ function onClick(e: MouseEvent): void {
     /* «Por puntos»: cómo se leen los puntos medidos (borrador de interfaz) */
     if (d.pa !== undefined) {
       if (d.pa === 'pivot' || d.pa === 'best') ptUI.align = d.pa;
+      renderPanels(); rebuildScene(); return;
+    }
+    /* «Por puntos»: qué mueve el motor, todo o solo rodados y ángulos */
+    if (d.pdof !== undefined) {
+      if (d.pdof === 'all' || d.pdof === 'angles') ptUI.dof = d.pdof;
       renderPanels(); rebuildScene(); return;
     }
     /* reportes de una pieza por ángulos: borrar uno toca el documento (commit

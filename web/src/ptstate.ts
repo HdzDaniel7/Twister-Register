@@ -16,7 +16,7 @@
 import { Matrix4, Vector3 } from 'three';
 import * as E from './engine.ts';
 import type { Model, Variant, Dataset } from './types.ts';
-import type { PtAlign, PtResult, Xyz } from './engine/ptfit.ts';
+import type { PtAlign, PtDof, PtResult, Xyz } from './engine/ptfit.ts';
 import { ST, V, VAR_COLORS, newVid, pivotK, refModelFree, syncModel, syncCommand,
          recomputeAll, addDataset } from './state.ts';
 
@@ -30,6 +30,9 @@ export type PtUI = {
   /** fracción del error medido que se corrige, 0..1 */
   gain: number;
   align: PtAlign;
+  /** qué puede mover el motor: todo, o solo rodados y ángulos (avances y cola
+   *  del tablero). Ver `PtDof` en engine/ptfit.ts */
+  dof: PtDof;
   /** aviso de la última acción */
   note: string;
   /** nombre de la pieza medida que se va a crear */
@@ -44,7 +47,7 @@ export type PtUI = {
 };
 
 export const ptUI: PtUI = {
-  vid: '', edits: [], meas: [], gain: 1, align: 'pivot', note: '', name: '', show: true, sig: '', on: false,
+  vid: '', edits: [], meas: [], gain: 1, align: 'pivot', dof: 'all', note: '', name: '', show: true, sig: '', on: false,
 };
 
 /** ¿Se dibuja el método en la escena? */
@@ -84,9 +87,9 @@ let memo: PtResult | null = null;
 export function ptResult(): PtResult {
   ptSync();
   const B = ptBoard();
-  const key = JSON.stringify([B.bends, B.tail, ST.anchor, pivotK(), ST.datums, ptUI.edits, ptUI.meas, ptUI.gain, ptUI.align]);
+  const key = JSON.stringify([B.bends, B.tail, ST.anchor, pivotK(), ST.datums, ptUI.edits, ptUI.meas, ptUI.gain, ptUI.align, ptUI.dof]);
   if (memo && key === memoKey) return memo;
-  memo = E.pointsSolve(B, { edits: ptUI.edits, meas: ptUI.meas, gain: ptUI.gain, align: ptUI.align },
+  memo = E.pointsSolve(B, { edits: ptUI.edits, meas: ptUI.meas, gain: ptUI.gain, align: ptUI.align, dof: ptUI.dof },
                        ST.anchor, pivotK());
   memoKey = key;
   return memo;
@@ -182,17 +185,26 @@ export function applyPointsTarget(): string {
   const n = ST.variants.length;
   const w = E.cloneVariant(src, `${base} · pts ${k}`, VAR_COLORS[n % VAR_COLORS.length], newVid());
   E.syncDeltas(w);
+  /* Lo que la barra resultante deja IGUAL que el tablero (bit a bit: el avance
+     y la cola con «Solo ángulos», el radio y la torsión siempre) conserva el Δ
+     que ya traía, tal cual: recalcularlo como (base + Δ) − base metería ruido
+     de redondeo donde no se movió nada. */
+  const B = ptBoard();
+  const old = w.deltas;
   w.deltas = w.base.bends.map((b, i) => {
     const r = R.model.bends[i] || b;
+    const bb = B.bends[i];
     const s = E.bendSense(b.angle);
     const d = E.zeroDelta();
     for (const key of E.DELTA_KEYS) {
+      if (bb && old[i] && r[key] === bb[key]) { d[key] = +old[i][key] || 0; continue; }
       const v = (+r[key] || 0) - (+b[key] || 0);
       d[key] = key === 'angle' ? s * v : v;
     }
     return d;
   });
-  w.tailDelta = (+R.model.tail || 0) - (+w.base.tail || 0);
+  w.tailDelta = R.model.tail === B.tail ? (+w.tailDelta || 0)
+    : (+R.model.tail || 0) - (+w.base.tail || 0);
   w.visible = true;
   ST.variants.push(w);
   ST.active = w.id; ST.sel = -1;
@@ -206,7 +218,7 @@ export function applyPointsTarget(): string {
  *  falta algún PI. */
 export function addPointsDataset(name: string): Dataset | null {
   ptSync();
-  const m = E.measuredFromPoints(ptBoard(), ptUI.meas, ptUI.align, ST.anchor, pivotK());
+  const m = E.measuredFromPoints(ptBoard(), ptUI.meas, ptUI.align, ST.anchor, pivotK(), ptUI.dof);
   if (!m) return null;
   return addDataset(m, name, 'points', ptBoard().bends);
 }

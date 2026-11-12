@@ -83,6 +83,12 @@ export function ptPane(M: Model): string {
           title="${esc(T('ptAlignPivotTip'))}">${T('ptAlignPivot')}</button>
         <button data-pa="best" class="${ptUI.align === 'best' ? 'on' : ''}" aria-pressed="${ptUI.align === 'best'}"
           title="${esc(T('ptAlignBestTip'))}">${T('ptAlignBest')}</button></div></div>
+    <div class="row mt6"><span class="tag">${T('ptDof')}</span>
+      <div class="seg grow" role="group" aria-label="${esc(T('ptDof'))}">
+        <button data-pdof="angles" class="${ptUI.dof === 'angles' ? 'on' : ''}" aria-pressed="${ptUI.dof === 'angles'}"
+          title="${esc(T('ptDofAnglesTip'))}">${T('ptDofAngles')}</button>
+        <button data-pdof="all" class="${ptUI.dof !== 'angles' ? 'on' : ''}" aria-pressed="${ptUI.dof !== 'angles'}"
+          title="${esc(T('ptDofAllTip'))}">${T('ptDofAll')}</button></div></div>
     <label class="tag" for="ptgain">${T('ptGain')}</label>
     <div class="rangerow"><input type="range" id="ptgain" data-pg="1" min="0" max="1" step="0.05" value="${ptUI.gain}">
       <span class="val">${fx(ptUI.gain, 2)}</span></div>

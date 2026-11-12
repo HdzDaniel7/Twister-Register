@@ -5330,6 +5330,30 @@ step('por puntos: «Crear barra objetivo» da de alta una variante nueva y activ
   hotkey('z', { ctrlKey: true });
   if (BC().ST.variants.length !== antes) throw new Error('el deshacer no quitó la barra: ' + BC().ST.variants.length);
 });
+step('por puntos: «Solo ángulos» da una barra objetivo sin Δ de avance ni de cola', () => {
+  /* el alta anterior cambió de barra activa y vació el borrador: se vuelve a pedir */
+  setval(`input[data-pe="${Math.max(1, Math.floor(ptN() / 2))}:1"]`, '5');
+  const b = q('[data-pdof="angles"]');
+  b.click();
+  if (BC().ptUI.dof !== 'angles') throw new Error('ptUI.dof = ' + BC().ptUI.dof);
+  if (!q('[data-pdof="angles"]').classList.contains('on')) throw new Error('el botón no queda marcado');
+  const R = BC().ptResult();
+  if (R.nEdit < 1) throw new Error('sin edición que pedir');
+  if (R.bends.some(x => x.dFeed !== 0) || R.dTail !== 0) throw new Error('el motor movió avances o cola');
+  const antes = BC().ST.variants.length;
+  const src = JSON.parse(JSON.stringify(BC().ST.variants.find(x => x.id === (BC().ptUI.vid || BC().ST.active))));
+  click('[data-a="ptapply"]');
+  if (BC().ST.variants.length !== antes + 1) throw new Error('no se creó la barra objetivo');
+  const v = BC().ST.variants.find(x => x.id === BC().ST.active);
+  /* el Δ de avance y de cola es el que ya traía la barra de origen, exacto */
+  const dF = v.deltas.some((d, i) => d.feed !== ((src.deltas[i] && src.deltas[i].feed) || 0));
+  if (dF || (+v.tailDelta || 0) !== (+src.tailDelta || 0)) throw new Error('Δ de avance o cola distinto del de origen');
+  if (!v.deltas.some(d => Math.abs(d.rot) > 1e-9 || Math.abs(d.angle) > 1e-9)) throw new Error('sin compensación de ángulos');
+  hotkey('z', { ctrlKey: true });
+  if (BC().ST.variants.length !== antes) throw new Error('el deshacer no quitó la barra');
+  q('[data-pdof="all"]').click();
+  if (BC().ptUI.dof !== 'all') throw new Error('no volvió a «Ángulos y distancias»');
+});
 step('por puntos: una medida con +0.5 en un eje marca el error y no gasta pasos de deshacer', () => {
   click('[data-md="meas"]');
   q('[data-mm="points"]').click();
@@ -5395,6 +5419,51 @@ step('varios puntos: borrar uno y volver a sembrar deja 6; apagar el modo vacía
   const r = q('input[data-an="pivot"]');
   r.checked = true; r.dispatchEvent(new Event('change', { bubbles: true }));
   if (BC().groups.datums.children.length) throw new Error('la capa sigue con otro anclaje');
+});
+
+/* --- MEDIR POR ÁNGULOS: modo de entrada (absoluto/ajuste) y salida (pieza/tablero) --- */
+const angRows = () => BC().E.angleReport(BC().ST.model, BC().ST.plan, BC().ST.model.bends.map(() => null), BC().ST.comp, BC().E.orientations(BC().ST.model)).rows;
+step('por ángulos: los campos son legibles (≥56px) y el interruptor de entrada existe', () => {
+  click('[data-md="meas"]');
+  q('[data-mm="angles"]').click();
+  q('button[data-a="anginmode"][role="switch"]');
+  const w = q('input.angin.rep').getBoundingClientRect().width;
+  if (w && w < 56) throw new Error('campo de ángulo de ' + w + 'px');
+});
+step('por ángulos: en modo ajuste «+3,1» guarda plano+3.1 absoluto y se muestra de vuelta con signo', () => {
+  if (BC().angUI.inMode !== 'abs') throw new Error('modo inicial ' + BC().angUI.inMode);
+  click('[data-a="anginmode"]');
+  if (BC().angUI.inMode !== 'adj') throw new Error('no cambió a ajuste');
+  if (q('[data-a="anginmode"]').getAttribute('aria-checked') !== 'true') throw new Error('aria-checked');
+  const ref = angRows()[0].refInt;
+  setval('input[data-ai="0"]', '+3,1');
+  const abs = BC().angUI.draft[0];
+  if (Math.abs(abs - (ref + 3.1)) > 1e-6) throw new Error('guardó ' + abs + ' y se esperaba ' + (ref + 3.1));
+  if (q('input[data-ai="0"]').value !== '+3.1') throw new Error('muestra ' + q('input[data-ai="0"]').value);
+  setval('input[data-ai="0"]', '-0,2');
+  if (Math.abs(BC().angUI.draft[0] - (ref - 0.2)) > 1e-6) throw new Error('negativo ' + BC().angUI.draft[0]);
+  setval('input[data-ai="0"]', '+3,1');
+  click('[data-a="anginmode"]');
+  if (q('input[data-ai="0"]').value !== String(+(ref + 3.1).toFixed(3))) throw new Error('en absoluto muestra ' + q('input[data-ai="0"]').value);
+});
+step('por ángulos: salida «tablero» crea una variante con la misma base y Δ de ángulo = recDelta, sin pieza', () => {
+  const nd = BC().ST.datasets.length, nv = BC().ST.variants.length;
+  const src = JSON.parse(JSON.stringify(BC().ST.variants.find(x => x.id === BC().ST.active)));
+  click('[data-a="angout"]');
+  if (BC().angUI.out !== 'board') throw new Error('out = ' + BC().angUI.out);
+  const S = BC().E.angleReport(BC().ST.model, BC().ST.plan, BC().angUI.draft, BC().ST.comp, BC().E.orientations(BC().ST.model));
+  click('[data-a="angboard"]');
+  if (BC().ST.datasets.length !== nd) throw new Error('creó una pieza medida');
+  if (BC().ST.variants.length !== nv + 1) throw new Error('variantes ' + nv + ' → ' + BC().ST.variants.length);
+  const v = BC().ST.variants.find(x => x.id === BC().ST.active);
+  if (!/comp/.test(v.name)) throw new Error('nombre ' + v.name);
+  if (JSON.stringify(v.base.bends) !== JSON.stringify(src.base.bends)) throw new Error('cambió la base nominal');
+  const r0 = S.rows[0];
+  if (Math.abs(r0.recDelta) < 1e-6) throw new Error('recDelta 0');
+  if (Math.abs(v.deltas[0].angle - r0.recDelta) > 1e-6) throw new Error('Δ ' + v.deltas[0].angle + ' vs recDelta ' + r0.recDelta);
+  hotkey('z', { ctrlKey: true });
+  if (BC().ST.variants.length !== nv) throw new Error('el deshacer no quitó el tablero');
+  click('[data-a="angout"]');
 });
 
 return log.join('\n');
