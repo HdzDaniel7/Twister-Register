@@ -38,6 +38,10 @@ export const clamp = (v: number, a: number, b: number): number => (v < a ? a : v
  *  El rodado no entra: inclina el eje del arco, no cambia hacia dónde cierra
  *  el doblez dentro de su plano. */
 export const bendSense = (a: number): 1 | -1 => (wrapTurn(a || 0) < 0 ? -1 : 1);
+/** Cuánto MÁS doblado está `other` que `base`, EN SENTIDO DE DOBLEZ de la base:
+ *  + dobla más (cierra el ángulo interno), − dobla menos. Es LA regla de signo
+ *  de los Δ y compensaciones de ángulo, en un solo sitio. */
+export const bendDelta = (base: number, other: number): number => bendSense(base) * (other - base);
 
 /** PRNG portado exacto en los dos motores: misma semilla, misma pieza virtual. */
 export function mulberry32(a: number): () => number {

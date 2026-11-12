@@ -119,6 +119,18 @@ export function syncModel(): Model {
   syncPlan(ST.model.bends.length);
   return ST.model;
 }
+/** Una variante SIN sus Δ, como modelo: la pieza de DISEÑO. Es contra lo que
+ *  se mide, sea cual sea el método. El modelo efectivo (base + Δ) es el
+ *  TABLERO —lo que se manda a la máquina— y lleva puesta la compensación:
+ *  medir contra él hace que una pieza que salió igual al diseño se lea como
+ *  desviada y se vuelva a pedir la compensación que ya tiene (auditoría
+ *  2026-11-12, PROC-01). Sin Δ, las dos son la misma pieza. */
+export function baseModelOf(v: Variant): Model {
+  return E.effectiveModel({ ...v, deltas: v.base.bends.map(() => E.zeroDelta()), tailDelta: 0 });
+}
+/** El NOMINAL de la variante activa: su base, sin compensaciones. */
+export const nominalModel = (): Model => baseModelOf(V());
+
 /** El siguiente id de modelo, y que no sea el de ninguno de los que ya hay.
  *
  *  El contador solo no bastaba, y no es teórico: `loadModel()` lo ponía en el
@@ -747,7 +759,8 @@ export const simCount = (): number =>
 export function compensatedCommand(meas: Bend[]): Bend[] {
   const M = ST.model!;
   syncTweak(M.bends.length);
-  const base = E.compensate(ST.command, M.bends, meas, ST.comp, E.orientations(M));
+  /* el objetivo es el NOMINAL (la base), no el tablero: ver `baseModelOf()` */
+  const base = E.compensate(ST.command, nominalModel().bends, meas, ST.comp, E.orientations(M));
   return base.map((b, i) => {
     const t = ST.tweak[i] || { angle: 0, rot: 0, feed: 0 };
     const o = E.bendFrom(b);
@@ -765,19 +778,32 @@ export const activeDataset = (): Dataset | null =>
 
 /** Compara una pieza contra su referencia y deja el resultado en `dev`/`pis`.
  *
- *  Una NUBE se compara contra el modelo activo, como siempre. Una pieza por
+ *  Una NUBE se compara contra el NOMINAL de la variante activa —su base, sin
+ *  compensaciones: ver `baseModelOf()`—. Una pieza por
  *  ÁNGULOS se compara contra el PLANO puesto sobre el tablero con el que se
  *  dobló (`planModel(boardModel(ds), ST.plan)`): lo que se quiere ver en los
  *  colores de la escena y en la desviación por PI es cuánto se separa la pieza
  *  del CAD, no del tablero —el tablero ya se sabe que no es el plano: lleva el
- *  resorte compensado—. Donde el plano no da un ángulo se usa el del tablero,
- *  igual que en el informe. */
+ *  resorte compensado—. Donde el plano no da un ángulo se usa el de la BASE
+ *  del tablero, igual que en el informe (`designOf()`). */
 export function computeDev(ds: Dataset): Dataset {
-  const ref = ds.method === 'angles' && ST.model
-    ? E.planModel(boardModel(ds), ST.plan) : ST.model!;
+  let ref: Model;
+  if (ds.method === 'angles' && ST.model) {
+    const B = boardModel(ds), D = designOf(ds);
+    ref = E.planModel(D ? E.modelFromInternal(B, E.internalAngles(D)) : B, ST.plan);
+  } else ref = nominalModel();
   ds.dev = E.deviations(ref, ds.model, ST.datum, pivotK());
   ds.pis = ds.dev.pis;
   return ds;
+}
+/** La pieza de DISEÑO del tablero de una pieza por ángulos: la base de la
+ *  variante con la que se dobló, congelada con él (`Board.base`). Es el
+ *  respaldo del plano donde no se tecleó. `undefined` en una pieza de un
+ *  archivo anterior: ahí se cae al tablero congelado, que es lo único que hay. */
+export function designOf(ds: Dataset): Model | undefined {
+  const b = ds.board;
+  if (!b || !b.base || b.base.length !== b.bends.length || !ST.model) return undefined;
+  return E.normalizeModel({ ...ST.model, bends: b.base.map(x => E.bendFrom(x)) });
 }
 /** El tablero de una pieza por ángulos. Si no lo tiene —un archivo anterior a
  *  la clave— adopta el de AHORA y se queda con él: es lo único que hay, y a
@@ -786,7 +812,8 @@ function ensureBoard(ds: Dataset): void {
   if (ds.board || !ST.model) return;
   const v = V();
   ds.board = { vid: v ? v.id : '', name: v ? v.name : ST.model.name,
-               bends: ST.model.bends.map(b => E.bendFrom(b)) };
+               bends: ST.model.bends.map(b => E.bendFrom(b)),
+               ...(v ? { base: baseModelOf(v).bends.map(b => E.bendFrom(b)) } : {}) };
 }
 /** El tablero de una pieza por ángulos como modelo entero: sus dobleces
  *  congelados con la sección, la cola y las tolerancias del modelo activo,
@@ -841,10 +868,23 @@ export function addDataset(model: Model, name: string, src: string, cmd?: Bend[]
 }
 
 /* --------------------------------------------------------------- comandos */
+let cmdVid = '';
+/** Tras restaurar `ST.command` de un documento (abrir, deshacer): el comando
+ *  que viene es el bueno, sea cual sea la variante activa; no se rehace. */
+export const adoptCommand = (): void => { cmdVid = ''; };
+/** El comando sigue al TABLERO activo. Se rehace si cambia el número de
+ *  dobleces o si se ACTIVA OTRA variante: antes solo miraba el número, y tras
+ *  crear un «· comp k» Compensar seguía partiendo del comando del tablero
+ *  viejo (auditoría 2026-11-12, PROC-06). La primera vez adopta el comando que
+ *  haya —el de un archivo recién leído— sin tocarlo. */
 export function syncCommand(): void {
-  if (!ST.command || ST.command.length !== ST.model!.bends.length) {
+  const vid = ST.active;
+  const otra = cmdVid !== '' && !!vid && vid !== cmdVid;
+  if (!ST.command || ST.command.length !== ST.model!.bends.length || otra) {
     ST.command = ST.model!.bends.map(b => E.bendFrom(b));
+    if (otra) ST.tweak = [];
   }
+  cmdVid = vid || '';
   syncTweak(ST.model!.bends.length);
 }
 export const resetCommand = (): void => { ST.command = ST.model!.bends.map(b => E.bendFrom(b)); };
@@ -1021,7 +1061,7 @@ export function angleSummary(ds: Dataset): AngleSummary | null {
   if (ds.method !== 'angles' || !ST.model) return null;
   const B = boardModel(ds);
   const used = usedReports(ds).map(r => r.vals);
-  const S = E.angleReport(B, ST.plan, E.meanReported(used), ST.comp, E.orientations(B));
+  const S = E.angleReport(B, ST.plan, E.meanReported(used), ST.comp, E.orientations(B), designOf(ds));
   const sp = E.spreadReported(used);
   S.rows.forEach(r => { r.spread = sp[r.i] ?? null; });
   S.reports = used.length;
@@ -1034,7 +1074,7 @@ export function reportSummary(ds: Dataset, k: number): AngleSummary | null {
   const r = reportsOf(ds)[k];
   if (!r || !ST.model) return null;
   const B = boardModel(ds);
-  return E.angleReport(B, ST.plan, r.vals, ST.comp, E.orientations(B));
+  return E.angleReport(B, ST.plan, r.vals, ST.comp, E.orientations(B), designOf(ds));
 }
 
 /** Crea el TABLERO COMPENSADO: una variante nueva, copia del tablero que dobló
@@ -1082,7 +1122,7 @@ export function applyAngleRecRows(rows: AngleSummary['rows'], src: Variant, base
   for (const r of rows) {
     if (r.measInt === null || !isFinite(r.rec) || r.i >= w.base.bends.length) continue;
     const b0 = w.base.bends[r.i].angle;
-    E.setDelta(w, r.i, 'angle', E.bendSense(b0) * (r.rec - b0));
+    E.setDelta(w, r.i, 'angle', E.bendDelta(b0, r.rec));
   }
   ST.variants.push(w);
   ST.active = w.id; ST.sel = -1;

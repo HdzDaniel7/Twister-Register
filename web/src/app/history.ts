@@ -31,7 +31,7 @@
    ========================================================================= */
 import * as E from '../engine.ts';
 import type { ToDocExtra } from '../engine/doc.ts';
-import { ST, loadModel, setMarks, setPedestals, setPins, syncTweak, addDataset, setReports, syncPlan, refModelFree } from '../state.ts';
+import { ST, loadModel, setMarks, setPedestals, setPins, syncTweak, addDataset, setReports, syncPlan, refModelFree, adoptCommand } from '../state.ts';
 import type { Doc, DocIn, LoadedDoc } from '../types.ts';
 
 /** 50 pasos: con ~20 KB por documento son 1 MB largo, y nadie deshace más de
@@ -97,6 +97,7 @@ function snapshot(): string {
 export function applyDoc(d: LoadedDoc): void {
   loadModel(d.model, d.variants, d.ref, d.anchor);
   ST.command = d.command;
+  adoptCommand();
   Object.assign(ST.comp, d.comp);
   Object.assign(ST.proc, d.proc);
   /* Los umbrales del archivo mandan sobre los que hubiera puestos: son parte de

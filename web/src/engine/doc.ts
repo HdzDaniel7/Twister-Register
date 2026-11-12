@@ -294,10 +294,12 @@ function planOut(p: Plan | undefined): { plan?: Plan } {
  *  no es uno: entonces la pieza adopta el tablero que haya al abrir. */
 export function normBoard(b: unknown): Board | undefined {
   if (!b || typeof b !== 'object') return undefined;
-  const o = b as { vid?: unknown; name?: unknown; bends?: unknown };
+  const o = b as { vid?: unknown; name?: unknown; bends?: unknown; base?: unknown };
   if (!Array.isArray(o.bends)) return undefined;
+  const base = Array.isArray(o.base) && o.base.length === o.bends.length
+    ? { base: (o.base as Bend[]).map(x => bendFrom(x)) } : {};
   return { vid: String(o.vid ?? ''), name: String(o.name ?? ''),
-           bends: (o.bends as Bend[]).map(x => bendFrom(x)) };
+           bends: (o.bends as Bend[]).map(x => bendFrom(x)), ...base };
 }
 
 /** Un método de medida venido de un archivo: lo que no se conoce es nube, que

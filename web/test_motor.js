@@ -5536,5 +5536,73 @@ console.log('\n— mordaza o libre: el asentamiento rígido (engine/load.ts) —
   }
 }
 
+console.log('\n— la regla de signo y la referencia, de punta a punta (auditoría 2026-11-12) —');
+{
+  /* LA REGLA: todo Δ o compensación de ángulo POSITIVA dobla más y CIERRA el
+     ángulo interno; negativa dobla menos. En las dos ramas y por las tres
+     rutas. Y LA REFERENCIA: se mide contra el DISEÑO (la base), no contra el
+     tablero, así que una pieza igual al diseño no pide nada aunque el tablero
+     ya lleve compensación. */
+  const D = E.normalizeModel({
+    name: 'e2e', section: { width: 40, thickness: 12, chamfer: 1, endLen: 20 },
+    tol: { angle: .3, rot: .5, feed: .5, point: 1 }, tail: 100,
+    bends: [{ feed: 120, rot: 0, angle: 40, radius: 30 },
+            { feed: 120, rot: -90, angle: -40, radius: 30 },
+            { feed: 120, rot: 90, angle: 65, radius: 30 },
+            { feed: 120, rot: 180, angle: -25, radius: 30 }],
+  });
+  const v = E.newVariant(D, 'e2e', '#3FA9F5', 'v1');
+  const base = E.effectiveModel(v), ori = E.orientations(base);
+  const lit = { ...E.COMP_DEFAULT, gainW: 1, gainT: 1, dead: 0, maxStep: 90, doAngle: true };
+  const vacio = { names: [], nominal: [] };
+  const baseInt = E.internalAngles(base);
+
+  ok('bendDelta es la regla: + cuando el otro está MÁS doblado, en las dos ramas',
+     E.bendDelta(40, 45) === 5 && E.bendDelta(-40, -45) === 5
+     && E.bendDelta(40, 35) === -5 && E.bendDelta(-40, -35) === -5);
+
+  /* RUTA 1 · por ángulos. La pieza quedó `c` grados ABIERTA (interno = diseño + c):
+     hay que doblar más → Δ +c → el tablero nuevo tiene un interno MENOR */
+  for (const c of [1.5, -1.5]) {
+    const R = E.angleReport(base, vacio, baseInt.map(x => x + c), lit, ori, base);
+    const nuevo = E.internalAngles({ ...base, bends: base.bends.map((b, i) => ({ ...b, angle: R.rows[i].rec })) });
+    ok(`ángulos: pieza ${c > 0 ? 'abierta' : 'cerrada'} ${Math.abs(c)}° → Δ ${c > 0 ? '+' : '−'} en TODOS, y el interno ${c > 0 ? 'baja' : 'sube'}`,
+       R.rows.every((r, i) => Math.abs(r.recDelta - c) < 1e-9 && Math.abs((baseInt[i] - nuevo[i]) - c) < 1e-9),
+       R.rows.map(r => r.recDelta.toFixed(2)).join(' '));
+  }
+
+  /* el tablero YA COMPENSADO (+2 en sentido de doblez en cada doblez) */
+  base.bends.forEach((_, i) => E.setDelta(v, i, 'angle', 2));
+  const board = E.effectiveModel(v);
+  ok('Δ +2 cierra 2° el interno en las dos ramas',
+     E.internalAngles(board).every((x, i) => Math.abs((baseInt[i] - x) - 2) < 1e-9));
+
+  /* PROC-02 · sin plano, la pieza IGUAL AL DISEÑO no pide nada */
+  const Rd = E.angleReport(board, vacio, baseInt, lit, ori, base);
+  ok('ángulos sin plano: pieza igual al diseño sobre tablero compensado → corrección 0',
+     Rd.rows.every(r => Math.abs(r.dev) < 1e-9 && Math.abs(r.recDelta) < 1e-9),
+     Rd.rows.map(r => r.recDelta.toFixed(3)).join(' '));
+  const Rv = E.angleReport(board, vacio, baseInt, lit, ori);
+  ok('  (sin la base —archivo viejo— sigue contra el tablero, y por eso vuelve a pedir +2: documentado)',
+     Rv.rows.every(r => Math.abs(r.recDelta - 2) < 1e-9));
+
+  /* PROC-01 · nube: el objetivo del lazo es la base */
+  const cmd = E.compensate(board.bends, base.bends, base.bends, lit, ori);
+  ok('lazo: pieza igual al diseño → el comando no se mueve del tablero',
+     cmd.every((b, i) => Math.abs(b.angle - board.bends[i].angle) < 1e-9));
+
+  /* RUTA 3 · por puntos, con el diseño como referencia */
+  const inp = (meas) => ({ edits: [], meas, gain: 1, align: 'pivot', ref: base });
+  const Pd = E.pointsSolve(board, inp(E.ptNominal(base, 'pivot', 0)), 'pivot', 0);
+  ok('puntos: pieza igual al diseño sobre tablero compensado → Δ de ángulo 0',
+     Pd.bends.every(b => Math.abs(b.dAngle) < 1e-6), Pd.bends.map(b => b.dAngle.toFixed(4)).join(' '));
+  const abierta = { ...base, bends: base.bends.map(b => ({ ...b, angle: b.angle - E.bendSense(b.angle) * 3 })) };
+  const Pa = E.pointsSolve(base, inp(E.ptNominal(abierta, 'pivot', 0)), 'pivot', 0);
+  const intA = E.internalAngles(Pa.model);
+  ok('puntos: pieza 3° abierta → Δ ≈ +3 en TODOS (una pasada, no es lineal) y el interno baja',
+     Pa.bends.every((b, i) => b.dAngle > 2.5 && b.dAngle < 3.5 && intA[i] < baseInt[i] - 2.5),
+     Pa.bends.map(b => b.dAngle.toFixed(3)).join(' '));
+}
+
 console.log(`\n${fails ? fails + ' PRUEBA(S) FALLARON' : 'todas las pruebas pasaron'}\n`);
 process.exit(fails ? 1 : 0);

@@ -6,7 +6,7 @@ import type {
   Bend, Proc, Orientation, Comp, Model, DatumMode, Deviations, Stat, BendStat,
   SbFit, SbTrend, Springback,
 } from '../types.ts';
-import { clamp, mulberry32, gauss, wrap180, applyMat, bendSense } from './math.ts';
+import { clamp, mulberry32, gauss, wrap180, applyMat, bendDelta } from './math.ts';
 import { bendFrom, newBend } from './bend.ts';
 import { fk, bendTheta, alignModelBranch } from './kinematics.ts';
 import { kabsch, anchorTransform, farShift } from './fitting.ts';
@@ -310,7 +310,7 @@ export function deviations(model: Model, measModel: Model, datum: DatumMode = 'p
     /* EN SENTIDO DE DOBLEZ (ver `bendSense()`): + está sobredoblado, − le
        faltó doblar, también en un doblez negativo. La compensación que pide
        es la contraria. */
-    angle.push(bendSense(model.bends[i].angle) * (measModel.bends[i].angle - model.bends[i].angle));
+    angle.push(bendDelta(model.bends[i].angle, measModel.bends[i].angle));
     rot.push(wrap180(measModel.bends[i].rot - model.bends[i].rot));
     feed.push(measModel.bends[i].feed - model.bends[i].feed);
     /* `theta` es la desviación del DESVÍO TOTAL del doblez. Es el número

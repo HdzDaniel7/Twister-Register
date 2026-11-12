@@ -17,7 +17,7 @@ import { Matrix4, Vector3 } from 'three';
 import * as E from './engine.ts';
 import type { Model, Variant, Dataset } from './types.ts';
 import type { PtAlign, PtDof, PtResult, Xyz } from './engine/ptfit.ts';
-import { ST, V, VAR_COLORS, newVid, pivotK, refModelFree, syncModel, syncCommand,
+import { ST, V, VAR_COLORS, newVid, pivotK, refModelFree, syncModel, syncCommand, baseModelOf,
          recomputeAll, addDataset } from './state.ts';
 
 export type PtUI = {
@@ -87,9 +87,10 @@ let memo: PtResult | null = null;
 export function ptResult(): PtResult {
   ptSync();
   const B = ptBoard();
-  const key = JSON.stringify([B.bends, B.tail, ST.anchor, pivotK(), ST.datums, ptUI.edits, ptUI.meas, ptUI.gain, ptUI.align, ptUI.dof]);
+  const ref = baseModelOf(ptVariant());
+  const key = JSON.stringify([B.bends, B.tail, ref.bends, ref.tail, ST.anchor, pivotK(), ST.datums, ptUI.edits, ptUI.meas, ptUI.gain, ptUI.align, ptUI.dof]);
   if (memo && key === memoKey) return memo;
-  memo = E.pointsSolve(B, { edits: ptUI.edits, meas: ptUI.meas, gain: ptUI.gain, align: ptUI.align, dof: ptUI.dof },
+  memo = E.pointsSolve(B, { edits: ptUI.edits, meas: ptUI.meas, gain: ptUI.gain, align: ptUI.align, dof: ptUI.dof, ref },
                        ST.anchor, pivotK());
   memoKey = key;
   return memo;

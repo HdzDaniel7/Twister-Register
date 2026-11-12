@@ -178,7 +178,7 @@ export function reportHtml(): string {
       return { ang: e.angle, rot: e.rot, tw: e.twist, rad: e.radius, str: EL.straight, cum: EL.cum };
     }
     return {
-      ang: E.bendSense(b.angle) * (e.angle - b.angle), rot: e.rot - b.rot, tw: (e.twist || 0) - (b.twist || 0),
+      ang: E.bendDelta(b.angle, e.angle), rot: e.rot - b.rot, tw: (e.twist || 0) - (b.twist || 0),
       rad: e.radius - b.radius, str: EL.straight - BL.straight, cum: EL.cum - BL.cum,
     };
   };
@@ -205,7 +205,7 @@ export function reportHtml(): string {
     if (modo === 'base') return cb;
     if (modo === 'total') return ce;
     return {
-      ang: d.base.bends.reduce((a, b, i) => a + (d.eff.bends[i] ? E.bendSense(b.angle) * (d.eff.bends[i].angle - b.angle) : 0), 0), rot: ce.rot - cb.rot, tw: ce.tw - cb.tw, rad: 0,
+      ang: d.base.bends.reduce((a, b, i) => a + (d.eff.bends[i] ? E.bendDelta(b.angle, d.eff.bends[i].angle) : 0), 0), rot: ce.rot - cb.rot, tw: ce.tw - cb.tw, rad: 0,
       str: ce.str - cb.str, cum: ce.cum - cb.cum,
     };
   };

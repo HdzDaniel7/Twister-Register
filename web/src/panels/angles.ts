@@ -16,7 +16,7 @@
 import * as E from '../engine.ts';
 import { T } from '../i18n.ts';
 import type { AngleSummary, Model } from '../types.ts';
-import { ST, V, activeDataset, angleSummary, reportSummary, reportsOf, usedReports, syncPlan } from '../state.ts';
+import { ST, V, activeDataset, angleSummary, reportSummary, reportsOf, usedReports, syncPlan, nominalModel } from '../state.ts';
 import { fx, esc, cls, sgn } from './fmt.ts';
 import type { I18nKey } from './fmt.ts';
 
@@ -84,7 +84,7 @@ export function angVals(M: Model): (number | null)[] {
 
 /** Sin pieza todavía: el resumen en vivo de lo tecleado contra el tablero. */
 const draftSummary = (M: Model): AngleSummary =>
-  E.angleReport(M, ST.plan, angVals(M), ST.comp, E.orientations(M));
+  E.angleReport(M, ST.plan, angVals(M), ST.comp, E.orientations(M), nominalModel());
 
 /** El resumen de lo que se mira: la media o el reporte elegido de la pieza, o
  *  uno en vivo del borrador. */
@@ -202,14 +202,14 @@ export function angPane(M: Model): string {
       <td><input type="text" class="angnm" data-apn="${i}" data-orig="${esc(ST.plan.names[i] || '')}" maxlength="24"
         value="${esc(ST.plan.names[i] || '')}" placeholder="B${i + 1}" aria-label="${esc(T('angNameOf').replace('{b}', 'B' + (i + 1)))}"></td>
       <td><input type="text" inputmode="decimal" class="angin plan" ${bad(pv)} data-apv="${i}" data-orig="${pv ?? ''}"
-        value="${pv === null || pv === undefined ? '' : +(+pv).toFixed(3)}" placeholder="${fx(r.boardInt, 2)}"
+        value="${pv === null || pv === undefined ? '' : +(+pv).toFixed(3)}" placeholder="${fx(r.refInt, 2)}"
         aria-label="${esc(T('angPlanOf').replace('{b}', 'B' + (i + 1)))}">${r.planInt === null
         ? `<span class="nopl" title="${esc(T('angNoPlanTip'))}">≈</span>` : ''}</td>
       <td class="${edit ? '' : 'angmc'}">${cell}</td>
       <td class="${r.dev === null ? 'v-dim' : cls(r.dev, tol)}">${r.dev === null ? '—' : sgn(r.dev, 3)}${devBar(r.dev, tol)}</td>
       <td class="angrc" title="${esc(T('angBoardNow'))}: ${fx(rm.board, 2)}°">${rm.measInt === null
         ? `<span class="v-dim">${fx(rm.board, 2)}</span>`
-        : `${fx(rm.rec, 2)}<span class="corr">${sgn(rm.recDelta, 2)}</span>`}</td></tr>`;
+        : `${fx(rm.rec, 2)}<span class="corr" title="${esc(T('angCorrTip'))}">Δ ${sgn(rm.recDelta, 2)}</span>`}</td></tr>`;
   }).join('');
   /* LA LISTA DE REPORTES: una fila para la media y una por reporte */
   let lista = '';
@@ -245,7 +245,7 @@ export function angPane(M: Model): string {
     <div class="tw mt6"><table class="angtab"><colgroup><col class="c0"><col class="c1"><col class="c2"><col class="c3"><col class="c4"></colgroup><thead><tr><th scope="col">${T('nBend')}</th>
       <th scope="col" class="hplan" title="${esc(T('angPlanTip'))}">${T('angPlan')}</th>
       <th scope="col" class="hrep" title="${esc(T('angRepTip') + ' · ' + T(angUI.inMode === 'adj' ? 'angInAdj' : 'angInAbs'))}">${angUI.inMode === 'adj' ? T(ds && rep < 0 ? 'angAdjMeanCol' : 'angAdjCol') : ds && rep < 0 ? T('angMeanCol') : T('angRep')}</th>
-      <th scope="col" title="${esc(T('angDeltaTip'))}">Δ</th>
+      <th scope="col" title="${esc(T('angDeltaTip'))}">${T('angDevCol')}</th>
       <th scope="col" class="hbrd" title="${esc(T('angBoardTip'))}">${T('angBoardNew')}</th></tr></thead><tbody>${body}</tbody></table></div>
     ${S.planMissing > 0 ? `<div class="hintline v-warn">${T('angPlanMissing').replace('{n}', String(S.planMissing))}</div>` : ''}
     ${angUI.note ? `<div class="hintline v-ok" role="status">${esc(angUI.note)}</div>` : ''}

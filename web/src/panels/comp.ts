@@ -9,7 +9,7 @@
 import * as E from '../engine.ts';
 import { T } from '../i18n.ts';
 import type { Model } from '../types.ts';
-import { ST, activeDataset, syncTweak, loopPieces, loopMeasured, heldOn } from '../state.ts';
+import { ST, activeDataset, syncTweak, loopPieces, loopMeasured, heldOn, nominalModel } from '../state.ts';
 import { fx, cls, esc, nfield, oriTag, sgn, srcTag } from './fmt.ts';
 import type { I18nKey } from './fmt.ts';
 
@@ -68,7 +68,7 @@ export function paneComp(M: Model): string {
      entran ahora: con la casilla apagada siempre sería «1» y no diría nada */
   const vis = ST.datasets.filter(d => d.visible);
   const meas = loopMeasured() || D.model.bends;
-  const calc = E.compensate(cmd, M.bends, meas, C, ori);
+  const calc = E.compensate(cmd, nominalModel().bends, meas, C, ori);
   /* Con el amarre o la carga puestos, el 3D puede estar enseñando la pieza
      ASENTADA mientras el lazo corrige contra la LIBRE: `compensate()` recibe
      `M.bends`, que es el nominal sin fixture, y ni siquiera mira los

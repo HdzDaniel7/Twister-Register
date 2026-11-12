@@ -24,7 +24,7 @@
    Es puro: no toca ST ni el DOM. La pieza se da de alta en state.ts.
    ========================================================================= */
 import type { AngleRow, AngleSummary, Comp, MeasMethod, Model, Orientation, Plan } from '../types.ts';
-import { wrapTurn, bendSense } from './math.ts';
+import { wrapTurn, bendDelta } from './math.ts';
 import { cloneModel } from './bend.ts';
 import { compensate } from './compensate.ts';
 
@@ -129,8 +129,8 @@ export function spreadReported(list: (number | null)[][]): (number | null)[] {
  *  Tres juegos de cifras (ver `Plan` en types/doc.ts): `board` es el tablero
  *  con el que se dobló la pieza, `plan` el CAD y `reported` lo medido. La
  *  desviación va EN SENTIDO DE DOBLEZ —+ sobredoblado, − le faltó—, que en
- *  internos es PLANO − REPORTE; donde el plano no da el ángulo se cae al
- *  tablero (`fromBoard`), que es lo único que hay, y el resumen lo cuenta en
+ *  internos es PLANO − REPORTE; donde el plano no da el ángulo se cae a la
+ *  BASE del tablero (`fromBoard`; ver `design` abajo), y el resumen lo cuenta en
  *  `planMissing` para que la pantalla lo diga.
  *
  *  La recomendación es `compensate()` tal cual —ganancia por orientación,
@@ -150,17 +150,23 @@ export function spreadReported(list: (number | null)[][]): (number | null)[] {
  *  cuenta solo los medidos; `reports` sale a 1 y `spread` a null: los pone
  *  quien promedia varios reportes (`angleSummary()` en state.ts). */
 export function angleReport(board: Model, plan: Plan, reported: (number | null)[], comp: Comp,
-                            ori: Orientation[]): AngleSummary {
+                            ori: Orientation[], base?: Model): AngleSummary {
   const boardInt = internalAngles(board);
+  /* SIN PLANO, el objetivo es la BASE del tablero —la pieza de diseño, sin sus
+     Δ— y no el tablero efectivo: un tablero ya compensado no es lo que se
+     quiere obtener, y medir contra él vuelve a pedir la compensación que ya
+     lleva puesta. `base` falta solo si ya no existe la variante de origen. */
+  const design = base && base.bends.length === board.bends.length ? base : board;
+  const fallInt = internalAngles(design);
   const nominal = plan.nominal || [], names = plan.names || [];
-  const target = planModel(board, plan).bends;
+  const target = planModel(design, plan).bends;
   const meas = modelFromInternal(board, reported).bends;
   const rec = compensate(board.bends, target, meas,
                          { ...comp, doAngle: true, doRot: false, doFeed: false }, ori);
   const rows: AngleRow[] = board.bends.map((b, i) => {
     const p = nominal[i];
     const planInt = hasReading(p) ? p : null;
-    const refInt = planInt ?? boardInt[i];
+    const refInt = planInt ?? fallInt[i];
     const head = { i, name: names[i] || '', planInt, refInt, fromBoard: planInt === null,
                    boardInt: boardInt[i], board: b.angle };
     const r = reported[i];
@@ -174,7 +180,7 @@ export function angleReport(board: Model, plan: Plan, reported: (number | null)[
     const dev = refInt - r;
     const a = rec[i].angle;
     return { ...head, measInt: r, dev, ok: Math.abs(dev) <= board.tol.angle,
-             rec: a, recDelta: bendSense(b.angle) * (a - b.angle), spread: null };
+             rec: a, recDelta: bendDelta(b.angle, a), spread: null };
   });
   const medidas = rows.filter(x => x.dev !== null);
   const devs = medidas.map(x => x.dev as number);

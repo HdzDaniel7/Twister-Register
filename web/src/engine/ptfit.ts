@@ -37,7 +37,7 @@
    ========================================================================= */
 import { Matrix4, Quaternion, Vector3 } from 'three';
 import type { AnchorMode, Bend, Model } from '../types.ts';
-import { bendSense, wrapTurn } from './math.ts';
+import { bendDelta, wrapTurn } from './math.ts';
 import { fk, alignModelBranch } from './kinematics.ts';
 import { modelFromPoints } from './model.ts';
 import { anchorTransform, frameAtPi, kabsch } from './fitting.ts';
@@ -67,6 +67,10 @@ export type PtInput = {
   align: PtAlign;
   /** qué se mueve; por defecto 'all' */
   dof?: PtDof;
+  /** la pieza de DISEÑO (la base del tablero, sin sus Δ): contra ella se mide
+   *  el error. Sin ella, o con otro número de PI, se mide contra el tablero,
+   *  que es lo mismo mientras el tablero no lleve compensación */
+  ref?: Model;
 };
 
 export type PtRow = {
@@ -340,11 +344,17 @@ export function pointsSolve(board: Model, inp: PtInput, anchor: AnchorMode = 'pi
   const gain = Math.min(1, Math.max(0, isFinite(+inp.gain) ? +inp.gain : 1));
   const edits = nom.map((_, i) => (finite3(inp.edits[i]) ? inp.edits[i] as Xyz : ZERO));
   const rawMeas = nom.map((_, i) => (finite3(inp.meas[i]) ? (inp.meas[i] as Xyz).slice() as Xyz : null));
-  const meas = alignMeas(nom, rawMeas, inp.align);
+  /* EL ERROR MEDIDO ES CONTRA EL DISEÑO, no contra el tablero: un tablero que
+     ya lleva compensación no es donde debe caer la pieza, y medir contra él
+     volvería a pedir lo que ya tiene puesto (auditoría 2026-11-12, PROC-01).
+     La corrección se suma al tablero, que es lo que se manda. */
+  const refNom = inp.ref ? ptNominal(inp.ref, anchor, k) : nom;
+  const des = refNom.length === nom.length ? refNom : nom;
+  const meas = alignMeas(des, rawMeas, inp.align);
   const target = nom.map((p, i) => xyz(v3(p).add(v3(edits[i]))));
   const cmd = target.map((t, i) => {
     const m = meas[i];
-    return m ? xyz(v3(t).add(v3(nom[i]).sub(v3(m)).multiplyScalar(gain))) : t;
+    return m ? xyz(v3(t).add(v3(des[i]).sub(v3(m)).multiplyScalar(gain))) : t;
   });
   const nMeas = meas.filter(Boolean).length;
   const nEdit = edits.filter(e => !isZero(e)).length;
@@ -367,7 +377,7 @@ export function pointsSolve(board: Model, inp: PtInput, anchor: AnchorMode = 'pi
 
   const rows: PtRow[] = nom.map((p, i) => {
     const m = meas[i];
-    const err = m ? xyz(v3(m).sub(v3(p))) : null;
+    const err = m ? xyz(v3(m).sub(v3(des[i]))) : null;
     const got = gotPts[i] || p;
     return {
       i, nom: p, edit: edits[i], target: target[i], meas: m, err,
@@ -381,7 +391,7 @@ export function pointsSolve(board: Model, inp: PtInput, anchor: AnchorMode = 'pi
       i, board: b, res: r,
       dFeed: r.feed - b.feed,
       dRot: wrapTurn(r.rot - b.rot),
-      dAngle: bendSense(b.angle) * (r.angle - b.angle),
+      dAngle: bendDelta(b.angle, r.angle),
     };
   });
   return {

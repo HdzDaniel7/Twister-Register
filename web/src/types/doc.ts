@@ -168,7 +168,11 @@ export type Plan = { names: string[]; nominal: (number | null)[] };
  *  dobleces EFECTIVOS (base + Δ) en ese momento. Se copian porque el tablero
  *  se sigue editando —es lo que hace el lazo— y la pieza ya está doblada: si
  *  se rehiciera contra el tablero de ahora, corregirlo movería la pieza. */
-export type Board = { vid: string; name: string; bends: Bend[] };
+export type Board = { vid: string; name: string; bends: Bend[];
+  /** los dobleces de la BASE de esa variante (sin sus Δ), congelados igual:
+   *  el respaldo del plano donde no se tecleó. Falta en archivos anteriores
+   *  al 2026-11-12; ahí el respaldo es `bends`, como antes. */
+  base?: Bend[] };
 
 /** UN reporte de medición de una pieza por ángulos: los internos que dio una
  *  vuelta del escáner o del goniómetro. Una pieza junta varios —la misma
