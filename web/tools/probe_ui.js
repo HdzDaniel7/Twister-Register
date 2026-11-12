@@ -50,7 +50,17 @@ function drawer(k) {
 const motivoStp = bl => !bl ? 'null'
   : typeof bl === 'string' ? bl : bl.code + ' / ' + bl.why;
 
-const click = sel => q(sel).click();
+/* Fase D (auditoría 2026-11-12): Pines y Límites cuelgan de un grupo de la
+   barra, y Compensar se abre desde Piezas · Avanzado. Los pasos viejos siguen
+   pidiendo el destino; aquí se recorre el camino nuevo hasta él. */
+const click = sel => {
+  if (!document.querySelector(sel)) {
+    const m = /^#tabs \[data-t="(pins|lims)"\]$/.exec(sel);
+    if (m) q(`#tabs [data-t="${m[1] === 'pins' ? 'fixture' : 'mach'}"]`).click();
+    else if (sel === '[data-md="comp"]') { drawer('pieces'); q('[data-a="gocomp"]').click(); return; }
+  }
+  q(sel).click();
+};
 const setval = (sel, v) => {
   const el = q(sel);
   el.value = v;
@@ -840,7 +850,7 @@ step('la cuadricula y los pedestales NO cuelgan de la colocacion', () => {
   }
 });
 step('mover la colocacion mueve la pieza, no la cuadricula', () => {
-  drawer('view');
+  drawer('ref');
   /* las etiquetas se proyectan a traves de la colocacion: si la pieza se movio,
      se movieron. La cuadricula no tiene etiquetas y vive en `world`. */
   const pos = () => {
@@ -875,7 +885,7 @@ step('el indicador de ejes gira con la vista', () => {
   if (pos() === a) throw new Error('no se movio: ' + a);
 });
 step('el indicador de ejes gira con la colocacion', () => {
-  drawer('view');
+  drawer('ref');
   const pos = () => {
     window.BARCOMP.drawGizmo();
     return [...q('#gizmo svg').querySelectorAll('circle')]
@@ -924,7 +934,7 @@ step('  y dice de que estacion es el marco, que era la mitad del fallo', () => {
   sel(-1);
 });
 step('  y con la pieza girada el marco gira con ella, no contra ella', () => {
-  drawer('view');
+  drawer('ref');
   const ejeX = () => {
     window.BARCOMP.drawGizmo();
     /* el brazo X: el circulo que lleva el texto X, en el mismo orden de pintado */
@@ -995,13 +1005,13 @@ step('la casilla de ver de una pieza medida aguanta el clic', () => {
 });
 step('Δ en la copia', () => setval('input[data-bd="5"][data-k="rot"]', '3'));
 step('anclaje coincidencia (P0, PE) / mejor ajuste', () => {
-  drawer('models');
+  drawer('ref');
   click('[data-a="pivE"]');
-  drawer('models');
+  drawer('ref');
   check('input[data-an="best"]', true);
-  drawer('models');
+  drawer('ref');
   click('[data-a="piv0"]');
-  drawer('models');
+  drawer('ref');
   check('input[data-an="pivot"]', true);
 });
 step('marcar y devolver la referencia', () => {
@@ -1020,10 +1030,10 @@ step('capas diff / pred', () => {
 step('fundir Δ', () => click('[data-a="bake"]'));
 
 /* ---------------------------------------------------------- colocación -- */
-step('colocación: girar Z', () => { drawer('view'); setval('input[data-pl="rz"]', '35'); });
-step('colocación: girar X', () => { drawer('view'); setval('input[data-pl="rx"]', '-15'); });
-step('colocación: mover X', () => { drawer('view'); setval('input[data-pl="x"]', '250'); });
-step('colocación: cambiar el pivote', () => { drawer('view'); setval('select[data-plp]', '6'); });
+step('colocación: girar Z', () => { drawer('ref'); setval('input[data-pl="rz"]', '35'); });
+step('colocación: girar X', () => { drawer('ref'); setval('input[data-pl="rx"]', '-15'); });
+step('colocación: mover X', () => { drawer('ref'); setval('input[data-pl="x"]', '250'); });
+step('colocación: cambiar el pivote', () => { drawer('ref'); setval('select[data-plp]', '6'); });
 step('la colocación NO toca el modelo', () => {
   const f = S().model.bends[0].feed;
   if (Math.abs(f - 140) > 1e-9) throw new Error('el avance cambió a ' + f);
@@ -1033,7 +1043,7 @@ step('la colocación mueve lo que se dibuja', () => {
     window.BARCOMP.E.fk(S().model).pis[S().place.pivot]);
   if (Math.abs(M.determinant() - 1) > 1e-9) throw new Error('no es rígida');
 });
-step('colocación: restablecer', () => { drawer('view'); click('[data-a="placereset"]'); });
+step('colocación: restablecer', () => { drawer('ref'); click('[data-a="placereset"]'); });
 
 /* ------------------------------------------------- puntos de referencia -- */
 step('pestaña Puntos', () => {
@@ -1504,7 +1514,7 @@ function deshacerAMedias(sel, leer, confirmado) {
   if (Math.abs(leer() - antes) > 1e-9) throw new Error('no se pudo dejar como estaba: ' + leer());
 }
 step('Ctrl+Z con un campo del cajón a medio escribir deshace lo confirmado y no vacía el rehacer', () => {
-  drawer('view');
+  drawer('ref');
   deshacerAMedias('#lf input[data-pl="x"]', () => S().place.x, S().place.x + 77);
 });
 step('Ctrl+Z con una celda de la tabla a medio escribir hace lo mismo', () => {
@@ -1605,9 +1615,9 @@ step('la cota lleva su color en un punto y el texto legible', () => {
   const bg = getComputedStyle(sw).backgroundColor;
   if (!bg || bg === 'rgba(0, 0, 0, 0)') throw new Error('el punto no lleva el color de la cota');
 });
-step('los tres modos están arriba y la medición no es pestaña', () => {
+step('Modelar y Medir están arriba, Compensar solo mientras se usa, y la medición no es pestaña', () => {
   const modos = [...document.querySelectorAll('[data-md]')].map(b => b.dataset.md);
-  if (modos.join(',') !== 'model,meas,comp') throw new Error('modos: ' + modos.join(','));
+  if (modos.join(',') !== 'model,meas') throw new Error('modos: ' + modos.join(','));
   if (document.querySelector('#tabs [data-t="meas"]')) throw new Error('sigue habiendo pestaña');
 });
 step('en Medir no hay bloque de abajo y el lateral manda', () => {
@@ -5402,7 +5412,7 @@ step('rastreador: cambiar de eje repinta y apagarlo vacía la capa', () => {
 });
 
 step('varios puntos: elegir el modo siembra un 3-2-1 de 6 filas y crea la capa', () => {
-  drawer('models');
+  drawer('ref');
   const r = q('input[data-an="datums"]');
   r.checked = true; r.dispatchEvent(new Event('change', { bubbles: true }));
   if (BC().ST.anchor !== 'datums') throw new Error('anchor = ' + BC().ST.anchor);
@@ -5499,6 +5509,45 @@ step('por ángulos: en teléfono la tecla ± sale sobre el ajuste (campo de text
     telOff();
     BC().angUI.draft = [];
   }
+});
+
+/* --- fase D de la auditoría 2026-11-12: menús --- */
+step('menús: Modelar enseña 5 grupos, y Sujeción/Máquina abren su selector con las pestañas de antes', () => {
+  q('[data-md="model"]').click();
+  q('#tabs [data-t="model"]').click();
+  const cab = [...document.querySelectorAll('#tabs > button')].map(b => b.dataset.t);
+  if (cab.join(',') !== 'model,section,points,fixture,mach') throw new Error('grupos: ' + cab.join(','));
+  if (document.querySelector('#tabs .subtabs')) throw new Error('hay selector con una pestaña sola');
+  q('#tabs > [data-t="mach"]').click();
+  const sub = [...document.querySelectorAll('#tabs .subtabs button')].map(b => b.dataset.t);
+  if (sub.join(',') !== 'mach,lims') throw new Error('selector: ' + sub.join(','));
+  q('#tabs .subtabs [data-t="lims"]').click();
+  if (BC().ST.tab !== 'lims') throw new Error('tab = ' + BC().ST.tab);
+  if (!q('#tabs > button.on') || q('#tabs > button.on').dataset.t !== 'lims') throw new Error('el grupo no queda marcado');
+  q('#tabs [data-t="model"]').click();
+});
+step('menús: coincidencia y colocación viven juntas en Referencia y ya no en Modelos ni en Vista', () => {
+  drawer('ref');
+  if (!document.querySelector('#lf input[data-an="pivot"]') || !document.querySelector('#lf select[data-plp]')) throw new Error('falta algo en Referencia');
+  drawer('models');
+  if (document.querySelector('#lf input[data-an]')) throw new Error('la coincidencia sigue en Modelos');
+  drawer('view');
+  if (document.querySelector('#lf [data-pl]')) throw new Error('la colocación sigue en Vista');
+  q('[data-dr="view"]').click();
+});
+step('menús: Compensar no ocupa la cabecera; se entra por Piezas · Avanzado y el plegable recuerda que se abrió', () => {
+  if (document.querySelector('[data-md="comp"]')) throw new Error('Compensar sigue en la cabecera');
+  drawer('pieces');
+  const d = q('#lf details[data-fold="adv"]');
+  if (d.open) throw new Error('Avanzado arranca abierto');
+  d.open = true; d.dispatchEvent(new Event('toggle'));
+  q('[data-dr="pieces"]').click(); drawer('pieces');
+  if (!q('#lf details[data-fold="adv"]').open) throw new Error('no recordó que estaba abierto');
+  q('[data-a="gocomp"]').click();
+  if (BC().ST.mode !== 'comp' || BC().ST.drawer) throw new Error('modo ' + BC().ST.mode + ', cajón ' + BC().ST.drawer);
+  if (!q('[data-md="comp"]').classList.contains('on')) throw new Error('en Compensar no se ve dónde se está');
+  q('[data-md="model"]').click();
+  if (document.querySelector('[data-md="comp"]')) throw new Error('al salir sigue en la cabecera');
 });
 
 return log.join('\n');

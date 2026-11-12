@@ -39,7 +39,7 @@ CI en `.github/`. Fuente `web/src`: ~20 900 líneas.
 - `shell.html`, `app.css` (807).
 
 ## Interfaz
-Tres modos: Modelar, Medir, Compensar. Lateral izquierdo `#lf`, visor `#vp`, derecha `#rt`,
+Modos: Modelar y Medir en la cabecera; Compensar (lote de nubes) se abre desde Piezas · Avanzado. Cajones: Archivo, Modelos, Referencia (coincidencia + colocación), Vista, Piezas. Pestañas de Modelar en 5 grupos (`TAB_GROUPS`): Sujeción = fixture + pines, Máquina = máquina + límites. Lateral izquierdo `#lf`, visor `#vp`, derecha `#rt`,
 inferior `#bt` + cinta `#rb`. Medir tiene métodos: nube/CSV, Por ángulos (reportes, plano /
 tablero / reporte, entrada absoluta o ajuste, salida pieza real o compensación a tablero),
 Por puntos (objetivo/medida por PI, mover solo ángulos o ángulos y distancias).

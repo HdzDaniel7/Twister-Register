@@ -320,6 +320,7 @@ export const es: Record<I18nKey, string> = {
     una pestaña donde mirar. */
  /* Los menús. Abren cajones que flotan sobre el 3D: la columna fija de 250 px
     se pagaba siempre, y lo que había dentro se toca una vez y se olvida. */
+ mnRef: 'Referencia', tabHold: 'Sujeción', adv: 'Avanzado', advNote: 'Datos inventados para probar y lazo por lote de nubes. No hacen falta para medir por ángulos o por puntos.', advBatch: 'Compensar por lote (nubes)',
  mnFile: 'Archivo', mnModel: 'Modelos', mnView: 'Vista', mnPieces: 'Piezas',
  mnMenu: 'Menú', mnClose: 'Cerrar', signKey: 'Cambiar el signo',
  soloOn: 'Solo 3D', soloOff: 'Volver',

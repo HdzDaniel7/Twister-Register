@@ -10,6 +10,7 @@ import { renderShell, renderLeft, renderRight, renderStatus, renderPanels } from
 import type { DatumMode, Mode } from '../../types.ts';
 import type { ViewName } from '../../scene.ts';
 import { $ } from '../../dom.ts';
+import { setFold } from '../../panels/fmt.ts';
 import { refresh, renderAll, selectBend, setMode, openDrawer } from '../render.ts';
 import { setTheme } from '../theme.ts';
 import { action, setPivot, variantById, varActivate, varDuplicate, varDelete, setSecKind, setKMode } from '../actions.ts';
@@ -24,6 +25,13 @@ export function bindClick(): void {
     ST.tab = t.dataset.t as string;
     renderShell(); renderRight();
   });
+
+  /* Los plegables recuerdan su estado entre repintados (ver `fold()`).
+     `toggle` no burbujea: se escucha en captura. */
+  document.addEventListener('toggle', e => {
+    const d = e.target as HTMLDetailsElement;
+    if (d && d.dataset && d.dataset.fold) setFold(d.dataset.fold, d.open);
+  }, true);
 
   /* Un clic fuera del cajón lo cierra, como cualquier menú. Va ANTES del
      despachador y no consume el evento: si el clic era sobre un botón, ese

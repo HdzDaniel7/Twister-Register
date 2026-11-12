@@ -8,7 +8,7 @@ y búsqueda de compensaciones del tablero de la dobladora. Taller sin internet, 
 - Este archivo y `.auditoria/mapa.md` bastan para casi cualquier tarea.
 - `CONTEXTO_BARCOMP.md` (2200 líneas) y `README.md` (900): NO leer enteros. Buscar con grep la
   sección que haga falta (§6 reglas de interfaz, §7 trampas).
-- `.auditoria/informe-2026-11-12.md`: auditoría vigente, con fases A–E. A y B hechas.
+- `.auditoria/informe-2026-11-12.md`: auditoría vigente, con fases A–E. A, B y D (menús) hechas; C espera un reporte de ejemplo.
 
 ## Comandos (dentro de `web/`)
 - `npm run check` = typecheck + `test_motor.js` + build + `tools/ui_test.mjs` (jsdom). Debe acabar

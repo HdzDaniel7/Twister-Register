@@ -37,6 +37,26 @@ export const TABS_OF: Record<Mode, string[]> = {
   model: ['model', 'section', 'points', 'fixture', 'pins', 'lims', 'mach'],
   meas: [], comp: ['comp'],
 };
+/** Cómo se AGRUPAN en la barra (auditoría 2026-11-12, fase D). Siete pestañas
+ *  no caben en un teléfono, y Fixture/Pines son la misma pregunta —cómo se
+ *  sujeta la barra— igual que Máquina/Límites son lo que la dobladora puede
+ *  hacer. Cada grupo es UN botón; si tiene más de una pestaña, la barra enseña
+ *  al lado un selector con las suyas. `ST.tab` sigue guardando la pestaña real,
+ *  así que un archivo viejo abre donde estaba. */
+export const TAB_GROUPS: Record<Mode, [string, string[]][]> = {
+  model: [['model', ['model']], ['section', ['section']], ['points', ['points']],
+          ['tabHold', ['fixture', 'pins']], ['mach', ['mach', 'lims']]],
+  meas: [], comp: [['comp', ['comp']]],
+};
+
+/* Bloques plegables que RECUERDAN si están abiertos. Un <details> a secas se
+   cierra en cada repintado, porque el panel se reconstruye entero; el estado
+   vive aquí, fuera de ST: es interfaz, no documento. */
+const openFolds = new Set<string>();
+export const setFold = (id: string, open: boolean): void => { if (open) openFolds.add(id); else openFolds.delete(id); };
+export const fold = (id: string, title: string, body: string): string =>
+  `<details class="fold" data-fold="${id}" ${openFolds.has(id) ? 'open' : ''}><summary>${title}</summary>${body}</details>`;
+
 /** Compatibilidad: la lista plana que usaba renderRight() antes de los modos. */
 export const TABS = ['model', 'section', 'points', 'fixture', 'pins', 'lims', 'mach', 'comp'];
 export const fx = (v: number | null | undefined, n: number = 2): string =>

@@ -82,7 +82,7 @@ export type I18nKey =
   | 'sbTrend' | 'sbTrendTip'
   | 'modeModel' | 'modeMeas' | 'modeComp'
   | 'modeModelTip' | 'modeMeasTip' | 'modeCompTip'
-  | 'mnFile' | 'mnModel' | 'mnView' | 'mnPieces' | 'expPts' | 'expStep' | 'expStepTip'
+  | 'mnFile' | 'mnModel' | 'mnView' | 'mnPieces' | 'mnRef' | 'tabHold' | 'adv' | 'advNote' | 'advBatch' | 'expPts' | 'expStep' | 'expStepTip'
   | 'stpNoSolid' | 'stpNoSec' | 'stpNoThick' | 'stpTwist' | 'stpKink' | 'stpNeg'
   | 'mnMenu' | 'mnClose' | 'signKey'
   | 'soloOn' | 'soloOff' | 'soloTip' | 'rotAxisTip' | 'rotHeadTip'

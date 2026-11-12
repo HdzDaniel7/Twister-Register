@@ -25,7 +25,7 @@ import {
   markRejected, saveFocus, restoreFocus, dropPendingEdit,
 } from '../panels.ts';
 import { makeReport } from '../report.ts';
-import { renderAll, refresh, refreshTable, toggleSolo, setMode } from './render.ts';
+import { renderAll, refresh, refreshTable, toggleSolo, setMode, openDrawer } from './render.ts';
 import { undo, redo } from './history.ts';
 import {
   saveJson, openJson, importPieces, exportPoints, exportCommand, exportStep,
@@ -516,7 +516,7 @@ export function action(a: string): void {
       angUI.inMode = angUI.inMode === 'adj' ? 'abs' : 'adj';
       angMode.literal = angUI.inMode === 'adj';
       renderPanels(); return;
-    case 'gocomp': setMode('comp'); return;
+    case 'gocomp': if (ST.drawer) openDrawer(null); setMode('comp'); return;
     case 'angout': angUI.out = angUI.out === 'board' ? 'piece' : 'board'; renderPanels(); return;
     /* «Crear» en modo tablero: la recomendación de lo tecleado (o de lo que se
        mira de la pieza activa) va directa a un tablero compensado nuevo, sin

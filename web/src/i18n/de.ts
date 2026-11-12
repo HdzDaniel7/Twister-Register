@@ -318,6 +318,7 @@ export const de: Record<I18nKey, string> = {
    + 'ein geschlossener Kreis, keine Messung.',
  sbSpreadTip: 'Streuung über Bögen und Teile. Ist sie so groß wie der Wert selbst, ist '
    + 'diese Rückfederung nicht gemessen, sondern geraten.',
+ mnRef: 'Referenz', tabHold: 'Spannung', adv: 'Erweitert', advNote: 'Erfundene Daten zum Probieren und die Los-Schleife über Punktwolken. Zum Messen nach Winkeln oder Punkten nicht nötig.', advBatch: 'Los-Kompensation (Punktwolken)',
  mnFile: 'Datei', mnModel: 'Modelle', mnView: 'Ansicht', mnPieces: 'Teile',
  mnMenu: 'Menü', mnClose: 'Schließen', signKey: 'Vorzeichen wechseln',
  soloOn: 'Nur 3D', soloOff: 'Zurück',

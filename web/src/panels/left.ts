@@ -8,7 +8,7 @@ import { T } from '../i18n.ts';
 import type { Place, Variant } from '../types.ts';
 import { piName, pivotName } from '../pivotlabel.ts';
 import { ST, pivotK, LAYER_DEF, refModel, heldOfVariant, heldOn } from '../state.ts';
-import { $, fx, esc, cls, nfield, srcTag } from './fmt.ts';
+import { $, fx, esc, cls, nfield, srcTag, fold } from './fmt.ts';
 import { saveFocus, restoreFocus, commitFocusIn } from './focus.ts';
 import { proxPane } from './prox.ts';
 import { datumsPane } from './datums.ts';
@@ -193,8 +193,13 @@ const DRAWERS: Record<string, () => string> = {
      <div class="row mt6">
        <button class="btn sm grow" data-a="varnew">${T('addVar')}</button>
        <button class="btn sm" data-a="vardup">${T('dupVar')}</button></div>
-   </div></div>
+   </div></div>`,
 
+  /* REFERENCIA: dónde coinciden las barras y dónde se colocan. Estaba partido
+     entre Modelos (coincidencia) y Vista (colocación, con su propio pivote);
+     son la misma pregunta —«¿contra qué y desde dónde comparo?»— y se toca
+     junta. */
+  ref: () => `
    <div class="grp"><div class="eyebrow">${T('anchor')}</div><div class="body">
      <label class="layer">
        <input type="radio" name="anch" data-an="pivot" ${ST.anchor === 'pivot' ? 'checked' : ''}>
@@ -209,17 +214,7 @@ const DRAWERS: Record<string, () => string> = {
        <input type="radio" name="anch" data-an="datums" ${ST.anchor === 'datums' ? 'checked' : ''}>
        <span class="nm">${T('aDatums')}</span></label>
      ${datumsPane()}
-   </div></div>`,
-
-  view: () => `
-   <div class="grp"><div class="eyebrow">${T('layers')}</div><div class="body">
-    ${LAYER_DEF.map(([k, lab]) => `<div class="layer">
-      <input type="checkbox" data-ly="${k}" ${ST.layers[k].on ? 'checked' : ''}>
-      <input type="color" class="sw" data-lc="${k}" value="${ST.layers[k].color}">
-      <span class="nm">${T(lab as I18nKey)}</span></div>`).join('')}
    </div></div>
-
-   ${proxPane()}
 
    <div class="grp"><div class="eyebrow">${T('place')}</div><div class="body">
      <div class="fgrid" style="grid-template-columns:1fr 96px">
@@ -236,6 +231,16 @@ const DRAWERS: Record<string, () => string> = {
      <div class="hintline">${T('pivotNote')}</div>
      <div class="hintline">${T('plNote')}</div>
    </div></div>`,
+
+  view: () => `
+   <div class="grp"><div class="eyebrow">${T('layers')}</div><div class="body">
+    ${LAYER_DEF.map(([k, lab]) => `<div class="layer">
+      <input type="checkbox" data-ly="${k}" ${ST.layers[k].on ? 'checked' : ''}>
+      <input type="color" class="sw" data-lc="${k}" value="${ST.layers[k].color}">
+      <span class="nm">${T(lab as I18nKey)}</span></div>`).join('')}
+   </div></div>
+
+   ${proxPane()}`,
 
   pieces: () => `
    <div class="grp"><div class="eyebrow">${T('datasets')}<span class="n">${ST.datasets.length}</span></div>
@@ -254,8 +259,12 @@ const DRAWERS: Record<string, () => string> = {
         <span>${T('statTip').split(' ')[0]} <b class="${cls(d.dev!.tip, ST.model!.tol.point)}">${fx(d.dev!.tip, 2)}</b></span></div>
       </div>`).join('') : `<div class="emptynote">${T('dNone')}</div>`}
     <div class="row mt6">
-      <button class="btn sm grow" data-a="sim">+ ${T('addSim')}</button>
-      <button class="btn sm" data-a="impts" title="${T('impTip')}">${T('impCsv')}</button>
-</div>
+      <button class="btn sm grow" data-a="impts" title="${T('impTip')}">${T('impCsv')}</button>
+    </div>
+    ${fold('adv', T('adv'), `<div class="hintline">${T('advNote')}</div>
+      <div class="col">
+        <button class="btn sm" data-a="sim">+ ${T('addSim')}</button>
+        <button class="btn sm" data-a="gocomp">${T('advBatch')}</button>
+      </div>`)}
    </div></div>`,
 };

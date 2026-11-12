@@ -755,6 +755,13 @@ input[type=text].angin.plan::placeholder{color:var(--dim);opacity:.55}
 /* interruptor de dos estados (entrada absoluto/ajuste, salida pieza/tablero) */
 .angmach{display:grid;grid-template-columns:1fr auto auto;gap:2px 12px;font-size:12px;font-variant-numeric:tabular-nums;margin:2px 0 4px}
 .angmach span:nth-child(3n){text-align:right;color:var(--dim)}
+.fold{margin:8px 0 0}.fold>summary{cursor:pointer;font-size:11.5px;color:var(--dim);padding:6px 0}
+#tabs{overflow-x:auto}
+#tabs .subtabs{display:flex;margin-left:auto;border-left:1px solid var(--line)}
+#tabs .subtabs button{font-size:.92em;opacity:.85}
+/* blancos táctiles: la ✕ de 18 px junto a una casilla se fallaba con el dedo */
+#app.phone .reprow .repx,#app.phone .xbtn{min-width:34px;min-height:34px}
+#app.phone .fold>summary{padding:10px 0}
 .anghelp{margin:0 0 4px}.anghelp summary{cursor:pointer;font-size:11.5px;color:var(--dim)}
 button.lnk{background:none;border:0;padding:0;color:#6aa9ff;text-decoration:underline;cursor:pointer;font:inherit}
 .angsw{display:flex;align-items:center;gap:8px;margin:6px 0 2px;font-size:11.5px;color:var(--dim)}

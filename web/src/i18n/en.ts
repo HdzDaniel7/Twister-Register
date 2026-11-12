@@ -309,6 +309,7 @@ export const en: Record<I18nKey, string> = {
    + 'closed loop, not a measurement.',
  sbSpreadTip: 'Scatter across bends and parts. If it is as large as the value itself, '
    + 'that springback is not measured: it is guessed.',
+ mnRef: 'Reference', tabHold: 'Holding', adv: 'Advanced', advNote: 'Made-up data for trials and the batch loop over clouds. Not needed to measure by angles or by points.', advBatch: 'Batch compensation (clouds)',
  mnFile: 'File', mnModel: 'Models', mnView: 'View', mnPieces: 'Parts',
  mnMenu: 'Menu', mnClose: 'Close', signKey: 'Flip the sign',
  soloOn: '3D only', soloOff: 'Back',

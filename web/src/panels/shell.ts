@@ -5,10 +5,14 @@
    ========================================================================= */
 import { T, LANG, LANGS } from '../i18n.ts';
 import { ST, V, REF } from '../state.ts';
-import { $, MODES, TABS_OF, fx, esc } from './fmt.ts';
+import { $, MODES, TAB_GROUPS, fx, esc } from './fmt.ts';
 import type { I18nKey } from './fmt.ts';
 import type { Mode } from '../types.ts';
 
+/* Compensar (lazo por lote de nubes) no sale en la cabecera salvo que se esté
+   en él: en el taller no se usa y le quitaba un tercio del ancho a los otros
+   dos en el teléfono. Se entra desde Piezas · Avanzado, o desde «Cambiar» en
+   la línea de ganancia de Medir. */
 /* Las etiquetas del selector de modo, escritas una por una a propósito: con
    `T(('mode' + m) as I18nKey)` el tipo dejaría de comprobar que la clave
    existe, que es justo la red que hace que falte una traducción sea un error
@@ -17,7 +21,7 @@ import type { Mode } from '../types.ts';
    columna fija de 250 px se pagaba siempre, y casi todo lo que había ahí
    —capas, colocación, extremo fijo— se toca una vez y se olvida. */
 export const MENUS: [string, I18nKey][] = [
-  ['file', 'mnFile'], ['models', 'mnModel'],
+  ['file', 'mnFile'], ['models', 'mnModel'], ['ref', 'mnRef'],
   ['view', 'mnView'], ['pieces', 'mnPieces'],
 ];
 
@@ -49,7 +53,7 @@ export function renderShell(): void {
   $('#hd')!.innerHTML = `
    <div class="brand"><b>BARCOMP</b><span class="v">α</span><span class="sub">${T('sub')}</span></div>
    <div class="seg modes" style="margin-left:14px">
-     ${MODES.map(m => `<button data-md="${m}" title="${T(MODE_TIP[m])}"
+     ${MODES.filter(m => m !== 'comp' || ST.mode === 'comp').map(m => `<button data-md="${m}" title="${T(MODE_TIP[m])}"
        class="${ST.mode === m ? 'on' : ''}">${T(MODE_LAB[m])}</button>`).join('')}</div>
    <div class="hspace"></div>
    <div class="menubar">
@@ -106,11 +110,19 @@ export function renderShell(): void {
 
   /* Sub-pestañas solo donde hay más de una tabla que enseñar: en Medir y en
      Compensar la fila de pestañas sería una etiqueta de una sola opción. */
-  const tabs = TABS_OF[ST.mode] || [];
+  const groups = TAB_GROUPS[ST.mode] || [];
   const bar = $('#tabs');
   if (bar) {
-    bar.style.display = tabs.length > 1 ? '' : 'none';
-    bar.innerHTML = tabs.map(t =>
-      `<button data-t="${t}" class="${ST.tab === t ? 'on' : ''}">${T(t as I18nKey)}</button>`).join('');
+    bar.style.display = groups.length > 1 ? '' : 'none';
+    /* Un botón por grupo. El del grupo abierto lleva la pestaña real, y a su
+       derecha sale el selector de las pestañas del grupo si hay más de una. */
+    const cur = groups.find(([, ts]) => ts.includes(ST.tab));
+    bar.innerHTML = groups.map(([lab, ts]) => {
+      const on = ts.includes(ST.tab);
+      return `<button data-t="${on ? ST.tab : ts[0]}" class="${on ? 'on' : ''}">${T(lab as I18nKey)}</button>`;
+    }).join('') + (cur && cur[1].length > 1
+      ? `<span class="subtabs">${cur[1].map(t =>
+          `<button data-t="${t}" class="${ST.tab === t ? 'on' : ''}">${T(t as I18nKey)}</button>`).join('')}</span>`
+      : '');
   }
 }

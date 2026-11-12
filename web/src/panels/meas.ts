@@ -7,7 +7,7 @@ import { T } from '../i18n.ts';
 import type { Model, Proc } from '../types.ts';
 import { ST, activeDataset, measuredSpringback, simCount } from '../state.ts';
 import { pivotName } from '../pivotlabel.ts';
-import { fx, esc, cls, oriTag, sgn, srcTag } from './fmt.ts';
+import { fx, esc, cls, oriTag, sgn, srcTag, fold } from './fmt.ts';
 import { angUI, angPane } from './angles.ts';
 import { ptPane } from './ptsmeas.ts';
 import type { I18nKey } from './fmt.ts';
@@ -65,14 +65,14 @@ export function paneMeas(M: Model): string {
       ? T('sbCircular').replace('%n', String(sbSim))
       : T('sbNote')}</div>
   </div></div>`;
-  const proc = `<div class="grp"><div class="eyebrow">${T('proc')}</div><div class="body">
+  const proc = `<div class="grp"><div class="body">${fold('proc', T('adv') + ' · ' + T('proc'), `
     <div class="fgrid" style="grid-template-columns:1fr 1fr;gap:4px 8px">
       ${redonda ? rr('sbT', T('sbOne'), 0, 4, .05, '%')
         : rr('sbW', T('sbW'), 0, 4, .05, '%') + rr('sbT', T('sbT'), 0, 4, .05, '%')}
       ${rr('slip', T('slip'), 0, 1, .01, '%')}${rr('biasRot', T('biasR'), -2, 2, .05, '°')}
       ${rr('noiseA', T('noise') + ' °', 0, .3, .01, '')}${rr('seed', T('seed'), 1, 99, 1, '')}</div>
     <button class="btn pri mt6" style="width:100%" data-a="sim">${T('simulate')}</button>
-    <div class="hintline">${T('formula')}</div>
+    <div class="hintline">${T('formula')}</div>`)}
   </div></div>`;
   /* EL MÉTODO DE MEDIDA. La nube/CSV es lo de siempre; «Por ángulos» es la
      pieza que se midió con goniómetro y solo tiene un número por doblez. El
