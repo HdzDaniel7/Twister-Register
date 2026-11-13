@@ -416,6 +416,7 @@ export const en: Record<I18nKey, string> = {
  angDeltaTip: 'Deviation in bend sense: + overbent · − underbent. Green within tolerance, amber up to double, red beyond.',
  angFlowHint: 'Δ in bend sense (+ overbent · − underbent). The Board (bend angle) is corrected, not the Plan.',
  angBoardInfo: 'Part made with board "{b}".',
+ angCreatePieceMean: 'Create real part (trend of {n} reports)',
  angBoardSel: 'Reference board (receives the compensation)',
  angBoardSelTip: 'Model you declare as holding the board values the parts were made with. Compensated board = those values + the compensation of the mean deviation of the ticked reports. Deviation is still measured against the nominal.',
  angNameOf: 'Name of {b}',

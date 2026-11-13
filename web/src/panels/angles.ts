@@ -262,8 +262,8 @@ export function angPane(M: Model): string {
      «tablero» ninguno crea pieza. La pieza a la vista YA es la real de la
      media, así que en ese lado el botón solo sale al mirar un reporte suelto. */
   const repName = ds && rep >= 0 ? esc(reportsOf(ds)[rep].name) : '';
-  const first = ds && rep < 0 ? '' : `<button class="btn sm grow" data-a="${toBoard ? 'angboard' : 'angnew'}" ${countTyped(vals) ? '' : 'disabled'}>${
-    !toBoard ? (ds ? T('angCreatePieceRep').replace('{r}', repName) : T('angCreate'))
+  const first = ds && rep < 0 && toBoard ? '' : `<button class="btn sm grow" data-a="${toBoard ? 'angboard' : 'angnew'}" ${countTyped(vals) ? '' : 'disabled'}>${
+    !toBoard ? (ds ? (rep < 0 ? T('angCreatePieceMean').replace('{n}', String(nUsed)) : T('angCreatePieceRep').replace('{r}', repName)) : T('angCreate'))
       : ds ? T('angCreateBoardRep').replace('{r}', repName) : T('angCreateBoardDraft')}</button>`;
   const second = ds && toBoard ? `<button class="btn sm grow" data-a="angrec" ${SM.n ? '' : 'disabled'} title="${esc(applyTip)}">${T('angApply').replace('{n}', String(nUsed))}</button>` : '';
   const each = ds && nUsed > 1 ? `<button class="btn sm grow" data-a="angeach" title="${esc(T(toBoard ? 'angEachBoardTip' : 'angEachPieceTip'))}">${

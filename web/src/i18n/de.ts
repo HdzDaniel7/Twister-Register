@@ -429,6 +429,7 @@ export const de: Record<I18nKey, string> = {
  angDeltaTip: 'Abweichung im Biegesinn: + überbogen · − zu wenig gebogen. Grün innerhalb der Toleranz, gelb bis zum Doppelten, rot darüber.',
  angFlowHint: 'Δ im Biegesinn (+ überbogen · − zu wenig gebogen). Korrigiert wird die Tafel (Biegewinkel), nicht der Plan.',
  angBoardInfo: 'Teil gefertigt mit Tafel „{b}“.',
+ angCreatePieceMean: 'Reales Teil anlegen (Trend aus {n} Berichten)',
  angBoardSel: 'Referenztafel (erhält die Kompensation)',
  angBoardSelTip: 'Modell, das Sie als Träger der Tafelwerte angeben, mit denen die Teile gefertigt wurden. Kompensierte Tafel = diese Werte + Kompensation der mittleren Abweichung der markierten Berichte. Die Abweichung wird weiter gegen das Nominal gemessen.',
  angNameOf: 'Name von {b}',

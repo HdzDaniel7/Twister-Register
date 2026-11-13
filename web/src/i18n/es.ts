@@ -431,6 +431,7 @@ export const es: Record<I18nKey, string> = {
  angDeltaTip: 'Desviación = Plano − Reporte, en sentido de doblez: + sobredoblado · − le faltó doblar. Verde dentro de tolerancia, ámbar hasta el doble, rojo más allá.',
  angFlowHint: 'Δ en sentido de doblez (+ sobredoblado · − le faltó doblar). Se corrige el Tablero (ángulo de doblado), no el Plano.',
  angBoardInfo: 'Pieza hecha con el tablero «{b}».',
+ angCreatePieceMean: 'Crear pieza real (tendencia de {n} reportes)',
  angBoardSel: 'Tablero de referencia (recibe las compensaciones)',
  angBoardSelTip: 'Modelo de Modelar que usted declara como el que lleva los valores de tablero con los que se hicieron las piezas. El tablero compensado = esos valores + la compensación de la desviación media de los reportes marcados. La desviación se sigue midiendo contra el nominal.',
  angNameOf: 'Nombre de {b}',

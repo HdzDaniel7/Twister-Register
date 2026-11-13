@@ -5571,7 +5571,7 @@ step('por ángulos: en «pieza» con la media a la vista no hay angrec ni angboa
   if (ds.reports.length !== 2) throw new Error('reportes ' + ds.reports.length);
   if (document.querySelector('[data-a="angrec"]')) throw new Error('angrec en «pieza»');
   if (document.querySelector('[data-a="angboard"]')) throw new Error('angboard en «pieza»');
-  if (document.querySelector('[data-a="angnew"]')) throw new Error('angnew con la media a la vista');
+  if (!document.querySelector('[data-a="angnew"]')) throw new Error('falta angnew (pieza real de la tendencia) con la media a la vista');
   click('[data-a="angout"]');
   if (BC().angUI.out !== 'board') throw new Error('out = ' + BC().angUI.out);
   q('[data-a="angrec"]');
@@ -5718,6 +5718,26 @@ step('por ángulos: el tablero de referencia se elige y recibe la compensación 
   hotkey('z', { ctrlKey: true });
   BC().angUI.draft = []; BC().angUI.brd = '';
   if (BC().angUI.out !== out0) click('[data-a="angout"]');
+});
+
+step('por ángulos: en «pieza» con la media a la vista se crea la pieza real de la tendencia', () => {
+  click('[data-md="meas"]'); click('[data-mm="angles"]');
+  const ST = BC().ST;
+  const ds = ST.datasets.find(d => d.method === 'angles');
+  if (!ds) throw new Error('no hay pieza por ángulos');
+  ST.dsActive = ds.id; BC().angUI.rep = -1;
+  click('[data-mm="angles"]');
+  if (BC().angUI.out !== 'piece') click('[data-a="angout"]');
+  const nd = ST.datasets.length, nv = ST.variants.length;
+  const media = JSON.stringify(ds.reported);
+  click('[data-a="angnew"]');
+  const nu = ST.datasets.find(d => d.id === ST.dsActive);
+  if (ST.datasets.length !== nd + 1 || ST.variants.length !== nv) throw new Error('piezas ' + ST.datasets.length + ' variantes ' + ST.variants.length);
+  if (nu === ds || nu.name.indexOf(ds.name + ' · ') !== 0) throw new Error('nombre ' + nu.name);
+  if (JSON.stringify(nu.reported) !== media) throw new Error('la pieza no lleva la media');
+  if (nu.board.vid !== ds.board.vid) throw new Error('otro tablero');
+  hotkey('z', { ctrlKey: true });
+  if (ST.datasets.length !== nd) throw new Error('el deshacer no la quitó');
 });
 
 return log.join('\n');
