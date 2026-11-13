@@ -5461,7 +5461,7 @@ step('por ángulos: salida «tablero» crea una variante con la misma base y Δ 
   const src = JSON.parse(JSON.stringify(BC().ST.variants.find(x => x.id === BC().ST.active)));
   click('[data-a="angout"]');
   if (BC().angUI.out !== 'board') throw new Error('out = ' + BC().angUI.out);
-  const S = BC().E.angleReport(BC().ST.model, BC().ST.plan, BC().angUI.draft, BC().ST.comp, BC().E.orientations(BC().ST.model));
+  const S = BC().E.angleReport(BC().ST.model, BC().ST.plan, BC().angUI.draft, { ...BC().ST.comp, gainW: 1, gainT: 1, dead: 0, maxStep: 0 }, BC().E.orientations(BC().ST.model));
   click('[data-a="angboard"]');
   if (BC().ST.datasets.length !== nd) throw new Error('creó una pieza medida');
   if (BC().ST.variants.length !== nv + 1) throw new Error('variantes ' + nv + ' → ' + BC().ST.variants.length);
@@ -5666,6 +5666,58 @@ step('por ángulos: en modo desviación se teclea medido − nominal y la column
     BC().ST.dsActive = act;
     click('[data-mm="angles"]');
   }
+});
+
+step('por ángulos: el tablero de referencia se elige y recibe la compensación media', () => {
+  click('[data-md="meas"]'); click('[data-mm="angles"]');
+  const ST = BC().ST, E = BC().E;
+  const out0 = BC().angUI.out;
+  ST.dsActive = ''; BC().angUI.draft = [];
+  click('[data-mm="angles"]');
+  if (q('[data-abd]').value !== ST.active) throw new Error('sin pieza el selector no marca el modelo activo');
+  if (BC().angUI.inMode === 'adj') click('[data-a="anginmode"]');
+  const a0 = 180 - Math.abs(ST.model.bends[0].angle);
+  setval('input[data-ai="0"]', String(+(a0 + 0.5).toFixed(3)));
+  if (BC().angUI.out !== 'piece') click('[data-a="angout"]');
+  click('[data-a="angnew"]');
+  const ds = ST.datasets.find(d => d.id === ST.dsActive);
+  if (!ds || ds.method !== 'angles') throw new Error('no creó la pieza');
+  click('[data-a="angnom"]');                       /* otro modelo con los mismos dobleces */
+  const w = ST.variants.find(v => v.id === ST.active);
+  if (ds.board.vid === w.id) throw new Error('la pieza cambió sola de tablero');
+  const opts = [...q('[data-abd]').options].map(o => o.value);
+  if (!opts.includes(w.id) || q('[data-abd]').value !== ds.board.vid) throw new Error('opciones: ' + opts.join(','));
+  const base0 = JSON.stringify(ds.board.base);
+  setval('[data-abd]', w.id);
+  if (JSON.stringify(ds.board.base) !== base0) throw new Error('declarar el tablero movió el nominal de la pieza');
+  if (ds.board.vid !== w.id || ds.board.name !== w.name) throw new Error('no cambió el tablero: ' + ds.board.name);
+  const eff = E.effectiveModel(w).bends;
+  if (ds.board.bends.some((b, i) => Math.abs(b.angle - eff[i].angle) > 1e-9)) throw new Error('el tablero no lleva los valores del modelo');
+  if (BC().angUI.out !== 'board') click('[data-a="angout"]');
+  click('[data-a="angrec"]');
+  const nv = ST.variants.find(v => v.id === ST.active);
+  if (nv.name.indexOf(w.name + ' · comp') !== 0) throw new Error('compensó sobre otro modelo: ' + nv.name);
+  hotkey('z', { ctrlKey: true });
+  hotkey('z', { ctrlKey: true });
+  if (ds.board && ST.datasets.includes(ds) && ds.board.vid === w.id) throw new Error('el deshacer no devolvió el tablero');
+  /* sin pieza: declarar el tablero no cambia el modelo activo, y «tablero» compensa sobre el declarado */
+  ST.dsActive = ''; BC().angUI.draft = []; BC().angUI.brd = '';
+  click('[data-mm="angles"]');
+  const act = ST.active, otro = [...q('[data-abd]').options].map(o => o.value).find(x => x && x !== act);
+  if (!otro) throw new Error('no hay otro modelo que declarar');
+  setval('[data-abd]', otro);
+  if (ST.active !== act) throw new Error('declarar el tablero activó otro modelo');
+  if (q('[data-abd]').value !== otro) throw new Error('el selector no recuerda el tablero declarado');
+  const vo = ST.variants.find(v => v.id === otro);
+  const i0 = 180 - Math.abs(ST.variants.find(v => v.id === act).base.bends[0].angle);
+  setval('input[data-ai="0"]', String(+(i0 + 0.5).toFixed(3)));
+  const nv0 = ST.variants.length;
+  click('[data-a="angboard"]');
+  const cv = ST.variants.find(v => v.id === ST.active);
+  if (ST.variants.length !== nv0 + 1 || cv.name.indexOf(vo.name + ' · comp') !== 0) throw new Error('borrador compensó sobre: ' + cv.name);
+  hotkey('z', { ctrlKey: true });
+  BC().angUI.draft = []; BC().angUI.brd = '';
+  if (BC().angUI.out !== out0) click('[data-a="angout"]');
 });
 
 return log.join('\n');

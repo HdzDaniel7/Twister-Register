@@ -13,10 +13,10 @@ import {
   anchoredShownPis,
   addPin, setPins, seedPinsFor,
   syncTweak, zeroTweak, compensatedCommand, loopMeasured, loopPieces,
-  measuredSpringback, addAngleDataset, angleSummary, applyAngleRec, applyAngleRecRows, angMode, splitReports, applyAngleRecEach, reportsOf, addNominalVariant,
+  measuredSpringback, addAngleDataset, setBoard, angleSummary, applyAngleRec, applyAngleRecRows, angMode, splitReports, applyAngleRecEach, reportsOf, addNominalVariant,
   addReport, refModel,
 } from '../state.ts';
-import { angUI, angVals, angleDs, angRepIdx, angSummary, countTyped } from '../panels/angles.ts';
+import { angUI, angVals, angleDs, angRepIdx, angSummary, countTyped, draftBoard } from '../panels/angles.ts';
 import { ptUI, applyPointsTarget, addPointsDataset, clearPt, ptAllMeasured } from '../ptstate.ts';
 import { rebuildScene, fitView } from '../scene.ts';
 import { drawRibbon } from '../ribbon.ts';
@@ -510,6 +510,8 @@ export function action(a: string): void {
       const nm = cur ? `${cur.name} · ${k >= 0 ? reportsOf(cur)[k].name : T('angMean')}`
         : angUI.name || `${T('angDefName')} ${ST.datasets.length + 1}`;
       const ds = addAngleDataset(nm, vals, cur || undefined);
+      /* pieza nueva del borrador: su tablero es el DECLARADO, no el activo */
+      if (!cur && draftBoard() !== V()) setBoard(ds, draftBoard());
       if (cur) cur.visible = false;   /* misma lectura dos veces en el lote: no */
       ds.visible = true; ST.dsActive = ds.id;
       angUI.method = 'angles'; ptUI.on = false; angUI.draft = []; angUI.name = ''; angUI.note = '';
@@ -529,7 +531,7 @@ export function action(a: string): void {
     case 'angboard': {
       const ds = angleDs(), S = angSummary(M);
       if (!S.n) { alert(T('angNoneTyped')); return; }
-      const src = (ds && ds.board && ST.variants.find(v => v.id === ds.board!.vid)) || V();
+      const src = (ds && ds.board && ST.variants.find(v => v.id === ds.board!.vid)) || draftBoard();
       const id = applyAngleRecRows(S.rows, src, (ds && ds.board && ds.board.name) || src.name);
       const nv = variantById(id);
       angUI.note = T('angRecDone').replace('{v}', nv ? nv.name : id);
@@ -547,7 +549,7 @@ export function action(a: string): void {
     /* «Pieza nominal»: el tablero sin compensaciones, con el plano tecleado */
     case 'angnom': {
       const ds = angleDs();
-      const src = (ds && ds.board && ST.variants.find(v => v.id === ds.board!.vid)) || V();
+      const src = (ds && ds.board && ST.variants.find(v => v.id === ds.board!.vid)) || draftBoard();
       const id = addNominalVariant(src, (ds && ds.board && ds.board.name) || src.name);
       const nv = variantById(id);
       angUI.note = T('angNomDone').replace('{v}', nv ? nv.name : id);

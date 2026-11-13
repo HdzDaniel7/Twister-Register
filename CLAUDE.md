@@ -23,7 +23,7 @@ y búsqueda de compensaciones del tablero de la dobladora. Taller sin internet, 
   contra el tablero ya compensado. `nominalModel()`, `baseModelOf()`, `designOf(ds)` en `state.ts`.
 - Variante = `{base, deltas, tailDelta}`. `ST.model` = base + Δ = TABLERO (lo que va a máquina).
 - Reportes por ángulos guardan el ángulo INTERNO absoluto. En modo «Desviación» se teclea medido − nominal (+ = más abierto) y la columna «Ajuste» calculada (= esa desviación, + dobla más) va literal
-  al tablero (`angComp()`); en absoluto manda el lazo `ST.comp`.
+  al tablero (`angComp()`). En absoluto sale la MISMA compensación (desviación completa): el lazo `ST.comp` es solo de Compensar.
 - Borradores de interfaz (`angUI`, `ptUI`, `proxUI`) no van en `ST`, ni al JSON, ni al deshacer.
 - Textos: tres idiomas con las mismas claves (`i18n/keys.ts` lo exige al compilar).
 - Un atributo `data-*` no lo emiten dos paneles (hay prueba). Acciones: `data-a` + `app/actions.ts`.

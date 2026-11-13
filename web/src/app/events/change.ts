@@ -23,7 +23,7 @@ import { refresh } from '../render.ts';
 import { commit } from '../history.ts';
 import { T } from '../../i18n.ts';
 import { angUI, angleDs, angVals, angRepIdx, parseDec, angSummary, angDispToAbs } from '../../panels/angles.ts';
-import { setReportVals, setReportUse, renameReport, reportsOf, renameDataset, syncPlan, setPlanName, setPlanNominal } from '../../state.ts';
+import { setBoard, setReportVals, setReportUse, renameReport, reportsOf, renameDataset, syncPlan, setPlanName, setPlanNominal } from '../../state.ts';
 import { drawRibbon } from '../../ribbon.ts';
 import { proxUI } from '../../proxstate.ts';
 import type { ProxAxis } from '../../engine/proximity.ts';
@@ -188,6 +188,19 @@ function onAngles(t: HTMLInputElement, d: DOMStringMap): boolean {
     const nm = t.value.trim();
     const ds = angleDs();
     if (ds) { if (nm) renameDataset(ds, nm); renderPanels(); } else angUI.name = nm;
+    return true;
+  }
+  /* TABLERO DE REFERENCIA: con pieza activa se le cambia el suyo (documento,
+     se deshace); sin pieza se apunta en el borrador. El modelo activo y el
+     nominal contra el que se mide no se mueven. */
+  if (d.abd !== undefined) {
+    const v = variantById(t.value), ds = angleDs();
+    if (!v) return true;
+    if (ds) {
+      if (!setBoard(ds, v)) { renderPanels(); return true; }
+      angUI.note = '';
+      renderPanels(); rebuildScene(); drawRibbon();
+    } else { angUI.brd = v.id; angUI.note = ''; renderPanels(); }
     return true;
   }
   /* el PLANO (CAD): nombre y nominal por doblez. Son del documento, valen antes

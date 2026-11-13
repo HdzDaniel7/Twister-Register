@@ -15,8 +15,8 @@
    ========================================================================= */
 import * as E from '../engine.ts';
 import { T } from '../i18n.ts';
-import type { AngleSummary, Model } from '../types.ts';
-import { ST, V, activeDataset, angleSummary, reportSummary, reportsOf, usedReports, syncPlan, nominalModel, angComp, angMode } from '../state.ts';
+import type { AngleSummary, Model, Variant } from '../types.ts';
+import { ST, V, activeDataset, angleSummary, reportSummary, reportsOf, usedReports, syncPlan, nominalModel, angComp } from '../state.ts';
 import { fx, esc, cls, sgn } from './fmt.ts';
 import type { I18nKey } from './fmt.ts';
 
@@ -26,9 +26,17 @@ import type { I18nKey } from './fmt.ts';
  *  última acción (el tablero nuevo). */
 export const angUI: {
   method: string; draft: (number | null)[]; name: string; rep: number; note: string;
-  inMode: 'abs' | 'adj'; out: 'piece' | 'board';
+  inMode: 'abs' | 'adj'; out: 'piece' | 'board'; brd: string;
 } = {
-  method: 'cloud', draft: [], name: '', rep: -1, note: '', inMode: 'abs', out: 'piece',
+  method: 'cloud', draft: [], name: '', rep: -1, note: '', inMode: 'abs', out: 'piece', brd: '',
+};
+
+/** El TABLERO DECLARADO del borrador (sin pieza todavía): el modelo de Modelar
+ *  que el usuario dice que lleva los valores de tablero. Por defecto, o si el
+ *  elegido ya no existe o no tiene los mismos dobleces, el activo. */
+export const draftBoard = (): Variant => {
+  const n = ST.model ? ST.model.bends.length : -1;
+  return ST.variants.find(v => v.id === angUI.brd && v.base.bends.length === n) || V();
 };
 
 /** `inMode`: cómo se ve y se teclea la columna del reporte. 'abs' = ángulo
@@ -83,8 +91,12 @@ export function angVals(M: Model): (number | null)[] {
 }
 
 /** Sin pieza todavía: el resumen en vivo de lo tecleado contra el tablero. */
-const draftSummary = (M: Model): AngleSummary =>
-  E.angleReport(M, ST.plan, angVals(M), angComp(), E.orientations(M), nominalModel());
+const draftSummary = (M: Model): AngleSummary => {
+  /* desviación contra el NOMINAL del modelo activo; la compensación, sobre los
+     valores del tablero declarado */
+  const bv = draftBoard(), B = bv === V() ? M : E.effectiveModel(bv);
+  return E.angleReport(B, ST.plan, angVals(M), angComp(), E.orientations(B), nominalModel());
+};
 
 /** El resumen de lo que se mira: la media o el reporte elegido de la pieza, o
  *  uno en vivo del borrador. */
@@ -183,7 +195,14 @@ export function angPane(M: Model): string {
      es el suyo pero la columna del tablero sigue siendo la de la media */
   const SM = ds ? angleSummary(ds) || S : S;
   const nm = ds ? ds.name : (angUI.name || `${T('angDefName')} ${ST.datasets.length + 1}`);
-  const boardName = ds && ds.board ? ds.board.name : V().name;
+  const boardName = ds && ds.board ? ds.board.name : draftBoard().name;
+  /* EL TABLERO DE REFERENCIA se elige: cualquier modelo de Modelar con los
+     mismos dobleces. Con pieza activa es el suyo (congelado); sin pieza, el
+     modelo activo. Un tablero cuya variante ya se borró sale como opción fija. */
+  const brdId = ds && ds.board ? ds.board.vid : draftBoard().id;
+  const brdVars = ST.variants.filter(v => v.base.bends.length === M.bends.length);
+  const brdOpts = (brdVars.some(v => v.id === brdId) ? '' : `<option value="" selected disabled>${esc(boardName)}</option>`)
+    + brdVars.map(v => `<option value="${esc(v.id)}" ${v.id === brdId ? 'selected' : ''}>${esc(v.name)}</option>`).join('');
   const stat = (k: string, v: string, c = ''): string =>
     `<div class="stat"><div class="k">${k}</div><div class="v ${c}">${v}</div></div>`;
   const U = '<span class="u">°</span>';
@@ -257,13 +276,14 @@ export function angPane(M: Model): string {
   const mach = `<div class="eyebrow" style="padding-left:0">${T('angMachTitle').replace('{b}', esc(av.name))}</div>
     ${dl.length ? `<div class="angmach" title="${esc(T('angCorrTip'))}">${dl.map(x => `<span>${esc(ST.plan.names[x.i] || 'B' + (x.i + 1))}</span><b class="${x.d > 0 ? 'v-ok' : 'v-warn'}">Δ ${sgn(x.d, 2)}°</b><span>${fx(x.a, 2)}°</span>`).join('')}</div>`
       : `<div class="hintline">${T('angMachNone')}</div>`}
-    <div class="hintline">${angMode.literal ? T('angGainLit')
-      : `${T('angGainLine').replace('{w}', fmtG(ST.comp.gainW)).replace('{t}', fmtG(ST.comp.gainT)).replace('{d}', fmtG(ST.comp.dead)).replace('{m}', fmtG(ST.comp.maxStep))} <button class="lnk" data-a="gocomp">${T('angGainGo')}</button>`}</div>`;
+    <div class="hintline">${T('angGainLit')}</div>`;
   return `<div class="grp"><div class="eyebrow">${T('angTitle')}</div><div class="body">
     <details class="anghelp"><summary>${T('angHelp')}</summary>
       <div class="angflow">${chip('plan', 'angPlan', 'angPlanTip')}<span>·</span>${chip('rep', 'angRep', 'angRepTip')}<span>→ Δ →</span>${chip('brd', 'angBoard', 'angBoardTip')}</div>
       <div class="hintline">${T('angFlowHint')}</div>
       <div class="hintline">${T('angAdjHint')}</div></details>
+    <label class="tag" for="angbrd">${T('angBoardSel')}</label>
+    <select id="angbrd" class="angname" data-abd="1" title="${esc(T('angBoardSelTip'))}">${brdOpts}</select>
     <div class="hintline">${T('angBoardInfo').replace('{b}', `<b>${esc(boardName)}</b>`)}</div>
     <label class="tag" for="angname">${T('angName')}</label>
     <input type="text" id="angname" class="angname" data-ann="1" value="${esc(nm)}" maxlength="80">

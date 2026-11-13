@@ -1009,6 +1009,25 @@ export function addAngleDataset(name: string, reported: (number | null)[], from?
   syncReported(ds);
   return ds;
 }
+/** EL TABLERO DE REFERENCIA lo DECLARA el usuario: la variante `v` tal como
+ *  está AHORA (sus valores de Modelar, base + Δ) son los valores de tablero
+ *  con los que se hicieron las piezas de `ds`, y sobre ellos se suma la
+ *  compensación media de los reportes. El DISEÑO (nominal) de la pieza NO se
+ *  toca: la desviación sigue siendo medido − nominal, no medido − tablero; un
+ *  modelo declarado puede llevar los valores de máquina escritos en su base.
+ *  No vale una variante con otro número de dobleces: los reportes van por
+ *  índice de doblez. */
+export function setBoard(ds: Dataset, v: Variant): boolean {
+  if (ds.method !== 'angles' || !ST.model) return false;
+  E.syncDeltas(v);
+  const eff = E.effectiveModel(v);
+  if (eff.bends.length !== ST.model.bends.length) return false;
+  const old = ds.board && ds.board.base && ds.board.base.length === eff.bends.length ? ds.board.base : null;
+  ds.board = { vid: v.id, name: v.name, bends: eff.bends.map(b => E.bendFrom(b)),
+               base: (old || nominalModel().bends).map(b => E.bendFrom(b)) };
+  rebuildAngles(ds); computeDev(ds);
+  return true;
+}
 const copyBoard = (b: Board): Board => ({
   vid: b.vid, name: b.name, bends: b.bends.map(x => E.bendFrom(x)),
   ...(b.base ? { base: b.base.map(x => E.bendFrom(x)) } : {}),
@@ -1129,8 +1148,10 @@ export function renameDataset(ds: Dataset, name: string): void {
  *  cual, sin ganancia, banda muerta ni tope. En modo absoluto manda el lazo
  *  (`ST.comp`). Es estado de interfaz: lo pone el interruptor de entrada. */
 export const angMode = { literal: false };
-export const angComp = (): Comp => (angMode.literal
-  ? { ...ST.comp, gainW: 1, gainT: 1, dead: 0, maxStep: 0 } : ST.comp);
+/* Por ángulos la compensación es SIEMPRE la desviación completa, se teclee
+   el ángulo absoluto o la desviación: los dos modos dan el mismo tablero.
+   El lazo con ganancia/banda/tope (`ST.comp`) queda para Compensar. */
+export const angComp = (): Comp => ({ ...ST.comp, gainW: 1, gainT: 1, dead: 0, maxStep: 0 });
 
 /** El informe de una pieza por ángulos: la MEDIA de sus reportes en uso
  *  contra el plano del documento, y la recomendación sobre el tablero con el
