@@ -5740,4 +5740,34 @@ step('por ángulos: en «pieza» con la media a la vista se crea la pieza real d
   if (ST.datasets.length !== nd) throw new Error('el deshacer no la quitó');
 });
 
+step('por ángulos: «modelo editable» crea la pieza real como modelo con base nominal y Δ = desviación', () => {
+  click('[data-md="meas"]'); click('[data-mm="angles"]');
+  const ST = BC().ST, E = BC().E;
+  const ds = ST.datasets.find(d => d.method === 'angles');
+  ST.dsActive = ds.id; BC().angUI.rep = -1;
+  click('[data-mm="angles"]');
+  if (BC().angUI.out !== 'piece') click('[data-a="angout"]');
+  click('[data-a="angas"]');
+  if (BC().angUI.as !== 'model') throw new Error('as = ' + BC().angUI.as);
+  try {
+    const nd = ST.datasets.length, nv = ST.variants.length;
+    click('[data-a="angnew"]');
+    if (ST.datasets.length !== nd || ST.variants.length !== nv + 1) throw new Error('piezas ' + ST.datasets.length + ' variantes ' + ST.variants.length);
+    const w = ST.variants.find(v => v.id === ST.active);
+    if (!/real/.test(w.name)) throw new Error('nombre ' + w.name);
+    const eff = E.effectiveModel(w).bends;
+    const i = ds.reported.findIndex(x => typeof x === 'number');
+    const int = 180 - Math.abs(eff[i].angle);
+    if (Math.abs(int - ds.reported[i]) > 1e-6) throw new Error('interno ' + int + ' vs medido ' + ds.reported[i]);
+    const des = 180 - Math.abs(w.base.bends[i].angle);
+    const d = w.deltas[i].angle;
+    if (Math.abs(d + (ds.reported[i] - des)) > 1e-6) throw new Error('Δ ' + d + ' con desviación ' + (ds.reported[i] - des));
+    hotkey('z', { ctrlKey: true });
+    if (ST.variants.length !== nv) throw new Error('el deshacer no lo quitó');
+  } finally {
+    BC().angUI.as = 'ds';
+    click('[data-mm="angles"]');
+  }
+});
+
 return log.join('\n');

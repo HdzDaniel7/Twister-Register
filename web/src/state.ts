@@ -1068,6 +1068,35 @@ export function addNominalVariant(src: Variant, base: string): string {
   return w.id;
 }
 
+/** LA PIEZA REAL COMO MODELO EDITABLE: una variante nueva (copia de `src`)
+ *  cuya base es el DISEÑO (`design` con el plano tecleado) y cuyo Δ de ángulo
+ *  es lo que la pieza se apartó de él, en sentido de doblez (− = quedó más
+ *  abierta). Su ángulo efectivo es el medido; los dobleces sin lectura quedan
+ *  en el diseño. Queda activa. `''` si no hay ninguna lectura. */
+export function addRealVariant(src: Variant, name: string, design: Model, vals: (number | null)[]): string {
+  if (!hasVals(vals)) return '';
+  let k = 1;
+  const nm = (): string => `${name}${k > 1 ? ' ' + k : ''}`;
+  while (ST.variants.some(v => v.name === nm())) k += 1;
+  const w = E.cloneVariant(src, nm(), VAR_COLORS[ST.variants.length % VAR_COLORS.length], newVid());
+  w.visible = true;
+  const P = E.planModel(design, ST.plan);
+  const R = E.modelFromInternal(P, vals).bends;
+  w.base.bends.forEach((b, i) => { if (P.bends[i]) b.angle = P.bends[i].angle; });
+  w.deltas = w.base.bends.map(() => E.zeroDelta());
+  w.tailDelta = 0;
+  E.syncDeltas(w);
+  w.base.bends.forEach((b, i) => {
+    const x = vals[i];
+    if (typeof x === 'number' && isFinite(x) && R[i]) E.setDelta(w, i, 'angle', E.bendDelta(b.angle, R[i].angle));
+  });
+  ST.variants.push(w);
+  ST.active = w.id; ST.sel = -1;
+  syncModel(); syncCommand();
+  recomputeAll();
+  return w.id;
+}
+
 /** UN TABLERO COMPENSADO POR REPORTE: como `applyAngleRec()` pero con la
  *  recomendación de cada reporte marcado por separado, todos sobre el tablero
  *  con el que se dobló la pieza. Queda activo el último. Devuelve los ids. */

@@ -26,9 +26,9 @@ import type { I18nKey } from './fmt.ts';
  *  última acción (el tablero nuevo). */
 export const angUI: {
   method: string; draft: (number | null)[]; name: string; rep: number; note: string;
-  inMode: 'abs' | 'adj'; out: 'piece' | 'board'; brd: string;
+  inMode: 'abs' | 'adj'; out: 'piece' | 'board'; brd: string; as: 'ds' | 'model';
 } = {
-  method: 'cloud', draft: [], name: '', rep: -1, note: '', inMode: 'abs', out: 'piece', brd: '',
+  method: 'cloud', draft: [], name: '', rep: -1, note: '', inMode: 'abs', out: 'piece', brd: '', as: 'ds',
 };
 
 /** El TABLERO DECLARADO del borrador (sin pieza todavía): el modelo de Modelar
@@ -300,6 +300,8 @@ export function angPane(M: Model): string {
     ${angUI.note ? `<div class="hintline v-ok" role="status">${esc(angUI.note)}</div>` : ''}
     ${sw('angout', 'angOutMode', toBoard, 'angOutPiece', 'angOutBoard')}
     <div class="hintline">${outHint}</div>
+    ${toBoard ? '' : `${sw('angas', 'angAsMode', angUI.as === 'model', 'angAsDs', 'angAsModel')}
+    <div class="hintline">${T(angUI.as === 'model' ? 'angAsModelHint' : 'angAsDsHint')}</div>`}
     <div class="row mt6">${first}${second}${each}
       <button class="btn sm grow" data-a="angnom" title="${esc(T('angNomTip'))}">${T('angNom')}</button>
       <button class="btn sm grow" data-a="report">${T('bRep')}</button></div>

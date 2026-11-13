@@ -13,7 +13,7 @@ import {
   anchoredShownPis,
   addPin, setPins, seedPinsFor,
   syncTweak, zeroTweak, compensatedCommand, loopMeasured, loopPieces,
-  measuredSpringback, addAngleDataset, setBoard, angleSummary, applyAngleRec, applyAngleRecRows, angMode, splitReports, applyAngleRecEach, reportsOf, addNominalVariant,
+  measuredSpringback, addAngleDataset, setBoard, angleSummary, applyAngleRec, applyAngleRecRows, angMode, splitReports, applyAngleRecEach, reportsOf, addNominalVariant, addRealVariant, designOf, nominalModel,
   addReport, refModel,
 } from '../state.ts';
 import { angUI, angVals, angleDs, angRepIdx, angSummary, countTyped, draftBoard } from '../panels/angles.ts';
@@ -507,6 +507,19 @@ export function action(a: string): void {
       /* con una pieza a la vista, lo que se crea es la pieza real del REPORTE
          que se mira: mismo tablero que la pieza de la que sale */
       const cur = angleDs(), k = angRepIdx();
+      /* «modelo editable»: la misma pieza real, pero como modelo de Modelar */
+      if (angUI.as === 'model') {
+        const src = (cur && cur.board && ST.variants.find(v => v.id === cur.board!.vid)) || draftBoard();
+        const base = cur ? `${cur.name} · ${k >= 0 ? reportsOf(cur)[k].name : T('angMean')}`
+          : angUI.name || `${T('angDefName')} ${ST.datasets.length + 1}`;
+        const id = addRealVariant(src, `${base} · real`, (cur && designOf(cur)) || nominalModel(), vals);
+        const nv = variantById(id);
+        angUI.note = T('angRealDone').replace('{v}', nv ? nv.name : id);
+        if (!cur) { angUI.draft = []; angUI.name = ''; }
+        predict();
+        renderAll(); rebuildScene(); drawRibbon();
+        return;
+      }
       const nm = cur ? `${cur.name} · ${k >= 0 ? reportsOf(cur)[k].name : T('angMean')}`
         : angUI.name || `${T('angDefName')} ${ST.datasets.length + 1}`;
       const ds = addAngleDataset(nm, vals, cur || undefined);
@@ -524,6 +537,7 @@ export function action(a: string): void {
       angMode.literal = angUI.inMode === 'adj';
       renderPanels(); return;
     case 'gocomp': if (ST.drawer) openDrawer(null); setMode('comp'); return;
+    case 'angas': angUI.as = angUI.as === 'model' ? 'ds' : 'model'; renderPanels(); return;
     case 'angout': angUI.out = angUI.out === 'board' ? 'piece' : 'board'; renderPanels(); return;
     /* «Crear» en modo tablero: la recomendación de lo tecleado (o de lo que se
        mira de la pieza activa) va directa a un tablero compensado nuevo, sin
@@ -564,6 +578,17 @@ export function action(a: string): void {
         const ids = applyAngleRecEach(ds);
         if (!ids.length) { alert(T('noMeas')); return; }
         angUI.note = T('angEachBoardDone').replace('{n}', String(ids.length));
+        predict();
+        renderAll(); rebuildScene(); drawRibbon();
+        return;
+      }
+      if (angUI.as === 'model') {
+        const src = (ds.board && ST.variants.find(v => v.id === ds.board!.vid)) || V();
+        const des = designOf(ds) || nominalModel();
+        const ids = reportsOf(ds).filter(r => r.use)
+          .map(r => addRealVariant(src, `${ds.name} · ${r.name} · real`, des, r.vals)).filter(Boolean);
+        if (!ids.length) { alert(T('noMeas')); return; }
+        angUI.note = T('angEachRealDone').replace('{n}', String(ids.length));
         predict();
         renderAll(); rebuildScene(); drawRibbon();
         return;
