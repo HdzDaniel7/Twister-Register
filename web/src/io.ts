@@ -9,12 +9,35 @@
    que el sistema no dejaba leer —movido, bloqueado por otro programa, un
    permiso denegado— dejaba el contador del lote sin llegar a cero y el
    callback no se llamaba nunca. El lote entero se colgaba sin decir nada.  */
-export function download(name: string, text: string, mime = 'application/json'): void {
+/** Guarda un archivo. Donde el navegador lo permite (Chrome/Edge de escritorio)
+ *  abre el diálogo «Guardar como» para elegir carpeta y nombre; si no existe,
+ *  o falla por otro motivo que no sea cancelar, cae a la descarga normal. */
+type SaveHandle = { createWritable(): Promise<{ write(b: Blob): Promise<void>; close(): Promise<void> }> };
+type Picker = (o: { suggestedName: string; types?: { description: string; accept: Record<string, string[]> }[] }) => Promise<SaveHandle>;
+
+function plainDownload(name: string, blob: Blob): void {
   const a = document.createElement('a');
-  a.href = URL.createObjectURL(new Blob([text], { type: mime }));
+  a.href = URL.createObjectURL(blob);
   a.download = name;
   a.click();
   setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+}
+
+export function download(name: string, text: string, mime = 'application/json'): void {
+  const blob = new Blob([text], { type: mime });
+  const pick = (window as unknown as { showSaveFilePicker?: Picker }).showSaveFilePicker;
+  if (!pick) { plainDownload(name, blob); return; }
+  const ext = /\.[A-Za-z0-9]+$/.exec(name);
+  const opts = { suggestedName: name,
+    types: ext ? [{ description: name, accept: { [mime]: [ext[0]] } }] : undefined };
+  void pick.call(window, opts).then(async h => {
+    const w = await h.createWritable();
+    await w.write(blob);
+    await w.close();
+  }).catch((e: unknown) => {
+    if (e instanceof DOMException && e.name === 'AbortError') return;   /* canceló */
+    plainDownload(name, blob);
+  });
 }
 
 /** Un archivo. `onFail` recibe el nombre y el motivo si no se pudo leer; sin
